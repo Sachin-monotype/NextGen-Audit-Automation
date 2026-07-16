@@ -1,0 +1,42 @@
+{
+    "xCorrelationId": "6c4cb393-f058-4037-91ea-560a65b3f8e8",
+    "eventId": "c383b9c9-961f-4dc6-a213-8160942554d6",
+    "occurredAt": "2026-07-09T07:16:06.872Z",
+    "source": {
+        "service": "user-mgmt-service",
+        "trigger": "B-9",
+        "operation": "weekly_account_expiry_digest"
+    },
+    "actor": {
+        "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
+    },
+    "subject": {
+        "id": [
+            "6453d4ba-192f-4cc7-ab6a-6317edc2b0d0"
+        ],
+        "triggerCode": "B-9",
+        "event": "Weekly Account Expiry Digest",
+        "scheduledAt": "2026-07-09T07:15:00.011Z",
+        "triggeredAt": "2026-07-09T07:15:00.012Z",
+        "workspaceId": "4a949153-9cab-4023-b31c-8336a8a3ec46",
+        "customerId": "4a949153-9cab-4023-b31c-8336a8a3ec46",
+        "workspaceAdmin": {
+            "userId": "b1ff7a78-6899-11f1-a522-0e0a04e472ab",
+            "profileId": "d4ee55cf-6954-11f1-a522-0e0a04e472ab",
+            "name": "workspace admin",
+            "email": "b1ff7a78.workspace@monotype.com"
+        },
+        "expiringUsers": [
+            {
+                "userId": "77e5033c-5508-11f1-a522-0e0a04e472ab",
+                "profileId": "7063f9ff-6884-11f1-a522-0e0a04e472ab",
+                "name": "temp user",
+                "role": "Level 1 User",
+                "expiryDate": "Jul 12, 2026",
+                "customerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
+            }
+        ]
+    },
+    "recipients": [],
+    "routingKey": "user.accounts.digest"
+}

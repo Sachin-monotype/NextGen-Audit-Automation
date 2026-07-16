@@ -1,0 +1,36 @@
+{
+    "xCorrelationId": "3e956876-7005-4f32-aea2-f8b27a10c4d4",
+    "eventId": "ffad981b-1eb5-4d2a-a67d-c7c275db6c33",
+    "occurredAt": "2026-07-09T07:16:06.884Z",
+    "source": {
+        "service": "user-mgmt-service",
+        "trigger": "G-4",
+        "operation": "weekly_account_expiry"
+    },
+    "actor": {
+        "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
+    },
+    "subject": {
+        "id": [
+            "3b86e94e-8a2b-49e2-bac0-26c615f5e5c3"
+        ],
+        "triggerCode": "G-4",
+        "event": "User Account Expiring in 7 Days",
+        "scheduledAt": "2026-07-09T07:15:00.017Z",
+        "triggeredAt": "2026-07-09T07:15:00.017Z",
+        "workspaceId": "4a949153-9cab-4023-b31c-8336a8a3ec46",
+        "customerId": "4a949153-9cab-4023-b31c-8336a8a3ec46",
+        "expiringUsers": [
+            {
+                "userId": "77e5033c-5508-11f1-a522-0e0a04e472ab",
+                "profileId": "7063f9ff-6884-11f1-a522-0e0a04e472ab",
+                "name": "temp user",
+                "role": "Level 1 User",
+                "expiryDate": "Jul 12, 2026",
+                "customerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
+            }
+        ]
+    },
+    "recipients": [],
+    "routingKey": "user.account.expiring"
+}

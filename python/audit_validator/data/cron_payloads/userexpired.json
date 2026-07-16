@@ -1,0 +1,37 @@
+{
+    "xCorrelationId": "scheduler-corr-inv-expired-001",
+    "eventId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "occurredAt": "2026-07-10T03:30:05.123Z",
+    "source": {
+      "service": "user-mgmt-service",
+      "trigger": "B-2",
+      "operation": "user_invitation_expired"
+    },
+    "actor": {
+      "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
+    },
+    "subject": {
+      "id": ["f9e8d7c6-b5a4-3210-fedc-ba9876543210"],
+      "triggerCode": "B-2",
+      "event": "User Invitation Expired",
+      "scheduledAt": "2026-07-10T00:00:00.000Z",
+      "triggeredAt": "2026-07-10T00:00:01.000Z",
+      "workspaceId": "4a949153-9cab-4023-b31c-8336a8a3ec46",
+      "customerId": "4a949153-9cab-4023-b31c-8336a8a3ec46",
+      "expiredInvitations": [
+        {
+          "invitationId": 42,
+          "email": "monotype.staging+thetatest@gmail.com",
+          "status": 1,
+          "createdOn": "2026-06-25T10:00:00.000Z",
+          "roleId": "a5220e0a-63e9-11f1-a522-0e0a04e47210",
+          "teamIds": null,
+          "tempUserExpiryDate": null,
+          "createdBy": "a5220e0a-63e9-11f1-a522-0e0a04e47201",
+          "customerId": "2ac6b45d-faba-4bf6-9470-7892fd334a0c"
+        }
+      ]
+    },
+    "recipients": [],
+    "routingKey": "user.invitation.expired"
+  }

@@ -1,0 +1,26 @@
+{
+    "xCorrelationId": "corr-subscription-expiry-001",
+    "eventId": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+    "eventVersion": 1,
+    "occurredAt": "2026-07-21T12:00:00.000Z",
+    "routingKey": "subscription.contract.expiry ",
+    "actor": {
+      "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
+    },
+    "source": {
+      "type": ["Entitlement"],
+      "service": "license-management-service",
+      "operation": "subscriptionExpiryNotification",
+      "operationState": "success",
+      "platform": "nextGen",
+      "platformEnvironment": "server",
+      "platformVersion": "1.0.0"
+    },
+    "subject": {
+      "id": "a8b7c6d5-e4f3-2109-8765-432109876543",
+      "type": "entitlement",
+      "globalCustomerIds": ["4a949153-9cab-4023-b31c-8336a8a3ec46"],
+      "eventName": "SUBSCRIPTION_EXPIRY_7_DAYS_WARNING",
+      "endDate": "2026-07-28"
+    }
+  }

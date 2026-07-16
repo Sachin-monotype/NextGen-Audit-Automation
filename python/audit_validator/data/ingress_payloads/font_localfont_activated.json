@@ -1,0 +1,46 @@
+{
+  "xCorrelationId": "ead26e0e-590a-4f6d-b2ce-cee821c7d3b1",
+  "eventId": "a68008aa-87c8-40cd-bfb2-ffca44808a07",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-06T05:08:08.6100000Z",
+  "source": {
+    "type": [
+      "App",
+      "Font activation"
+    ],
+    "service": "mtconnect-ui",
+    "operation": "fontLocalfontActivated",
+    "operationIndex": 0,
+    "operationState": "success",
+    "platform": "nextGen",
+    "platformEnvironment": "app",
+    "platformVersion": "1.0.0.0",
+    "actorUserAgent": "MonotypeNextGen/1.0.0.0 Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) MonotypeNextGen/1.0.0 Chrome/144.0.7559.236 Electron/40.10.4 Safari/537.36",
+    "osName": "mac",
+    "osVersion": "26.5.1",
+    "cpuArch": "arm64"
+  },
+  "actor": {
+    "authenticationState": "authenticated",
+    "machineId": "8RMN79NKR5S65MATYXF7V6FCV0EYVGA43G3KX288BFTGTWA3KR2G",
+    "uniqueId": "213A464A4721DAA5C699D7D3",
+    "globalUserId": "d198631f-3f08-11f1-a61d-0eedb5fed28b",
+    "globalCustomerId": "b7122c76-0ef3-4a97-9b7c-192e994f6a04"
+  },
+  "subject": {
+    "type": "fontLocalFamily",
+    "id": [
+      "Peach Club Script"
+    ],
+    "variations": [
+      {
+        "familyId": "Peach Club Script",
+        "md5": "df90579e922170665f613f69c00b268a",
+        "psName": "PeachClubScript"
+      }
+    ],
+    "familyNames": {
+      "Peach Club Script": "Peach Club Script"
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+    "xCorrelationId": "04dff8f6-95c9-4c98-b56c-ed2b485fae6a",
+    "eventId": "b53b0dcf-edca-425c-bb8c-96405ca245a5",
+    "eventVersion": 1,
+    "occurredAt": "2026-07-09T06:31:52.753Z",
+    "routingKey": "byof.font.nolicense",
+    "actor": {
+      "globalUserId": "7df9c93c-706a-11f1-a522-0e0a04e472ab",
+      "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
+    },
+    "source": {
+      "type": [
+        "BYOF",
+        "License"
+      ],
+      "service": "byof-license-service",
+      "operation": "byofFontNoLicense",
+      "operationState": "failure"
+    },
+    "subject": {
+      "id": [
+        "03020c53-e4d7-4a3a-a7c5-d482c34145ee"
+      ],
+      "type": "BYOF Font No License",
+      "contractId": [
+        "03020c53-e4d7-4a3a-a7c5-d482c34145ee"
+      ],
+      "contract": {
+        "styleId": "ignS2BFZ",
+        "companyId": "4a949153-9cab-4023-b31c-8336a8a3ec46",
+        "reservedFor": "7df9c93c-706a-11f1-a522-0e0a04e472ab",
+        "projectId": "0cec3c3c-78c5-453b-a1e5-7a0c13decc33",
+        "contractId": "03020c53-e4d7-4a3a-a7c5-d482c34145ee",
+        "licenceName": "Test project scope",
+        "contractStatus": "ACTIVE",
+        "status": "UNLICENSED",
+        "reason": "MISSING_LICENSE",
+        "trigger": "cron"
+      },
+      "styles": [
+        {
+          "styleId": "ignS2BFZ",
+          "styleName": "Open Sans Italic"
+        }
+      ]
+    }
+  }

@@ -1,0 +1,28 @@
+{
+    "xCorrelationId": "5ef85f49-7e98-456b-9352-3cbeea7d9ee6",
+    "eventId": "3ca635f8-5c1f-4855-bc1a-bde276985e32",
+    "occurredAt": "2026-07-09T06:53:22.247Z",
+    "source": {
+      "service": "mt-login-service",
+      "trigger": "S-2",
+      "operation": "tokenExpiring"
+    },
+    "actor": {
+      "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
+    },
+    "subject": {
+      "id": "1ac8418c-3b9f-4b2a-be30-b8dd1e74e315",
+      "triggerCode": "S-2",
+      "workspaceId": "4a949153-9cab-4023-b31c-8336a8a3ec46",
+      "displayName": "",
+      "expiryDate": "2026-07-10T06:46:13.000Z",
+      "primaryAdminId": "auth0|mock-customer-001",
+      "profileId": "7063f9ff-6884-11f1-a522-0e0a04e472ab",
+      "tokenId": "f1a2b3c4-d5e6-4789-a012-3456789abcd0",
+      "tokenStatus": "ACTIVE",
+      "accountStatus": "ACTIVE",
+      "autoRenew": false
+    },
+    "recipients": [],
+    "routingKey": "server.token.expiring"
+  }

@@ -1,0 +1,373 @@
+{
+  "source_xlsx": "/Users/sachinkoirala/Downloads/Pluign Audit Evnt Payload.xlsx",
+  "total_cases": 29,
+  "cases": [
+    {
+      "case_id": "plugin_panel_opened",
+      "event_name": "plugin.panel.opened",
+      "category": "plugin_events",
+      "operation": "pluginPanelOpened",
+      "service": "Plugin",
+      "file": "plugin_panel_opened.json",
+      "curl_file": "curls/plugin_panel_opened.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_panel_closed",
+      "event_name": "plugin.panel.closed",
+      "category": "plugin_events",
+      "operation": "pluginPanelClosed",
+      "service": "Plugin",
+      "file": "plugin_panel_closed.json",
+      "curl_file": "curls/plugin_panel_closed.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_missing_font_unresolved",
+      "event_name": "plugin.missing_font.unresolved",
+      "category": "plugin_events",
+      "operation": "pluginDocumentOpened",
+      "service": "MonotypeNextGenConnectService",
+      "file": "plugin_missing_font_unresolved.json",
+      "curl_file": "curls/plugin_missing_font_unresolved.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_missing_font_resolved",
+      "event_name": "plugin.missing_font.resolved",
+      "category": "plugin_events",
+      "operation": "pluginDocumentOpened",
+      "service": "MonotypeNextGenConnectService",
+      "file": "plugin_missing_font_resolved.json",
+      "curl_file": "curls/plugin_missing_font_resolved.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_missing_font_detected",
+      "event_name": "plugin.missing_font.detected",
+      "category": "plugin_events",
+      "operation": "pluginDocumentOpened",
+      "service": "MonotypeNextGenConnectService",
+      "file": "plugin_missing_font_detected.json",
+      "curl_file": "curls/plugin_missing_font_detected.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_imported_font_requested",
+      "event_name": "plugin.imported_font.requested",
+      "category": "plugin_events",
+      "operation": "pluginDocumentOpened",
+      "service": "MonotypeNextGenConnectService",
+      "file": "plugin_imported_font_requested.json",
+      "curl_file": "curls/plugin_imported_font_requested.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_font_manually_activated",
+      "event_name": "plugin.font.manually_activated",
+      "category": "plugin_events",
+      "operation": "pluginFontManuallyActivated",
+      "service": "MonotypeNextGenConnectService",
+      "file": "plugin_font_manually_activated.json",
+      "curl_file": "curls/plugin_font_manually_activated.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_font_auto_activated",
+      "event_name": "plugin.font.auto_activated",
+      "category": "plugin_events",
+      "operation": "pluginDocumentOpened",
+      "service": "MonotypeNextGenConnectService",
+      "file": "plugin_font_auto_activated.json",
+      "curl_file": "curls/plugin_font_auto_activated.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_font_conflict_detected",
+      "event_name": "plugin.font_conflict.detected",
+      "category": "plugin_events",
+      "operation": "pluginDocumentOpened",
+      "service": "MonotypeNextGenConnectService",
+      "file": "plugin_font_conflict_detected.json",
+      "curl_file": "curls/plugin_font_conflict_detected.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_document_opened",
+      "event_name": "plugin.document.opened",
+      "category": "plugin_events",
+      "operation": "pluginDocumentOpened",
+      "service": "MonotypeNextGenConnectService",
+      "file": "plugin_document_opened.json",
+      "curl_file": "curls/plugin_document_opened.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "app_settings_temp_font_deactivation_document_quit_updated",
+      "event_name": "app.settings.temp_font_deactivation_document_quit.updated",
+      "category": "desktop_app_preference_page",
+      "duplicate_of": "app_settings_plugin_install_all_enabled",
+      "skipped": true,
+      "reason": "duplicate event in spreadsheet"
+    },
+    {
+      "case_id": "app_settings_temp_font_deactivation_app_quit_updated",
+      "event_name": "app.settings.temp_font_deactivation_app_quit.updated",
+      "category": "desktop_app_preference_page",
+      "duplicate_of": "app_settings_plugin_install_all_enabled",
+      "skipped": true,
+      "reason": "duplicate event in spreadsheet"
+    },
+    {
+      "case_id": "app_settings_plugin_install_all_enabled",
+      "event_name": "app.settings.plugin.install_all.enabled",
+      "category": "desktop_app_preference_page",
+      "operation": "appSettingsPluginInstallAllEnabled",
+      "service": "mtconnect-ui",
+      "file": "app_settings_plugin_install_all_enabled.json",
+      "curl_file": "curls/app_settings_plugin_install_all_enabled.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "app_settings_plugin_install_all_disabled",
+      "event_name": "app.settings.plugin.install_all.disabled",
+      "category": "desktop_app_preference_page",
+      "operation": "appSettingsPluginInstallAllDisabled",
+      "service": "mtconnect-ui",
+      "file": "app_settings_plugin_install_all_disabled.json",
+      "curl_file": "curls/app_settings_plugin_install_all_disabled.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "app_settings_plugin_app_enabled",
+      "event_name": "app.settings.plugin.app.enabled",
+      "category": "desktop_app_preference_page",
+      "operation": "appSettingsPluginAppEnabled",
+      "service": "mtconnect-ui",
+      "file": "app_settings_plugin_app_enabled.json",
+      "curl_file": "curls/app_settings_plugin_app_enabled.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "app_settings_plugin_app_disabled",
+      "event_name": "app.settings.plugin.app.disabled",
+      "category": "desktop_app_preference_page",
+      "duplicate_of": "app_settings_plugin_install_all_enabled",
+      "skipped": true,
+      "reason": "duplicate event in spreadsheet"
+    },
+    {
+      "case_id": "app_settings_plugin_app_app_name_enabled",
+      "event_name": "app.settings.plugin.app.[App_name]_enabled",
+      "category": "desktop_app_preference_page",
+      "operation": "appSettingsPluginInstallAllDisabled",
+      "service": "mtconnect-ui",
+      "file": "app_settings_plugin_app_app_name_enabled.json",
+      "curl_file": "curls/app_settings_plugin_app_app_name_enabled.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "app_settings_performance_mode_changed",
+      "event_name": "app.settings.performance_mode.changed",
+      "category": "desktop_app_preference_page",
+      "operation": "appSettingsPerformanceModeChanged",
+      "service": "mtconnect-ui",
+      "file": "app_settings_performance_mode_changed.json",
+      "curl_file": "curls/app_settings_performance_mode_changed.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "app_settings_auto_performance_max_performance_enabled",
+      "event_name": "app.settings.auto_performance(max performance).enabled",
+      "category": "desktop_app_preference_page",
+      "duplicate_of": "app_settings_plugin_install_all_enabled",
+      "skipped": true,
+      "reason": "duplicate event in spreadsheet"
+    },
+    {
+      "case_id": "app_settings_auto_performance_max_capacity_enabled",
+      "event_name": "app.settings.auto_performance(max capacity).enabled",
+      "category": "desktop_app_preference_page",
+      "duplicate_of": "app_settings_plugin_install_all_enabled",
+      "skipped": true,
+      "reason": "duplicate event in spreadsheet"
+    },
+    {
+      "case_id": "app_settings_auto_performance_balanced_enabled",
+      "event_name": "app.settings.auto_performance(balanced).enabled",
+      "category": "desktop_app_preference_page",
+      "duplicate_of": "app_settings_plugin_install_all_enabled",
+      "skipped": true,
+      "reason": "duplicate event in spreadsheet"
+    },
+    {
+      "case_id": "app_settings_auto_performance_enabled",
+      "event_name": "app.settings.auto_performance.enabled",
+      "category": "desktop_app_preference_page",
+      "operation": "appSettingsAutoPerformanceEnabled",
+      "service": "mtconnect-ui",
+      "file": "app_settings_auto_performance_enabled.json",
+      "curl_file": "curls/app_settings_auto_performance_enabled.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "app_settings_auto_performance_disabled",
+      "event_name": "app.settings.auto_performance.disabled",
+      "category": "desktop_app_preference_page",
+      "operation": "appSettingsAutoPerformanceDisabled",
+      "service": "mtconnect-ui",
+      "file": "app_settings_auto_performance_disabled.json",
+      "curl_file": "curls/app_settings_auto_performance_disabled.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "app_settings_activation_mode_changed",
+      "event_name": "app.settings.activation_mode.changed",
+      "category": "desktop_app_preference_page",
+      "operation": "appSettingsActivationModeChanged",
+      "service": "mtconnect-ui",
+      "file": "app_settings_activation_mode_changed.json",
+      "curl_file": "curls/app_settings_activation_mode_changed.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "app_logs_exported",
+      "event_name": "app.logs.exported",
+      "category": "desktop_app_preference_page",
+      "operation": "appLogsExported",
+      "service": "mtconnect-ui",
+      "file": "app_logs_exported.json",
+      "curl_file": "curls/app_logs_exported.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "app_language_changed",
+      "event_name": "app.language.changed",
+      "category": "desktop_app_preference_page",
+      "operation": "appLanguageChanged",
+      "service": "mtconnect-ui",
+      "file": "app_language_changed.json",
+      "curl_file": "curls/app_language_changed.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "app_feedback_submitted",
+      "event_name": "app.feedback.submitted",
+      "category": "desktop_app_preference_page",
+      "operation": "appFeedbackSubmitted",
+      "service": "mtconnect-ui",
+      "file": "app_feedback_submitted.json",
+      "curl_file": "curls/app_feedback_submitted.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "app_cache_cleared",
+      "event_name": "app.cache.cleared",
+      "category": "desktop_app_preference_page",
+      "operation": "appCacheCleared",
+      "service": "mtconnect-ui",
+      "file": "app_cache_cleared.json",
+      "curl_file": "curls/app_cache_cleared.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "font_activation_type_switched",
+      "event_name": "font.activation.type.switched",
+      "category": "font_activations",
+      "operation": "fontActivationTypeSwitched",
+      "service": "mtconnect-ui",
+      "file": "font_activation_type_switched.json",
+      "curl_file": "curls/font_activation_type_switched.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "font_localfont_activated",
+      "event_name": "font.localfont.activated",
+      "category": "font_activations",
+      "operation": "fontLocalfontActivated",
+      "service": "mtconnect-ui",
+      "file": "font_localfont_activated.json",
+      "curl_file": "curls/font_localfont_activated.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "font_localfont_deactivated",
+      "event_name": "font.localfont.deactivated",
+      "category": "font_activations",
+      "operation": "fontLocalfontDeactivated",
+      "service": "mtconnect-ui",
+      "file": "font_localfont_deactivated.json",
+      "curl_file": "curls/font_localfont_deactivated.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "userloginfailureapp",
+      "event_name": "userLoginFailureApp",
+      "category": "login",
+      "operation": "userLoginFailureApp",
+      "service": "MonotypeNextGenConnectService",
+      "file": "userloginfailureapp.json",
+      "curl_file": "curls/userloginfailureapp.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "userlogoutapp",
+      "event_name": "userLogoutApp",
+      "category": "login",
+      "operation": "userLogoutApp",
+      "service": "MonotypeNextGenConnectService",
+      "file": "userlogoutapp.json",
+      "curl_file": "curls/userlogoutapp.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "userswitchworkspaceapp",
+      "event_name": "userSwitchworkspaceApp",
+      "category": "login",
+      "operation": "userSwitchWorkspaceApp",
+      "service": "MonotypeNextGenConnectService",
+      "file": "userswitchworkspaceapp.json",
+      "curl_file": "curls/userswitchworkspaceapp.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    },
+    {
+      "case_id": "identitylinked",
+      "event_name": "identityLinked",
+      "category": "login",
+      "operation": "identityLinked",
+      "service": "MonotypeNextGenConnectService",
+      "file": "identitylinked.json",
+      "curl_file": "curls/identitylinked.sh",
+      "trigger": "ingress-api",
+      "skipped": false
+    }
+  ]
+}

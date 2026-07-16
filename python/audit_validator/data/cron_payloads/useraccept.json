@@ -1,0 +1,30 @@
+{
+    "xCorrelationId": "a15169ec-0f9e-4d4b-a9d7-33ee98e864ef",
+    "eventId": "c9a5639d-f5f8-4bbb-ba24-599fff999c49",
+    "eventVersion": 1,
+    "occurredAt": "2026-07-10T03:03:52.475Z",
+    "source": {
+      "service": "mt-login-service",
+      "trigger": "B-1",
+      "operation": "userAccountAccepted",
+      "operationState": "success",
+      "platform": "nextGen",
+      "platformEnvironment": "app",
+      "platformVersion": "1.0.0",
+      "operationIndex": 0
+    },
+    "actor": {
+      "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
+    },
+    "subject": {
+      "triggerCode": "B-1",
+      "workspaceId": "4a949153-9cab-4023-b31c-8336a8a3ec46",
+      "customerId": "4a949153-9cab-4023-b31c-8336a8a3ec46",
+      "invitationId": 656731,
+      "email": "monotype.staging+thetatest@gmail.com",
+      "status": 4,
+      "invitedBy": "bf69c1c6-4f61-11f1-a522-0e0a04e472ab"
+    },
+    "recipients": [],
+    "routingKey": "user.invitation.accepted"
+  }

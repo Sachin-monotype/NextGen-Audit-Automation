@@ -1,0 +1,49 @@
+{
+  "actor": {
+    "UMS+CMS+Auth0": "ACTOR: UMS.getProfileById (Sheet2 #9) → actor.enrichedSnapshot.user.profile; UMS.getRoleById (#10) → user.role; UMS.getTeamsByIds (#11) → user.teams[]; CMS.getCustomerById (#13) → actor.enrichedSnapshot.customer; Auth0 M2M token (#19) for profile picture enrichment"
+  },
+  "subject": {
+    "--": "SUBJECT: no external API — raw subject only (no subject.enrichedSnapshot)",
+    "-- (local)": "SUBJECT: built from raw subject fields only (no HTTP probe)",
+    "-- (local IDs)": "SUBJECT: pass-through IDs from raw envelope (no subject.enrichedSnapshot)",
+    "D: styles(familyIds) + variations(familyIds)": "SUBJECT: D.fetchStylesByFamilyIds (#1) + D.fetchVariationsByFamilyIds (#7) → merged → subject.enrichedSnapshot.fontDetails[{family, styles[], variations[]}]",
+    "D: styles(styleIds) + variations(styleIds)": "SUBJECT: D.fetchStylesByIds (#2) + D.fetchVariationsByStyleIds (#5) → subject.enrichedSnapshot.fontDetails",
+    "D: variations(md5s) → styles(derived)": "SUBJECT: D.fetchVariationsByMd5s (#6) → derive styleIds → D.fetchStylesByIds (#2) → subject.enrichedSnapshot.fontDetails",
+    "D: styles+variations": "SUBJECT: D.fetchStylesByIds (#2) + D.fetchVariationsByMd5s (#6) → subject.enrichedSnapshot.fontDetails",
+    "D: variations(variationIds)": "SUBJECT: D.fetchVariationsByMd5s (#6) or style-scoped fetch → subject.enrichedSnapshot.fontDetails",
+    "AMS: project+sharing+rootAncestor; D: styles+variations": "SUBJECT: AMS.getAssetById (#15, projectId) → subject.enrichedSnapshot.asset (name, metadata, accessIds, isShared, rootAncestorAssetId/Type); AMS.getAssetSharingDetails (#16) → sharingInfo[]; D.fetchStylesByFamilyIds/ByIds (#1/#2) + D.fetchVariationsByMd5s (#6) → fontDetails[]",
+    "AMS: project+sharing+rootAncestor": "SUBJECT: AMS.getAssetById (#15) → subject.enrichedSnapshot.asset incl. rootAncestor fields; AMS.getAssetSharingDetails (#16) → sharingInfo[]",
+    "AMS: asset+sharing+rootAncestor; D: styles+variations": "SUBJECT: AMS.getAssetById (#15) → subject.enrichedSnapshot.asset; AMS.getAssetSharingDetails (#16) → sharingInfo[]; D styles+variations → fontDetails[] (when style/family IDs present)",
+    "AMS: asset+sharing; D: styles(list)+variations(md5s)": "SUBJECT: AMS.getAssetById (#15) → asset; AMS.getAssetSharingDetails (#16) → sharingInfo; D.fetchStylesByListIds (#3) + D.fetchVariationsByMd5s (#6) → fontDetails",
+    "UMS: profile+role+teams": "SUBJECT: UMS.getProfileById (#9) → subject.enrichedSnapshot.profile; UMS.getRoleById (#10) → profile.role; UMS.getTeamsByIds (#11) → profile.teams[]",
+    "UMS: getProfilesByIds (optional)": "SUBJECT: UMS.getProfileById (#9) per subject user id → subject.enrichedSnapshot.profiles[] or profile",
+    "UMS: getTeamsByIds": "SUBJECT: UMS.getTeamsByIds (#11) → subject.enrichedSnapshot.team(s)",
+    "UMS: getRoleById": "SUBJECT: UMS.getRoleById (#10) → subject.enrichedSnapshot.role",
+    "UMS: getInvitationById × N": "SUBJECT: UMS.getInvitationById (#12) per invitation id → subject.enrichedSnapshot.invitations[]",
+    "CMS: getCustomerByName": "SUBJECT: CMS.getCustomerByName (#14) → subject.enrichedSnapshot.customer",
+    "BYOF: getContractById; D: styles+variations": "SUBJECT: BYOF.getContractById (#18) → subject.enrichedSnapshot.contract + styles; D.fetchStylesByIds (#2) + D.fetchVariationsByMd5s (#6) → fontDetails",
+    "BYOF+D": "SUBJECT: BYOF.getContractById (#18) + Discovery style/variation fetch → subject.enrichedSnapshot (contract + fontDetails)",
+    "D: fetchPrivateTagsByTagId": "SUBJECT: D.fetchPrivateTagByTagId (#8) → subject.enrichedSnapshot.privateTag(s)"
+  },
+  "api_json_paths": {
+    "fetchStylesByFamilyIds": "subject.enrichedSnapshot.fontDetails[].family.catalog, .foundry",
+    "fetchStylesByIds": "subject.enrichedSnapshot.fontDetails[].styles[].catalog",
+    "fetchStylesByListIds": "subject.enrichedSnapshot.fontDetails[] (list/project scoped)",
+    "fetchStylesByFamilyId": "subject.enrichedSnapshot.fontDetails[].family",
+    "fetchVariationsByStyleIds": "subject.enrichedSnapshot.fontDetails[].styles[].variations[]",
+    "fetchVariationsByMd5s": "subject.enrichedSnapshot.fontDetails[].styles[].variations[].catalog",
+    "fetchVariationsByFamilyIds": "subject.enrichedSnapshot.fontDetails[].styles[].variations[]",
+    "fetchPrivateTagByTagId": "subject.enrichedSnapshot.privateTags[] or .tag",
+    "getProfileById": "actor.enrichedSnapshot.user.profile OR subject.enrichedSnapshot.profile (event-dependent)",
+    "getRoleById": "actor.enrichedSnapshot.user.role OR subject.enrichedSnapshot.role",
+    "getTeamsByIds": "actor.enrichedSnapshot.user.teams[] OR subject.enrichedSnapshot.teams[]",
+    "getInvitationById": "subject.enrichedSnapshot.invitation(s)",
+    "getCustomerById": "actor.enrichedSnapshot.customer",
+    "getCustomerByName": "subject.enrichedSnapshot.customer",
+    "getAssetById": "subject.enrichedSnapshot.asset (id, name, metadata, accessIds, isShared, rootAncestor*)",
+    "getAssetSharingDetails": "subject.enrichedSnapshot.sharingInfo[]",
+    "getAssetsByIdsOnly": "subject.enrichedSnapshot.assets[] (bulk)",
+    "getContractById": "subject.enrichedSnapshot.contract + subject.enrichedSnapshot.styles[]",
+    "getDiscoveryToken (M2M)": "Auth header for Discovery/UMS calls; enriches actor.enrichedSnapshot.user.profile.profilePicture"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "xCorrelationId": "",
+  "eventId": "",
+  "eventVersion": 1,
+  "occurredAt": "",
+  "routingKey": "document.scan.fonts_processed",
+  "source": {
+    "service": "document-scanning-service",
+    "operation": "processUploadSessionFonts",
+    "operationState": "success"
+  },
+  "actor": {
+    "globalUserId": "",
+    "globalCustomerId": ""
+  },
+  "subject": {
+    "type": "uploadSession",
+    "id": ["00000000-0000-0000-0000-000000000005"],
+    "styleIds": ["794981"]
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "xCorrelationId": "0b39f39f-5782-4efa-9d6d-935c96275e11",
+  "eventId": "f40a5daa-18fb-4363-99a9-7dba42d45bc9",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-03T12:28:43.0505170Z",
+  "source": {
+    "type": [
+      "App",
+      "Feedback"
+    ],
+    "service": "mtconnect-ui",
+    "operation": "appFeedbackSubmitted",
+    "operationIndex": 0,
+    "operationState": "success",
+    "platform": "nextGen",
+    "platformEnvironment": "app",
+    "platformVersion": "1.0.0.0",
+    "actorUserAgent": "MonotypeNextGen/1.0.0.0",
+    "osName": "mac",
+    "osVersion": "26.5.1",
+    "cpuArch": "arm64"
+  },
+  "actor": {
+    "authenticationState": "authenticated",
+    "machineId": "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60",
+    "uniqueId": "AED633E846F09CDA06EAFBDC",
+    "globalUserId": "293ba856-5a89-11f1-a522-0e0a04e472ab",
+    "globalCustomerId": "d677fdca-5424-43a6-875f-b390b59231bf"
+  },
+  "subject": {
+    "type": "machine",
+    "id": [
+      "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60"
+    ]
+  }
+}

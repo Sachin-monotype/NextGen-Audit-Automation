@@ -1,0 +1,37 @@
+{
+  "xCorrelationId": "",
+  "eventId": "",
+  "eventVersion": 1,
+  "occurredAt": "",
+  "routingKey": "font.production.bulk_request_marked",
+  "source": {
+    "service": "mtconnect-api",
+    "operation": "bulkMarkAsProductionFontsRequest",
+    "operationState": "success"
+  },
+  "actor": {
+    "globalUserId": "",
+    "globalCustomerId": ""
+  },
+  "subject": {
+    "type": "productionFont",
+    "id": ["794981"],
+    "metadata": {
+      "input": {
+        "sourceContext": "COMPANY_LIBRARY",
+        "requests": [
+          {
+            "styleId": "794981",
+            "styleName": "Automation Style",
+            "productionFontDateRange": {
+              "startDate": "2026-01-01",
+              "endDate": "2026-12-31"
+            },
+            "comment": "QA audit automation",
+            "projectId": ""
+          }
+        ]
+      }
+    }
+  }
+}

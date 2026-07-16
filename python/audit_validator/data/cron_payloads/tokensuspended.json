@@ -1,0 +1,28 @@
+{
+    "xCorrelationId": "5ef85f49-7e98-456b-9352-3cbeea7d9ee6",
+    "eventId": "92c8ecbd-0584-41a3-8b1c-d0413ae09749",
+    "occurredAt": "2026-07-09T06:54:34.005Z",
+    "source": {
+        "service": "mt-login-service",
+        "trigger": "S-5",
+        "operation": "tokenExpiringSuspended"
+    },
+    "actor": {
+        "globalCustomerId": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+    },
+    "subject": {
+        "id": "7186606f-c78e-4aff-932a-56ef36b7f187",
+        "triggerCode": "S-5",
+        "workspaceId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+        "displayName": "",
+        "expiryDate": "2026-07-15T06:46:13.000Z",
+        "primaryAdminId": "auth0|test-user-003",
+        "profileId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+        "tokenId": "c3c4c5c6-d7d8-4901-b234-567890abcdef",
+        "tokenStatus": "SUSPENDED",
+        "accountStatus": "SUSPENDED",
+        "autoRenew": false
+    },
+    "recipients": [],
+    "routingKey": "server.token.expiring.suspended"
+}

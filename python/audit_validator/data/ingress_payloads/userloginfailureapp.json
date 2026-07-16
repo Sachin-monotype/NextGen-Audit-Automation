@@ -1,0 +1,42 @@
+{
+  "xCorrelationId": "6dbd2806-08e0-45c1-8af4-7b5b2eda6619",
+  "eventId": "bb4e6061-6fbd-4389-8508-42ea7ed2342c",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-03T09:01:36.1937200Z",
+  "source": {
+    "type": [
+      "App",
+      "Logout"
+    ],
+    "service": "MonotypeNextGenConnectService",
+    "operation": "userLoginFailureApp",
+    "operationIndex": 0,
+    "operationState": "failure",
+    "platform": "nextGen",
+    "platformEnvironment": "app",
+    "platformVersion": "1.0.0.0",
+    "actorUserAgent": "MonotypeNextGen/1.0.0.0",
+    "osName": "mac",
+    "osVersion": "26.0.1",
+    "cpuArch": "arm64"
+  },
+  "actor": {
+    "authenticationState": "authenticated",
+    "machineId": "NAGE9RJQC01935J0RWH9TYR5FWFTDZNZE261RK2WCQMQ5YY2ASNG",
+    "uniqueId": "5F18EDBACB3D0675A97A77FC",
+    "globalUserId": "b9fd96d1-2290-11f1-8e3d-0e220b57740d",
+    "globalCustomerId": "774db569-87e8-40af-9952-b2506663258c"
+  },
+  "subject": {
+    "type": "machine",
+    "id": [
+      "NAGE9RJQC01935J0RWH9TYR5FWFTDZNZE261RK2WCQMQ5YY2ASNG"
+    ],
+    "logoutReason": "LogoutStarted"
+  },
+  "error": {
+    "code": "CancelledByUser",
+    "classification": "client",
+    "message": "Login cancelled by user"
+  }
+}

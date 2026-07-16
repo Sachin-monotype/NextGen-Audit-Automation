@@ -1,0 +1,38 @@
+{
+  "xCorrelationId": "496e227c-ac07-4308-8a2d-6aec74e7710e",
+  "eventId": "5093e8df-89af-478d-8f55-377dbbf4bd89",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-03T09:00:41.6975070Z",
+  "source": {
+    "type": [
+      "App",
+      "Workspace setting"
+    ],
+    "service": "MonotypeNextGenConnectService",
+    "operation": "userSwitchWorkspaceApp",
+    "operationIndex": 0,
+    "operationState": "success",
+    "platform": "nextGen",
+    "platformEnvironment": "app",
+    "platformVersion": "1.0.0.0",
+    "actorUserAgent": "MonotypeNextGen/1.0.0.0",
+    "osName": "mac",
+    "osVersion": "26.0.1",
+    "cpuArch": "arm64"
+  },
+  "actor": {
+    "authenticationState": "authenticated",
+    "machineId": "NAGE9RJQC01935J0RWH9TYR5FWFTDZNZE261RK2WCQMQ5YY2ASNG",
+    "uniqueId": "5F18EDBACB3D0675A97A77FC",
+    "globalUserId": "b9fd96d1-2290-11f1-8e3d-0e220b57740d",
+    "globalCustomerId": "774db569-87e8-40af-9952-b2506663258c"
+  },
+  "subject": {
+    "type": "machine",
+    "id": [
+      "NAGE9RJQC01935J0RWH9TYR5FWFTDZNZE261RK2WCQMQ5YY2ASNG"
+    ],
+    "sourceWorkspaceId": "fad2d24a-2290-11f1-8e3d-0e220b57740d",
+    "targetWorkspaceId": "b9fd96d1-2290-11f1-8e3d-0e220b57740d"
+  }
+}

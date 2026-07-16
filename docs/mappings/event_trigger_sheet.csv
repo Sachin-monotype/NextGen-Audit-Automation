@@ -1,0 +1,1012 @@
+Event,TouchPoint,unique_input_json,diff_keys_vs_global,step 1 op,step 2 op,step 3 op,step 4 op,step 5 op,flow
+activateFamily,Discovery/Browse (global),"{
+  ""familyIds"": [
+    ""910130168""
+  ],
+  ""activationType"": ""PERMANENT""
+}","[""activationType"", ""familyIds""]",activateFamily,,,,,activateFamily
+activateFamily,List (FONTLIST),"{
+  ""familyIds"": [
+    ""910130168""
+  ],
+  ""activationType"": ""PERMANENT"",
+  ""listIds"": [
+    ""210ad1c8-b742-49e4-9074-4be65d4be610""
+  ],
+  ""listType"": ""FONTLIST""
+}","[""activationType"", ""familyIds"", ""listIds"", ""listType""]",createAsset,addFontListFamilies,activateFamily,,,createAsset → addFontListFamilies → activateFamily
+activateFamily,Favourite,"{
+  ""familyIds"": [
+    ""910130168""
+  ],
+  ""activationType"": ""PERMANENT"",
+  ""listType"": ""FAVORITE""
+}","[""activationType"", ""familyIds"", ""listType""]",addFavoriteFamilies,activateFamily,,,,addFavoriteFamilies → activateFamily
+activateFamily,Project,"{
+  ""familyIds"": [
+    ""910130168""
+  ],
+  ""activationType"": ""PERMANENT"",
+  ""listIds"": [
+    ""project_c2a7788f-e731-4f65-8cc6-1db42ff41138""
+  ],
+  ""listType"": ""FONTPROJECT"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}","[""activationType"", ""familyIds"", ""listIds"", ""listType"", ""projectId""]",createProject,addFontProjectFamilies,activateFamily,,,createProject → addFontProjectFamilies → activateFamily
+activateFamily,Project > List,"{
+  ""familyIds"": [
+    ""910130168""
+  ],
+  ""activationType"": ""PERMANENT"",
+  ""listIds"": [
+    ""210ad1c8-b742-49e4-9074-4be65d4be610""
+  ],
+  ""listType"": ""FONTLIST"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}","[""activationType"", ""familyIds"", ""listIds"", ""listType"", ""projectId""]",createProject,addFontProjectFamilies,createAsset,addFontListFamilies,activateFamily,createProject → addFontProjectFamilies → createAsset → addFontListFamilies → activateFamily
+activateFontProject,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138"",
+  ""activationType"": ""PERMANENT""
+}","[""activationType"", ""projectId""]",createProject,addFontProjectFamilies,activateFontProject,,,createProject → addFontProjectFamilies → activateFontProject
+activateList,List (FONTLIST),"{
+  ""listId"": ""210ad1c8-b742-49e4-9074-4be65d4be610"",
+  ""listType"": ""FONTLIST"",
+  ""activationType"": ""PERMANENT""
+}","[""activationType"", ""listId"", ""listType""]",createAsset,addFontListFamilies,activateList,,,createAsset → addFontListFamilies → activateList
+activateList,Favourite,"{
+  ""listType"": ""FAVORITE"",
+  ""activationType"": ""PERMANENT""
+}","[""activationType"", ""listType""]",addFavoriteFamilies,activateList,,,,addFavoriteFamilies → activateList
+activateList,Project > List,"{
+  ""listId"": ""210ad1c8-b742-49e4-9074-4be65d4be610"",
+  ""listType"": ""FONTLIST"",
+  ""activationType"": ""PERMANENT"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}","[""activationType"", ""listId"", ""listType"", ""projectId""]",createProject,createAsset,addFontListFamilies,activateList,,createProject → createAsset → addFontListFamilies → activateList
+activateStyle,Discovery/Browse (global),"{
+  ""activationType"": ""PERMANENT"",
+  ""styleIds"": [
+    ""920374778""
+  ]
+}","[""activationType"", ""styleIds""]",activateStyle,,,,,activateStyle
+activateStyle,List (FONTLIST),"{
+  ""activationType"": ""PERMANENT"",
+  ""listIds"": [
+    ""210ad1c8-b742-49e4-9074-4be65d4be610""
+  ],
+  ""listType"": ""FONTLIST"",
+  ""styleIds"": [
+    ""920374778""
+  ]
+}","[""activationType"", ""listIds"", ""listType"", ""styleIds""]",createAsset,addFontListStyles,activateStyle,,,createAsset → addFontListStyles → activateStyle
+activateStyle,Favourite,"{
+  ""activationType"": ""PERMANENT"",
+  ""listType"": ""FAVORITE"",
+  ""styleIds"": [
+    ""920374778""
+  ]
+}","[""activationType"", ""listType"", ""styleIds""]",addFavoriteStyles,activateStyle,,,,addFavoriteStyles → activateStyle
+activateStyle,Project,"{
+  ""activationType"": ""PERMANENT"",
+  ""listIds"": [
+    ""project_c2a7788f-e731-4f65-8cc6-1db42ff41138""
+  ],
+  ""listType"": ""FONTPROJECT"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138"",
+  ""styleIds"": [
+    ""920374778""
+  ]
+}","[""activationType"", ""listIds"", ""listType"", ""projectId"", ""styleIds""]",createProject,addFontProjectStyles,activateStyle,,,createProject → addFontProjectStyles → activateStyle
+activateStyle,Project > List,"{
+  ""activationType"": ""PERMANENT"",
+  ""listIds"": [
+    ""210ad1c8-b742-49e4-9074-4be65d4be610""
+  ],
+  ""listType"": ""FONTLIST"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138"",
+  ""styleIds"": [
+    ""920374778""
+  ]
+}","[""activationType"", ""listIds"", ""listType"", ""projectId"", ""styleIds""]",createProject,createAsset,addFontListStyles,activateStyle,,createProject → createAsset → addFontListStyles → activateStyle
+activateVariation,Discovery/Browse (global),"{
+  ""activationType"": ""PERMANENT"",
+  ""variations"": [
+    {
+      ""styleId"": ""920374778"",
+      ""md5"": ""b783215634650cf0a55e0d723123d5e0""
+    }
+  ]
+}","[""activationType"", ""variations""]",activateVariation,,,,,activateVariation
+activateVariation,List (FONTLIST),"{
+  ""activationType"": ""PERMANENT"",
+  ""listIds"": [
+    ""210ad1c8-b742-49e4-9074-4be65d4be610""
+  ],
+  ""listType"": ""FONTLIST"",
+  ""variations"": [
+    {
+      ""styleId"": ""920374778"",
+      ""md5"": ""b783215634650cf0a55e0d723123d5e0""
+    }
+  ]
+}","[""activationType"", ""listIds"", ""listType"", ""variations""]",createAsset,addFontListStyles,activateVariation,,,createAsset → addFontListStyles → activateVariation
+activateVariation,Favourite,"{
+  ""activationType"": ""PERMANENT"",
+  ""listType"": ""FAVORITE"",
+  ""variations"": [
+    {
+      ""styleId"": ""920374778"",
+      ""md5"": ""b783215634650cf0a55e0d723123d5e0""
+    }
+  ]
+}","[""activationType"", ""listType"", ""variations""]",addFavoriteStyles,activateVariation,,,,addFavoriteStyles → activateVariation
+activateVariation,Project,"{
+  ""activationType"": ""PERMANENT"",
+  ""listIds"": [
+    ""project_c2a7788f-e731-4f65-8cc6-1db42ff41138""
+  ],
+  ""listType"": ""FONTPROJECT"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138"",
+  ""variations"": [
+    {
+      ""styleId"": ""920374778"",
+      ""md5"": ""b783215634650cf0a55e0d723123d5e0""
+    }
+  ]
+}","[""activationType"", ""listIds"", ""listType"", ""projectId"", ""variations""]",createProject,addFontProjectStyles,activateVariation,,,createProject → addFontProjectStyles → activateVariation
+activateVariation,Project > List,"{
+  ""activationType"": ""PERMANENT"",
+  ""listIds"": [
+    ""210ad1c8-b742-49e4-9074-4be65d4be610""
+  ],
+  ""listType"": ""FONTLIST"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138"",
+  ""variations"": [
+    {
+      ""styleId"": ""920374778"",
+      ""md5"": ""b783215634650cf0a55e0d723123d5e0""
+    }
+  ]
+}","[""activationType"", ""listIds"", ""listType"", ""projectId"", ""variations""]",createProject,createAsset,addFontListStyles,activateVariation,,createProject → createAsset → addFontListStyles → activateVariation
+addFavoriteFamilies,Discovery/Browse (global),"{
+  ""familyIds"": [
+    ""910130168""
+  ]
+}",global (no list/project/document scope),addFavoriteFamilies,,,,,addFavoriteFamilies
+addFavoritePair,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),addFavoritePair,,,,,addFavoritePair
+addFavoriteStyles,Discovery/Browse (global),"{
+  ""styleIds"": [
+    ""920374778""
+  ]
+}",global (no list/project/document scope),addFavoriteStyles,,,,,addFavoriteStyles
+addFontListFamilies,List (FONTLIST),"{
+  ""fontListId"": ""210ad1c8-b742-49e4-9074-4be65d4be610"",
+  ""families"": {
+    ""familyIds"": [
+      ""910130168""
+    ]
+  }
+}","[""families"", ""fontListId""]",createAsset,addFontListFamilies,,,,createAsset → addFontListFamilies
+addFontListFamilies,Project > List,"{
+  ""fontListId"": ""210ad1c8-b742-49e4-9074-4be65d4be610"",
+  ""families"": {
+    ""familyIds"": [
+      ""910130168""
+    ]
+  },
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}","[""families"", ""fontListId"", ""projectId""]",createProject,createAsset,addFontListFamilies,,,createProject → createAsset → addFontListFamilies
+addFontListStyles,List (FONTLIST),"{
+  ""fontListId"": ""210ad1c8-b742-49e4-9074-4be65d4be610"",
+  ""styles"": [
+    {
+      ""styleId"": ""920374778""
+    }
+  ]
+}","[""fontListId"", ""styles""]",createAsset,addFontListStyles,,,,createAsset → addFontListStyles
+addFontListStyles,Project > List,"{
+  ""fontListId"": ""210ad1c8-b742-49e4-9074-4be65d4be610"",
+  ""styles"": [
+    {
+      ""styleId"": ""920374778""
+    }
+  ],
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}","[""fontListId"", ""projectId"", ""styles""]",createProject,createAsset,addFontListStyles,,,createProject → createAsset → addFontListStyles
+addFontProjectFamilies,Project,"{
+  ""fontProjectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138"",
+  ""families"": {
+    ""familyIds"": [
+      ""910130168""
+    ]
+  }
+}","[""families"", ""fontProjectId""]",createProject,addFontProjectFamilies,,,,createProject → addFontProjectFamilies
+addFontProjectStyles,Project,"{
+  ""fontProjectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138"",
+  ""styles"": [
+    {
+      ""styleId"": ""920374778""
+    }
+  ]
+}",projectId,createProject,addFontProjectStyles,,,,createProject → addFontProjectStyles
+addStyleComment,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),addStyleComment,,,,,addStyleComment
+addStyleComment,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,addStyleComment,,,,createProject → addStyleComment
+addStyleDocument,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),addStyleDocument,,,,,addStyleDocument
+addStyleDocument,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,addStyleDocument,,,,createProject → addStyleDocument
+addStylesToWebProject,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,addStylesToWebProject,,,,createProject → addStylesToWebProject
+applyUnsubscribe,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),applyUnsubscribe,,,,,applyUnsubscribe
+approveFontAccess,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),approveFontAccess,,,,,approveFontAccess
+bulkActivateLists,List (FONTLIST),"{
+  ""lists"": [
+    {
+      ""id"": ""210ad1c8-b742-49e4-9074-4be65d4be610""
+    }
+  ],
+  ""activationType"": ""PERMANENT""
+}","[""activationType"", ""lists""]",createAsset,bulkActivateLists,,,,createAsset → bulkActivateLists
+bulkActivateLists,Project,"{
+  ""lists"": [
+    {
+      ""id"": ""210ad1c8-b742-49e4-9074-4be65d4be610""
+    }
+  ],
+  ""activationType"": ""PERMANENT"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}","[""activationType"", ""lists"", ""projectId""]",createProject,createAsset,bulkActivateLists,,,createProject → createAsset → bulkActivateLists
+bulkActivateStyles,Discovery/Browse (global),"{
+  ""styles"": [
+    {
+      ""id"": ""920374778""
+    }
+  ],
+  ""activationType"": ""PERMANENT""
+}","[""activationType"", ""styles""]",bulkActivateStyles,,,,,bulkActivateStyles
+bulkActivateStyles,Project,"{
+  ""styles"": [
+    {
+      ""id"": ""920374778""
+    }
+  ],
+  ""activationType"": ""PERMANENT"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}","[""activationType"", ""projectId"", ""styles""]",createProject,bulkActivateStyles,,,,createProject → bulkActivateStyles
+bulkAddPairsToFavorite,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),bulkAddPairsToFavorite,,,,,bulkAddPairsToFavorite
+bulkAddStylesToFavourites,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),bulkAddStylesToFavourites,,,,,bulkAddStylesToFavourites
+bulkAddStylesToList,List (FONTLIST),"{
+  ""listId"": ""210ad1c8-b742-49e4-9074-4be65d4be610""
+}",listId,createAsset,bulkAddStylesToList,,,,createAsset → bulkAddStylesToList
+bulkCopyAssets,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),bulkCopyAssets,,,,,bulkCopyAssets
+bulkDeactivateLists,List (FONTLIST),"{
+  ""lists"": [
+    {
+      ""id"": ""210ad1c8-b742-49e4-9074-4be65d4be610""
+    }
+  ],
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""lists""]",createAsset,bulkDeactivateLists,,,,createAsset → bulkDeactivateLists
+bulkDeactivateLists,Project,"{
+  ""lists"": [
+    {
+      ""id"": ""210ad1c8-b742-49e4-9074-4be65d4be610""
+    }
+  ],
+  ""deactivationType"": ""PERMANENT"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}","[""deactivationType"", ""lists"", ""projectId""]",createProject,createAsset,bulkDeactivateLists,,,createProject → createAsset → bulkDeactivateLists
+bulkDeactivateStyles,Discovery/Browse (global),"{
+  ""styles"": [
+    {
+      ""id"": ""920374778""
+    }
+  ],
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""styles""]",bulkDeactivateStyles,,,,,bulkDeactivateStyles
+bulkDeactivateStyles,Project,"{
+  ""styles"": [
+    {
+      ""id"": ""920374778""
+    }
+  ],
+  ""deactivationType"": ""PERMANENT"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}","[""deactivationType"", ""projectId"", ""styles""]",createProject,bulkDeactivateStyles,,,,createProject → bulkDeactivateStyles
+bulkMarkAsProductionFontsRequest,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),bulkMarkAsProductionFontsRequest,,,,,bulkMarkAsProductionFontsRequest
+bulkMoveAssets,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),bulkMoveAssets,,,,,bulkMoveAssets
+bulkNotificationAction,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),bulkNotificationAction,,,,,bulkNotificationAction
+bulkRemovePairsFromFavorite,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),bulkRemovePairsFromFavorite,,,,,bulkRemovePairsFromFavorite
+bulkRemoveStylesFromFavourites,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),bulkRemoveStylesFromFavourites,,,,,bulkRemoveStylesFromFavourites
+bulkRemoveStylesFromList,List (FONTLIST),"{
+  ""listId"": ""210ad1c8-b742-49e4-9074-4be65d4be610""
+}",listId,createAsset,bulkRemoveStylesFromList,,,,createAsset → bulkRemoveStylesFromList
+bulkTagStyles,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),bulkTagStyles,,,,,bulkTagStyles
+bulkUnmarkProductionFont,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),bulkUnmarkProductionFont,,,,,bulkUnmarkProductionFont
+bulkUntagStyles,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),bulkUntagStyles,,,,,bulkUntagStyles
+bulkUpdatePreferences,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),bulkUpdatePreferences,,,,,bulkUpdatePreferences
+bulkUpdateProfiles,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),bulkUpdateProfiles,,,,,bulkUpdateProfiles
+cancelBatch,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),cancelBatch,,,,,cancelBatch
+completeUploadSession,Document,"{
+  ""documentId"": ""{{DOCUMENT_ID}}""
+}",documentId,completeUploadSession,,,,,completeUploadSession
+createAsset,Discovery/Browse (global),"{
+  ""name"": ""QA_TouchPoint_List_1784123062"",
+  ""assetType"": ""FontList"",
+  ""accessRight"": ""FullAccess""
+}",global (no list/project/document scope),createAsset,,,,,createAsset
+createAssetAttachmentUpload,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),createAssetAttachmentUpload,,,,,createAssetAttachmentUpload
+createBYOFBatchAndCheckDuplicates,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),createBYOFBatchAndCheckDuplicates,,,,,createBYOFBatchAndCheckDuplicates
+createCompanyLogoUploadUrl,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),createCompanyLogoUploadUrl,,,,,createCompanyLogoUploadUrl
+createContract,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),createContract,,,,,createContract
+createContract,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,createContract,,,,createProject → createContract
+createCustomer,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),createCustomer,,,,,createCustomer
+createPrivateTags,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),createPrivateTags,,,,,createPrivateTags
+createProject,Project,"{
+  ""name"": ""QA_TouchPoint_Project_1784123062"",
+  ""description"": ""QA TouchPoint sheet seed project"",
+  ""allowFontAdditionsByCollaborators"": false,
+  ""allowFontDownloadsByCollaborators"": false,
+  ""allowFontImportsByCollaborators"": false,
+  ""enableProjectLevelImportedFonts"": false,
+  ""autoActivateFontsForMembers"": false
+}",projectId,createProject,createProject,,,,createProject → createProject
+createRole,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),createRole,,,,,createRole
+createServiceAccount,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),createServiceAccount,,,,,createServiceAccount
+createSsoMapping,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),createSsoMapping,,,,,createSsoMapping
+createStyleDocumentsUploadUrl,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),createStyleDocumentsUploadUrl,,,,,createStyleDocumentsUploadUrl
+createStyleDocumentsUploadUrl,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,createStyleDocumentsUploadUrl,,,,createProject → createStyleDocumentsUploadUrl
+createTeam,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),createTeam,,,,,createTeam
+createUploadSession,Document,"{
+  ""documentId"": ""{{DOCUMENT_ID}}""
+}",documentId,createUploadSession,,,,,createUploadSession
+createUserInvitations,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),createUserInvitations,,,,,createUserInvitations
+createWebProject,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,createWebProject,,,,createProject → createWebProject
+deActivateFontProject,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138"",
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""projectId""]",createProject,addFontProjectFamilies,deActivateFontProject,,,createProject → addFontProjectFamilies → deActivateFontProject
+deActivateList,List (FONTLIST),"{
+  ""listId"": ""210ad1c8-b742-49e4-9074-4be65d4be610"",
+  ""listType"": ""FONTLIST"",
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""listId"", ""listType""]",createAsset,addFontListFamilies,deActivateList,,,createAsset → addFontListFamilies → deActivateList
+deActivateList,Favourite,"{
+  ""listType"": ""FAVORITE"",
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""listType""]",addFavoriteFamilies,deActivateList,,,,addFavoriteFamilies → deActivateList
+deActivateList,Project > List,"{
+  ""listId"": ""210ad1c8-b742-49e4-9074-4be65d4be610"",
+  ""listType"": ""FONTLIST"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138"",
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""listId"", ""listType"", ""projectId""]",createProject,createAsset,addFontListFamilies,deActivateList,,createProject → createAsset → addFontListFamilies → deActivateList
+deactivateFamilies,Discovery/Browse (global),"{
+  ""familyIds"": [
+    ""910130168""
+  ],
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""familyIds""]",deactivateFamilies,,,,,deactivateFamilies
+deactivateFamilies,List (FONTLIST),"{
+  ""familyIds"": [
+    ""910130168""
+  ],
+  ""listIds"": [
+    ""210ad1c8-b742-49e4-9074-4be65d4be610""
+  ],
+  ""listType"": ""FONTLIST"",
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""familyIds"", ""listIds"", ""listType""]",createAsset,addFontListFamilies,deactivateFamilies,,,createAsset → addFontListFamilies → deactivateFamilies
+deactivateFamilies,Favourite,"{
+  ""familyIds"": [
+    ""910130168""
+  ],
+  ""listType"": ""FAVORITE"",
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""familyIds"", ""listType""]",addFavoriteFamilies,deactivateFamilies,,,,addFavoriteFamilies → deactivateFamilies
+deactivateFamilies,Project,"{
+  ""familyIds"": [
+    ""910130168""
+  ],
+  ""listIds"": [
+    ""project_c2a7788f-e731-4f65-8cc6-1db42ff41138""
+  ],
+  ""listType"": ""FONTPROJECT"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138"",
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""familyIds"", ""listIds"", ""listType"", ""projectId""]",createProject,addFontProjectFamilies,deactivateFamilies,,,createProject → addFontProjectFamilies → deactivateFamilies
+deactivateFamilies,Project > List,"{
+  ""familyIds"": [
+    ""910130168""
+  ],
+  ""listIds"": [
+    ""210ad1c8-b742-49e4-9074-4be65d4be610""
+  ],
+  ""listType"": ""FONTLIST"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138"",
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""familyIds"", ""listIds"", ""listType"", ""projectId""]",createProject,createAsset,addFontListFamilies,deactivateFamilies,,createProject → createAsset → addFontListFamilies → deactivateFamilies
+deactivateStyle,Discovery/Browse (global),"{
+  ""styleIds"": [
+    ""920374778""
+  ],
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""styleIds""]",deactivateStyle,,,,,deactivateStyle
+deactivateStyle,List (FONTLIST),"{
+  ""listIds"": [
+    ""210ad1c8-b742-49e4-9074-4be65d4be610""
+  ],
+  ""listType"": ""FONTLIST"",
+  ""styleIds"": [
+    ""920374778""
+  ],
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""listIds"", ""listType"", ""styleIds""]",createAsset,addFontListStyles,deactivateStyle,,,createAsset → addFontListStyles → deactivateStyle
+deactivateStyle,Favourite,"{
+  ""listType"": ""FAVORITE"",
+  ""styleIds"": [
+    ""920374778""
+  ],
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""listType"", ""styleIds""]",addFavoriteStyles,deactivateStyle,,,,addFavoriteStyles → deactivateStyle
+deactivateStyle,Project,"{
+  ""listIds"": [
+    ""project_c2a7788f-e731-4f65-8cc6-1db42ff41138""
+  ],
+  ""listType"": ""FONTPROJECT"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138"",
+  ""styleIds"": [
+    ""920374778""
+  ],
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""listIds"", ""listType"", ""projectId"", ""styleIds""]",createProject,addFontProjectStyles,deactivateStyle,,,createProject → addFontProjectStyles → deactivateStyle
+deactivateStyle,Project > List,"{
+  ""listIds"": [
+    ""210ad1c8-b742-49e4-9074-4be65d4be610""
+  ],
+  ""listType"": ""FONTLIST"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138"",
+  ""styleIds"": [
+    ""920374778""
+  ],
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""listIds"", ""listType"", ""projectId"", ""styleIds""]",createProject,createAsset,addFontListStyles,deactivateStyle,,createProject → createAsset → addFontListStyles → deactivateStyle
+deactivateVariation,Discovery/Browse (global),"{
+  ""md5s"": [
+    ""b783215634650cf0a55e0d723123d5e0""
+  ],
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""md5s""]",deactivateVariation,,,,,deactivateVariation
+deactivateVariation,List (FONTLIST),"{
+  ""listIds"": [
+    ""210ad1c8-b742-49e4-9074-4be65d4be610""
+  ],
+  ""listType"": ""FONTLIST"",
+  ""md5s"": [
+    ""b783215634650cf0a55e0d723123d5e0""
+  ],
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""listIds"", ""listType"", ""md5s""]",createAsset,addFontListStyles,deactivateVariation,,,createAsset → addFontListStyles → deactivateVariation
+deactivateVariation,Favourite,"{
+  ""listType"": ""FAVORITE"",
+  ""md5s"": [
+    ""b783215634650cf0a55e0d723123d5e0""
+  ],
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""listType"", ""md5s""]",addFavoriteStyles,deactivateVariation,,,,addFavoriteStyles → deactivateVariation
+deactivateVariation,Project,"{
+  ""listIds"": [
+    ""project_c2a7788f-e731-4f65-8cc6-1db42ff41138""
+  ],
+  ""listType"": ""FONTPROJECT"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138"",
+  ""md5s"": [
+    ""b783215634650cf0a55e0d723123d5e0""
+  ],
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""listIds"", ""listType"", ""md5s"", ""projectId""]",createProject,addFontProjectStyles,deactivateVariation,,,createProject → addFontProjectStyles → deactivateVariation
+deactivateVariation,Project > List,"{
+  ""listIds"": [
+    ""210ad1c8-b742-49e4-9074-4be65d4be610""
+  ],
+  ""listType"": ""FONTLIST"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138"",
+  ""md5s"": [
+    ""b783215634650cf0a55e0d723123d5e0""
+  ],
+  ""deactivationType"": ""PERMANENT""
+}","[""deactivationType"", ""listIds"", ""listType"", ""md5s"", ""projectId""]",createProject,createAsset,addFontListStyles,deactivateVariation,,createProject → createAsset → addFontListStyles → deactivateVariation
+deleteAllPrivateTags,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),deleteAllPrivateTags,,,,,deleteAllPrivateTags
+deleteAssetAttachment,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),deleteAssetAttachment,,,,,deleteAssetAttachment
+deleteAssets,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),deleteAssets,,,,,deleteAssets
+deleteCompanyLogo,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),deleteCompanyLogo,,,,,deleteCompanyLogo
+deleteContracts,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),deleteContracts,,,,,deleteContracts
+deleteImportedFonts,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),deleteImportedFonts,,,,,deleteImportedFonts
+deletePrivateTags,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),deletePrivateTags,,,,,deletePrivateTags
+deleteProfiles,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),deleteProfiles,,,,,deleteProfiles
+deleteProject,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,deleteProject,,,,createProject → deleteProject
+deleteRoles,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),deleteRoles,,,,,deleteRoles
+deleteServiceAccount,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),deleteServiceAccount,,,,,deleteServiceAccount
+deleteSsoMappings,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),deleteSsoMappings,,,,,deleteSsoMappings
+deleteStyleComment,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),deleteStyleComment,,,,,deleteStyleComment
+deleteStyleComment,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,deleteStyleComment,,,,createProject → deleteStyleComment
+deleteStyleDocument,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),deleteStyleDocument,,,,,deleteStyleDocument
+deleteStyleDocument,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,deleteStyleDocument,,,,createProject → deleteStyleDocument
+deleteStyleDocument,Document,"{
+  ""documentId"": ""{{DOCUMENT_ID}}"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",documentId + projectId,deleteStyleDocument,,,,,deleteStyleDocument
+deleteStyleDocument,Document > Project,"{
+  ""documentId"": ""{{DOCUMENT_ID}}"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",documentId + projectId,deleteStyleDocument,,,,,deleteStyleDocument
+deleteTeams,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),deleteTeams,,,,,deleteTeams
+denyIntentForProduction,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),denyIntentForProduction,,,,,denyIntentForProduction
+dismissNotification,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),dismissNotification,,,,,dismissNotification
+duplicateProject,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,duplicateProject,,,,createProject → duplicateProject
+editWebProject,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,editWebProject,,,,createProject → editWebProject
+finalizeAssetAttachments,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),finalizeAssetAttachments,,,,,finalizeAssetAttachments
+fontSimilarViewed,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),fontSimilarViewed,,,,,fontSimilarViewed
+globalEmailOptOut,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),globalEmailOptOut,,,,,globalEmailOptOut
+importFontTemplate,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),importFontTemplate,,,,,importFontTemplate
+keepInProduction,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),keepInProduction,,,,,keepInProduction
+licenseLinked,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),licenseLinked,,,,,licenseLinked
+linkContractToStyles,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),linkContractToStyles,,,,,linkContractToStyles
+linkDocumentToProject,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,linkDocumentToProject,,,,createProject → linkDocumentToProject
+linkDocumentToProject,Document,"{
+  ""documentId"": ""{{DOCUMENT_ID}}"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",documentId + projectId,linkDocumentToProject,,,,,linkDocumentToProject
+linkDocumentToProject,Document > Project,"{
+  ""documentId"": ""{{DOCUMENT_ID}}"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",documentId + projectId,linkDocumentToProject,,,,,linkDocumentToProject
+linkDocumentsToContract,Document,"{
+  ""documentId"": ""{{DOCUMENT_ID}}""
+}",documentId,linkDocumentsToContract,,,,,linkDocumentsToContract
+markAllNotificationsRead,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),markAllNotificationsRead,,,,,markAllNotificationsRead
+markCompanyLogoUploadSuccess,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),markCompanyLogoUploadSuccess,,,,,markCompanyLogoUploadSuccess
+markNotificationRead,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),markNotificationRead,,,,,markNotificationRead
+markOnboardingCompleted,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),markOnboardingCompleted,,,,,markOnboardingCompleted
+markProductionFonts,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),markProductionFonts,,,,,markProductionFonts
+markSessionFileUploaded,Document,"{
+  ""documentId"": ""{{DOCUMENT_ID}}""
+}",documentId,markSessionFileUploaded,,,,,markSessionFileUploaded
+parseAndCreateContract,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),parseAndCreateContract,,,,,parseAndCreateContract
+parseAndCreateContract,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,parseAndCreateContract,,,,createProject → parseAndCreateContract
+pinAsset,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),pinAsset,,,,,pinAsset
+processUploadSessionFonts,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,processUploadSessionFonts,,,,createProject → processUploadSessionFonts
+processUploadSessionFonts,Document,"{
+  ""documentId"": ""{{DOCUMENT_ID}}"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",documentId + projectId,processUploadSessionFonts,,,,,processUploadSessionFonts
+processUploadSessionFonts,Document > Project,"{
+  ""documentId"": ""{{DOCUMENT_ID}}"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",documentId + projectId,processUploadSessionFonts,,,,,processUploadSessionFonts
+publishAddOn,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),publishAddOn,,,,,publishAddOn
+publishProject,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,publishProject,,,,createProject → publishProject
+regenerateToken,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),regenerateToken,,,,,regenerateToken
+rejectFontAccess,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),rejectFontAccess,,,,,rejectFontAccess
+removeFavoriteFamilies,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),removeFavoriteFamilies,,,,,removeFavoriteFamilies
+removeFavoritePair,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),removeFavoritePair,,,,,removeFavoritePair
+removeFavoriteStyles,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),removeFavoriteStyles,,,,,removeFavoriteStyles
+removeFontListFamilies,List (FONTLIST),"{
+  ""fontListId"": ""210ad1c8-b742-49e4-9074-4be65d4be610"",
+  ""families"": {
+    ""familyIds"": [
+      ""910130168""
+    ]
+  }
+}",listId,createAsset,removeFontListFamilies,,,,createAsset → removeFontListFamilies
+removeFontListStyles,List (FONTLIST),"{
+  ""fontListId"": ""210ad1c8-b742-49e4-9074-4be65d4be610"",
+  ""styles"": {
+    ""styleIds"": [
+      ""920374778""
+    ]
+  }
+}",listId,createAsset,removeFontListStyles,,,,createAsset → removeFontListStyles
+removeFontProjectFamilies,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,removeFontProjectFamilies,,,,createProject → removeFontProjectFamilies
+removeFontProjectStyles,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,removeFontProjectStyles,,,,createProject → removeFontProjectStyles
+removeStylesFromWebProject,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,removeStylesFromWebProject,,,,createProject → removeStylesFromWebProject
+reorderSsoMappings,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),reorderSsoMappings,,,,,reorderSsoMappings
+requestFontAccess,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),requestFontAccess,,,,,requestFontAccess
+resetPassword,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),resetPassword,,,,,resetPassword
+resetPreferences,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),resetPreferences,,,,,resetPreferences
+revokeToken,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),revokeToken,,,,,revokeToken
+saveDocumentMetadata,Document,"{
+  ""documentId"": ""{{DOCUMENT_ID}}""
+}",documentId,saveDocumentMetadata,,,,,saveDocumentMetadata
+setLanguagePreference,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),setLanguagePreference,,,,,setLanguagePreference
+sharingInfoForAssets,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),sharingInfoForAssets,,,,,sharingInfoForAssets
+submitFontUsageReport,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),submitFontUsageReport,,,,,submitFontUsageReport
+submitIntentForProduction,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),submitIntentForProduction,,,,,submitIntentForProduction
+suspendServiceAccount,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),suspendServiceAccount,,,,,suspendServiceAccount
+syncUnSyncVariations,default,"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),syncUnSyncVariations,,,,,syncUnSyncVariations
+unlinkDocumentFromProject,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,unlinkDocumentFromProject,,,,createProject → unlinkDocumentFromProject
+unlinkDocumentFromProject,Document,"{
+  ""documentId"": ""{{DOCUMENT_ID}}"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",documentId + projectId,unlinkDocumentFromProject,,,,,unlinkDocumentFromProject
+unlinkDocumentFromProject,Document > Project,"{
+  ""documentId"": ""{{DOCUMENT_ID}}"",
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",documentId + projectId,unlinkDocumentFromProject,,,,,unlinkDocumentFromProject
+unlinkDocumentsFromContract,Document,"{
+  ""documentId"": ""{{DOCUMENT_ID}}""
+}",documentId,unlinkDocumentsFromContract,,,,,unlinkDocumentsFromContract
+unlinkStyleFromContract,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),unlinkStyleFromContract,,,,,unlinkStyleFromContract
+unpinAsset,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),unpinAsset,,,,,unpinAsset
+updateAsset,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateAsset,,,,,updateAsset
+updateAssetSharing,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateAssetSharing,,,,,updateAssetSharing
+updateAssets,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateAssets,,,,,updateAssets
+updateAssetsSharingInfo,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateAssetsSharingInfo,,,,,updateAssetsSharingInfo
+updateCompanySsoStatus,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateCompanySsoStatus,,,,,updateCompanySsoStatus
+updateContract,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateContract,,,,,updateContract
+updateCustomer,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateCustomer,,,,,updateCustomer
+updateCustomerSettings,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateCustomerSettings,,,,,updateCustomerSettings
+updateFontProjectStyles,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,updateFontProjectStyles,,,,createProject → updateFontProjectStyles
+updateFontsForReview,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateFontsForReview,,,,,updateFontsForReview
+updatePreference,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updatePreference,,,,,updatePreference
+updatePrivateTag,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updatePrivateTag,,,,,updatePrivateTag
+updatePrivateTagAssociations,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updatePrivateTagAssociations,,,,,updatePrivateTagAssociations
+updateProductionFont,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateProductionFont,,,,,updateProductionFont
+updateProfile,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateProfile,,,,,updateProfile
+updateRole,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateRole,,,,,updateRole
+updateServiceAccount,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateServiceAccount,,,,,updateServiceAccount
+updateSessionFiles,Document,"{
+  ""documentId"": ""{{DOCUMENT_ID}}""
+}",documentId,updateSessionFiles,,,,,updateSessionFiles
+updateSsoMapping,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateSsoMapping,,,,,updateSsoMapping
+updateStyleComment,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateStyleComment,,,,,updateStyleComment
+updateStyleComment,Project,"{
+  ""projectId"": ""c2a7788f-e731-4f65-8cc6-1db42ff41138""
+}",projectId,createProject,updateStyleComment,,,,createProject → updateStyleComment
+updateSubToggle,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateSubToggle,,,,,updateSubToggle
+updateTeam,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateTeam,,,,,updateTeam
+updateUserInvitations,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),updateUserInvitations,,,,,updateUserInvitations
+uploadImportedFonts,Discovery/Browse (global),"{
+  ""_touchpoint"": ""global"",
+  ""_hint"": ""Use captured raw subject.metadata.input""
+}",global (no list/project/document scope),uploadImportedFonts,,,,,uploadImportedFonts

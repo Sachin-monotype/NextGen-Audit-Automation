@@ -1,0 +1,36 @@
+{
+  "xCorrelationId": "20dbf5de-ea38-4f77-bb60-e0a54dddb0ce",
+  "eventId": "c9fd636e-b822-474d-ab9a-af134ed4bf7f",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-03T08:59:24.7799260Z",
+  "source": {
+    "type": [
+      "App",
+      "Login"
+    ],
+    "service": "MonotypeNextGenConnectService",
+    "operation": "identityLinked",
+    "operationIndex": 0,
+    "operationState": "success",
+    "platform": "nextGen",
+    "platformEnvironment": "app",
+    "platformVersion": "1.0.0.0",
+    "actorUserAgent": "MonotypeNextGen/1.0.0.0",
+    "osName": "mac",
+    "osVersion": "26.0.1",
+    "cpuArch": "arm64"
+  },
+  "actor": {
+    "authenticationState": "authenticated",
+    "machineId": "NAGE9RJQC01935J0RWH9TYR5FWFTDZNZE261RK2WCQMQ5YY2ASNG",
+    "uniqueId": "5F18EDBACB3D0675A97A77FC",
+    "globalUserId": "b9fd96d1-2290-11f1-8e3d-0e220b57740d",
+    "globalCustomerId": "774db569-87e8-40af-9952-b2506663258c"
+  },
+  "subject": {
+    "type": "machine",
+    "id": [
+      "NAGE9RJQC01935J0RWH9TYR5FWFTDZNZE261RK2WCQMQ5YY2ASNG"
+    ]
+  }
+}

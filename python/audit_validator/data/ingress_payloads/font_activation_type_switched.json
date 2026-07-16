@@ -1,0 +1,132 @@
+{
+  "xCorrelationId": "5935abd5-deb3-428b-a53e-1235e8757d68",
+  "eventId": "6719bbb7-26c2-4666-b5bb-68074d520b75",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-06T05:02:40.8128780Z",
+  "source": {
+    "type": [
+      "App",
+      "Font activation"
+    ],
+    "service": "mtconnect-ui",
+    "operation": "fontActivationTypeSwitched",
+    "operationIndex": 0,
+    "operationState": "success",
+    "platform": "nextGen",
+    "platformEnvironment": "app",
+    "platformVersion": "1.0.0.0",
+    "actorUserAgent": "MonotypeNextGen/1.0.0.0",
+    "osName": "mac",
+    "osVersion": "26.5.1",
+    "cpuArch": "arm64"
+  },
+  "actor": {
+    "authenticationState": "authenticated",
+    "machineId": "8RMN79NKR5S65MATYXF7V6FCV0EYVGA43G3KX288BFTGTWA3KR2G",
+    "uniqueId": "213A464A4721DAA5C699D7D3",
+    "globalUserId": "d198631f-3f08-11f1-a61d-0eedb5fed28b",
+    "globalCustomerId": "b7122c76-0ef3-4a97-9b7c-192e994f6a04"
+  },
+  "subject": {
+    "type": "fontFamily",
+    "id": [
+      "910133314",
+      "910133313"
+    ],
+    "styles": [
+      {
+        "familyId": "910133314",
+        "id": "920545331",
+        "variations": [
+          {
+            "id": "931048789",
+            "md5": "69cb6b08327661a3b08f9924bc5efab1",
+            "activationState": "ACTIVATED"
+          }
+        ]
+      },
+      {
+        "familyId": "910133314",
+        "id": "920545332",
+        "variations": [
+          {
+            "id": "931048790",
+            "md5": "cf4e019fdee190a9a4c28e6367061c53",
+            "activationState": "ACTIVATED"
+          }
+        ]
+      },
+      {
+        "familyId": "910133314",
+        "id": "920545333",
+        "variations": [
+          {
+            "id": "931048791",
+            "md5": "322c90be2ff0c50fbf4e53d97518138b",
+            "activationState": "ACTIVATED"
+          }
+        ]
+      },
+      {
+        "familyId": "910133314",
+        "id": "920545334",
+        "variations": [
+          {
+            "id": "931048792",
+            "md5": "65fd393642313a1313255f4061476e90",
+            "activationState": "ACTIVATED"
+          }
+        ]
+      },
+      {
+        "familyId": "910133313",
+        "id": "920545327",
+        "variations": [
+          {
+            "id": "931048785",
+            "md5": "b55d29da795ee62cf2cc494dcac6e9aa",
+            "activationState": "ACTIVATED"
+          }
+        ]
+      },
+      {
+        "familyId": "910133313",
+        "id": "920545328",
+        "variations": [
+          {
+            "id": "931048786",
+            "md5": "3440b8a30bda6cc78f493955404a032b",
+            "activationState": "ACTIVATED"
+          }
+        ]
+      },
+      {
+        "familyId": "910133313",
+        "id": "920545329",
+        "variations": [
+          {
+            "id": "931048787",
+            "md5": "50a56a7bfc24899b73a8ff7f993af28b",
+            "activationState": "ACTIVATED"
+          }
+        ]
+      },
+      {
+        "familyId": "910133313",
+        "id": "920545330",
+        "variations": [
+          {
+            "id": "931048788",
+            "md5": "d2953e1d726640a45f348f4e2a83b496",
+            "activationState": "ACTIVATED"
+          }
+        ]
+      }
+    ],
+    "counts": {
+      "styleCount": 8,
+      "variationCount": 8,
+      "familyCount": 2
+    }
+  }
+}

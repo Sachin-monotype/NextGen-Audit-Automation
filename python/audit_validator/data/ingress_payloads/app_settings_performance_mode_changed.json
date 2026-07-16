@@ -1,0 +1,38 @@
+{
+  "xCorrelationId": "6b04dac8-a397-4e99-a035-dbf2034ee37b",
+  "eventId": "57d8f808-4661-4ced-889b-9960f5881cbf",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-03T12:26:48.3606570Z",
+  "source": {
+    "type": [
+      "App",
+      "Setting"
+    ],
+    "service": "mtconnect-ui",
+    "operation": "appSettingsPerformanceModeChanged",
+    "operationIndex": 0,
+    "operationState": "success",
+    "platform": "nextGen",
+    "platformEnvironment": "app",
+    "platformVersion": "1.0.0.0",
+    "actorUserAgent": "MonotypeNextGen/1.0.0.0",
+    "osName": "mac",
+    "osVersion": "26.5.1",
+    "cpuArch": "arm64"
+  },
+  "actor": {
+    "authenticationState": "authenticated",
+    "machineId": "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60",
+    "uniqueId": "AED633E846F09CDA06EAFBDC",
+    "globalUserId": "293ba856-5a89-11f1-a522-0e0a04e472ab",
+    "globalCustomerId": "d677fdca-5424-43a6-875f-b390b59231bf"
+  },
+  "subject": {
+    "type": "machine",
+    "id": [
+      "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60"
+    ],
+    "performanceMode": "max_capacity",
+    "previousPerformanceMode": "balance_performance"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "xCorrelationId": "B68C598A-9969-41C8-AB42-D9763BBEBD98",
+  "eventId": "bde82d68-b32f-419e-8f81-9d7aa899fd3d",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-03T08:16:43.9783170Z",
+  "source": {
+    "type": [
+      "Plugin",
+      "Document"
+    ],
+    "service": "MonotypeNextGenConnectService",
+    "operation": "pluginDocumentOpened",
+    "operationIndex": 0,
+    "operationState": "success",
+    "platform": "nextGen",
+    "platformEnvironment": "app",
+    "platformVersion": "1.0.0.0",
+    "actorUserAgent": "MonotypeNextGen/1.0.0.0",
+    "osName": "mac",
+    "osVersion": "26.5.1",
+    "cpuArch": "arm64"
+  },
+  "actor": {
+    "authenticationState": "authenticated",
+    "machineId": "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60",
+    "uniqueId": "AED633E846F09CDA06EAFBDC",
+    "globalUserId": "d07978ba-688c-11f1-a522-0e0a04e472ab",
+    "globalCustomerId": "12fbdab3-c185-45c5-ade5-26bb0dc057f2"
+  },
+  "subject": {
+    "type": "machine",
+    "id": [
+      "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60"
+    ],
+    "plugin": "InDesign-Plugin-ID21",
+    "documentId": "/Users/sumityadav/Downloads/TestMissingID-RqstAcc 5.indd",
+    "documentName": "TestMissingID-RqstAcc 5.indd"
+  }
+}

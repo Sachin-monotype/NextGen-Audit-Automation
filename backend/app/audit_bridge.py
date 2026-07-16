@@ -1,0 +1,1033 @@
+"""Bridge to vendored audit_validator package (python/audit_validator/)."""
+
+from __future__ import annotations
+
+import logging
+import os
+import sys
+import threading
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
+from pathlib import Path
+from typing import Any
+
+log = logging.getLogger(__name__)
+
+
+class JobStatus(str, Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+@dataclass
+class JobRecord:
+    id: str
+    kind: str
+    status: JobStatus
+    created_at: str
+    started_at: str | None = None
+    finished_at: str | None = None
+    params: dict[str, Any] = field(default_factory=dict)
+    logs: list[str] = field(default_factory=list)
+    result: dict[str, Any] | None = None
+    error: str | None = None
+
+
+class JobStore:
+    """In-memory job registry with optional disk persistence (survives tab switches /
+    backend reloads). Keeps the last N jobs so Compare/Generate can restore logs.
+    """
+
+    def __init__(self, persist_path: Path | None = None, *, max_jobs: int = 40) -> None:
+        self._jobs: dict[str, JobRecord] = {}
+        self._lock = threading.Lock()
+        self._persist_path = persist_path
+        self._max_jobs = max_jobs
+        self._load()
+
+    def _load(self) -> None:
+        if not self._persist_path or not self._persist_path.is_file():
+            return
+        try:
+            import json
+
+            raw = json.loads(self._persist_path.read_text(encoding="utf-8"))
+            for item in raw.get("jobs") or []:
+                if not isinstance(item, dict) or not item.get("id"):
+                    continue
+                status_raw = item.get("status") or "pending"
+                try:
+                    status = JobStatus(status_raw)
+                except ValueError:
+                    status = JobStatus.FAILED
+                # A process restart cannot continue a mid-flight job — mark stale.
+                if status in (JobStatus.PENDING, JobStatus.RUNNING):
+                    status = JobStatus.FAILED
+                    item["error"] = item.get("error") or "Job interrupted (backend restarted)"
+                    item["finished_at"] = item.get("finished_at") or _now()
+                self._jobs[str(item["id"])] = JobRecord(
+                    id=str(item["id"]),
+                    kind=str(item.get("kind") or ""),
+                    status=status,
+                    created_at=str(item.get("created_at") or _now()),
+                    started_at=item.get("started_at"),
+                    finished_at=item.get("finished_at"),
+                    params=dict(item.get("params") or {}),
+                    logs=list(item.get("logs") or [])[-200:],
+                    result=item.get("result"),
+                    error=item.get("error"),
+                )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Could not load job store: %s", exc)
+
+    def _persist(self) -> None:
+        if not self._persist_path:
+            return
+        try:
+            import json
+
+            self._persist_path.parent.mkdir(parents=True, exist_ok=True)
+            jobs = sorted(self._jobs.values(), key=lambda j: j.created_at, reverse=True)[
+                : self._max_jobs
+            ]
+            payload = {
+                "jobs": [
+                    {
+                        "id": j.id,
+                        "kind": j.kind,
+                        "status": j.status.value if isinstance(j.status, JobStatus) else j.status,
+                        "created_at": j.created_at,
+                        "started_at": j.started_at,
+                        "finished_at": j.finished_at,
+                        "params": j.params,
+                        "logs": j.logs[-200:],
+                        "result": j.result,
+                        "error": j.error,
+                    }
+                    for j in jobs
+                ]
+            }
+            self._persist_path.write_text(
+                json.dumps(payload, indent=2, ensure_ascii=False, default=str) + "\n",
+                encoding="utf-8",
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Could not persist job store: %s", exc)
+
+    def create(self, kind: str, params: dict[str, Any]) -> JobRecord:
+        job = JobRecord(
+            id=str(uuid.uuid4()),
+            kind=kind,
+            status=JobStatus.PENDING,
+            created_at=_now(),
+            params=params,
+        )
+        with self._lock:
+            self._jobs[job.id] = job
+            # Cap memory
+            if len(self._jobs) > self._max_jobs:
+                oldest = sorted(self._jobs.values(), key=lambda j: j.created_at)[
+                    : max(0, len(self._jobs) - self._max_jobs)
+                ]
+                for o in oldest:
+                    self._jobs.pop(o.id, None)
+            self._persist()
+        return job
+
+    def get(self, job_id: str) -> JobRecord | None:
+        with self._lock:
+            return self._jobs.get(job_id)
+
+    def list_jobs(self, limit: int = 20) -> list[JobRecord]:
+        with self._lock:
+            jobs = sorted(self._jobs.values(), key=lambda j: j.created_at, reverse=True)
+        return jobs[:limit]
+
+    def append_log(self, job_id: str, line: str) -> None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job:
+                job.logs.append(line)
+                if len(job.logs) > 400:
+                    job.logs = job.logs[-400:]
+                # Persist periodically (every 5 lines) so refresh keeps logs.
+                if len(job.logs) % 5 == 0:
+                    self._persist()
+
+    def update(self, job_id: str, **kwargs: Any) -> None:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                return
+            for key, val in kwargs.items():
+                setattr(job, key, val)
+            self._persist()
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _ensure_audit_path(project_root: Path) -> None:
+    python_dir = project_root / "python"
+    if str(python_dir) not in sys.path:
+        sys.path.insert(0, str(python_dir))
+
+
+def _flows_for_operations(operations: list[str]) -> frozenset[str] | None:
+    if not operations:
+        return None
+    from audit_validator.simulation.flow_catalog import flow_operations
+
+    ops_set = set(operations)
+    flows: set[str] = set()
+    for fo in flow_operations():
+        if fo.graphql_operation in ops_set or audit_label_match(fo.label, ops_set):
+            flows.add(fo.flow)
+    return frozenset(flows) if flows else None
+
+
+def audit_label_match(label: str, ops_set: set[str]) -> bool:
+    base = label.split(" (")[0].strip()
+    return base in ops_set
+
+
+def _routing_keys_map(project_root: Path) -> dict[str, str]:
+    import json
+
+    rk_path = project_root / "python" / "audit_validator" / "data" / "outbound-routing-map.json"
+    if rk_path.is_file():
+        return json.loads(rk_path.read_text(encoding="utf-8"))
+    return {}
+
+
+class AuditBridge:
+    def __init__(
+        self,
+        project_root: Path,
+        store: JobStore,
+        db: "AuditDatabase | None" = None,
+        ingestion: Any | None = None,
+    ) -> None:
+        self.project_root = project_root
+        self.store = store
+        self.db = db
+        self.ingestion = ingestion
+        _ensure_audit_path(project_root)
+
+    def _ensure_ingestion(self, job_id: str) -> dict[str, Any]:
+        """Start RabbitMQ → Mongo dump if it is not already running.
+
+        Generate verify polls Mongo for owned correlations — without live
+        ingestion those events never land and the poll always times out.
+        """
+        if self.ingestion is None:
+            self.store.append_log(
+                job_id,
+                "⚠ Ingestion manager not wired — start Live ingestion on Enrich/Raw "
+                "(or restart backend) so events dump into Mongo",
+            )
+            return {"running": False, "ensured": False}
+
+        try:
+            before = self.ingestion.status()
+            already = bool(before.get("running"))
+            status = self.ingestion.start() if not already else before
+            running = bool(status.get("running"))
+            if already:
+                self.store.append_log(
+                    job_id,
+                    "✓ Live ingestion already running (RabbitMQ → Mongo continuous dump)",
+                )
+            elif running:
+                self.store.append_log(
+                    job_id,
+                    "✓ Started live ingestion from backend (RabbitMQ → Mongo continuous dump)",
+                )
+            else:
+                self.store.append_log(
+                    job_id,
+                    "✖ Could not start live ingestion — Mongo verify may stay empty. "
+                    f"Detail: {status.get('error') or status}",
+                )
+            return {**status, "ensured": running, "was_already_running": already}
+        except Exception as exc:  # noqa: BLE001
+            self.store.append_log(job_id, f"✖ Ingestion start failed: {exc}")
+            return {"running": False, "ensured": False, "error": str(exc)}
+
+    def start_generate(
+        self,
+        *,
+        operations: list[str] | None = None,
+        validate: bool = False,
+        skip_passed: bool = False,
+        include_ingress: bool = False,
+    ) -> JobRecord:
+        job = self.store.create(
+            "generate",
+            {
+                "operations": operations or [],
+                "validate": validate,
+                "skip_passed": skip_passed,
+                "include_ingress": include_ingress,
+            },
+        )
+        thread = threading.Thread(
+            target=self._run_generate,
+            args=(job.id, operations or [], validate, skip_passed, include_ingress),
+            daemon=True,
+        )
+        thread.start()
+        return job
+
+    def start_compare(self, operations: list[str], sample_source: str = "fresh") -> JobRecord:
+        job = self.store.create("compare", {"operations": operations, "sample_source": sample_source})
+        thread = threading.Thread(
+            target=self._run_compare,
+            args=(job.id, operations, sample_source),
+            daemon=True,
+        )
+        thread.start()
+        return job
+
+    def _ensure_token(self, job_id: str) -> dict[str, Any]:
+        """Ensure a valid Bearer token before triggering events (auto-refresh if expired)."""
+        try:
+            from audit_validator.token_manager import ensure_fresh_bearer
+
+            status = ensure_fresh_bearer(
+                self.project_root,
+                log=lambda msg: self.store.append_log(job_id, msg),
+            )
+            return status.as_dict()
+        except Exception as exc:  # noqa: BLE001
+            self.store.append_log(job_id, f"⚠ Token check failed: {exc}")
+            return {"error": str(exc)}
+
+    def _log_context(self, job_id: str) -> None:
+        from audit_validator.config import load_config
+
+        cfg = load_config(self.project_root)
+        target = os.getenv("AUDIT_TARGET", "pp")
+        gql = os.getenv("NEXTGEN_GRAPHQL_ENDPOINT", os.getenv("GRAPHQL_ENDPOINT", ""))
+        rmq = cfg.rabbitmq
+
+        self.store.append_log(job_id, f"▸ Target environment: {target.upper()} preprod")
+        self.store.append_log(job_id, f"▸ GraphQL endpoint: {gql}")
+        self.store.append_log(job_id, "▸ Connecting to RabbitMQ…")
+        self.store.append_log(job_id, f"▸ Raw queue: {rmq.raw_queue}")
+        self.store.append_log(job_id, f"▸ Enriched queue: {rmq.enriched_queue}")
+        if rmq.dead_letter_queue:
+            self.store.append_log(job_id, f"▸ DLQ: {rmq.dead_letter_queue}")
+
+    def _preflight_connectivity(self, job_id: str) -> list[str]:
+        """Probe RabbitMQ + GraphQL before a generate run. Returns the list of blocked
+        systems (empty = good to go)."""
+        self.store.append_log(job_id, "▸ Preflight: checking RabbitMQ + GraphQL reachability…")
+        blocked: list[str] = []
+        try:
+            from audit_validator.health_probes import probe_graphql, probe_rabbitmq
+
+            for name, probe in (("RabbitMQ", probe_rabbitmq), ("GraphQL", probe_graphql)):
+                result = probe()
+                if result.get("state") == "blocked":
+                    blocked.append(name)
+                    self.store.append_log(
+                        job_id, f"✖ {name} unreachable — {result.get('detail', 'blocked')}"
+                    )
+                else:
+                    self.store.append_log(job_id, f"✓ {name} reachable")
+        except Exception as exc:  # noqa: BLE001 — never let preflight itself crash the job
+            self.store.append_log(job_id, f"⚠ Preflight check skipped: {exc}")
+            return []
+        if blocked:
+            self.store.append_log(
+                job_id,
+                "✖ Aborting — connect to the corporate VPN, then re-run. "
+                "(Check the API Health tab to confirm connectivity.)",
+            )
+        return blocked
+
+    def _verify_mongo(self, job_id: str, operations: list[str]) -> dict[str, Any]:
+        """Poll owned correlations until they land in raw + enriched (or timeout)."""
+        from audit_validator.generate_run_report import save_generate_run, verify_owned_queue_landing
+
+        checked = list(operations or [])
+        if not checked and self.db:
+            try:
+                checked = self.db.comparable_operations()[:50]
+            except Exception:
+                checked = []
+
+        if not self.db:
+            self.store.append_log(job_id, "⚠ Mongo unavailable — skipping raw/enrich verify")
+            return {
+                "checked": checked,
+                "raw_found": [],
+                "enriched_found": [],
+                "summary": {"total": len(checked), "success": 0, "needs_work": len(checked)},
+                "raw_queue": os.getenv("RAW_EVENTS_QUEUE", ""),
+                "enriched_queue": os.getenv("ENRICHED_EVENTS_QUEUE", ""),
+            }
+
+        report = verify_owned_queue_landing(
+            self.db,
+            checked,
+            project_root=self.project_root,
+            progress=lambda msg: self.store.append_log(job_id, msg),
+        )
+        report["job_id"] = job_id
+        try:
+            save_generate_run(report, project_root=self.project_root)
+            self.store.append_log(
+                job_id, "▸ Saved generate-run report → reports/generate-runs/last.json"
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.store.append_log(job_id, f"⚠ Could not persist generate-run report: {exc}")
+        return report
+
+    def _run_generate(
+        self,
+        job_id: str,
+        operations: list[str],
+        validate: bool,
+        skip_passed: bool,
+        include_ingress: bool,
+    ) -> None:
+        self.store.update(job_id, status=JobStatus.RUNNING, started_at=_now())
+        label = "Generate & validate" if validate else "Generate"
+        scope = ", ".join(operations) if operations else "all operations"
+        self.store.append_log(job_id, f"▸ {label} — {scope}")
+
+        token_status = self._ensure_token(job_id)
+        self._log_context(job_id)
+
+        # Preflight: generation needs RabbitMQ (capture) + GraphQL (trigger). Off-VPN both
+        # are blocked and the pipeline would otherwise hang on socket timeouts for minutes
+        # and look "frozen". Fail fast with a clear, actionable message instead.
+        blocked = self._preflight_connectivity(job_id)
+        if blocked:
+            self.store.update(
+                job_id,
+                status=JobStatus.FAILED,
+                finished_at=_now(),
+                result={"exit_code": 1, "token": token_status, "unreachable": blocked},
+                error=f"Cannot reach {', '.join(blocked)} — connect to the corporate VPN and retry.",
+            )
+            return
+
+        # Must dump subscription queues into Mongo for the whole run — otherwise
+        # owned-correlation verify at the end never sees raw/enrich.
+        ingest_status = self._ensure_ingestion(job_id)
+
+        class _Handler(logging.Handler):
+            def __init__(self, store: JobStore, jid: str) -> None:
+                super().__init__()
+                self._store = store
+                self._job_id = jid
+
+            def emit(self, record: logging.LogRecord) -> None:
+                # Drop transport-level chatter from pika/urllib so the job log stays readable.
+                if record.name.split(".")[0] in ("pika", "urllib3", "asyncio"):
+                    return
+                msg = record.getMessage()
+                if _is_informative_log(msg):
+                    self._store.append_log(self._job_id, msg)
+
+        handler = _Handler(self.store, job_id)
+        handler.setLevel(logging.INFO)
+        root_logger = logging.getLogger()
+        root_logger.addHandler(handler)
+
+        # Selections may mix GraphQL ops, ingress cases (ingress:<id>) and cron
+        # cases (cron:<id>). Empty selection = full catalog (GQL + ingress + cron).
+        from audit_validator.operation_sources import (
+            catalog_selection_ids,
+            operation_source_report,
+            split_selection,
+        )
+
+        catalog = operation_source_report()["catalog"]
+        id_to_op = {c["id"]: c["operation"] for c in catalog}
+        selection = list(operations) if operations else catalog_selection_ids()
+        if not operations:
+            self.store.append_log(
+                job_id,
+                f"▸ Empty selection → full catalog ({len(selection)} items: "
+                f"graphql + ingress + cron)",
+            )
+        sel = split_selection(selection)
+        gql_ops = sel["graphql"]
+        ingress_cases = sel["ingress_cases"]
+        cron_cases = sel["cron_cases"]
+        # When validate+empty previously used full.py, keep that path when
+        # include_ingress is requested via the checkbox; otherwise the per-kind
+        # injector path below still covers ingress/cron for empty selection.
+        resolved_ops = list(
+            dict.fromkeys(id_to_op.get(i, i) for i in selection)
+        )
+
+        flow_set = _flows_for_operations(gql_ops)
+        if gql_ops and not flow_set:
+            self.store.append_log(job_id, f"⚠ Could not map operations to flows: {gql_ops}")
+
+        try:
+            exit_code = 0
+            mongo_status: dict[str, Any] = {}
+
+            if validate and not operations and include_ingress:
+                self.store.append_log(job_id, "▸ Running full pipeline (generate + validate)…")
+                from audit_validator.pipeline.full import run_full_validation
+
+                exit_code = run_full_validation(
+                    project_root=self.project_root,
+                    skip_ingress=False,
+                    skip_passed=skip_passed,
+                )
+            elif validate:
+                self.store.append_log(
+                    job_id,
+                    f"▸ Phase 1: Trigger + capture for {len(selection)} item(s) "
+                    f"(graphql={len(gql_ops)}, cron={len(cron_cases)}, ingress={len(ingress_cases)})…",
+                )
+                if gql_ops:
+                    exit_code = max(exit_code, self._run_e2e(job_id, flow_set, skip_passed, operations=gql_ops))
+                if cron_cases:
+                    exit_code = max(exit_code, self._run_cron_cases(job_id, cron_cases))
+                if ingress_cases:
+                    exit_code = max(exit_code, self._run_ingress_cases(job_id, ingress_cases))
+                self.store.append_log(job_id, "▸ Phase 2: Source validation (UMS / CMS / Discovery)…")
+                val_result = self._run_source_validation(job_id, resolved_ops)
+                ingest_status = self._ensure_ingestion(job_id)
+                mongo_status = self._verify_mongo(job_id, resolved_ops)
+                mongo_status["ingestion"] = ingest_status
+                self.store.update(
+                    job_id,
+                    status=JobStatus.COMPLETED if exit_code == 0 and val_result.get("failed", 0) == 0 else JobStatus.FAILED,
+                    finished_at=_now(),
+                    result={
+                        "exit_code": exit_code,
+                        "validation": val_result,
+                        "mongo": mongo_status,
+                        "token": token_status,
+                    },
+                    error=None if exit_code == 0 and val_result.get("failed", 0) == 0 else "Pipeline or validation failed",
+                )
+                return
+            else:
+                if gql_ops:
+                    self.store.append_log(
+                        job_id,
+                        f"▸ Triggering GraphQL flows: {', '.join(sorted(flow_set or [])) or 'all'}",
+                    )
+                    exit_code = max(
+                        exit_code,
+                        self._run_e2e(
+                            job_id,
+                            flow_set if operations else None,
+                            skip_passed,
+                            operations=gql_ops if operations else None,
+                        ),
+                    )
+                if cron_cases:
+                    exit_code = max(exit_code, self._run_cron_cases(job_id, cron_cases))
+                if ingress_cases:
+                    exit_code = max(exit_code, self._run_ingress_cases(job_id, ingress_cases))
+
+            ops_to_check = resolved_ops or list(flow_set or [])
+            # Re-ensure just before poll — user may have stopped ingestion mid-run.
+            ingest_status = self._ensure_ingestion(job_id)
+            mongo_status = self._verify_mongo(job_id, ops_to_check if ops_to_check else [])
+            mongo_status["ingestion"] = ingest_status
+
+            self.store.update(
+                job_id,
+                status=JobStatus.COMPLETED if exit_code == 0 else JobStatus.FAILED,
+                finished_at=_now(),
+                result={"exit_code": exit_code, "mongo": mongo_status, "token": token_status},
+                error=None if exit_code == 0 else f"Pipeline exit code {exit_code}",
+            )
+        except Exception as exc:
+            log.exception("Generate job failed")
+            self.store.update(
+                job_id,
+                status=JobStatus.FAILED,
+                finished_at=_now(),
+                error=str(exc),
+            )
+        finally:
+            root_logger.removeHandler(handler)
+
+    def _run_e2e(
+        self,
+        job_id: str,
+        flow_set: frozenset[str] | None,
+        skip_passed: bool,
+        operations: list[str] | None = None,
+    ) -> int:
+        from audit_validator.pipeline.e2e import run_e2e
+        from audit_validator.report_paths import coverage_json, result_xlsx, validation_json
+
+        if flow_set:
+            from audit_validator.config import load_config
+            from audit_validator.pipeline.e2e import (
+                _print_pipeline_summary,
+                _write_e2e_reports,
+                collect_and_validate,
+            )
+            from audit_validator.models import ValidationStatus
+            from audit_validator.simulation.flow_catalog import audit_operation
+
+            cfg = load_config(self.project_root)
+            # When the user targets specific operations, don't inject the whole cron
+            # suite — that's what made "generate 1 op" fire dozens of unrelated events.
+            targeted = bool(operations)
+            settle_ops: frozenset[str] | None = None
+            if targeted:
+                from dataclasses import replace
+
+                # Targeted runs must be BOUNDED and NON-DESTRUCTIVE:
+                #  - never purge the shared platform queue (it feeds the ingestion
+                #    service and other consumers — purging it is what wiped 2000+ msgs),
+                #  - don't drain the pre-flow backlog,
+                #  - cap the settle wait; we exit as soon as the SELECTED ops enrich
+                #    (via settle_operations) instead of waiting for global queue idle.
+                settle_sec = float(os.getenv("TARGETED_SETTLE_SEC", "60"))
+                cfg = replace(
+                    cfg,
+                    settle_after_flows_sec=settle_sec,
+                    enriched_catchup_sec=0.0,
+                    enriched_backlog_drain_sec=0.0,
+                    purge_test_queues_on_e2e=False,
+                    purge_queues_on_e2e=False,
+                )
+                settle_ops = frozenset(operations)
+            self.store.append_log(job_id, "▸ Starting RabbitMQ consumer — capturing raw events…")
+            e2e = collect_and_validate(
+                cfg,
+                flow_filter=flow_set,
+                include_cron=not targeted,
+                settle_operations=settle_ops,
+                purge_before=False if targeted else None,
+                purge_after=False if targeted else None,
+            )
+            self.store.append_log(job_id, "▸ Capturing enriched events…")
+
+            if targeted:
+                ops_set = set(operations or [])
+                kept = [
+                    r
+                    for r in e2e.validation_results
+                    if r.operation in ops_set or audit_operation(r.operation) in ops_set
+                ]
+                dropped = len(e2e.validation_results) - len(kept)
+                e2e.validation_results = kept
+                self.store.append_log(
+                    job_id,
+                    f"▸ Scoped validation to {len(kept)} result(s) for selected "
+                    f"operation(s); ignored {dropped} sibling event(s) from the same flow.",
+                )
+
+            _print_pipeline_summary(cfg, e2e)
+            _write_e2e_reports(
+                cfg,
+                e2e,
+                report_path=str(validation_json(cfg.project_root)),
+                coverage_path=str(coverage_json(cfg.project_root)),
+                csv_path=str(cfg.project_root / "temp" / "results.csv"),
+                xlsx_path=str(result_xlsx(cfg.project_root)),
+            )
+            any_fail = any(r.status == ValidationStatus.FAIL for r in e2e.validation_results)
+            # For a targeted run, ignore sibling flow failures in the exit code.
+            if targeted:
+                return 1 if any_fail else 0
+            return 1 if any_fail or e2e.flows_exit_code != 0 else 0
+
+        return run_e2e(
+            project_root=self.project_root,
+            report_path=str(validation_json(self.project_root)),
+            coverage_path=str(coverage_json(self.project_root)),
+            csv_path=str(self.project_root / "temp" / "results.csv"),
+            xlsx_path=str(result_xlsx(self.project_root)),
+            skip_passed=skip_passed,
+            include_cron=True,
+        )
+
+    def _targeted_cfg(self, cfg: Any) -> Any:
+        """Bounded, non-destructive config for a targeted/cron run (see _run_e2e)."""
+        from dataclasses import replace
+
+        settle_sec = float(os.getenv("TARGETED_SETTLE_SEC", "60"))
+        return replace(
+            cfg,
+            settle_after_flows_sec=settle_sec,
+            enriched_catchup_sec=0.0,
+            enriched_backlog_drain_sec=0.0,
+            purge_test_queues_on_e2e=False,
+            purge_queues_on_e2e=False,
+        )
+
+    def _run_cron_cases(self, job_id: str, case_ids: list[str]) -> int:
+        """Inject the selected cron/scheduler payloads and validate raw↔enriched."""
+        from audit_validator.config import load_config
+        from audit_validator.models import ValidationStatus
+        from audit_validator.pipeline.e2e import (
+            _print_pipeline_summary,
+            _write_e2e_reports,
+            collect_and_validate,
+        )
+        from audit_validator.report_paths import coverage_json, result_xlsx, validation_json
+
+        cfg = self._targeted_cfg(load_config(self.project_root))
+        self.store.append_log(job_id, f"▸ Injecting {len(case_ids)} cron scheduler payload(s)…")
+        e2e = collect_and_validate(
+            cfg,
+            skip_flows=True,
+            include_cron=True,
+            cron_case_filter=frozenset(case_ids),
+            purge_before=False,
+            purge_after=False,
+        )
+        _print_pipeline_summary(cfg, e2e)
+        _write_e2e_reports(
+            cfg,
+            e2e,
+            report_path=str(validation_json(cfg.project_root)),
+            coverage_path=str(coverage_json(cfg.project_root)),
+            csv_path=str(cfg.project_root / "temp" / "results.csv"),
+            xlsx_path=str(result_xlsx(cfg.project_root)),
+        )
+        any_fail = any(r.status == ValidationStatus.FAIL for r in e2e.validation_results)
+        return 1 if any_fail else 0
+
+    def _run_ingress_cases(self, job_id: str, case_ids: list[str]) -> int:
+        """Send the selected desktop/plugin payloads through the resolver Ingress API."""
+        from audit_validator.ingress.runner import run_ingress_validation
+        from audit_validator.report_paths import ingress_results_json
+
+        settle_sec = float(os.getenv("TARGETED_SETTLE_SEC", "60"))
+        self.store.append_log(
+            job_id, f"▸ Sending {len(case_ids)} ingress event(s) to the Ingress API…"
+        )
+        run = run_ingress_validation(
+            project_root=self.project_root,
+            case_filter=frozenset(case_ids),
+            report_path=ingress_results_json(self.project_root),
+            settle_sec=settle_sec,
+            purge_before=False,
+        )
+        self.store.append_log(
+            job_id,
+            f"  ✓ Ingress — PASS={run.pass_count} FAIL={run.fail_count} WARN={run.warn_count}",
+        )
+        return 1 if run.fail_count else 0
+
+    def _run_source_validation(self, job_id: str, operations: list[str]) -> dict[str, Any]:
+        ops = self._stage_mongo_samples(job_id, operations)
+        if not ops:
+            raise RuntimeError("No enriched samples in Mongo for selected operations")
+
+        from audit_validator.source_validation.runner import run_source_validation
+
+        routing_keys = _routing_keys_map(self.project_root)
+        job = self.store.get(job_id)
+        job_kind = job.kind if job else "compare"
+        saved_ops = 0
+
+        def _row_dict(r: Any) -> dict[str, Any]:
+            return {
+                "operation": r.operation,
+                "field": r.field,
+                "field_path": r.field_path,
+                "node": r.node,
+                "sub_node": r.sub_node,
+                "layer": r.layer,
+                "source_system": r.source_system,
+                "source_api": r.source_api,
+                "value_in_source": r.value_in_source,
+                "value_in_enriched": r.value_in_enriched,
+                "match_status": r.match_status,
+                "notes": r.notes,
+                "routing_key": routing_keys.get(r.operation, ""),
+            }
+
+        def _on_operation_rows(operation: str, op_rows: list[Any]) -> None:
+            """Flush each op to Results immediately so Compared times update mid-run."""
+            nonlocal saved_ops
+            from .comparison_store import save_batch_results
+
+            try:
+                save_batch_results(
+                    self.project_root,
+                    rows=[_row_dict(r) for r in op_rows],
+                    job_id=job_id,
+                    job_kind=job_kind,
+                    compared_at=_now(),
+                )
+                saved_ops += 1
+                if saved_ops == 1 or saved_ops % 10 == 0:
+                    self.store.append_log(
+                        job_id, f"  ✓ Snapshot saved ({saved_ops}) — {operation}"
+                    )
+            except Exception as exc:  # noqa: BLE001
+                log.warning("Progressive save %s failed: %s", operation, exc)
+
+        report = run_source_validation(
+            project_root=self.project_root,
+            operations=ops,
+            iteration=1,
+            sample_source="fresh",
+            progress=lambda msg: self.store.append_log(job_id, msg),
+            on_operation_rows=_on_operation_rows,
+        )
+        rows = [_row_dict(r) for r in report.comparison_rows]
+        self.store.append_log(
+            job_id,
+            f"▸ Validation done — PASS={report.passed} FAIL={report.failed} SKIP={report.skipped}",
+        )
+        result = {
+            "passed": report.passed,
+            "failed": report.failed,
+            "skipped": report.skipped,
+            "rows": rows,
+            "operations": ops,
+        }
+        try:
+            from .comparison_store import save_batch_results
+
+            # Final coalesce write (covers any op the progressive callback skipped).
+            save_batch_results(
+                self.project_root,
+                rows=rows,
+                job_id=job_id,
+                job_kind=job_kind,
+                compared_at=_now(),
+            )
+            self.store.append_log(
+                job_id,
+                f"▸ Saved latest comparison snapshot for {len(ops)} operation(s)",
+            )
+        except Exception as exc:  # noqa: BLE001 — persistence must not fail the job
+            log.warning("Could not persist latest comparison: %s", exc)
+        return result
+
+    def _stage_mongo_samples(self, job_id: str, operations: list[str]) -> list[str]:
+        import json
+
+        from bson import json_util
+
+        if not self.db:
+            return operations
+
+        enriched_dir = self.project_root / "payload" / "enrich"
+        enriched_dir.mkdir(parents=True, exist_ok=True)
+        raw_dir = self.project_root / "payload" / "raw"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+
+        ops = operations or self.db.comparable_operations()
+        self.store.append_log(
+            job_id,
+            f"▸ Pairing raw+enriched by xCorrelationId for {len(ops)} operation(s)…",
+        )
+        staged: list[str] = []
+        missing_pair: list[str] = []
+        owned_hits = 0
+        try:
+            from audit_validator.generation_tracker import get_owned_correlation
+        except Exception:
+            get_owned_correlation = None  # type: ignore[assignment]
+        our_profile = ""
+        try:
+            from audit_validator.auth import resolve_our_profile_id
+
+            our_profile = resolve_our_profile_id(project_root=self.project_root) or ""
+        except Exception:
+            our_profile = ""
+
+        for op in ops:
+            owned_cid = (
+                get_owned_correlation(op, project_root=self.project_root)
+                if get_owned_correlation
+                else None
+            )
+            raw, enriched = self.db.latest_pair(
+                op,
+                require_pair=True,
+                correlation_id=owned_cid,
+                actor_global_user_id=our_profile or None,
+            )
+            if owned_cid and raw and enriched:
+                owned_hits += 1
+            elif owned_cid and not (raw and enriched):
+                # We minted a cid but Mongo doesn't have the pair yet — fall back to
+                # fingerprint (actor + time window / eventId) then latest for our actor.
+                self.store.append_log(
+                    job_id,
+                    f"  ⚠ Owned cid {owned_cid[:8]}… not in Mongo yet for {op} — "
+                    f"trying fingerprint / actor latest",
+                )
+                try:
+                    from audit_validator.generation_tracker import list_owned
+
+                    entry = (list_owned(project_root=self.project_root).get("by_operation") or {}).get(op) or {}
+                except Exception:
+                    entry = {}
+                find_fp = getattr(self.db, "find_fingerprint_pair", None)
+                if callable(find_fp):
+                    raw, enriched, method = find_fp(
+                        op,
+                        actor_global_user_id=our_profile or entry.get("profile_id"),
+                        since_iso=entry.get("generated_at"),
+                        event_id=entry.get("eventId") or entry.get("event_id"),
+                    )
+                    if raw and enriched:
+                        self.store.append_log(job_id, f"  ✓ Fingerprint pair for {op} via {method}")
+                if not (raw and enriched):
+                    raw, enriched = self.db.latest_pair(
+                        op, require_pair=True, actor_global_user_id=our_profile or None
+                    )
+
+            if not (raw and enriched) and not owned_cid:
+                # No owned cid on the envelope path — try fingerprint first.
+                try:
+                    from audit_validator.generation_tracker import list_owned
+
+                    entry = (list_owned(project_root=self.project_root).get("by_operation") or {}).get(op) or {}
+                except Exception:
+                    entry = {}
+                find_fp = getattr(self.db, "find_fingerprint_pair", None)
+                if callable(find_fp) and (our_profile or entry.get("profile_id") or entry.get("generated_at")):
+                    raw, enriched, method = find_fp(
+                        op,
+                        actor_global_user_id=our_profile or entry.get("profile_id"),
+                        since_iso=entry.get("generated_at"),
+                        event_id=entry.get("eventId") or entry.get("event_id"),
+                    )
+                    if raw and enriched:
+                        self.store.append_log(
+                            job_id, f"  ✓ Fingerprint pair for {op} via {method} (no owned cid)"
+                        )
+
+            if not (raw and enriched):
+                missing_pair.append(op)
+                # Explain why: is it enriched-only, raw-only, or neither?
+                raw_only, enr_only = self.db.latest_pair(op, require_pair=False)
+                if enr_only and not raw_only:
+                    reason = "enriched present but no matching raw"
+                elif raw_only and not enr_only:
+                    reason = "raw present but no matching enriched (dead-lettered?)"
+                elif raw_only and enr_only:
+                    reason = "raw+enriched exist but xCorrelationId differs — not a real pair"
+                else:
+                    reason = "no documents in Mongo"
+                self.store.append_log(job_id, f"  ⚠ Skip {op}: {reason}")
+                continue
+            cid = enriched.get("xCorrelationId", "")
+            ownership = "owned" if (owned_cid and cid == owned_cid) else "latest"
+            (enriched_dir / f"{op}.json").write_text(
+                json_util.dumps(enriched, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
+            (raw_dir / f"{op}.json").write_text(
+                json_util.dumps(raw, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
+            staged.append(op)
+            self.store.append_log(
+                job_id, f"  ✓ Paired {op} ({ownership} xCorrelationId={cid})"
+            )
+
+        self.store.append_log(
+            job_id,
+            f"▸ Validating {len(staged)} paired operation(s) "
+            f"({owned_hits} from our generate correlations); "
+            f"skipped {len(missing_pair)} without a raw+enrich pair",
+        )
+        return staged
+
+    def _run_compare(self, job_id: str, operations: list[str], sample_source: str) -> None:
+        self.store.update(job_id, status=JobStatus.RUNNING, started_at=_now())
+        self.store.append_log(job_id, f"▸ Source validation for {len(operations)} operation(s)…")
+        try:
+            # Refresh the Bearer BEFORE fetching sources. A stale Discovery/CMS/UMS
+            # token makes every source query return empty, which the comparison would
+            # otherwise report as false FAIL/SKIP ("Typesense response missing field").
+            token_status = self._ensure_token(job_id)
+            self._warn_on_stale_sources(job_id, token_status)
+            val_result = self._run_source_validation(job_id, operations)
+            val_result["token"] = token_status
+            self.store.update(
+                job_id,
+                status=JobStatus.COMPLETED,
+                finished_at=_now(),
+                result=val_result,
+            )
+        except Exception as exc:
+            log.exception("Compare job failed")
+            self.store.update(
+                job_id,
+                status=JobStatus.FAILED,
+                finished_at=_now(),
+                error=str(exc),
+            )
+
+    def _warn_on_stale_sources(self, job_id: str, token_status: dict[str, Any]) -> None:
+        """Surface source-auth readiness so empty results aren't misread as data mismatches."""
+        try:
+            from audit_validator.source_validation.config import load_source_validation_config
+
+            cfg = load_source_validation_config(self.project_root)
+            if not cfg.discovery_ready:
+                self.store.append_log(
+                    job_id,
+                    "  ⚠ Discovery/Typesense token unavailable — font source rows may show as "
+                    "SKIP (source not fetched), not real mismatches.",
+                )
+            if not cfg.cms_ready:
+                self.store.append_log(job_id, "  ⚠ CMS not configured — customer source rows will SKIP.")
+            if not cfg.ums_ready:
+                self.store.append_log(job_id, "  ⚠ UMS not configured — user/role source rows will SKIP.")
+            err = token_status.get("error")
+            if err:
+                self.store.append_log(job_id, f"  ⚠ Token refresh reported: {err}")
+        except Exception as exc:  # noqa: BLE001
+            self.store.append_log(job_id, f"  ⚠ Source readiness check failed: {exc}")
+
+
+_INFORMATIVE_KEYWORDS = (
+    "rabbit", "queue", "connect", "purge", "consumer", "captur", "raw", "enrich",
+    "simulation", "flow", "graphql", "trigger", "settle", "validat", "pass", "fail",
+    "ingress", "cron", "mongo", "correlation", "routing", "discovery", "ums", "cms",
+    "environment", "pp ", "preprod", "listening", "event", "pair", "drain", "backlog",
+)
+
+
+_NOISE_MARKERS = (
+    "connection workflow",
+    "selectconnection",
+    "asyncssltransport",
+    "pika version",
+    "closing connection",
+    "closing channel",
+    "received <channel",
+    "aborting transport",
+    "amqp stack",
+    "stack terminated",
+    "user-initiated close",
+    "connectionclosedbyclient",
+    "normal shutdown",
+    "blockingconnection",
+    "channel number",
+    "transport=",
+)
+
+
+def _is_informative_log(msg: str) -> bool:
+    lower = msg.lower()
+    if msg.startswith("▸") or msg.startswith("  ✓") or msg.startswith("  ⚠") or msg.startswith("✖") or msg.startswith("✓"):
+        return True
+    if any(marker in lower for marker in _NOISE_MARKERS):
+        return False
+    return any(kw in lower for kw in _INFORMATIVE_KEYWORDS)

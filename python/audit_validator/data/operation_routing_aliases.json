@@ -1,0 +1,13 @@
+{
+  "bulkUpdateProfiles": ["user.profile.teams_changed"],
+  "updateProfile": ["user.profile.reactivated", "user.profile.deactivated"],
+  "updateUserInvitations": ["user.invitation.revoked"],
+  "updateAssetSharing": [
+    "library.project.shared",
+    "project.member.added",
+    "project.member.removed"
+  ],
+  "markOnboardingCompleted": ["account.customer.onboarding_completed"],
+  "activateFontProject": ["font.activation.success"],
+  "deActivateFontProject": ["font.deactivation.success"]
+}

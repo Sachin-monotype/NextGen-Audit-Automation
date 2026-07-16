@@ -1,0 +1,38 @@
+{
+    "xCorrelationId": "corr-123",
+    "eventId": "uuid",
+    "eventVersion": 1,
+    "occurredAt": "2026-07-10T...",
+    "source": {
+      "service": "mt-login-service",
+      "trigger": "FB-1",
+      "operation": "fontBridgeAuthFailed",
+      "operationState": "failure",
+      "platform": "nextGen",
+      "platformEnvironment": "app",
+      "platformVersion": "1.0.0",
+      "operationIndex": 0
+    },
+    "actor": {
+      "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
+    },
+    "subject": {
+      "id": "uuid",
+      "triggerCode": "FB-1",
+      "machineId": "vm-001",
+      "workspaceId": "4a949153-9cab-4023-b31c-8336a8a3ec46",
+      "profileId": "7063f9ff-6884-11f1-a522-0e0a04e472ab",
+      "tokenId": "<12319192318",
+      "tokenStatus": "ACTIVED",
+      "authStatus": "FONTBRIDGE_AUTH_FAILED",
+      "eventType": "PAT_NOT_FOUND"
+    },
+    "error": {
+      "code": "PAT_NOT_FOUND",
+      "message": "Personal Access Token not found."
+    },
+    "recipients": [],
+    "routingKey": "fontbridge.auth.failed"
+  }
+
+

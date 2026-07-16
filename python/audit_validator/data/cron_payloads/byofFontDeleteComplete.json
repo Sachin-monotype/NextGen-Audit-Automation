@@ -1,0 +1,21 @@
+{
+  "xCorrelationId": "",
+  "eventId": "",
+  "eventVersion": 1,
+  "occurredAt": "",
+  "routingKey": "byof.font.delete_complete",
+  "source": {
+    "service": "batch-orchestration-service",
+    "operation": "byofFontDeleteComplete",
+    "operationState": "success"
+  },
+  "actor": {
+    "globalUserId": "",
+    "globalCustomerId": ""
+  },
+  "subject": {
+    "type": "byofBatch",
+    "id": ["00000000-0000-0000-0000-000000000003"],
+    "input": { "batchId": "00000000-0000-0000-0000-000000000003" }
+  }
+}

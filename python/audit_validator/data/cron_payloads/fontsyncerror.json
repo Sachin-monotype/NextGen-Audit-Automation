@@ -1,0 +1,315 @@
+{
+    "xCorrelationId": "920c6437-004b-44d2-b040-7683278df4cd",
+    "eventId": "01d5f43a-1833-4280-9fc2-fb2e67c7a4de",
+    "eventVersion": 1,
+    "occurredAt": "2026-07-08T06:12:15.1661720Z",
+    "source": {
+        "type": [
+            "App",
+            "FontSync"
+        ],
+        "service": "MonotypeFontBridge",
+        "operation": "fontSyncFailure",
+        "operationIndex": 0,
+        "operationState": "failure",
+        "platform": "nextGen",
+        "platformEnvironment": "app",
+        "platformVersion": "1.0.0.0",
+        "actorUserAgent": "MonotypeNextGen/1.0.0.0",
+        "osName": "mac",
+        "osVersion": "26.5.1"
+    },
+    "subject": {
+        "type": "fontVariation",
+        "id": [
+            "0c7e0ef74f9c5cdd2a76d9912c3a3dd5",
+            "20fc9a3dbde196c0b47fac53ca4e2aa2"
+        ],
+        "epicEventName": "font.sync.failure",
+        "action": "sync",
+        "count": 2,
+        "fontDetails": [
+            {
+                "md5": "41781192b7a8a3754da23b5780566874",
+                "errorCode": "FontDownloadError",
+                "errorMessage": "Font download failed"
+            },
+            {
+                "md5": "02e7440805d2e05de3fdde29812af6e0",
+                "errorCode": "FontDownloadError",
+                "errorMessage": "Font download failed"
+            }
+        ],
+        "enrichedSnapshot": {
+            "source": "mt-connect-middleware-discovery",
+            "fontDetails": [
+                {
+                    "family": {
+                        "id": "910011880",
+                        "catalog": {
+                            "id": "910011880",
+                            "family_url_key": "066.font/066-army",
+                            "name_en": "066 Army",
+                            "title_en": "066 Army"
+                        },
+                        "foundry": {
+                            "handle": "066font-foundry",
+                            "logo": "/10004/I34IqVWF1vDUgp92xaBaYRsI_b0ff1552b6a132d053d21ccd6b92a63e.png",
+                            "name_en": "066.FONT",
+                            "title_en": "066.FONT"
+                        }
+                    },
+                    "styles": [
+                        {
+                            "id": "297371",
+                            "catalog": {
+                                "id": "297371",
+                                "derelease_date": 0,
+                                "font_name": "066 Army Regular",
+                                "font_nids": [
+                                    "066 Army Regular"
+                                ],
+                                "font_pim_style_id": "47928",
+                                "font_ps_names": [
+                                    "066Army-Regular"
+                                ],
+                                "font_url_key": "066.font/066-army/regular",
+                                "is_default": true,
+                                "is_custom": false,
+                                "is_imported_font": false,
+                                "is_var": false,
+                                "md5": [
+                                    "0c7e0ef74f9c5cdd2a76d9912c3a3dd5"
+                                ],
+                                "render_md5": "0c7e0ef74f9c5cdd2a76d9912c3a3dd5",
+                                "visual_properties": {
+                                    "weight": 350,
+                                    "width": 150,
+                                    "height": 50,
+                                    "slant": 50,
+                                    "contrast": 150
+                                }
+                            },
+                            "variations": [
+                                {
+                                    "id": "8605023",
+                                    "catalog": {
+                                        "id": "8605023",
+                                        "derelease_date": 0,
+                                        "font_filename": "066Army-Regular.otf",
+                                        "font_format": "OT-CFF",
+                                        "font_identifier": "066Army-Regular:XTS:--:XTS:2.000:XTS:5:XTS:2:XTS:987464394",
+                                        "font_psname": "066Army-Regular",
+                                        "font_stretch": "400",
+                                        "font_style": "Normal",
+                                        "font_version": "Version 2.000;FEAKit 1.0",
+                                        "font_weight": "Regular",
+                                        "font_width": "Normal",
+                                        "fontsenseid": "987464394",
+                                        "glyph_count": 378,
+                                        "is_custom": "No",
+                                        "matno": "167673012",
+                                        "md5": "0c7e0ef74f9c5cdd2a76d9912c3a3dd5",
+                                        "sub_family_name": "Regular",
+                                        "typographic_sub_family_name": "Regular",
+                                        "typography_family_name": "066 Army",
+                                        "variation_name": "066 Army Regular",
+                                        "variety": "Std"
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "family": {
+                        "id": "431881",
+                        "catalog": {
+                            "id": "431881",
+                            "family_url_key": "blambot/10-cent-comics",
+                            "name_en": "10 Cent Comics",
+                            "title_en": "10 Cent Comics"
+                        },
+                        "foundry": {
+                            "handle": "blambot-foundry",
+                            "logo": "/10004/D946eqV5MbBfUbHlFLZa4YJn_323d41e1cc187fc22f46a71c6d3e6898.png",
+                            "name_en": "Blambot",
+                            "title_en": "Blambot"
+                        }
+                    },
+                    "styles": [
+                        {
+                            "id": "425394",
+                            "catalog": {
+                                "id": "425394",
+                                "derelease_date": 0,
+                                "font_name": "10 Cent Comics Italic",
+                                "font_nids": [
+                                    "10 Cent Comics Italic"
+                                ],
+                                "font_pim_style_id": "57061",
+                                "font_ps_names": [
+                                    "10CentComicsItalic"
+                                ],
+                                "font_url_key": "blambot/10-cent-comics/italic",
+                                "is_default": false,
+                                "is_custom": false,
+                                "is_imported_font": false,
+                                "is_var": false,
+                                "md5": [
+                                    "20fc9a3dbde196c0b47fac53ca4e2aa2"
+                                ],
+                                "render_md5": "20fc9a3dbde196c0b47fac53ca4e2aa2",
+                                "visual_properties": {
+                                    "weight": 300,
+                                    "width": 300,
+                                    "height": 100,
+                                    "slant": 200,
+                                    "contrast": 50
+                                }
+                            },
+                            "variations": [
+                                {
+                                    "id": "425395",
+                                    "catalog": {
+                                        "id": "425395",
+                                        "derelease_date": 0,
+                                        "font_filename": "10CentComicsItalic.TTF",
+                                        "font_format": "TT",
+                                        "font_identifier": "10CentComicsItalic:XTS:--:XTS:4.1:XTS:4:XTS:2:XTS:3031604469",
+                                        "font_psname": "10CentComicsItalic",
+                                        "font_stretch": "400",
+                                        "font_style": "Italic",
+                                        "font_version": "Macromedia Fontographer 4.1 2/26/03",
+                                        "font_weight": "Normal",
+                                        "font_width": "Normal",
+                                        "fontsenseid": "3031604469",
+                                        "glyph_count": 114,
+                                        "is_custom": "No",
+                                        "matno": "15179272",
+                                        "md5": "20fc9a3dbde196c0b47fac53ca4e2aa2",
+                                        "sub_family_name": "Italic",
+                                        "typographic_sub_family_name": " ",
+                                        "typography_family_name": " ",
+                                        "variation_name": "10 Cent Comics Italic",
+                                        "variety": "none"
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    "error": {
+        "code": "FontDownloadError",
+        "classification": "test classification",
+        "message": "2 font(s) failed sync"
+    },
+    "actor": {
+        "globalUserId": "28c9ad2d-79ed-11f1-a522-0e0a04e472ab",
+        "globalCustomerId": "c0f63c78-64af-4173-a8f9-1617eccd051b",
+        "authenticationState": "authenticated",
+        "machineId": "PA1MNP1YCGM9VJCW893HKC9Q5JPYSYHV2Z6YX75ZT8JF401XS800",
+        "uniqueId": "9E69BD6430A581D3FE60581E",
+        "enrichedSnapshot": {
+            "user": {
+                "source": "user-management-service",
+                "profile": {
+                    "id": "28c9ad2d-79ed-11f1-a522-0e0a04e472ab",
+                    "customerId": "c0f63c78-64af-4173-a8f9-1617eccd051b",
+                    "firstName": "Test Audit 007",
+                    "lastName": null,
+                    "email": "test_audit_007@serveruser-c0f63c78-64af-4173-a8f9-1617eccd051b.com",
+                    "isActive": true
+                },
+                "role": {
+                    "id": "209d5683-898b-425c-9eff-12abc6b0cd80",
+                    "displayName": "ServiceUserRole",
+                    "permissions": [
+                        {
+                            "id": 42
+                        },
+                        {
+                            "id": 67
+                        },
+                        {
+                            "id": 73
+                        },
+                        {
+                            "id": 74
+                        },
+                        {
+                            "id": 82
+                        }
+                    ]
+                },
+                "teams": []
+            },
+            "customer": {
+                "source": "customer-management-service",
+                "id": "c0f63c78-64af-4173-a8f9-1617eccd051b",
+                "name": "Desktop App Test Company",
+                "displayName": "Desktop App Test Company",
+                "metaData": {
+                    "sapId": "12321312",
+                    "isSSOEnabled": false,
+                    "contractNumber": "1231231231231",
+                    "companySettings": {
+                        "enableDownload": true,
+                        "enableImportedFonts": false,
+                        "enableWebFontAccess": false,
+                        "enableSelfHostingKits": true,
+                        "enableProjectManagement": true,
+                        "enableFontFormatSelection": true
+                    },
+                    "primaryContactId": "0fdcb7ac-2206-11f1-8e3d-0e220b57740d",
+                    "customerOnboarded": true,
+                    "supportedLanguage": "EN",
+                    "isAnalyticsEnabled": true,
+                    "isWorkspaceEnabled": false,
+                    "accountRepresentative": null,
+                    "invitedPrimaryContactEmail": "monotype.staging+nextgen_en@gmail.com",
+                    "isResearchParticipationEnabled": true
+                },
+                "subscription": {
+                    "customerId": "c0f63c78-64af-4173-a8f9-1617eccd051b",
+                    "planDefinition": {
+                        "planType": "Basic",
+                        "allowDownload": true,
+                        "pageViewLimit": 100,
+                        "hasWebFontAccess": false,
+                        "isAISearchEnabled": true,
+                        "adsImpressionLimit": 100,
+                        "allowProductionFont": false,
+                        "fontBridgeSeatCount": 1,
+                        "hasDigitalAdsAccess": false,
+                        "isFontBridgeEnabled": true,
+                        "isPeerInviteAllowed": true,
+                        "productionFontCount": 5,
+                        "allowMosaicDTInstall": false,
+                        "allowSelfHostingKits": true,
+                        "isPrivateFontAllowed": false,
+                        "isWhatTheFontEnabled": true,
+                        "allowClickThroughEula": false,
+                        "allowRemoteActivation": true,
+                        "enableLicenseManagement": true,
+                        "enableProjectManagement": true,
+                        "hasMonotypeLibraryAccess": true,
+                        "allowFontFormatSelectionInFontList": true
+                    },
+                    "productType": "DIGITAL",
+                    "seatsAvailable": 1,
+                    "terminationDate": "2032-09-30T00:00:00.000Z",
+                    "isTrial": false,
+                    "isActive": true,
+                    "createdAt": "2026-03-17T13:33:42.000Z"
+                }
+            }
+        }
+    },
+    "enrichedEventId": "01KX0PPQJYJECMZNHCNGD7DKWT",
+    "enrichmentVersion": 1,
+    "enrichedAt": "2026-07-08T11:09:43.384Z"
+}

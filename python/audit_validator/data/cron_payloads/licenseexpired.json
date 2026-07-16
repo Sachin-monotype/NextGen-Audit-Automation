@@ -1,0 +1,71 @@
+{
+    "xCorrelationId": "04dff8f6-95c9-4c98-b56c-ed2b485fae6a",
+    "eventId": "be2d67af-5921-44f3-ad8e-535bd9740af0",
+    "eventVersion": 1,
+    "occurredAt": "2026-07-09T06:29:01.274Z",
+    "routingKey": "byof.licence.expired",
+    "actor": {
+      "globalUserId": null,
+      "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
+    },
+    "source": {
+      "type": [
+        "BYOF Licence Expiry"
+      ],
+      "service": "byof-license-service",
+      "operation": "byofLicenceExpired",
+      "operationState": "success"
+    },
+    "subject": {
+      "id": [
+        "0a01ac96-84a7-4c8a-939e-2cbc103b0946"
+      ],
+      "type": "BYOF Licence Expiry",
+      "contractId": [
+        "0a01ac96-84a7-4c8a-939e-2cbc103b0946"
+      ],
+      "contract": {
+        "contractId": "0a01ac96-84a7-4c8a-939e-2cbc103b0946",
+        "companyId":  "4a949153-9cab-4023-b31c-8336a8a3ec46",
+        "licenceName": "License_new001",
+        "isFreeToUse": false,
+        "isPayOnce": false,
+        "isReviewed": true,
+        "licenceType": "WEB",
+        "linkedImportedFontScope": "GLOBAL",
+        "projectId": null,
+        "licenceStartDate": "2026-06-07T18:15:00.000Z",
+        "licenceEndDate": "2026-07-07T18:15:00.000Z",
+        "totalLicensedSeats": 200,
+        "usedSeats": 0,
+        "costPerSeat": null,
+        "totalCost": 500,
+        "licencePurchaseDate": "2026-06-07T18:15:00.000Z",
+        "foundry": "Foundry_1",
+        "vendorName": "vendor1",
+        "contractReference": null,
+        "purchaseOrder": "123abc",
+        "invoiceNumber": "ABCXYZ1234",
+        "currency": null,
+        "title": 0,
+        "registeredUsers": 0,
+        "notes": "This is a newly created license that was added manually.",
+        "notifyBeforeExpiry": true,
+        "notifyDays": 30,
+        "licenceSubTypes": null,
+        "status": "EXPIRED",
+        "createdAt": "2026-06-08T07:35:24.000Z",
+        "createdBy": "56195c42-4521-11f1-a522-0e0a04e472ab",
+        "updatedAt": "2026-07-07T18:15:09.000Z",
+        "updatedBy": "56195c42-4521-11f1-a522-0e0a04e472ab"
+      },
+      "styles": [
+        {
+            "styleId": "style-1",
+            "styleName": "Open Sans Italic",
+            "linkedAt": "2025-01-01T00:00:00.000Z",
+            "linkedBy": "user-1"
+          }
+      ]
+    }
+  }

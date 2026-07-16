@@ -1,0 +1,627 @@
+{
+  "total_cases": 29,
+  "cases": [
+    {
+      "case_id": "plugin_panel_opened",
+      "title": "plugin.panel.opened",
+      "category": "plugin_events",
+      "operation": "pluginPanelOpened",
+      "service": "Plugin",
+      "trigger": "ingress-api",
+      "description": "POST `plugin.panel.opened` via Ingress API (plugin events). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "plugin_panel_opened.json",
+      "curl_file": "curls/plugin_panel_opened.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_panel_closed",
+      "title": "plugin.panel.closed",
+      "category": "plugin_events",
+      "operation": "pluginPanelClosed",
+      "service": "Plugin",
+      "trigger": "ingress-api",
+      "description": "POST `plugin.panel.closed` via Ingress API (plugin events). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "plugin_panel_closed.json",
+      "curl_file": "curls/plugin_panel_closed.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_missing_font_unresolved",
+      "title": "plugin.missing_font.unresolved",
+      "category": "plugin_events",
+      "operation": "pluginDocumentOpened",
+      "service": "MonotypeNextGenConnectService",
+      "trigger": "ingress-api",
+      "description": "POST `plugin.missing_font.unresolved` via Ingress API (plugin events). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "plugin_missing_font_unresolved.json",
+      "curl_file": "curls/plugin_missing_font_unresolved.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_missing_font_resolved",
+      "title": "plugin.missing_font.resolved",
+      "category": "plugin_events",
+      "operation": "pluginDocumentOpened",
+      "service": "MonotypeNextGenConnectService",
+      "trigger": "ingress-api",
+      "description": "POST `plugin.missing_font.resolved` via Ingress API (plugin events). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "plugin_missing_font_resolved.json",
+      "curl_file": "curls/plugin_missing_font_resolved.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_missing_font_detected",
+      "title": "plugin.missing_font.detected",
+      "category": "plugin_events",
+      "operation": "pluginDocumentOpened",
+      "service": "MonotypeNextGenConnectService",
+      "trigger": "ingress-api",
+      "description": "POST `plugin.missing_font.detected` via Ingress API (plugin events). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "plugin_missing_font_detected.json",
+      "curl_file": "curls/plugin_missing_font_detected.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_imported_font_requested",
+      "title": "plugin.imported_font.requested",
+      "category": "plugin_events",
+      "operation": "pluginDocumentOpened",
+      "service": "MonotypeNextGenConnectService",
+      "trigger": "ingress-api",
+      "description": "POST `plugin.imported_font.requested` via Ingress API (plugin events). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "plugin_imported_font_requested.json",
+      "curl_file": "curls/plugin_imported_font_requested.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_font_manually_activated",
+      "title": "plugin.font.manually_activated",
+      "category": "plugin_events",
+      "operation": "pluginFontManuallyActivated",
+      "service": "MonotypeNextGenConnectService",
+      "trigger": "ingress-api",
+      "description": "POST `plugin.font.manually_activated` via Ingress API (plugin events). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "plugin_font_manually_activated.json",
+      "curl_file": "curls/plugin_font_manually_activated.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_font_auto_activated",
+      "title": "plugin.font.auto_activated",
+      "category": "plugin_events",
+      "operation": "pluginDocumentOpened",
+      "service": "MonotypeNextGenConnectService",
+      "trigger": "ingress-api",
+      "description": "POST `plugin.font.auto_activated` via Ingress API (plugin events). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "plugin_font_auto_activated.json",
+      "curl_file": "curls/plugin_font_auto_activated.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_font_conflict_detected",
+      "title": "plugin.font_conflict.detected",
+      "category": "plugin_events",
+      "operation": "pluginDocumentOpened",
+      "service": "MonotypeNextGenConnectService",
+      "trigger": "ingress-api",
+      "description": "POST `plugin.font_conflict.detected` via Ingress API (plugin events). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "plugin_font_conflict_detected.json",
+      "curl_file": "curls/plugin_font_conflict_detected.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "plugin_document_opened",
+      "title": "plugin.document.opened",
+      "category": "plugin_events",
+      "operation": "pluginDocumentOpened",
+      "service": "MonotypeNextGenConnectService",
+      "trigger": "ingress-api",
+      "description": "POST `plugin.document.opened` via Ingress API (plugin events). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "plugin_document_opened.json",
+      "curl_file": "curls/plugin_document_opened.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "app_settings_temp_font_deactivation_document_quit_updated",
+      "title": "app.settings.temp_font_deactivation_document_quit.updated",
+      "category": "desktop_app_preference_page",
+      "skipped": true,
+      "reason": "duplicate event in spreadsheet"
+    },
+    {
+      "case_id": "app_settings_temp_font_deactivation_app_quit_updated",
+      "title": "app.settings.temp_font_deactivation_app_quit.updated",
+      "category": "desktop_app_preference_page",
+      "skipped": true,
+      "reason": "duplicate event in spreadsheet"
+    },
+    {
+      "case_id": "app_settings_plugin_install_all_enabled",
+      "title": "app.settings.plugin.install_all.enabled",
+      "category": "desktop_app_preference_page",
+      "operation": "appSettingsPluginInstallAllEnabled",
+      "service": "mtconnect-ui",
+      "trigger": "ingress-api",
+      "description": "POST `app.settings.plugin.install_all.enabled` via Ingress API (desktop app preference page). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "app_settings_plugin_install_all_enabled.json",
+      "curl_file": "curls/app_settings_plugin_install_all_enabled.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "app_settings_plugin_install_all_disabled",
+      "title": "app.settings.plugin.install_all.disabled",
+      "category": "desktop_app_preference_page",
+      "operation": "appSettingsPluginInstallAllDisabled",
+      "service": "mtconnect-ui",
+      "trigger": "ingress-api",
+      "description": "POST `app.settings.plugin.install_all.disabled` via Ingress API (desktop app preference page). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "app_settings_plugin_install_all_disabled.json",
+      "curl_file": "curls/app_settings_plugin_install_all_disabled.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "app_settings_plugin_app_enabled",
+      "title": "app.settings.plugin.app.enabled",
+      "category": "desktop_app_preference_page",
+      "operation": "appSettingsPluginAppEnabled",
+      "service": "mtconnect-ui",
+      "trigger": "ingress-api",
+      "description": "POST `app.settings.plugin.app.enabled` via Ingress API (desktop app preference page). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "app_settings_plugin_app_enabled.json",
+      "curl_file": "curls/app_settings_plugin_app_enabled.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "app_settings_plugin_app_disabled",
+      "title": "app.settings.plugin.app.disabled",
+      "category": "desktop_app_preference_page",
+      "skipped": true,
+      "reason": "duplicate event in spreadsheet"
+    },
+    {
+      "case_id": "app_settings_plugin_app_app_name_enabled",
+      "title": "app.settings.plugin.app.[App_name]_enabled",
+      "category": "desktop_app_preference_page",
+      "operation": "appSettingsPluginInstallAllDisabled",
+      "service": "mtconnect-ui",
+      "trigger": "ingress-api",
+      "description": "POST `app.settings.plugin.app.[App_name]_enabled` via Ingress API (desktop app preference page). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "app_settings_plugin_app_app_name_enabled.json",
+      "curl_file": "curls/app_settings_plugin_app_app_name_enabled.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "app_settings_performance_mode_changed",
+      "title": "app.settings.performance_mode.changed",
+      "category": "desktop_app_preference_page",
+      "operation": "appSettingsPerformanceModeChanged",
+      "service": "mtconnect-ui",
+      "trigger": "ingress-api",
+      "description": "POST `app.settings.performance_mode.changed` via Ingress API (desktop app preference page). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "app_settings_performance_mode_changed.json",
+      "curl_file": "curls/app_settings_performance_mode_changed.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "app_settings_auto_performance_max_performance_enabled",
+      "title": "app.settings.auto_performance(max performance).enabled",
+      "category": "desktop_app_preference_page",
+      "skipped": true,
+      "reason": "duplicate event in spreadsheet"
+    },
+    {
+      "case_id": "app_settings_auto_performance_max_capacity_enabled",
+      "title": "app.settings.auto_performance(max capacity).enabled",
+      "category": "desktop_app_preference_page",
+      "skipped": true,
+      "reason": "duplicate event in spreadsheet"
+    },
+    {
+      "case_id": "app_settings_auto_performance_balanced_enabled",
+      "title": "app.settings.auto_performance(balanced).enabled",
+      "category": "desktop_app_preference_page",
+      "skipped": true,
+      "reason": "duplicate event in spreadsheet"
+    },
+    {
+      "case_id": "app_settings_auto_performance_enabled",
+      "title": "app.settings.auto_performance.enabled",
+      "category": "desktop_app_preference_page",
+      "operation": "appSettingsAutoPerformanceEnabled",
+      "service": "mtconnect-ui",
+      "trigger": "ingress-api",
+      "description": "POST `app.settings.auto_performance.enabled` via Ingress API (desktop app preference page). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "app_settings_auto_performance_enabled.json",
+      "curl_file": "curls/app_settings_auto_performance_enabled.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "app_settings_auto_performance_disabled",
+      "title": "app.settings.auto_performance.disabled",
+      "category": "desktop_app_preference_page",
+      "operation": "appSettingsAutoPerformanceDisabled",
+      "service": "mtconnect-ui",
+      "trigger": "ingress-api",
+      "description": "POST `app.settings.auto_performance.disabled` via Ingress API (desktop app preference page). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "app_settings_auto_performance_disabled.json",
+      "curl_file": "curls/app_settings_auto_performance_disabled.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "app_settings_activation_mode_changed",
+      "title": "app.settings.activation_mode.changed",
+      "category": "desktop_app_preference_page",
+      "operation": "appSettingsActivationModeChanged",
+      "service": "mtconnect-ui",
+      "trigger": "ingress-api",
+      "description": "POST `app.settings.activation_mode.changed` via Ingress API (desktop app preference page). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "app_settings_activation_mode_changed.json",
+      "curl_file": "curls/app_settings_activation_mode_changed.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "app_logs_exported",
+      "title": "app.logs.exported",
+      "category": "desktop_app_preference_page",
+      "operation": "appLogsExported",
+      "service": "mtconnect-ui",
+      "trigger": "ingress-api",
+      "description": "POST `app.logs.exported` via Ingress API (desktop app preference page). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "app_logs_exported.json",
+      "curl_file": "curls/app_logs_exported.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "app_language_changed",
+      "title": "app.language.changed",
+      "category": "desktop_app_preference_page",
+      "operation": "appLanguageChanged",
+      "service": "mtconnect-ui",
+      "trigger": "ingress-api",
+      "description": "POST `app.language.changed` via Ingress API (desktop app preference page). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "app_language_changed.json",
+      "curl_file": "curls/app_language_changed.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "app_feedback_submitted",
+      "title": "app.feedback.submitted",
+      "category": "desktop_app_preference_page",
+      "operation": "appFeedbackSubmitted",
+      "service": "mtconnect-ui",
+      "trigger": "ingress-api",
+      "description": "POST `app.feedback.submitted` via Ingress API (desktop app preference page). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "app_feedback_submitted.json",
+      "curl_file": "curls/app_feedback_submitted.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "app_cache_cleared",
+      "title": "app.cache.cleared",
+      "category": "desktop_app_preference_page",
+      "operation": "appCacheCleared",
+      "service": "mtconnect-ui",
+      "trigger": "ingress-api",
+      "description": "POST `app.cache.cleared` via Ingress API (desktop app preference page). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "app_cache_cleared.json",
+      "curl_file": "curls/app_cache_cleared.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "font_activation_type_switched",
+      "title": "font.activation.type.switched",
+      "category": "font_activations",
+      "operation": "fontActivationTypeSwitched",
+      "service": "mtconnect-ui",
+      "trigger": "ingress-api",
+      "description": "POST `font.activation.type.switched` via Ingress API (font activations). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "font_activation_type_switched.json",
+      "curl_file": "curls/font_activation_type_switched.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "font_localfont_activated",
+      "title": "font.localfont.activated",
+      "category": "font_activations",
+      "operation": "fontLocalfontActivated",
+      "service": "mtconnect-ui",
+      "trigger": "ingress-api",
+      "description": "POST `font.localfont.activated` via Ingress API (font activations). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "font_localfont_activated.json",
+      "curl_file": "curls/font_localfont_activated.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "font_localfont_deactivated",
+      "title": "font.localfont.deactivated",
+      "category": "font_activations",
+      "operation": "fontLocalfontDeactivated",
+      "service": "mtconnect-ui",
+      "trigger": "ingress-api",
+      "description": "POST `font.localfont.deactivated` via Ingress API (font activations). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "font_localfont_deactivated.json",
+      "curl_file": "curls/font_localfont_deactivated.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "userloginfailureapp",
+      "title": "userLoginFailureApp",
+      "category": "login",
+      "operation": "userLoginFailureApp",
+      "service": "MonotypeNextGenConnectService",
+      "trigger": "ingress-api",
+      "description": "POST `userLoginFailureApp` via Ingress API (login). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "userloginfailureapp.json",
+      "curl_file": "curls/userloginfailureapp.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "userlogoutapp",
+      "title": "userLogoutApp",
+      "category": "login",
+      "operation": "userLogoutApp",
+      "service": "MonotypeNextGenConnectService",
+      "trigger": "ingress-api",
+      "description": "POST `userLogoutApp` via Ingress API (login). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "userlogoutapp.json",
+      "curl_file": "curls/userlogoutapp.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "userswitchworkspaceapp",
+      "title": "userSwitchworkspaceApp",
+      "category": "login",
+      "operation": "userSwitchWorkspaceApp",
+      "service": "MonotypeNextGenConnectService",
+      "trigger": "ingress-api",
+      "description": "POST `userSwitchworkspaceApp` via Ingress API (login). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "userswitchworkspaceapp.json",
+      "curl_file": "curls/userswitchworkspaceapp.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    },
+    {
+      "case_id": "identitylinked",
+      "title": "identityLinked",
+      "category": "login",
+      "operation": "identityLinked",
+      "service": "MonotypeNextGenConnectService",
+      "trigger": "ingress-api",
+      "description": "POST `identityLinked` via Ingress API (login). Verify HTTP 2xx, raw message on ${INGRESS_RAW_QUEUE}, and enriched message on ${INGRESS_ENRICHED_QUEUE} when enrichment applies.",
+      "payload_file": "identitylinked.json",
+      "curl_file": "curls/identitylinked.sh",
+      "expected_http": "2xx",
+      "raw_queue_env": "INGRESS_RAW_QUEUE",
+      "enriched_queue_env": "INGRESS_ENRICHED_QUEUE",
+      "preconditions": [
+        "INGRESS_BEARER_TOKEN (or BEARER_TOKEN_PP) is set",
+        "INGRESS_RAW_QUEUE and INGRESS_ENRICHED_QUEUE are configured",
+        "INGRESS_RABBITMQ_URL points at PP preprod vhost when needed"
+      ],
+      "skipped": false
+    }
+  ]
+}

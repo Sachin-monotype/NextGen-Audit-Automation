@@ -1,0 +1,41 @@
+{
+    "xCorrelationId": "112fbe7d-2b25-4225-9822-234ed860b742",
+    "eventId": "01KX3P6WW9CH9MZDKVBEY7CQRD",
+    "eventVersion": 1,
+    "occurredAt": "2026-07-09T14:58:47.817Z",
+    "routingKey": "font.leaving.catalogue",
+    "source": {
+        "service": "leaving-font-usage-service",
+        "operation": "fontLeavingCatalogue",
+        "operationState": "success"
+    },
+    "actor": {},
+    "subject": {
+        "id": [
+            "112fbe7d-2b1sa1125-3334223335-9822-234ed860b742"
+        ],
+        "type": "leavingSoonVariations",
+        "variations": [
+            {
+                "variationId": "931030742",
+                "familyId": "910131935",
+                "psName": "Boldybear",
+                "fontStyle": "Normal",
+                "styleId" : "e7z4R6sG",
+                "expiryDate": "2026-07-30T00:00:00.000Z",
+                "expiredDay": "21 days",
+                "projects": [
+                    {
+                        "projectId": "34ad7238-c7b3-4a9d-a28f-5a88da7a278a",
+                        "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46",
+                        "name": "bulk hajur",
+                        "description": "&lt;p&gt;hajur&lt;/p&gt;",
+                        "assetType": "FontProject",
+                        "isShared": false,
+                        "state": "PUBLISHED"
+                    }
+                ]
+            }
+        ]
+    }
+}

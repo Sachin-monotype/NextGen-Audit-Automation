@@ -1,0 +1,1895 @@
+{
+  "UserLogIntiated": {
+    "section": "Login & identity",
+    "navigation": [],
+    "remarks": ""
+  },
+  "activateAllFontsInList": {
+    "section": "Project compliance",
+    "navigation": [
+      "Project Library > open font list > kebab > Activate all fonts (context-menu-item-activate-all-fonts) > \"All fonts from the list are activated successfully\" snackbar"
+    ],
+    "remarks": "QA-automated: test_activate_deactivate_all_fonts_from_fontlist"
+  },
+  "activateFamily": {
+    "section": "Font sync & activation",
+    "navigation": [
+      "Discover Fonts >Family > Activate",
+      "Discover Fonts >Family>family details > Activate",
+      "Discover Fonts >List> click on list >family> Activate",
+      "Discover Fonts >project> click on project >family> Activate",
+      "Discover Fonts > Select font family > open family details > Activate"
+    ],
+    "remarks": ""
+  },
+  "activateFamilyInProject": {
+    "section": "Project compliance",
+    "navigation": [
+      "Project Family page > header Activate family button > all style card toggles ON > Deactivate family button appears"
+    ],
+    "remarks": "QA-automated: test_activate_family_enables_all_style_cards"
+  },
+  "activateFontProject": {
+    "section": "Font sync & activation",
+    "navigation": [
+      "Discover Fonts >Projects > Open project > Add font > browse>family details > add font to project",
+      "Projects > Open project > Activate project fonts"
+    ],
+    "remarks": ""
+  },
+  "activateList": {
+    "section": "Font sync & activation",
+    "navigation": [
+      "Discover Fonts> Asset > Activate Fonts in list",
+      "Discover Fonts> Show all Assets >tick on check Asset > Activate",
+      "Discover Fonts >show all assets > right click list > activate",
+      "Discover Fonts > Assets > Font list > Activate fonts in list",
+      "Discover Fonts > Show all assets > Select list > Right click > Activate"
+    ],
+    "remarks": ""
+  },
+  "activateStyle": {
+    "section": "Font sync & activation",
+    "navigation": [
+      "Discover Fonts > Assets > Font list > Activate list",
+      "Discover Fonts >List> click on list >family>style > Activate",
+      "Discover Fonts >Font Card>Right Click>Activate Style> Select a Style",
+      "Discover Fonts > Style row > Activate",
+      "Font card context menu > Activate style"
+    ],
+    "remarks": ""
+  },
+  "activateVariation": {
+    "section": "Font sync & activation",
+    "navigation": [
+      "Discover Fonts > Family>Family details > Select style > More Action > Font version > Activate",
+      "Discover Fonts> open list with variation > activate",
+      "Discover Fonts > Family details > Style > More actions > Font version > Activate",
+      "Family page > Variation row > Activate",
+      "Discover Fonts > Family page > (useFamilyPageViewModel)"
+    ],
+    "remarks": ""
+  },
+  "addFavoriteFamilies": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Family card > Add to favorites",
+      "Discover Fonts> Family > Family Details > Menu > Add",
+      "Discover Fonts > Search > Family card > Add to favorites",
+      "Discover Fonts > Family details > Menu > Add to favorites",
+      "Search > Family card > Favorite icon"
+    ],
+    "remarks": ""
+  },
+  "addFavoritePair": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Pairing view > Add pair to favorites",
+      "My Library > (useFavouritesPairsTab)",
+      "Discover Fonts > Pairing > (usePairingPageModel)"
+    ],
+    "remarks": ""
+  },
+  "addFavoriteStyles": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Pairing view > Add pair to favorites",
+      "Discover Fonts > open family > select style > click favourite",
+      "Discover Fonts > Style row > Favorite icon",
+      "Family details > Style > Favorite icon",
+      "Favorites action (shared) > (useFavorites)"
+    ],
+    "remarks": ""
+  },
+  "addFontListFamilies": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Search > Style > Add to favorites",
+      "Discover Fonts > Assets > Font list > Add families",
+      "Discover Fonts > Search > Style > Add to list",
+      "Font card context menu > Add to list or tag > Select list",
+      "My Library > Add families to list"
+    ],
+    "remarks": ""
+  },
+  "addFontListStyles": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > select family >right click> Add to list or tag",
+      "Discover Fonts > Select family/style > Right click > Add to list or tag",
+      "Font card context menu > Add to list",
+      "Document scan > (useDocumentScanAddToListOrFolder)",
+      "My Library > (useAddStylesToFontList)"
+    ],
+    "remarks": ""
+  },
+  "addFontProjectFamilies": {
+    "section": "Project lifecycle & membership",
+    "navigation": [
+      "Discover Fonts > Family>Family details > Select style > Add to project",
+      "Discover Fonts>Right Click>Add to project>Click Project",
+      "Discover Fonts > Family details > Style > Add to list or tag > Project",
+      "Font card context menu > Add to project",
+      "Projects > ProjectFontsTab"
+    ],
+    "remarks": ""
+  },
+  "addFontProjectStyles": {
+    "section": "Project lifecycle & membership",
+    "navigation": [
+      "Discover Fonts >Projects > Open project > Add font > browse > add font to project",
+      "Projects > Open project > Add font > Browse > Add font to project",
+      "Projects > Open project > Add font > Browse > Family details > Add to project",
+      "Projects > ProjectFontsTab",
+      "Document scan > (useAddFontToProject)"
+    ],
+    "remarks": ""
+  },
+  "addFontsFromDiscover": {
+    "section": "Project compliance",
+    "navigation": [
+      "Discover fonts > All fonts > Cmd/Ctrl+click select font families > bulk toolbar Add to enabled > Add to submenu > Create project with selection > snackbar View project OR Untitled project link > verify fonts on Project fonts",
+      "Discover fonts > multi-select > Add to > Create project with selection > Show all projects link in snackbar > All Projects tab > search Untitled project > open > verify fonts match selection",
+      "Discover fonts > multi-select > Add to > Create project with selection > open via snackbar > verify Project Details / Project fonts"
+    ],
+    "remarks": "QA-automated: test_add_to_project_discover.py (C73227833-42)"
+  },
+  "addFontsToProject": {
+    "section": "Project compliance",
+    "navigation": [
+      "Wizard Step 3: Browse inventory (project-fonts-browse-inventory-btn) > search fonts > Add to project per card (browse-inventory-add-to-project-button) > Create project",
+      "Existing project: Sidebar > Projects > open project > Project fonts (project-nav-project-fonts) > Add fonts to project (empty-state-button) > Browse inventory > search > add fonts > return to Project fonts grid",
+      "Project Settings > Fonts tab (project-settings-nav-fonts) > verify font list (read-only check)"
+    ],
+    "remarks": "QA-automated: test_publish_project.py, test_project_fonts.py"
+  },
+  "addStyleComment": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "addStyleDocument": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "addStylesToWebProject": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "appCacheClearCanceld": {
+    "section": "Desktop app preferences",
+    "navigation": [
+      "Desktop app > Help & Support > Storage > Clear font cache (cancel)"
+    ],
+    "remarks": ""
+  },
+  "appCacheClearInitiated": {
+    "section": "Desktop app preferences",
+    "navigation": [
+      "Desktop app > Help & Support > Storage > Clear font cache (do not confirm)"
+    ],
+    "remarks": ""
+  },
+  "appCacheCleared": {
+    "section": "Desktop app preferences",
+    "navigation": [
+      "Desktop app > Help & Support > Storage > Clear font cache > Confirm"
+    ],
+    "remarks": ""
+  },
+  "appConnectivityLost": {
+    "section": "Desktop app preferences",
+    "navigation": [],
+    "remarks": ""
+  },
+  "appConnectivityRestored": {
+    "section": "Desktop app preferences",
+    "navigation": [],
+    "remarks": ""
+  },
+  "appFeedbackSubmitted": {
+    "section": "Desktop app preferences",
+    "navigation": [
+      "Desktop app > Preferences > About > Send feedback / contact support"
+    ],
+    "remarks": ""
+  },
+  "appHealthStatusRefreshed": {
+    "section": "Desktop app preferences",
+    "navigation": [],
+    "remarks": ""
+  },
+  "appLanguageChanged": {
+    "section": "Desktop app preferences",
+    "navigation": [
+      "Desktop app > Preferences > General > Language > Select language"
+    ],
+    "remarks": ""
+  },
+  "appLaunched": {
+    "section": "Desktop app preferences",
+    "navigation": [],
+    "remarks": ""
+  },
+  "appLogsExported": {
+    "section": "Desktop app preferences",
+    "navigation": [
+      "Desktop app > Help & Support > System logs > Download system logs"
+    ],
+    "remarks": ""
+  },
+  "appSettingsActivationModeChanged": {
+    "section": "Desktop app preferences",
+    "navigation": [
+      "Desktop app > Preferences > Plugins > Deactivate temporary fonts when > Dropdown"
+    ],
+    "remarks": ""
+  },
+  "appSettingsAutoPerformanceDisabled": {
+    "section": "Desktop app preferences",
+    "navigation": [
+      "Desktop app > Preferences > General > Auto performance management > Disable toggle"
+    ],
+    "remarks": ""
+  },
+  "appSettingsAutoPerformanceEnabled": {
+    "section": "Desktop app preferences",
+    "navigation": [
+      "Desktop app > Preferences > General > Auto performance management > Enable toggle"
+    ],
+    "remarks": ""
+  },
+  "appSettingsPerformanceModeChanged": {
+    "section": "Desktop app preferences",
+    "navigation": [
+      "Desktop app > Preferences > General > Performance mode > Select mode"
+    ],
+    "remarks": ""
+  },
+  "appSettingsPluginAppDisabled": {
+    "section": "Desktop app preferences",
+    "navigation": [
+      "Desktop app > Preferences > Plugins > Per-app row (e.g. Photoshop, InDesign) > Enable"
+    ],
+    "remarks": ""
+  },
+  "appSettingsPluginAppEnabled": {
+    "section": "Desktop app preferences",
+    "navigation": [
+      "Desktop app > Preferences > Plugins > Apps available on system > Enable plugin for app"
+    ],
+    "remarks": ""
+  },
+  "appSettingsPluginInstallAllDisabled": {
+    "section": "Desktop app preferences",
+    "navigation": [
+      "Desktop app > Preferences > Plugins > Install all plugins > Disable toggle"
+    ],
+    "remarks": ""
+  },
+  "appSettingsPluginInstallAllEnabled": {
+    "section": "Desktop app preferences",
+    "navigation": [
+      "Desktop app > Preferences > Plugins > Install all plugins > Enable toggle"
+    ],
+    "remarks": ""
+  },
+  "appUpdateCompleted": {
+    "section": "Desktop app preferences",
+    "navigation": [],
+    "remarks": ""
+  },
+  "appUpdateFailed": {
+    "section": "Desktop app preferences",
+    "navigation": [],
+    "remarks": ""
+  },
+  "applyUnsubscribe": {
+    "section": "Account & workspace",
+    "navigation": [],
+    "remarks": ""
+  },
+  "approveFontAccess": {
+    "section": "Imported font access requests",
+    "navigation": [
+      "Notifications > Access request > Approve"
+    ],
+    "remarks": ""
+  },
+  "archiveProject": {
+    "section": "Project compliance",
+    "navigation": [
+      "Open project > title kebab > Archive project (project-library-kebab-archive) > confirm dialog Archive project > success snackbar \"successfully archived\"",
+      "All Projects > My Projects tab > project row kebab > Archive (context-menu-item-project-row-archive) > confirm > snackbar",
+      "All Projects > archive a pinned project > verify unpinned + archived (test_archive_pinned_project_and_restore)"
+    ],
+    "remarks": "QA-automated: test_all_projects.py, test_draft_project.py. GraphQL: archiveProject"
+  },
+  "bulkActivateLists": {
+    "section": "Font sync & activation",
+    "navigation": [
+      "Discover Fonts >Assets > select multiple assets > right click > activate",
+      "Discover Fonts > Assets > Multi-select assets > Right click > Activate",
+      "My Library > (useBulkActivateSelectedFontListsFromContextMenu)",
+      "My Library > AssetFolderPage",
+      "My Library > MyLibraryPage"
+    ],
+    "remarks": ""
+  },
+  "bulkActivateStyles": {
+    "section": "Font sync & activation",
+    "navigation": [
+      "Discover Fonts > Multi-select styles > Activate",
+      "Discover Fonts > Multi-select styles > Activate All Families",
+      "Search / My Library / Projects > Multi-select toolbar > Activate",
+      "Font card context menu > Bulk activate",
+      "Font card context menu (shared) > (useFontCardContextMenu)"
+    ],
+    "remarks": ""
+  },
+  "bulkAddPairsToFavorite": {
+    "section": "Library & font changes",
+    "navigation": [
+      "My Library > (useFavouritesPairsTab)",
+      "Discover Fonts > Pairing > (usePairingPageModel)"
+    ],
+    "remarks": ""
+  },
+  "bulkAddStylesToFavourites": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Multi-select styles > Add to favorites",
+      "Discover Fonts > Multi-select > Add All to Favroites",
+      "Multi-select toolbar > Add all to favorites",
+      "Font card context menu (shared) > (useFontCardContextMenu)"
+    ],
+    "remarks": ""
+  },
+  "bulkAddStylesToList": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Multi-select styles > Add to list",
+      "My Library > (useFontCardGridPage)",
+      "Document scan > (useDocumentScanAddToListOrFolder)",
+      "Font card context menu (shared) > (useFontCardContextMenu)"
+    ],
+    "remarks": ""
+  },
+  "bulkCopyAssets": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Assets > Multi-select > Copy",
+      "Discover> Show all Assets> Asset> Copy to> Project Name",
+      "Library > Show all assets > Asset > Copy to > Project/List",
+      "Discover Fonts > Assets > Copy to",
+      "Projects > (useDuplicateProject)"
+    ],
+    "remarks": ""
+  },
+  "bulkDeactivateLists": {
+    "section": "Font sync & activation",
+    "navigation": [
+      "Discover Fonts >Assets > select multiple activated assets > right click > activate",
+      "My Library > (useBulkActivateSelectedFontListsFromContextMenu)",
+      "My Library > AssetFolderPage",
+      "My Library > MyLibraryPage",
+      "My Library > (useAssetLibraryContextMenu)"
+    ],
+    "remarks": ""
+  },
+  "bulkDeactivateStyles": {
+    "section": "Font sync & activation",
+    "navigation": [
+      "Discover Fonts > Multi-select styles > Deactivate",
+      "Discover Fonts >Multi-select-font> Deactivate all styles",
+      "Multi-select toolbar > Deactivate styles",
+      "Font card context menu (shared) > (useFontCardContextMenu)",
+      "My Library > (useFavouritesPairsTab)"
+    ],
+    "remarks": ""
+  },
+  "bulkMarkAsProductionFont": {
+    "section": "Project compliance",
+    "navigation": [
+      "Projects > open project > Project fonts > multi-select font cards > bulk toolbar Mark for production > Yes",
+      "Discover fonts > All/Newly added/Leaving soon > multi-select > toolbar or right-click > Mark for production > Yes",
+      "Favourites > Font pairs > Select all > toolbar Mark for production (favourites-bulk-mark-production-button) > Yes",
+      "Search > Lists & folders > multi-select > bulk Mark for production",
+      "My Library > Fonts > multi-select > bulk Mark for production"
+    ],
+    "remarks": "Requires Mark/unmark fonts for production permission"
+  },
+  "bulkMoveAssets": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Assets > Multi-select > Move",
+      "Discover> Show all Assets> Asset> Copy > Project Name",
+      "Library > Show all assets > Asset > Move to folder/project",
+      "My Library > bulkMoveOutcome",
+      "My Library > (useBulkMoveAssets)"
+    ],
+    "remarks": ""
+  },
+  "bulkNotificationAction": {
+    "section": "Account & workspace",
+    "navigation": [
+      "Notifications > NotificationsPage"
+    ],
+    "remarks": ""
+  },
+  "bulkRemovePairsFromFavorite": {
+    "section": "Library & font changes",
+    "navigation": [
+      "My Library > (useFavouritesPairsTab)",
+      "Discover Fonts > Pairing > (usePairingPageModel)"
+    ],
+    "remarks": ""
+  },
+  "bulkRemoveStyleFromMultipleLists": {
+    "section": "Library & font changes",
+    "navigation": [
+      "(UI code only — verify manually: 7 file(s))"
+    ],
+    "remarks": ""
+  },
+  "bulkRemoveStylesFromFavourites": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Favorites > Multi-select > Remove",
+      "Discover Fonts > Multi-select > Remove All from Favroites",
+      "Font card context menu (shared) > (useFontCardContextMenu)"
+    ],
+    "remarks": ""
+  },
+  "bulkRemoveStylesFromList": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Assets > Font list > Remove styles (bulk)",
+      "My Library > (useFontCardGridPage)",
+      "Document scan > (useDocumentScanAddToListOrFolder)"
+    ],
+    "remarks": ""
+  },
+  "bulkSubmitIntentForProduction": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "bulkTagStyles": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Manage > Tags > Apply tag to selected styles",
+      "Font card context menu > Tag styles",
+      "Document scan > (useDocumentScanAddToTag)",
+      "Font card context menu (shared) > (useFontCardContextMenu)"
+    ],
+    "remarks": ""
+  },
+  "bulkUnMarkAsProductionFont": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Font card context menu (shared) > (useFontCardContextMenu)",
+      "My Library > (useFavouritesPairsTab)",
+      "Discover Fonts > Pairing > (usePairingPageModel)"
+    ],
+    "remarks": ""
+  },
+  "bulkUnmarkProductionFont / updateProductionFont": {
+    "section": "Project compliance",
+    "navigation": [
+      "Projects > Project fonts > multi-select cards with P icon > bulk toolbar toggle Mark for production off (unmark)",
+      "Projects > Project fonts > marked card kebab > toggle off",
+      "Discover > Production fonts tab > marked card/style kebab > toggle off",
+      "Any surface with P icon > same toggle"
+    ],
+    "remarks": "Same menu item toggles mark/unmark; unmark usually has no confirm modal"
+  },
+  "bulkUntagStyles": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Tags > Remove tag from selected styles",
+      "Font card context menu > Remove tag",
+      "Document scan > (useDocumentScanAddToTag)"
+    ],
+    "remarks": ""
+  },
+  "bulkUpdatePreferences": {
+    "section": "Account & workspace",
+    "navigation": [
+      "Preferences > channelStateUtils",
+      "Preferences > (useBulkUpdatePreferences)",
+      "Preferences > NotificationTypeSection"
+    ],
+    "remarks": ""
+  },
+  "bulkUpdateProfiles": {
+    "section": "User & access",
+    "navigation": [
+      "Settings > Manage > Users >select multiple users > Bulk update (change role/team)"
+    ],
+    "remarks": ""
+  },
+  "cancelBatch": {
+    "section": "Imported font compliance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "completeUploadSession": {
+    "section": "Exports & maintenance",
+    "navigation": [
+      "Document scanning > Complete session",
+      "Document scan > (useCompleteUploadSession)",
+      "Document scan > (useDocumentScanFlowState)"
+    ],
+    "remarks": ""
+  },
+  "copyAsProject": {
+    "section": "Project compliance",
+    "navigation": [
+      "My Library > All assets > font list row > right-click / kebab > Copy to submenu > Copy as project (context-menu-item-copy-as-project) > sharing modal > Create with fonts only (skip list users) > new project created > snackbar with project name",
+      "My Library > font list row kebab > Copy to > Copy as project > sharing modal > Create with fonts & users (add list users) > User B gets access",
+      "My Library > folder row > Copy to > Copy as project > sharing modal (skip or add users)",
+      "My Library > folder page sidebar pinned asset > Copy to > Copy as project",
+      "My Library > folder page > search scoped results > Copy as project",
+      "Multi-select assets > Copy as project disabled/hidden (no Create Projects permission or view-only on folder)"
+    ],
+    "remarks": "Requires Create Projects + sufficient asset access. QA-automated: test_copy_as_project.py (16 tests)"
+  },
+  "copyEmbedCode": {
+    "section": "Project compliance",
+    "navigation": [
+      "Embed drawer > final Embed code screen > verify JS/CSS snippet > Copy embed code button"
+    ],
+    "remarks": "QA-automated: test_embed_code_screen_shows_snippet_jscss_and_copy"
+  },
+  "copyProjectLibraryAsset": {
+    "section": "Project compliance",
+    "navigation": [
+      "Project Library > folder kebab > Copy to (context-menu-item-copy-to) > Copy assets drawer > select destination > Copy > \"copied successfully\"",
+      "Project Library > font list kebab > Copy to > select first enabled destination > Copy"
+    ],
+    "remarks": "QA-automated: test_copy_folder, test_copy_fontlist"
+  },
+  "copyToProject": {
+    "section": "Project compliance",
+    "navigation": [
+      "My Library > asset row > Copy to > Copy assets drawer > Projects tab (copy-assets-drawer-tabs) > optional Copy list users to the selected project checkbox (copy-assets-drawer-copy-list-users-checkbox) > select destination project (copy-assets-projects-select-{uuid}) > Copy > success snackbar",
+      "My Library > asset row > Copy to flyout > pick recent project (context-menu-item-copy-to-recent-project) > sharing modal > Copy fonts only (copy-to-project-sharing-modal-skip) OR Copy fonts & users (copy-to-project-sharing-modal-confirm)"
+    ],
+    "remarks": "Recent flyout shows only full-access destinations. QA-automated: test_copy_to_project_sharing.py"
+  },
+  "createAsset": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Assets > Create folder or font list",
+      "My Library > createCopyMoveSuccessHandlers",
+      "Search > ListsFoldersTableView",
+      "My Library > AssetHeader",
+      "My Library > (useFontCardGridPage)"
+    ],
+    "remarks": ""
+  },
+  "createAssetAttachmentUpload": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Projects > assetAttachmentMutations",
+      "Projects > (useProjectBriefAttachments)"
+    ],
+    "remarks": ""
+  },
+  "createBYOFBatchAndCheckDuplicates": {
+    "section": "Imported font compliance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "createCompanyLogoUploadUrl": {
+    "section": "Account & workspace",
+    "navigation": [],
+    "remarks": ""
+  },
+  "createContract": {
+    "section": "Imported font compliance",
+    "navigation": [
+      "Imported Fonts > Contracts > Create License"
+    ],
+    "remarks": ""
+  },
+  "createCustomer": {
+    "section": "Account & workspace",
+    "navigation": [
+      "Admin > Customers > Create customer"
+    ],
+    "remarks": ""
+  },
+  "createPrivateTags": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Tags > Create private tag",
+      "Discover > manage > tags . Add tags",
+      "Tags > Create tag",
+      "Tags > CreateTagsDrawer"
+    ],
+    "remarks": ""
+  },
+  "createProject": {
+    "section": "Project lifecycle & membership",
+    "navigation": [
+      "Projects > Create font project",
+      "Discover> Show all projects> Create Project",
+      "Projects > Create project",
+      "Projects > BrowseUsersTab",
+      "Font card context menu (shared) > (useFontCardContextMenu)"
+    ],
+    "remarks": ""
+  },
+  "createProjectLibraryFolder": {
+    "section": "Project compliance",
+    "navigation": [
+      "Open project > Project fonts > Show all assets (sidebar-my-library-show-all) > Project Library page > toolbar Create > Folder > fill name/description in drawer > Save > folder appears in library",
+      "Folder kebab > Create folder (context-menu-item-create-folder) > nested folder drawer > Save"
+    ],
+    "remarks": "QA-automated: test_project_folder_kebab_menu.py"
+  },
+  "createProjectLibraryList": {
+    "section": "Project compliance",
+    "navigation": [
+      "Project Library > toolbar Create > Font list > fill drawer > Save > list appears",
+      "Folder kebab > Create list (context-menu-item-create-list) > nested list drawer > Save"
+    ],
+    "remarks": "QA-automated: test_project_font_list_kebab_menu.py, test_project_folder_kebab_menu.py"
+  },
+  "createProjectWithBrief": {
+    "section": "Project compliance",
+    "navigation": [
+      "Sidebar > Projects > open create wizard > Step 1: enter project name > use brief preset dropdown > Bold / Italic / Underline > enter multi-line brief text > verify editor content > Continue > skip/add members > Create project without fonts > View project",
+      "Open created project > project library title kebab (...) (project-library-title-kebab) > View Project brief > brief drawer (project-brief-content) opens > read content > close drawer (drawer-header-close)"
+    ],
+    "remarks": "QA-automated: test_project_brief.py, test_draft_project.py, test_ready_project.py, test_published_project.py"
+  },
+  "createRole": {
+    "section": "User & access",
+    "navigation": [
+      "Discover > manage > users&teams > role>add role"
+    ],
+    "remarks": ""
+  },
+  "createServiceAccount": {
+    "section": "User & access",
+    "navigation": [],
+    "remarks": ""
+  },
+  "createSso": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "createSsoMapping": {
+    "section": "User & access",
+    "navigation": [],
+    "remarks": ""
+  },
+  "createStyleDocumentsUploadUrl": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "createTeam": {
+    "section": "User & access",
+    "navigation": [
+      "Discover > manage > users&teams > teams>add team"
+    ],
+    "remarks": ""
+  },
+  "createUploadSession": {
+    "section": "Exports & maintenance",
+    "navigation": [
+      "Document scanning > Start upload session",
+      "Document scan > Start upload session",
+      "Document scan > (useUpdateSessionFiles)",
+      "Document scan > index",
+      "Document scan > (useDocumentScanFlowState)"
+    ],
+    "remarks": ""
+  },
+  "createUserInvitations": {
+    "section": "User & access",
+    "navigation": [
+      "Discover > manage >users&team > add users"
+    ],
+    "remarks": ""
+  },
+  "createWebProject": {
+    "section": "Library & font changes",
+    "navigation": [
+      "My Library > (useEmbedAllFontsInListDrawer)"
+    ],
+    "remarks": ""
+  },
+  "deActivateFontProject": {
+    "section": "Font sync & activation",
+    "navigation": [],
+    "remarks": ""
+  },
+  "deActivateList": {
+    "section": "Font sync & activation",
+    "navigation": [
+      "Discover Fonts > Assets > Font list > Deactivate list",
+      "Discover Fonts > Assets > Font list > Deactivate fonts in list",
+      "My Library > List toolbar > Deactivate list",
+      "My Library > (useFontListActivate)",
+      "My Library > myLibraryFontListActivationShared"
+    ],
+    "remarks": ""
+  },
+  "deactivateAllFontsInList": {
+    "section": "Project compliance",
+    "navigation": [
+      "Project Library > font list kebab > Deactivate all fonts (context-menu-item-deactivate-all-fonts) > deactivate success snackbar"
+    ],
+    "remarks": "QA-automated: test_activate_deactivate_all_fonts_from_fontlist"
+  },
+  "deactivateFamilies": {
+    "section": "Font sync & activation",
+    "navigation": [
+      "Discover Fonts > Family details > Deactivate",
+      "Discover Fonts > Select font family > open family details > Deactivate",
+      "Discover Fonts > Family card > Deactivate toggle",
+      "Discover Fonts > Family details > Header > Deactivate",
+      "Search > Family card > Deactivate"
+    ],
+    "remarks": ""
+  },
+  "deactivateFamilyInProject": {
+    "section": "Project compliance",
+    "navigation": [
+      "Project Family page > header Deactivate family > all style card toggles OFF > Activate family button appears"
+    ],
+    "remarks": "QA-automated: test_deactivate_family_disables_all_style_cards"
+  },
+  "deactivateStyle": {
+    "section": "Font sync & activation",
+    "navigation": [
+      "Discover Fonts > Activated fonts > Select style > Deactivate",
+      "Discover Fonts > Activated Font> Right Click> Deactivate Style",
+      "Discover Fonts > Style row > Deactivate",
+      "Font card context menu > Deactivate style",
+      "Multi-select toolbar > Deactivate styles"
+    ],
+    "remarks": ""
+  },
+  "deactivateVariation": {
+    "section": "Font sync & activation",
+    "navigation": [
+      "Discover Fonts > Font details > Variations > Deactivate variation",
+      "Discover Fonts >select project> Right Click> Deactivate variation",
+      "Discover Fonts > Family details > Style > More actions > Font version > Deactivate",
+      "Discover Fonts > Family page > (useFamilyPageViewModel)"
+    ],
+    "remarks": ""
+  },
+  "deleteAllPrivateTags": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Tags > (useDeleteAllPrivateTags)"
+    ],
+    "remarks": ""
+  },
+  "deleteAssetAttachment": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Projects > assetAttachmentMutations",
+      "Projects > (useProjectBriefAttachments)"
+    ],
+    "remarks": ""
+  },
+  "deleteAssets": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Assets > Delete",
+      "Discover Fonts> My Library> Asset> Delete",
+      "My Library > assetTableData",
+      "My Library > (useMyLibraryWebkitArchiveActions)",
+      "My Library > (useAssetLibraryDeleteFlow)"
+    ],
+    "remarks": ""
+  },
+  "deleteCompanyLogo": {
+    "section": "Account & workspace",
+    "navigation": [],
+    "remarks": ""
+  },
+  "deleteContracts": {
+    "section": "Imported font compliance",
+    "navigation": [
+      "Imported Fonts > Contracts > Delete License"
+    ],
+    "remarks": ""
+  },
+  "deleteImportedFonts": {
+    "section": "Imported font compliance",
+    "navigation": [
+      "Manage > Impoted font > delete imported font"
+    ],
+    "remarks": ""
+  },
+  "deletePrivateTags": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Tags > Delete all tags (admin)",
+      "Discover > manage > Tags> Tag Name> Delete Tag",
+      "Tags > Delete tag",
+      "Tags > TagsTable",
+      "Tags > (useDeletePrivateTags)"
+    ],
+    "remarks": ""
+  },
+  "deleteProfile": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "deleteProfiles": {
+    "section": "User & access",
+    "navigation": [],
+    "remarks": ""
+  },
+  "deleteProject": {
+    "section": "Project lifecycle & membership",
+    "navigation": [
+      "Projects > Open project > Delete",
+      "Projects > Project > Delete"
+    ],
+    "remarks": ""
+  },
+  "deleteProjectLibraryAsset": {
+    "section": "Project compliance",
+    "navigation": [
+      "Project Library > folder kebab > Delete folder (context-menu-item-delete-folder) > confirm > deleted",
+      "Project Library > font list kebab > Delete list (context-menu-item-delete-list) > confirm > deleted"
+    ],
+    "remarks": "QA-automated: test_delete_fontlist, folder delete tests"
+  },
+  "deleteRoles": {
+    "section": "User & access",
+    "navigation": [
+      "Discover > manage > users&teams > role>delete role"
+    ],
+    "remarks": ""
+  },
+  "deleteServiceAccount": {
+    "section": "User & access",
+    "navigation": [],
+    "remarks": ""
+  },
+  "deleteSsoMappings": {
+    "section": "User & access",
+    "navigation": [],
+    "remarks": ""
+  },
+  "deleteStyleComment": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "deleteStyleDocument": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "deleteTeam": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "deleteTeams": {
+    "section": "User & access",
+    "navigation": [
+      "Settings > Manage > Users & Teams > Teams > Delete team",
+      "Discover > manage > users&teams > teams>delete team",
+      "Settings > Teams > Delete team"
+    ],
+    "remarks": ""
+  },
+  "deleteWebProject": {
+    "section": "Project compliance",
+    "navigation": [
+      "Webkits tab > select webkit/web project row > Delete > confirm > removed from list"
+    ],
+    "remarks": "QA-automated: test_webkits_tab_delete_web_project"
+  },
+  "dismissNotification": {
+    "section": "Account & workspace",
+    "navigation": [
+      "Discover Fonts>notification > clcik dismis icon",
+      "Notifications > Dismiss",
+      "Notifications > NotificationsPage"
+    ],
+    "remarks": ""
+  },
+  "downloadAllFontsFromList": {
+    "section": "Project compliance",
+    "navigation": [
+      "Project Library > font list kebab > More actions (context-menu-item-more-actions) > Download all fonts (context-menu-item-download-all-fonts) > ZIP download + \"ZIP file is ready\" snackbar"
+    ],
+    "remarks": "QA-automated: test_download_all_fonts_from_fontlist"
+  },
+  "downloadAssetAttachmentSignedUrl": {
+    "section": "Exports & maintenance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "downloadWebProject": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Web projects > Open project > Download kit"
+    ],
+    "remarks": ""
+  },
+  "duplicateProject": {
+    "section": "Project lifecycle & membership",
+    "navigation": [
+      "Discover Fonts>project>righ click project> duplicate",
+      "Projects > Project > Duplicate"
+    ],
+    "remarks": ""
+  },
+  "editProjectLibraryAssetDetails": {
+    "section": "Project compliance",
+    "navigation": [
+      "Project Library > asset row kebab > Edit details (context-menu-item-edit-details) > rename in drawer > Save changes > \"updated successfully\" snackbar"
+    ],
+    "remarks": "QA-automated: folder + font list kebab tests"
+  },
+  "editWebProject": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "embedFonts": {
+    "section": "Project compliance",
+    "navigation": [
+      "Projects > Project fonts > select font card(s) > toolbar Embed fonts (project-fonts-embed-button) OR card kebab > Embed fonts > embed drawer opens (embed-fonts-drawer-body) > configure families/styles > subset options > Next > embed code screen",
+      "Project Library > open font list > sidebar list kebab > Embed fonts OR multi-select fonts in list > embed flow",
+      "Project fonts > single font card kebab > Embed fonts > subset screen > generate code"
+    ],
+    "remarks": "QA-automated: test_embed_fonts.py (excluded from last full run by user)"
+  },
+  "exportFontTemplate": {
+    "section": "Exports & maintenance",
+    "navigation": [
+      "Imported Fonts > Export template"
+    ],
+    "remarks": ""
+  },
+  "exportUnassignedImportedFontsTemplate": {
+    "section": "Exports & maintenance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "finalizeAssetAttachments": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Projects > assetAttachmentMutations",
+      "Projects > (useProjectBriefAttachments)"
+    ],
+    "remarks": ""
+  },
+  "fontActivationTypeSwitched": {
+    "section": "Font activations",
+    "navigation": [
+      "Discover Fonts / Search / My Library > Font card > Switch temp activation to permanent"
+    ],
+    "remarks": ""
+  },
+  "fontLocalfontActivated": {
+    "section": "Font activations",
+    "navigation": [
+      "Desktop app > My Inventory > System fonts > Activate font (row toggle)"
+    ],
+    "remarks": ""
+  },
+  "fontLocalfontDeactivated": {
+    "section": "Font activations",
+    "navigation": [
+      "Desktop app > My Inventory > System fonts > Deactivate font (row toggle)"
+    ],
+    "remarks": ""
+  },
+  "getActiveBatches": {
+    "section": "Exports & maintenance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "getAllAccessRequests": {
+    "section": "Imported font access requests",
+    "navigation": [
+      "Imported Fonts > Request access"
+    ],
+    "remarks": ""
+  },
+  "getAssetAttachments": {
+    "section": "Exports & maintenance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "getBatchProgress": {
+    "section": "Exports & maintenance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "getCategorizedGlyphs": {
+    "section": "Exports & maintenance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "getCustomerSettings": {
+    "section": "Account & workspace",
+    "navigation": [],
+    "remarks": ""
+  },
+  "getDocumentMetadata": {
+    "section": "Exports & maintenance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "getEligiblePrimaryContacts": {
+    "section": "User & access",
+    "navigation": [],
+    "remarks": ""
+  },
+  "getFamiliesOfAllFontLists": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "getImportedFonts": {
+    "section": "Imported font compliance",
+    "navigation": [
+      "Manage > Impoted font"
+    ],
+    "remarks": ""
+  },
+  "getPackageId": {
+    "section": "Font sync & activation",
+    "navigation": [],
+    "remarks": ""
+  },
+  "getProjectByDocumentId": {
+    "section": "Exports & maintenance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "getSsoMappings": {
+    "section": "User & access",
+    "navigation": [],
+    "remarks": ""
+  },
+  "getStyleComments": {
+    "section": "Exports & maintenance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "getStyleDocuments": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "getStyleDocumentsDownloadUrls": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "getStylesOfAllFontLists": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "getUploadSessionFonts": {
+    "section": "Exports & maintenance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "globalEmailOptOut": {
+    "section": "Account & workspace",
+    "navigation": [],
+    "remarks": ""
+  },
+  "identityLinked": {
+    "section": "Login & identity",
+    "navigation": [
+      "Desktop app > Login / SSO flow > Link identity to workspace"
+    ],
+    "remarks": ""
+  },
+  "importFontTemplate": {
+    "section": "Exports & maintenance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "inviteProjectMembers": {
+    "section": "Project compliance",
+    "navigation": [
+      "Create wizard > Step 2 Members > Browse users tab > search email (members-search-input) > check user checkbox > Add selected (members-add-selected-btn) > wait for role dropdown > open Project access filter > select role (Collaborator / Sync only / View only / Project admin) > Continue",
+      "Project Settings path (post-create): open project > project nav Project settings (project-nav-project-settings) > Project members tab (project-settings-nav-project-members) > search & manage members"
+    ],
+    "remarks": "View only uses members-view-only-added-users toggle. QA-automated: copy_to_project_helper, project_access tests"
+  },
+  "keepInProduction": {
+    "section": "Project compliance",
+    "navigation": [
+      "Document scan > resolve issues > Ready for production row > Mark for production drawer > Submit",
+      "Discover > Leaving soon > (if exposed) Keep in production / Mark all for production flow"
+    ],
+    "remarks": "Not found in MTConnectAutomation; verify in frontend"
+  },
+  "linkContractToStyles": {
+    "section": "Imported font compliance",
+    "navigation": [
+      "Document scan > DocumentScanFlow"
+    ],
+    "remarks": ""
+  },
+  "linkDocumentToProject": {
+    "section": "Project lifecycle & membership",
+    "navigation": [
+      "Side panel > projectMutations",
+      "Side panel > (useProjectLinking)"
+    ],
+    "remarks": ""
+  },
+  "linkDocumentsToContract": {
+    "section": "Imported font compliance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "manageProjectMembers": {
+    "section": "Project compliance",
+    "navigation": [
+      "Open project > Project settings > Project members tab > search members (members-search-input) > view roles (dropdown-access-*) > verify admin cannot remove last project admin"
+    ],
+    "remarks": "QA-automated: test_project_admin_access.py (C73240547)"
+  },
+  "markAllNotificationsRead": {
+    "section": "Account & workspace",
+    "navigation": [
+      "Discover Fonts>notification > click mark all notification read",
+      "Notifications > Mark all read",
+      "Notifications > notificationPageUtils",
+      "Notifications > NotificationsPage"
+    ],
+    "remarks": ""
+  },
+  "markCompanyLogoUploadSuccess": {
+    "section": "Account & workspace",
+    "navigation": [],
+    "remarks": ""
+  },
+  "markNotificationRead": {
+    "section": "Account & workspace",
+    "navigation": [
+      "Discover Fonts>notification >hover on unread notification > click eye icon",
+      "Click Notificaton Row",
+      "Notifications > Mark as read",
+      "Notifications > notificationPageUtils",
+      "Notifications > NotificationsList"
+    ],
+    "remarks": ""
+  },
+  "markOnboardingCompleted": {
+    "section": "Account & workspace",
+    "navigation": [],
+    "remarks": ""
+  },
+  "markProductionFonts (single)": {
+    "section": "Project compliance",
+    "navigation": [
+      "Projects > open project > Project fonts > font card kebab (font-card-options-trigger) > Mark for production (context-menu-item-mark-for-production) > confirm modal (mtc-mark-production-confirm-modal) > Yes > P icon (production_icon) on card",
+      "Projects > Project fonts > click family name > Family page (project context /projects/library/.../fonts/family/) > Activate family if needed > header Options (...) > Mark for production > Yes",
+      "Projects > Project fonts > Quick View > style row kebab > Mark for production > Yes",
+      "Discover / Search / My Library / Favourites / Desktop / Document scan surfaces (same kebab flow) - see Project compliance rows"
+    ],
+    "remarks": "Required for publish. QA-automated: test_publish_project.py, test_mark_font_for_production_from_fontlist"
+  },
+  "markProjectReady": {
+    "section": "Project compliance",
+    "navigation": [
+      "Sidebar > Projects > open Draft project > project library page > title kebab (...) > Mark project ready for design (project-library-kebab-mark-ready) > status chip changes to Ready (project-nav-status-label) > verify on All Projects search status = Ready",
+      "All Projects > search Draft project > open details > same title kebab > Mark ready > back to All Projects > verify status Ready"
+    ],
+    "remarks": "Disabled when project already Ready or Published. QA-automated: test_draft_project.py"
+  },
+  "markSessionFileUploaded": {
+    "section": "Exports & maintenance",
+    "navigation": [
+      "Document scanning > Mark file uploaded",
+      "Document scan > (useMarkFileUploaded)",
+      "Document scan > (useDocumentScanFlowState)"
+    ],
+    "remarks": ""
+  },
+  "moveProjectLibraryAsset": {
+    "section": "Project compliance",
+    "navigation": [
+      "Project Library > asset kebab > Move to (context-menu-item-move-to) > select destination > confirm move > success snackbar"
+    ],
+    "remarks": "QA-automated: test_move_folder, test_move_fontlist"
+  },
+  "notifyByofLicenceExpiry": {
+    "section": "Imported font compliance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "openProjectFamilyPage": {
+    "section": "Project compliance",
+    "navigation": [
+      "Projects > open project > Project fonts > click font family name on card > Family page in project context > project sidebar visible > Add to project hidden",
+      "Reload captured project Family URL directly (/projects/library/{id}/fonts/family/...)"
+    ],
+    "remarks": "QA-automated: test_project_fonts.py (C73251067-73)"
+  },
+  "openProjectLibraryAssetInNewTab": {
+    "section": "Project compliance",
+    "navigation": [
+      "Project Library > search asset > row kebab > Open in new tab (context-menu-item-open-in-new-tab) > asset opens in new tab with header title"
+    ],
+    "remarks": "QA-automated: folder + font list kebab tests"
+  },
+  "parseAndCreateContract": {
+    "section": "Imported font compliance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "pinAsset": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Assets > Pin folder",
+      "My Library > (usePinnedAssets)",
+      "My Library > (usePinAsset)",
+      "My Library > AssetFolderPage",
+      "Projects > (useUnpinProject)"
+    ],
+    "remarks": ""
+  },
+  "pinProject": {
+    "section": "Project compliance",
+    "navigation": [
+      "All Projects (/projects) > My Projects tab > project row kebab > Pin (context-menu-item-project-row-pin) > pin success snackbar > Pinned projects section shows project with pin icon (pin-icon-{id})",
+      "Sidebar > Projects > Recent projects > right-click project name > Pin project (context-menu-item-pin-project) > verify sidebar pin icon (md-icon-push-pin)"
+    ],
+    "remarks": "Max 5 pinned projects; 6th blocked. QA-automated: test_all_projects.py"
+  },
+  "pinProjectLibraryAsset": {
+    "section": "Project compliance",
+    "navigation": [
+      "Project Library > search folder > kebab > Pin folder (context-menu-item-pin-folder) > \"pinned successfully\" snackbar",
+      "Project Library > search font list > kebab > Pin list (context-menu-item-pin-list) > pin snackbar"
+    ],
+    "remarks": "QA-automated: test_project_folder_kebab_menu.py, test_project_font_list_kebab_menu.py"
+  },
+  "pluginDocumentOpened": {
+    "section": "Plugin events",
+    "navigation": [
+      "Desktop app > Preferences > Plugins > Adobe Creative Cloud app > Open document with Monotype plugin active"
+    ],
+    "remarks": ""
+  },
+  "pluginFontAutoActivated": {
+    "section": "Plugin events",
+    "navigation": [
+      "Desktop app > Preferences > Plugins > Adobe CC > Open document > Plugin auto-activates required font"
+    ],
+    "remarks": ""
+  },
+  "pluginFontConflictDetected": {
+    "section": "Plugin events",
+    "navigation": [
+      "Desktop app > Preferences > Plugins > Adobe CC > Open document > Plugin detects font conflict"
+    ],
+    "remarks": ""
+  },
+  "pluginFontManuallyActivated": {
+    "section": "Plugin events",
+    "navigation": [
+      "Desktop app > Preferences > Plugins > Adobe CC > Plugin panel > Select font > Manually activate"
+    ],
+    "remarks": ""
+  },
+  "pluginImportedFontRequested": {
+    "section": "Plugin events",
+    "navigation": [
+      "Desktop app > Preferences > Plugins > Adobe CC > Plugin panel > Missing imported font > Request access"
+    ],
+    "remarks": ""
+  },
+  "pluginMissingFontDetected": {
+    "section": "Plugin events",
+    "navigation": [
+      "Desktop app > Preferences > Plugins > Adobe CC > Open document > Plugin detects missing font in document"
+    ],
+    "remarks": ""
+  },
+  "pluginMissingFontResolved": {
+    "section": "Plugin events",
+    "navigation": [
+      "Desktop app > Preferences > Plugins > Adobe CC > Plugin panel > Missing font > Resolve / activate font"
+    ],
+    "remarks": ""
+  },
+  "pluginMissingFontUnresolved": {
+    "section": "Plugin events",
+    "navigation": [
+      "Desktop app > Preferences > Plugins > Adobe CC > Plugin panel > Missing font > Leave unresolved / dismiss"
+    ],
+    "remarks": ""
+  },
+  "pluginPanelClosed": {
+    "section": "Plugin events",
+    "navigation": [
+      "Desktop app > Preferences > Plugins >Desktop app > Preferences > Plugins > Adobe Creative Cloud app > Close Monotype Fonts plugin panel"
+    ],
+    "remarks": ""
+  },
+  "pluginPanelOpened": {
+    "section": "Plugin events",
+    "navigation": [
+      "Desktop app > Preferences > Plugins >Desktop app > Preferences > Plugins > Adobe Creative Cloud app > Open Monotype Fonts plugin panel"
+    ],
+    "remarks": ""
+  },
+  "processUploadSessionFonts": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Document scan > Process uploaded fonts",
+      "Document scan > applyUploadSessionFonts",
+      "Document scan > hydrateDocumentScanViewResults",
+      "Document scan > types",
+      "Document scan > getDocumentScanProjectIdFromPathname"
+    ],
+    "remarks": ""
+  },
+  "publishAddOn": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "publishProject": {
+    "section": "Project lifecycle & membership",
+    "navigation": [
+      "Projects > Open project > Publish",
+      "Projects > Project details > Publish",
+      "Projects > buildPublishProjectUsedInSummary",
+      "Projects > publishProjectDrawerFilters",
+      "Projects > PublishProjectDrawerUsedInCell"
+    ],
+    "remarks": ""
+  },
+  "refreshScannedDocument": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Document scan > (useRefreshScanResultFile)",
+      "Document scan > (useRefreshScannedDocumentFlow)",
+      "Document scan > refreshScannedDocumentFlow",
+      "Projects > (useRefreshProjectDocument)"
+    ],
+    "remarks": ""
+  },
+  "regenerateToken": {
+    "section": "User & access",
+    "navigation": [
+      "Settings > Service accounts > Regenerate token"
+    ],
+    "remarks": ""
+  },
+  "rejectFontAccess": {
+    "section": "Imported font access requests",
+    "navigation": [
+      "Notifications > Access request > Reject"
+    ],
+    "remarks": ""
+  },
+  "removeFavoriteFamilies": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Favorites > Remove family",
+      "Favorites action (shared) > (useFavorites)",
+      "Favorites action (shared) > (useFavoritesActions)"
+    ],
+    "remarks": ""
+  },
+  "removeFavoritePair": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Favorites > Remove pair",
+      "My Library > (useFavouritesPairsTab)",
+      "Discover Fonts > Pairing > (usePairingPageModel)"
+    ],
+    "remarks": ""
+  },
+  "removeFavoriteStyles": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Favorites > Remove style",
+      "Favorites action (shared) > (useFavorites)"
+    ],
+    "remarks": ""
+  },
+  "removeFontListFamilies": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Assets > Font list > Remove families",
+      "My Library > (useFontCardGridPage)",
+      "Document scan > (useDocumentScanAddToListOrFolder)",
+      "My Library > (useRemoveFamiliesFromFontList)"
+    ],
+    "remarks": ""
+  },
+  "removeFontListStyles": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Assets > Font list > Remove styles",
+      "My Library > (useRemoveStylesFromFontList)",
+      "My Library > (useFontCardGridPage)",
+      "Document scan > (useDocumentScanAddToListOrFolder)"
+    ],
+    "remarks": ""
+  },
+  "removeFontProjectFamilies": {
+    "section": "Project lifecycle & membership",
+    "navigation": [
+      "Projects > Open project > Remove families",
+      "Projects > ProjectFontsTab",
+      "Projects > executeProjectFontRemoval",
+      "Projects > (useRemoveFontProjectFamilies)",
+      "Discover Fonts > Family page > (useFamilyPageViewModel)"
+    ],
+    "remarks": ""
+  },
+  "removeFontProjectStyles": {
+    "section": "Project lifecycle & membership",
+    "navigation": [
+      "Projects > Open project > Remove styles",
+      "Projects > ProjectFontsTab",
+      "Projects > executeProjectFontRemoval",
+      "Discover Fonts > Family page > (useFamilyPageViewModel)",
+      "My Library > (useFontCardGridPage)"
+    ],
+    "remarks": ""
+  },
+  "removeFromProject": {
+    "section": "Project compliance",
+    "navigation": [
+      "Project Family page (project context) > header Options (...) > Remove from project > confirm"
+    ],
+    "remarks": "Only on project Family page; not on global Family page. QA-automated: test_project_family_header_options_menu_items"
+  },
+  "removeScannedDocuments": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Projects > (useRemoveScannedDocuments)",
+      "Projects > ProjectDocumentPage"
+    ],
+    "remarks": ""
+  },
+  "removeStylesFromWebProject": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Web projects > Open project > Remove fonts"
+    ],
+    "remarks": ""
+  },
+  "reorderSsoMappings": {
+    "section": "User & access",
+    "navigation": [],
+    "remarks": ""
+  },
+  "requestFontAccess": {
+    "section": "Imported font access requests",
+    "navigation": [
+      "Imported Fonts > Request access",
+      "Search > SearchPage",
+      "Discover Fonts > Family page > FamilyPageStylesSection",
+      "Search > FontCardsView"
+    ],
+    "remarks": ""
+  },
+  "resetPassword": {
+    "section": "User & access",
+    "navigation": [
+      "Settings > Manage > Users > Reset password"
+    ],
+    "remarks": ""
+  },
+  "resetPreferences": {
+    "section": "Account & workspace",
+    "navigation": [],
+    "remarks": ""
+  },
+  "restoreProject": {
+    "section": "Project compliance",
+    "navigation": [
+      "All Projects > Archived projects tab (archived-projects-tab) > select archived project row > Restore (project-restore-{id}) > confirm Yes, restore > success snackbar > project returns to My Projects"
+    ],
+    "remarks": "QA-automated: test_all_projects.py (test_archive_pinned_project_and_restore)"
+  },
+  "revokeToken": {
+    "section": "User & access",
+    "navigation": [],
+    "remarks": ""
+  },
+  "roleBasedProjectAccess (Collaborator)": {
+    "section": "Project compliance",
+    "navigation": [
+      "Recipient > open shared project > browse fonts/documents; add fonts when settings allow; activate; manage lists/folders; create webkits; cannot admin-exclusive actions",
+      "Admin toggles collaborator font permissions in Project settings > Fonts"
+    ],
+    "remarks": "QA-automated: test_collaborator_access.py"
+  },
+  "roleBasedProjectAccess (Project admin)": {
+    "section": "Project compliance",
+    "navigation": [
+      "Recipient > manage members, library assets, fonts, webkits, documents, lifecycle (publish/duplicate/archive), all action buttons enabled; cannot remove last project admin"
+    ],
+    "remarks": "QA-automated: test_project_admin_access.py"
+  },
+  "roleBasedProjectAccess (Sync only)": {
+    "section": "Project compliance",
+    "navigation": [
+      "Recipient > browse & activate fonts; readonly lists/folders; copy webkit embed code; cannot write/create/edit/delete"
+    ],
+    "remarks": "QA-automated: test_sync_only_access.py"
+  },
+  "roleBasedProjectAccess (View only)": {
+    "section": "Project compliance",
+    "navigation": [
+      "Recipient login > All Projects > open shared project > verify: can view fonts/lists/compliance; cannot activate, add/remove fonts, edit, manage members, publish; restricted buttons hidden"
+    ],
+    "remarks": "QA-automated: test_view_only_access.py"
+  },
+  "saveDocumentMetadata": {
+    "section": "Exports & maintenance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "searchAndOpenProject": {
+    "section": "Project compliance",
+    "navigation": [
+      "Sidebar > Projects > Show all projects OR navigate to /projects > enter name in All Projects search > click project row Open (project-open-{id}) > lands on project library / fonts",
+      "Sidebar > Recent projects > click project name (sidebar-recent-project-{id})"
+    ],
+    "remarks": "QA-automated across all project tests"
+  },
+  "setLanguagePreference": {
+    "section": "User & access",
+    "navigation": [
+      "Preferences > index"
+    ],
+    "remarks": ""
+  },
+  "sharingInfoForAssets": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "submitFontUsageReport": {
+    "section": "Exports & maintenance",
+    "navigation": [
+      "Compliance > Submit usage report"
+    ],
+    "remarks": ""
+  },
+  "submitFontVariationRequest": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "submitIntentForProduction": {
+    "section": "Exports & maintenance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "suspendServiceAccount": {
+    "section": "User & access",
+    "navigation": [],
+    "remarks": ""
+  },
+  "syncOnlyCopyEmbedCode": {
+    "section": "Project compliance",
+    "navigation": [
+      "Sync-only project member > Project Library > font list > kebab > copy webkit/embed code (read-only embed access)"
+    ],
+    "remarks": "QA-automated: test_c73229350_sync_only_copy_webkit_embed_code"
+  },
+  "syncUnSyncVariations": {
+    "section": "Font sync & activation",
+    "navigation": [],
+    "remarks": ""
+  },
+  "unlinkDocumentFromProject": {
+    "section": "Project lifecycle & membership",
+    "navigation": [
+      "Side panel > projectMutations",
+      "Side panel > (useProjectLinking)"
+    ],
+    "remarks": ""
+  },
+  "unlinkDocumentsFromContract": {
+    "section": "Imported font compliance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "unlinkStyleFromContract": {
+    "section": "Imported font compliance",
+    "navigation": [
+      "Document scan > DocumentScanFlow"
+    ],
+    "remarks": ""
+  },
+  "unpinAsset": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Assets > Unpin folder",
+      "Projects > (useUnpinProject)",
+      "My Library > (usePinnedAssets)",
+      "My Library > (useUnpinAsset)"
+    ],
+    "remarks": ""
+  },
+  "unpinProject": {
+    "section": "Project compliance",
+    "navigation": [
+      "All Projects > pinned project row kebab > Unpin (context-menu-item-project-row-unpin) > unpin snackbar > project leaves Pinned section",
+      "Sidebar > Recent projects > right-click pinned project > Unpin project (context-menu-item-unpin-project)"
+    ],
+    "remarks": "QA-automated: test_all_projects.py"
+  },
+  "unpinProjectLibraryAsset": {
+    "section": "Project compliance",
+    "navigation": [
+      "Project Library > pinned folder/list > kebab > Unpin folder/list (context-menu-item-unpin-folder / unpin-list) > unpin snackbar"
+    ],
+    "remarks": "QA-automated: pin/unpin tests"
+  },
+  "unpublishWebkit": {
+    "section": "Project compliance",
+    "navigation": [
+      "Webkits tab > select live webkit row > Unpublish > moves to non-live section"
+    ],
+    "remarks": "QA-automated: test_webkits_tab_unpublish_moves_to_non_live"
+  },
+  "updateAsset": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Assets > Folder > Rename",
+      "Discover Fonts>My Library>Asset> Right Click > Edit Details",
+      "My Library > (useMyLibraryWebkitArchiveActions)",
+      "My Library > (useMyLibraryWebkitFlow)",
+      "My Library > (useApplyListUserSharing)"
+    ],
+    "remarks": ""
+  },
+  "updateAssetSharing": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Assets > Share list > Grant or revoke access",
+      "Discover Fonts> Mylibrary> Asset>RightClick>Share List",
+      "My Library > (useMyLibraryWebkitArchiveActions)",
+      "Font card context menu (shared) > (useFontCardContextMenu)",
+      "My Library > FontLibraryOverlays"
+    ],
+    "remarks": ""
+  },
+  "updateAssets": {
+    "section": "Library & font changes",
+    "navigation": [
+      "My Library > (useMyLibraryWebkitArchiveActions)",
+      "My Library > (useMyLibraryWebkitFlow)",
+      "My Library > MyLibraryPage",
+      "My Library > WebkitsTableColumns",
+      "My Library > buildTakeWebkitsOfflineUpdateInput"
+    ],
+    "remarks": ""
+  },
+  "updateAssetsSharingInfo": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "updateCompanySsoStatus": {
+    "section": "User & access",
+    "navigation": [],
+    "remarks": ""
+  },
+  "updateContract": {
+    "section": "Imported font compliance",
+    "navigation": [
+      "Imported Fonts > Contracts > Edit contract"
+    ],
+    "remarks": ""
+  },
+  "updateCustomer": {
+    "section": "Account & workspace",
+    "navigation": [
+      "Setting>company > Customers >company management> Edit company"
+    ],
+    "remarks": ""
+  },
+  "updateCustomerSettings": {
+    "section": "Account & workspace",
+    "navigation": [],
+    "remarks": ""
+  },
+  "updateFontProjectStyles": {
+    "section": "Project lifecycle & membership",
+    "navigation": [
+      "Projects > ProjectFontConflictVersionDrawer",
+      "Projects > (useUpdateFontProjectStyles)"
+    ],
+    "remarks": ""
+  },
+  "updateFontsForReview": {
+    "section": "Exports & maintenance",
+    "navigation": [],
+    "remarks": ""
+  },
+  "updateNotificationActorAction": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Notifications > resolveNotificationAccessRequests",
+      "Notifications > NotificationsPage"
+    ],
+    "remarks": ""
+  },
+  "updatePreference": {
+    "section": "Account & workspace",
+    "navigation": [],
+    "remarks": ""
+  },
+  "updatePrivateTag": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Tags > Edit tag name",
+      "Discover > manage > Tags> Tag Name> Tag> Rename>Update Tag",
+      "Tags > Edit tag",
+      "Tags > (useUpdatePrivateTag)",
+      "Document scan > (useDocumentScanAddToTag)"
+    ],
+    "remarks": ""
+  },
+  "updatePrivateTagAssociations": {
+    "section": "Library & font changes",
+    "navigation": [
+      "Discover Fonts > Tags > Associate or disassociate styles",
+      "Document scan > (useDocumentScanAddToTag)",
+      "Tags > FontsTaggedSection"
+    ],
+    "remarks": ""
+  },
+  "updateProfile": {
+    "section": "User & access",
+    "navigation": [
+      "Settings > Manage > Users > Edit user profile",
+      "Discover > manage > users&teams > edit existing user",
+      "Preferences > Profile > Update profile"
+    ],
+    "remarks": ""
+  },
+  "updateProjectSettingsFonts": {
+    "section": "Project compliance",
+    "navigation": [
+      "Open project > project nav Project settings > Fonts tab > toggle Allow collaborators to add/import fonts > back to project details"
+    ],
+    "remarks": "QA-automated: test_collaborator_access.py (configure_collaborator_font_permissions)"
+  },
+  "updateRole": {
+    "section": "User & access",
+    "navigation": [
+      "Settings > Manage > Users & Teams > Roles > Edit role",
+      "Discover > manage > users&teams > role> edit existing role",
+      "Settings > Roles > Edit role"
+    ],
+    "remarks": ""
+  },
+  "updateServiceAccount": {
+    "section": "User & access",
+    "navigation": [],
+    "remarks": ""
+  },
+  "updateSessionFiles": {
+    "section": "Exports & maintenance",
+    "navigation": [
+      "Document scanning > Update session files",
+      "Document scan > (useUpdateSessionFiles)",
+      "Document scan > (useDocumentScanFlowState)"
+    ],
+    "remarks": ""
+  },
+  "updateSsoMapping": {
+    "section": "User & access",
+    "navigation": [],
+    "remarks": ""
+  },
+  "updateStyleComment": {
+    "section": "Library & font changes",
+    "navigation": [],
+    "remarks": ""
+  },
+  "updateSubToggle": {
+    "section": "Account & workspace",
+    "navigation": [],
+    "remarks": ""
+  },
+  "updateTeam": {
+    "section": "User & access",
+    "navigation": [
+      "Discover > manage > users&teams > team> edit"
+    ],
+    "remarks": ""
+  },
+  "updateUserInvitations": {
+    "section": "User & access",
+    "navigation": [
+      "Settings > Manage > Users > Invitations > Cancel or update",
+      "Discover > manage >users&team > Right Click > Revoke invite",
+      "Settings > Users > Revoke invitation"
+    ],
+    "remarks": ""
+  },
+  "updateWebkit": {
+    "section": "Project compliance",
+    "navigation": [
+      "Embed flow > create/update webkit > Webkits tab > search project > Edit styles > reopens embed drawer > save changes",
+      "Webkits tab > toggle family on/off > Update webkit"
+    ],
+    "remarks": "QA-automated: test_embed_fonts.py"
+  },
+  "userLoginFailureApp": {
+    "section": "Login & identity",
+    "navigation": [
+      "Desktop app > Login screen > Failed login attempt"
+    ],
+    "remarks": ""
+  },
+  "userLogoutApp": {
+    "section": "Login & identity",
+    "navigation": [
+      "Desktop app > Profile / account menu > Logout"
+    ],
+    "remarks": ""
+  },
+  "userSwitchWorkspaceApp": {
+    "section": "Login & identity",
+    "navigation": [
+      "Desktop app > Workspace switcher > Switch workspace"
+    ],
+    "remarks": ""
+  },
+  "viewProjectBrief": {
+    "section": "Project compliance",
+    "navigation": [
+      "Open project (any status) > title kebab > View Project brief (project-library-kebab-view-brief) > drawer shows project-brief-content > close drawer"
+    ],
+    "remarks": "May be disabled on some Published projects. QA-automated across draft/ready/published tests"
+  }
+}

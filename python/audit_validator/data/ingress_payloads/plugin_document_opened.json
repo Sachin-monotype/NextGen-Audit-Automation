@@ -1,0 +1,39 @@
+{
+  "xCorrelationId": "9F33858A-75C4-46DB-B1C6-905E1BB763FD",
+  "eventId": "99b59c7d-2984-4ad5-b683-658344def5d4",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-03T05:47:39.0802590Z",
+  "source": {
+    "type": [
+      "Plugin",
+      "Document"
+    ],
+    "service": "MonotypeNextGenConnectService",
+    "operation": "pluginDocumentOpened",
+    "operationIndex": 0,
+    "operationState": "success",
+    "platform": "nextGen",
+    "platformEnvironment": "app",
+    "platformVersion": "1.0.0.0",
+    "actorUserAgent": "MonotypeNextGen/1.0.0.0",
+    "osName": "mac",
+    "osVersion": "26.5.1",
+    "cpuArch": "arm64"
+  },
+  "actor": {
+    "authenticationState": "authenticated",
+    "machineId": "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60",
+    "uniqueId": "AED633E846F09CDA06EAFBDC",
+    "globalUserId": "ae76bf6f-28e8-11f1-a61d-0eedb5fed28b",
+    "globalCustomerId": "52b3f06c-8dc8-4b41-9e79-0fe251cb05e3"
+  },
+  "subject": {
+    "type": "machine",
+    "id": [
+      "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60"
+    ],
+    "plugin": "InDesign-Plugin-ID21",
+    "documentId": "/Users/sumityadav/Downloads/Indesign Docs/De-release-Ps-Conflicts (5) copy 2.indd",
+    "documentName": "De-release-Ps-Conflicts (5) copy 2.indd"
+  }
+}

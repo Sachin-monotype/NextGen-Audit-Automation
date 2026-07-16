@@ -1,0 +1,30 @@
+{
+    "xCorrelationId": "dabcd91b-9dff-4d36-8369-244487ef4fc1",
+    "eventId": "1a304828-7126-425f-8d1d-cd9978dfc714",
+    "eventVersion": 1,
+    "occurredAt": "2026-07-09T06:16:00.418Z",
+    "routingKey": "reporting.window.open",
+    "actor": {
+        "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
+    },
+    "source": {
+        "type": [
+            "Entitlement"
+        ],
+        "service": "license-management-service",
+        "operation": "quarterlyReportNotification",
+        "operationState": "success",
+        "platform": "nextGen",
+        "platformEnvironment": "server",
+        "platformVersion": "1.0.0"
+    },
+    "subject": {
+        "id": "29fa158f-4f51-414d-84b4-69e7222340b6",
+        "type": "entitlement",
+        "globalCustomerIds": [
+            "4a949153-9cab-4023-b31c-8336a8a3ec46"
+        ],
+        "eventName": "QUARTERLY_REPORT_WINDOW_OPEN",
+        "endDate": "2026-08-03T00:00:00.000Z"
+    }
+}

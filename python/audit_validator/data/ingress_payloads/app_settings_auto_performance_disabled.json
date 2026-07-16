@@ -1,0 +1,38 @@
+{
+  "xCorrelationId": "0d050207-3579-494e-8c31-954c23ed8c5d",
+  "eventId": "80eb006f-781a-429d-b411-a22af1dbfeca",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-03T12:26:38.5115540Z",
+  "source": {
+    "type": [
+      "App",
+      "Setting"
+    ],
+    "service": "mtconnect-ui",
+    "operation": "appSettingsAutoPerformanceDisabled",
+    "operationIndex": 0,
+    "operationState": "success",
+    "platform": "nextGen",
+    "platformEnvironment": "app",
+    "platformVersion": "1.0.0.0",
+    "actorUserAgent": "MonotypeNextGen/1.0.0.0",
+    "osName": "mac",
+    "osVersion": "26.5.1",
+    "cpuArch": "arm64"
+  },
+  "actor": {
+    "authenticationState": "authenticated",
+    "machineId": "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60",
+    "uniqueId": "AED633E846F09CDA06EAFBDC",
+    "globalUserId": "293ba856-5a89-11f1-a522-0e0a04e472ab",
+    "globalCustomerId": "d677fdca-5424-43a6-875f-b390b59231bf"
+  },
+  "subject": {
+    "type": "machine",
+    "id": [
+      "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60"
+    ],
+    "autoPerformanceManagement": false,
+    "previousAutoPerformanceManagement": true
+  }
+}

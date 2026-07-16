@@ -1,0 +1,40 @@
+{
+  "xCorrelationId": "534db1ee-3cbc-4dcc-8517-b52e7dd5f0cc",
+  "eventId": "614553ea-1bf3-4fc0-b8a4-82b22d67d3c2",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-03T12:24:03.2674500Z",
+  "source": {
+    "type": [
+      "App",
+      "Cache"
+    ],
+    "service": "mtconnect-ui",
+    "operation": "appCacheCleared",
+    "operationIndex": 0,
+    "operationState": "success",
+    "platform": "nextGen",
+    "platformEnvironment": "app",
+    "platformVersion": "1.0.0.0",
+    "actorUserAgent": "MonotypeNextGen/1.0.0.0",
+    "osName": "mac",
+    "osVersion": "26.5.1",
+    "cpuArch": "arm64"
+  },
+  "actor": {
+    "authenticationState": "authenticated",
+    "machineId": "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60",
+    "uniqueId": "AED633E846F09CDA06EAFBDC",
+    "globalUserId": "293ba856-5a89-11f1-a522-0e0a04e472ab",
+    "globalCustomerId": "d677fdca-5424-43a6-875f-b390b59231bf"
+  },
+  "subject": {
+    "type": "machine",
+    "id": [
+      "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60"
+    ],
+    "success": true,
+    "partial": false,
+    "userDeletionSuccess": true,
+    "systemDeletionSuccess": true
+  }
+}

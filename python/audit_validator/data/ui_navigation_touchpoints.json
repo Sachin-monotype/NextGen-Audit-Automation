@@ -1,0 +1,2522 @@
+{
+  "meta": {
+    "audit_event_count": 166,
+    "ui_mutation_count": 134,
+    "sections": {
+      "byof_compliance": 13,
+      "user_and_access": 26,
+      "byof_access_requests": 4,
+      "project_compliance": 5,
+      "project_lifecycle_and_membership": 11,
+      "font_sync_and_activation": 16,
+      "library_and_font_changes": 64,
+      "account_and_workspace": 18,
+      "exports_and_maintenance": 20
+    },
+    "existing_paths_loaded": 119
+  },
+  "rows": [
+    {
+      "section_key": "byof_compliance",
+      "section_label": "Imported font compliance",
+      "operation": "cancelBatch",
+      "audit_category": "FontImport",
+      "routing_key": "byof.batch.cancelled",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "byof_compliance",
+      "section_label": "Imported font compliance",
+      "operation": "createBYOFBatchAndCheckDuplicates",
+      "audit_category": "FontImport",
+      "routing_key": "byof.batch.created",
+      "export_name": "CREATE_BYOFBATCH_AND_CHECK_DUPLICATES",
+      "ui_files_count": 5,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 5 file(s))"
+      ]
+    },
+    {
+      "section_key": "byof_compliance",
+      "section_label": "Imported font compliance",
+      "operation": "createContract",
+      "audit_category": "BYOF",
+      "routing_key": "byof.licence.created",
+      "export_name": "CREATE_CONTRACT",
+      "ui_files_count": 8,
+      "touchpoints": [
+        "Imported Fonts > Contracts > Create contract"
+      ]
+    },
+    {
+      "section_key": "byof_compliance",
+      "section_label": "Imported font compliance",
+      "operation": "deleteContracts",
+      "audit_category": "BYOF",
+      "routing_key": "byof.licence.deleted",
+      "export_name": "DELETE_CONTRACTS",
+      "ui_files_count": 5,
+      "touchpoints": [
+        "Imported Fonts > Contracts > Delete contract"
+      ]
+    },
+    {
+      "section_key": "byof_compliance",
+      "section_label": "Imported font compliance",
+      "operation": "deleteImportedFonts",
+      "audit_category": "FontImport",
+      "routing_key": "font.import.fonts_deleted",
+      "export_name": "DELETE_IMPORTED_FONTS",
+      "ui_files_count": 10,
+      "touchpoints": [
+        "Projects > ProjectFontsTab",
+        "Projects > executeProjectFontRemoval",
+        "My Library > (useFontCardGridPage)",
+        "Discover Fonts > Family page > (useFamilyPageViewModel)"
+      ]
+    },
+    {
+      "section_key": "byof_compliance",
+      "section_label": "Imported font compliance",
+      "operation": "getImportedFonts",
+      "audit_category": "FontImport",
+      "routing_key": "font.import.fonts_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "byof_compliance",
+      "section_label": "Imported font compliance",
+      "operation": "linkContractToStyles",
+      "audit_category": "BYOF",
+      "routing_key": "byof.licence.mapped",
+      "export_name": "LINK_CONTRACT_TO_STYLES",
+      "ui_files_count": 11,
+      "touchpoints": [
+        "Document scan > DocumentScanFlow"
+      ]
+    },
+    {
+      "section_key": "byof_compliance",
+      "section_label": "Imported font compliance",
+      "operation": "linkDocumentsToContract",
+      "audit_category": "BYOF",
+      "routing_key": "byof.licence.documents_linked",
+      "export_name": "LINK_DOCUMENTS_TO_CONTRACT",
+      "ui_files_count": 5,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 5 file(s))"
+      ]
+    },
+    {
+      "section_key": "byof_compliance",
+      "section_label": "Imported font compliance",
+      "operation": "notifyByofLicenceExpiry",
+      "audit_category": "Scheduled",
+      "routing_key": "byof.licence.expiry",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(Backend / cron \u2014 no UI mutation)"
+      ]
+    },
+    {
+      "section_key": "byof_compliance",
+      "section_label": "Imported font compliance",
+      "operation": "parseAndCreateContract",
+      "audit_category": "BYOF",
+      "routing_key": "byof.licence.parsed_and_created",
+      "export_name": "PARSE_AND_CREATE_CONTRACT",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 4 file(s))"
+      ]
+    },
+    {
+      "section_key": "byof_compliance",
+      "section_label": "Imported font compliance",
+      "operation": "unlinkDocumentsFromContract",
+      "audit_category": "BYOF",
+      "routing_key": "byof.licence.documents_unlinked",
+      "export_name": "UNLINK_DOCUMENTS_FROM_CONTRACT",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 4 file(s))"
+      ]
+    },
+    {
+      "section_key": "byof_compliance",
+      "section_label": "Imported font compliance",
+      "operation": "unlinkStyleFromContract",
+      "audit_category": "BYOF",
+      "routing_key": "byof.licence.mapped",
+      "export_name": "UNLINK_STYLE_FROM_CONTRACT",
+      "ui_files_count": 10,
+      "touchpoints": [
+        "Document scan > DocumentScanFlow"
+      ]
+    },
+    {
+      "section_key": "byof_compliance",
+      "section_label": "Imported font compliance",
+      "operation": "updateContract",
+      "audit_category": "BYOF",
+      "routing_key": "byof.licence.updated",
+      "export_name": "UPDATE_CONTRACT",
+      "ui_files_count": 6,
+      "touchpoints": [
+        "Imported Fonts > Contracts > Edit contract"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "bulkUpdateProfiles",
+      "audit_category": "UserProfile",
+      "routing_key": "Dynamic**",
+      "export_name": "BULK_UPDATE_PROFILES",
+      "ui_files_count": 6,
+      "touchpoints": [
+        "Settings > Manage > Users >select multiple users > Bulk update (change role/team)"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "createRole",
+      "audit_category": "UserRole",
+      "routing_key": "user.role.created",
+      "export_name": "CREATE_ROLE",
+      "ui_files_count": 10,
+      "touchpoints": [
+        "Settings > Manage > Users & Teams > Roles > Add role",
+        "Discover > manage > users&teams > role>add role",
+        "Settings > Roles > Create role"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "createServiceAccount",
+      "audit_category": "ServiceAccount",
+      "routing_key": "account.service_account.created",
+      "export_name": "CREATE_SERVICE_ACCOUNT",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "Settings > Service accounts > Create"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "createSsoMapping",
+      "audit_category": "SSO (all actor-only)",
+      "routing_key": "account.sso.mapping_created",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "createTeam",
+      "audit_category": "Team",
+      "routing_key": "user.team.created",
+      "export_name": "CREATE_TEAM",
+      "ui_files_count": 7,
+      "touchpoints": [
+        "Settings > Manage > Users & Teams > Teams > Create team",
+        "Discover > manage > users&teams > teams>add team",
+        "Settings > Teams > Create team"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "createUserInvitations",
+      "audit_category": "Invitation",
+      "routing_key": "user.invitation.created",
+      "export_name": "CREATE_USER_INVITATIONS",
+      "ui_files_count": 9,
+      "touchpoints": [
+        "Settings > Manage > Users > Invite users",
+        "Discover > manage >users&team > add users",
+        "Settings > Users > Invite users"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "deleteProfiles",
+      "audit_category": "UserProfile",
+      "routing_key": "user.account.deleted",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "deleteRoles",
+      "audit_category": "UserRole",
+      "routing_key": "user.role.deleted",
+      "export_name": "DELETE_ROLE",
+      "ui_files_count": 8,
+      "touchpoints": [
+        "Settings > Manage > Users & Teams > Roles > Delete role",
+        "Discover > manage > users&teams > role>delete role",
+        "Settings > Roles > Delete role"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "deleteServiceAccount",
+      "audit_category": "ServiceAccount",
+      "routing_key": "account.service_account.deleted",
+      "export_name": "DELETE_SERVICE_ACCOUNT",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 3 file(s))"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "deleteSsoMappings",
+      "audit_category": "SSO (all actor-only)",
+      "routing_key": "account.sso.mapping_deleted",
+      "export_name": "DELETE_SSO_MAPPINGS",
+      "ui_files_count": 5,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 5 file(s))"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "deleteTeams",
+      "audit_category": "Team",
+      "routing_key": "user.team.deleted",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "Settings > Manage > Users & Teams > Teams > Delete team",
+        "Discover > manage > users&teams > teams>delete team",
+        "Settings > Teams > Delete team"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "getEligiblePrimaryContacts",
+      "audit_category": "UserProfile",
+      "routing_key": "user.profile.eligible_contacts_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "getSsoMappings",
+      "audit_category": "SSO (all actor-only)",
+      "routing_key": "user.sso.mappings_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "regenerateToken",
+      "audit_category": "ServiceAccount",
+      "routing_key": "account.service_account.token_regenerated",
+      "export_name": "REGENERATE_TOKEN",
+      "ui_files_count": 10,
+      "touchpoints": [
+        "Settings > Service accounts > Regenerate token"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "reorderSsoMappings",
+      "audit_category": "SSO (all actor-only)",
+      "routing_key": "account.sso.mapping_reordered",
+      "export_name": "REORDER_SSO_MAPPINGS",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 4 file(s))"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "resetPassword",
+      "audit_category": "UserProfile",
+      "routing_key": "user.password.reset_requested",
+      "export_name": "RESET_PASSWORD",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "Settings > Manage > Users > Reset password"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "revokeToken",
+      "audit_category": "ServiceAccount",
+      "routing_key": "account.service_account.token_revoked",
+      "export_name": "REVOKE_TOKEN",
+      "ui_files_count": 6,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 6 file(s))"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "setLanguagePreference",
+      "audit_category": "UserProfile",
+      "routing_key": "user.profile.language_updated",
+      "export_name": "SET_LANGUAGE_PREFERENCE",
+      "ui_files_count": 8,
+      "touchpoints": [
+        "Preferences > index"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "suspendServiceAccount",
+      "audit_category": "ServiceAccount",
+      "routing_key": "account.service_account.suspended",
+      "export_name": "SUSPEND_SERVICE_ACCOUNT",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 3 file(s))"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "updateCompanySsoStatus",
+      "audit_category": "SSO (all actor-only)",
+      "routing_key": "account.sso.status_updated",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "updateProfile",
+      "audit_category": "UserProfile",
+      "routing_key": "Dynamic*",
+      "export_name": "UPDATE_PROFILE",
+      "ui_files_count": 19,
+      "touchpoints": [
+        "Settings > Manage > Users > Edit user profile",
+        "Discover > manage > users&teams > edit existing user",
+        "Preferences > Profile > Update profile"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "updateRole",
+      "audit_category": "UserRole",
+      "routing_key": "Dynamic******",
+      "export_name": "UPDATE_ROLE",
+      "ui_files_count": 12,
+      "touchpoints": [
+        "Settings > Manage > Users & Teams > Roles > Edit role",
+        "Discover > manage > users&teams > role> edit existing role",
+        "Settings > Roles > Edit role"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "updateServiceAccount",
+      "audit_category": "ServiceAccount",
+      "routing_key": "account.service_account.updated",
+      "export_name": "UPDATE_SERVICE_ACCOUNT",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 3 file(s))"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "updateSsoMapping",
+      "audit_category": "SSO (all actor-only)",
+      "routing_key": "account.sso.mapping_updated",
+      "export_name": "UPDATE_SSO_MAPPING",
+      "ui_files_count": 6,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 6 file(s))"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "updateTeam",
+      "audit_category": "Team",
+      "routing_key": "Dynamic*****",
+      "export_name": "UPDATE_TEAM",
+      "ui_files_count": 12,
+      "touchpoints": [
+        "Settings > Manage > Users & Teams > Teams > Edit team",
+        "Discover > manage > users&teams > team> edit",
+        "Settings > Teams > Edit team",
+        "Projects > ProjectCreationContext",
+        "Projects > (useProjectCreationContext)",
+        "Projects > BrowseTeamsTab"
+      ]
+    },
+    {
+      "section_key": "user_and_access",
+      "section_label": "User & access",
+      "operation": "updateUserInvitations",
+      "audit_category": "Invitation",
+      "routing_key": "user.invitation.revoked",
+      "export_name": "UPDATE_USER_INVITATIONS",
+      "ui_files_count": 7,
+      "touchpoints": [
+        "Settings > Manage > Users > Invitations > Cancel or update",
+        "Discover > manage >users&team > Right Click > Revoke invite",
+        "Settings > Users > Revoke invitation"
+      ]
+    },
+    {
+      "section_key": "byof_access_requests",
+      "section_label": "Imported font access requests",
+      "operation": "approveFontAccess",
+      "audit_category": "FontAccess",
+      "routing_key": "byof.access.resolved",
+      "export_name": "APPROVE_FONT_ACCESS",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "Notifications > Access request > Approve"
+      ]
+    },
+    {
+      "section_key": "byof_access_requests",
+      "section_label": "Imported font access requests",
+      "operation": "getAllAccessRequests",
+      "audit_category": "FontAccess",
+      "routing_key": "font.access.all_requests_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "byof_access_requests",
+      "section_label": "Imported font access requests",
+      "operation": "rejectFontAccess",
+      "audit_category": "FontAccess",
+      "routing_key": "byof.access.resolved",
+      "export_name": "REJECT_FONT_ACCESS",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "Notifications > Access request > Reject"
+      ]
+    },
+    {
+      "section_key": "byof_access_requests",
+      "section_label": "Imported font access requests",
+      "operation": "requestFontAccess",
+      "audit_category": "FontAccess",
+      "routing_key": "byof.access.requested",
+      "export_name": "REQUEST_FONT_ACCESS",
+      "ui_files_count": 22,
+      "touchpoints": [
+        "Imported Fonts > Request access",
+        "Search > SearchPage",
+        "Side panel > constants",
+        "Discover Fonts > Family page > FamilyPageStylesSection",
+        "Search > FontCardsView",
+        "Discover Fonts > Family page > (useFamilyPageViewModel)",
+        "Side panel > zmqPanelPayload",
+        "Side panel > (useCEPEventBridge)",
+        "Side panel > (useFontOperations)",
+        "Discover Fonts > Family page > FamilyPageStyleFontCard"
+      ]
+    },
+    {
+      "section_key": "project_compliance",
+      "section_label": "Project compliance",
+      "operation": "bulkMarkAsProductionFont",
+      "audit_category": "ProductionFont",
+      "routing_key": "font.production.bulk_marked",
+      "export_name": "BULK_MARK_AS_PRODUCTION_FONT",
+      "ui_files_count": 14,
+      "touchpoints": [
+        "Discover Fonts > select multiple family > right click > mark as production",
+        "Multi-select toolbar > Mark as production",
+        "My Library > (useFavouritesPairsTab)",
+        "Font card context menu (shared) > (useFontCardContextMenu)",
+        "My Library > (useBulkMarkSelectedWebkitsForProduction)",
+        "Discover Fonts > Pairing > (usePairingPageModel)"
+      ]
+    },
+    {
+      "section_key": "project_compliance",
+      "section_label": "Project compliance",
+      "operation": "bulkUnmarkProductionFont",
+      "audit_category": "ProductionFont",
+      "routing_key": "font.production.bulk_unmarked",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "Discover Fonts > select multiple family > right click > mark as production"
+      ]
+    },
+    {
+      "section_key": "project_compliance",
+      "section_label": "Project compliance",
+      "operation": "keepInProduction",
+      "audit_category": "ProductionFont",
+      "routing_key": "font.production.kept",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "project_compliance",
+      "section_label": "Project compliance",
+      "operation": "markProductionFonts",
+      "audit_category": "ProductionFont",
+      "routing_key": "font.production.marked",
+      "export_name": "MARK_AS_PRODUCTION_FONT",
+      "ui_files_count": 31,
+      "touchpoints": [
+        "Discover Fonts > Style > Mark as production font",
+        "Font card context menu > Mark as production",
+        "Font card context menu (shared) > (useFontCardContextMenu)",
+        "My Library > (useFavouritesPairsTab)",
+        "Projects > (usePublishProjectMarkProductionFonts)",
+        "Document scan > (useDocumentScanMarkForProduction)",
+        "My Library > (useBulkMarkSelectedWebkitsForProduction)",
+        "Discover Fonts > Pairing > (usePairingPageModel)",
+        "Projects > publishProjectMarkProductionFeedback"
+      ]
+    },
+    {
+      "section_key": "project_compliance",
+      "section_label": "Project compliance",
+      "operation": "updateProductionFont",
+      "audit_category": "ProductionFont",
+      "routing_key": "font.production.updated",
+      "export_name": "UPDATE_PRODUCTION_FONT",
+      "ui_files_count": 7,
+      "touchpoints": [
+        "Discover Fonts > Production fonts > Update status",
+        "Font card context menu (shared) > (useFontCardContextMenu)"
+      ]
+    },
+    {
+      "section_key": "project_lifecycle_and_membership",
+      "section_label": "Project lifecycle & membership",
+      "operation": "addFontProjectFamilies",
+      "audit_category": "ProjectManagement",
+      "routing_key": "project.font.added",
+      "export_name": "ADD_FONT_PROJECT_FAMILIES",
+      "ui_files_count": 8,
+      "touchpoints": [
+        "Discover Fonts > Family>Family details > Select style > Add to list or tag",
+        "Discover Fonts>Right Click>Add to project>Click Project",
+        "Discover Fonts > Family details > Style > Add to list or tag > Project",
+        "Font card context menu > Add to project",
+        "Projects > ProjectFontsTab",
+        "Projects > (useAddFontProjectFamilies)"
+      ]
+    },
+    {
+      "section_key": "project_lifecycle_and_membership",
+      "section_label": "Project lifecycle & membership",
+      "operation": "addFontProjectStyles",
+      "audit_category": "ProjectManagement",
+      "routing_key": "project.font.added",
+      "export_name": "ADD_FONT_PROJECT_STYLES",
+      "ui_files_count": 14,
+      "touchpoints": [
+        "Discover Fonts >Projects > Open project > Add font > browse > add font to project",
+        "Projects > Open project > Add font > Browse > Add font to project",
+        "Projects > Open project > Add font > Browse > Family details > Add to project",
+        "Projects > ProjectFontsTab",
+        "Document scan > (useAddFontToProject)",
+        "Projects > (useAddFontProjectStyles)",
+        "Side panel > (useAddIncorrectFontsToProject)"
+      ]
+    },
+    {
+      "section_key": "project_lifecycle_and_membership",
+      "section_label": "Project lifecycle & membership",
+      "operation": "createProject",
+      "audit_category": "ProjectManagement",
+      "routing_key": "library.project.created",
+      "export_name": "CREATE_PROJECT",
+      "ui_files_count": 83,
+      "touchpoints": [
+        "Projects > Create font project",
+        "Discover> Show all projects> Create Project",
+        "Projects > Create project",
+        "Projects > BrowseUsersTab",
+        "Font card context menu (shared) > (useFontCardContextMenu)",
+        "Side panel > (useNavigateToCreateProjectWithStyles)",
+        "My Library > (useMyLibraryProjectCopyAccess)",
+        "Projects > ProjectCreationPage",
+        "Projects > projectRolePermissions",
+        "Projects > (useCreateProject)",
+        "My Library > (useCopyAsProjectFromSource)",
+        "Projects > BrowseTeamsTab"
+      ]
+    },
+    {
+      "section_key": "project_lifecycle_and_membership",
+      "section_label": "Project lifecycle & membership",
+      "operation": "deleteProject",
+      "audit_category": "ProjectManagement",
+      "routing_key": "library.project.deleted",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "Projects > Open project > Delete",
+        "Projects > Project > Delete"
+      ]
+    },
+    {
+      "section_key": "project_lifecycle_and_membership",
+      "section_label": "Project lifecycle & membership",
+      "operation": "duplicateProject",
+      "audit_category": "ProjectManagement",
+      "routing_key": "library.project.duplicated",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "Discover Fonts>project>righ click project> duplicate",
+        "Projects > Project > Duplicate"
+      ]
+    },
+    {
+      "section_key": "project_lifecycle_and_membership",
+      "section_label": "Project lifecycle & membership",
+      "operation": "linkDocumentToProject",
+      "audit_category": "ProjectManagement",
+      "routing_key": "project.document.linked",
+      "export_name": "LINK_DOCUMENT_TO_PROJECT",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "Side panel > projectMutations",
+        "Side panel > (useProjectLinking)"
+      ]
+    },
+    {
+      "section_key": "project_lifecycle_and_membership",
+      "section_label": "Project lifecycle & membership",
+      "operation": "publishProject",
+      "audit_category": "ProjectManagement",
+      "routing_key": "project.state.published",
+      "export_name": "PUBLISH_PROJECT",
+      "ui_files_count": 48,
+      "touchpoints": [
+        "Projects > Open project > Publish",
+        "Projects > Project details > Publish",
+        "Projects > buildPublishProjectUsedInSummary",
+        "Projects > publishProjectDrawerFilters",
+        "Projects > PublishProjectDrawerUsedInCell",
+        "Projects > mergePublishProjectFontRowsWithLocalEdits",
+        "Projects > PublishProjectDrawerDateCell",
+        "Projects > mapFontProjectFamiliesToPublishFontRows",
+        "Projects > (useUpdateProjectStatus)",
+        "Projects > PublishProjectSuccessContent",
+        "Projects > PublishProjectReviewContent",
+        "Projects > (useOpenPublishProjectDrawer)"
+      ]
+    },
+    {
+      "section_key": "project_lifecycle_and_membership",
+      "section_label": "Project lifecycle & membership",
+      "operation": "removeFontProjectFamilies",
+      "audit_category": "ProjectManagement",
+      "routing_key": "project.font.removed",
+      "export_name": "REMOVE_FONT_PROJECT_FAMILIES",
+      "ui_files_count": 9,
+      "touchpoints": [
+        "Projects > Open project > Remove families",
+        "Projects > ProjectFontsTab",
+        "Projects > executeProjectFontRemoval",
+        "Projects > (useRemoveFontProjectFamilies)",
+        "Discover Fonts > Family page > (useFamilyPageViewModel)",
+        "My Library > (useFontCardGridPage)",
+        "Projects > enrichFamiliesByIdForRemoval"
+      ]
+    },
+    {
+      "section_key": "project_lifecycle_and_membership",
+      "section_label": "Project lifecycle & membership",
+      "operation": "removeFontProjectStyles",
+      "audit_category": "ProjectManagement",
+      "routing_key": "project.font.removed",
+      "export_name": "REMOVE_FONT_PROJECT_STYLES",
+      "ui_files_count": 9,
+      "touchpoints": [
+        "Projects > Open project > Remove styles",
+        "Projects > ProjectFontsTab",
+        "Projects > executeProjectFontRemoval",
+        "Discover Fonts > Family page > (useFamilyPageViewModel)",
+        "My Library > (useFontCardGridPage)",
+        "Projects > (useRemoveFontProjectStyles)"
+      ]
+    },
+    {
+      "section_key": "project_lifecycle_and_membership",
+      "section_label": "Project lifecycle & membership",
+      "operation": "unlinkDocumentFromProject",
+      "audit_category": "ProjectManagement",
+      "routing_key": "project.document.unlinked",
+      "export_name": "UNLINK_DOCUMENT_FROM_PROJECT",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "Side panel > projectMutations",
+        "Side panel > (useProjectLinking)"
+      ]
+    },
+    {
+      "section_key": "project_lifecycle_and_membership",
+      "section_label": "Project lifecycle & membership",
+      "operation": "updateFontProjectStyles",
+      "audit_category": "ProjectManagement",
+      "routing_key": "project.font.styles_updated",
+      "export_name": "UPDATE_FONT_PROJECT_STYLES",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "Projects > ProjectFontConflictVersionDrawer",
+        "Projects > (useUpdateFontProjectStyles)"
+      ]
+    },
+    {
+      "section_key": "font_sync_and_activation",
+      "section_label": "Font sync & activation",
+      "operation": "activateFamily",
+      "audit_category": "FontActivation",
+      "routing_key": "font.activation.success",
+      "export_name": "ACTIVATE_FAMILY",
+      "ui_files_count": 42,
+      "touchpoints": [
+        "Discover Fonts >Family > Activate",
+        "Discover Fonts >Family>family details > Activate",
+        "Discover Fonts >List> click on list >family> Activate",
+        "Discover Fonts >project> click on project >family> Activate",
+        "Discover Fonts > Select font family > open family details > Activate",
+        "Discover Fonts > Family card > Activate toggle",
+        "Discover Fonts > Family details > Header > Activate",
+        "Search > Family card > Activate toggle",
+        "Search > Similarity > Family card > Activate",
+        "Search > AI Search > Family card > Activate",
+        "My Library > Lists > Family row > Activate",
+        "My Library > Favourites > Family card > Activate"
+      ]
+    },
+    {
+      "section_key": "font_sync_and_activation",
+      "section_label": "Font sync & activation",
+      "operation": "activateFontProject",
+      "audit_category": "FontActivation",
+      "routing_key": "font.activation.success",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "Discover Fonts >Projects > Open project > Add font > browse>family details > add font to project",
+        "Projects > Open project > Activate project fonts"
+      ]
+    },
+    {
+      "section_key": "font_sync_and_activation",
+      "section_label": "Font sync & activation",
+      "operation": "activateList",
+      "audit_category": "FontActivation",
+      "routing_key": "font.activation.success",
+      "export_name": "ACTIVATE_LIST",
+      "ui_files_count": 40,
+      "touchpoints": [
+        "Discover Fonts> Asset > Activate Fonts in list",
+        "Discover Fonts> Show all Assets >tick on check Asset > Activate",
+        "Discover Fonts >show all assets > right click list > activate",
+        "Discover Fonts > Assets > Font list > Activate fonts in list",
+        "Discover Fonts > Show all assets > Select list > Right click > Activate",
+        "My Library > List toolbar > Activate list",
+        "Font card context menu (shared) > (useFontCardContextMenu)",
+        "My Library > FontLibraryOverlays",
+        "Search > ListsFoldersTableView",
+        "My Library > (useFontCardGridPage)",
+        "Projects > (useProjectLibraryCanActivateDeactivateFonts)",
+        "My Library > canActivateFontsOnAssetRow"
+      ]
+    },
+    {
+      "section_key": "font_sync_and_activation",
+      "section_label": "Font sync & activation",
+      "operation": "activateStyle",
+      "audit_category": "FontActivation",
+      "routing_key": "font.activation.success",
+      "export_name": "ACTIVATE_STYLE",
+      "ui_files_count": 53,
+      "touchpoints": [
+        "Discover Fonts > Assets > Font list > Activate list",
+        "Discover Fonts >List> click on list >family>style > Activate",
+        "Discover Fonts >Font Card>Right Click>Activate Style> Select a Style",
+        "Discover Fonts > Style row > Activate",
+        "Font card context menu > Activate style",
+        "Multi-select toolbar > Activate styles",
+        "My Library > List > Style > Activate",
+        "Projects > Project fonts > Style > Activate",
+        "Font card context menu (shared) > (useFontCardContextMenu)",
+        "My Library > (useFavouritesPairsTab)",
+        "My Library > (useFontCardGridPage)",
+        "Document scan > (useDocumentScanSimilarFonts)"
+      ]
+    },
+    {
+      "section_key": "font_sync_and_activation",
+      "section_label": "Font sync & activation",
+      "operation": "activateVariation",
+      "audit_category": "FontActivation",
+      "routing_key": "font.activation.success",
+      "export_name": "ACTIVATE_VARIATION",
+      "ui_files_count": 13,
+      "touchpoints": [
+        "Discover Fonts > Family>Family details > Select style > More Action > Font version > Activate",
+        "Discover Fonts> open list with variation > activate",
+        "Discover Fonts > Family details > Style > More actions > Font version > Activate",
+        "Family page > Variation row > Activate",
+        "Discover Fonts > Family page > (useFamilyPageViewModel)"
+      ]
+    },
+    {
+      "section_key": "font_sync_and_activation",
+      "section_label": "Font sync & activation",
+      "operation": "bulkActivateLists",
+      "audit_category": "FontActivation",
+      "routing_key": "font.activation.success",
+      "export_name": "BULK_ACTIVATE_LISTS",
+      "ui_files_count": 8,
+      "touchpoints": [
+        "Discover Fonts >Assets > select multiple assets > right click > activate",
+        "Discover Fonts > Assets > Multi-select assets > Right click > Activate",
+        "My Library > (useBulkActivateSelectedFontListsFromContextMenu)",
+        "My Library > AssetFolderPage",
+        "My Library > MyLibraryPage",
+        "My Library > (useAssetLibraryContextMenu)",
+        "My Library > (useBulkActivateListsMutation)",
+        "Projects > ProjectLibraryAssetsTableBlock"
+      ]
+    },
+    {
+      "section_key": "font_sync_and_activation",
+      "section_label": "Font sync & activation",
+      "operation": "bulkActivateStyles",
+      "audit_category": "FontActivation",
+      "routing_key": "font.activation.success",
+      "export_name": "BULK_ACTIVATE_STYLES",
+      "ui_files_count": 11,
+      "touchpoints": [
+        "Discover Fonts > Multi-select styles > Activate",
+        "Discover Fonts > Multi-select styles > Activate All Families",
+        "Search / My Library / Projects > Multi-select toolbar > Activate",
+        "Font card context menu > Bulk activate",
+        "Font card context menu (shared) > (useFontCardContextMenu)",
+        "My Library > (useFavouritesPairsTab)",
+        "Discover Fonts > Pairing > (usePairingPageModel)"
+      ]
+    },
+    {
+      "section_key": "font_sync_and_activation",
+      "section_label": "Font sync & activation",
+      "operation": "bulkDeactivateLists",
+      "audit_category": "FontActivation",
+      "routing_key": "font.deactivation.success",
+      "export_name": "BULK_DEACTIVATE_LISTS",
+      "ui_files_count": 8,
+      "touchpoints": [
+        "Discover Fonts >Assets > select multiple activated assets > right click > activate",
+        "My Library > (useBulkActivateSelectedFontListsFromContextMenu)",
+        "My Library > AssetFolderPage",
+        "My Library > MyLibraryPage",
+        "My Library > (useAssetLibraryContextMenu)",
+        "My Library > (useBulkActivateListsMutation)",
+        "Projects > ProjectLibraryAssetsTableBlock"
+      ]
+    },
+    {
+      "section_key": "font_sync_and_activation",
+      "section_label": "Font sync & activation",
+      "operation": "bulkDeactivateStyles",
+      "audit_category": "FontActivation",
+      "routing_key": "font.deactivation.success",
+      "export_name": "BULK_DEACTIVATE_STYLES",
+      "ui_files_count": 10,
+      "touchpoints": [
+        "Discover Fonts > Multi-select styles > Deactivate",
+        "Discover Fonts >Multi-select-font> Deactivate all styles",
+        "Multi-select toolbar > Deactivate styles",
+        "Font card context menu (shared) > (useFontCardContextMenu)",
+        "My Library > (useFavouritesPairsTab)",
+        "Discover Fonts > Pairing > (usePairingPageModel)"
+      ]
+    },
+    {
+      "section_key": "font_sync_and_activation",
+      "section_label": "Font sync & activation",
+      "operation": "deactivateFamilies",
+      "audit_category": "FontActivation",
+      "routing_key": "font.deactivation.success",
+      "export_name": "DEACTIVATE_FAMILIES",
+      "ui_files_count": 14,
+      "touchpoints": [
+        "Discover Fonts > Family details > Deactivate",
+        "Discover Fonts > Select font family > open family details > Deactivate",
+        "Discover Fonts > Family card > Deactivate toggle",
+        "Discover Fonts > Family details > Header > Deactivate",
+        "Search > Family card > Deactivate",
+        "My Library / My Inventory > Context menu > Deactivate family",
+        "Font card context menu > Deactivate family",
+        "My Library > refreshFontProjectFamilyStatusInStore",
+        "Font card context menu (shared) > (useFontCardContextMenu)",
+        "Side panel > index",
+        "Side panel > (useProjectFontOperations)",
+        "My Library > myLibraryFontListActivationShared"
+      ]
+    },
+    {
+      "section_key": "font_sync_and_activation",
+      "section_label": "Font sync & activation",
+      "operation": "deActivateFontProject",
+      "audit_category": "FontActivation",
+      "routing_key": "font.deactivation.success",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "font_sync_and_activation",
+      "section_label": "Font sync & activation",
+      "operation": "deActivateList",
+      "audit_category": "FontActivation",
+      "routing_key": "font.deactivation.success",
+      "export_name": "DE_ACTIVATE_LIST",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "Discover Fonts > Assets > Font list > Deactivate list",
+        "Discover Fonts > Assets > Font list > Deactivate fonts in list",
+        "My Library > List toolbar > Deactivate list",
+        "My Library > (useFontListActivate)",
+        "My Library > myLibraryFontListActivationShared"
+      ]
+    },
+    {
+      "section_key": "font_sync_and_activation",
+      "section_label": "Font sync & activation",
+      "operation": "deactivateStyle",
+      "audit_category": "FontActivation",
+      "routing_key": "font.deactivation.success",
+      "export_name": "DEACTIVATE_STYLE",
+      "ui_files_count": 39,
+      "touchpoints": [
+        "Discover Fonts > Activated fonts > Select style > Deactivate",
+        "Discover Fonts > Activated Font> Right Click> Deactivate Style",
+        "Discover Fonts > Style row > Deactivate",
+        "Font card context menu > Deactivate style",
+        "Multi-select toolbar > Deactivate styles",
+        "Search > Similarity > SimilarityPage",
+        "Font card context menu (shared) > (useFontCardContextMenu)",
+        "My Library > (useFavouritesPairsTab)",
+        "Search > SearchPage",
+        "Discover Fonts > Family page > familyPagePairStyleActivationRunners",
+        "Side panel > (useProjectFontOperations)",
+        "Discover Fonts > Pairing > (usePairingPageModel)"
+      ]
+    },
+    {
+      "section_key": "font_sync_and_activation",
+      "section_label": "Font sync & activation",
+      "operation": "deactivateVariation",
+      "audit_category": "FontActivation",
+      "routing_key": "font.deactivation.success",
+      "export_name": "DEACTIVATE_VARIATION",
+      "ui_files_count": 12,
+      "touchpoints": [
+        "Discover Fonts > Font details > Variations > Deactivate variation",
+        "Discover Fonts >select project> Right Click> Deactivate variation",
+        "Discover Fonts > Family details > Style > More actions > Font version > Deactivate",
+        "Discover Fonts > Family page > (useFamilyPageViewModel)"
+      ]
+    },
+    {
+      "section_key": "font_sync_and_activation",
+      "section_label": "Font sync & activation",
+      "operation": "getPackageId",
+      "audit_category": "FontDownload",
+      "routing_key": "font.download.completed",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "font_sync_and_activation",
+      "section_label": "Font sync & activation",
+      "operation": "syncUnSyncVariations",
+      "audit_category": "FontActivation",
+      "routing_key": "font.sync.updated",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(Backend / cron \u2014 no UI mutation)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "addFavoriteFamilies",
+      "audit_category": "Favorite",
+      "routing_key": "font.favorite.added",
+      "export_name": "ADD_FAMILY_TO_FAV",
+      "ui_files_count": 5,
+      "touchpoints": [
+        "Discover Fonts > Family card > Add to favorites",
+        "Discover Fonts> Family > Family Details > Menu > Add",
+        "Discover Fonts > Search > Family card > Add to favorites",
+        "Discover Fonts > Family details > Menu > Add to favorites",
+        "Search > Family card > Favorite icon",
+        "My Library > (useFontCardGridPage)",
+        "Favorites action (shared) > (useFavorites)",
+        "Favorites action (shared) > (useFavoritesActions)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "addFavoritePair",
+      "audit_category": "FavoritePair",
+      "routing_key": "font.favorite_pair.added",
+      "export_name": "ADD_FAVORITE_PAIR",
+      "ui_files_count": 5,
+      "touchpoints": [
+        "Discover Fonts > Pairing view > Add pair to favorites",
+        "My Library > (useFavouritesPairsTab)",
+        "Discover Fonts > Pairing > (usePairingPageModel)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "addFavoriteStyles",
+      "audit_category": "Favorite",
+      "routing_key": "font.favorite.added",
+      "export_name": "ADD_STYLE_TO_FAV",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "Discover Fonts > Pairing view > Add pair to favorites",
+        "Discover Fonts > open family > select style > click favourite",
+        "Discover Fonts > Style row > Favorite icon",
+        "Family details > Style > Favorite icon",
+        "Favorites action (shared) > (useFavorites)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "addFontListFamilies",
+      "audit_category": "FontList",
+      "routing_key": "library.list.font_added",
+      "export_name": "ADD_FONT_LIST_FAMILIES",
+      "ui_files_count": 8,
+      "touchpoints": [
+        "Discover Fonts > Search > Style > Add to favorites",
+        "Discover Fonts > Assets > Font list > Add families",
+        "Discover Fonts > Search > Style > Add to list",
+        "Font card context menu > Add to list or tag > Select list",
+        "My Library > Add families to list",
+        "Projects > ProjectFontsAddToDrawer",
+        "My Library > (useFontCardGridPage)",
+        "Document scan > (useDocumentScanAddToListOrFolder)",
+        "My Library > (useAddFamiliesToFontList)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "addFontListStyles",
+      "audit_category": "FontList",
+      "routing_key": "library.list.font_added",
+      "export_name": "ADD_FONT_LIST_STYLES",
+      "ui_files_count": 6,
+      "touchpoints": [
+        "Discover Fonts > select family >right click> Add to list or tag",
+        "Discover Fonts > Select family/style > Right click > Add to list or tag",
+        "Font card context menu > Add to list",
+        "Document scan > (useDocumentScanAddToListOrFolder)",
+        "My Library > (useAddStylesToFontList)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "addStyleComment",
+      "audit_category": "StyleDocument/Comment (all actor-only)",
+      "routing_key": "library.style_comment.added",
+      "export_name": "ADD_STYLE_COMMENT",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 3 file(s))"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "addStyleDocument",
+      "audit_category": "StyleDocument/Comment (all actor-only)",
+      "routing_key": "library.style_document.added",
+      "export_name": "ADD_STYLE_DOCUMENT",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 4 file(s))"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "addStylesToWebProject",
+      "audit_category": "WebProject",
+      "routing_key": "library.webkit.font_added",
+      "export_name": "ADD_STYLES_TO_WEB_PROJECT",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 4 file(s))"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "bulkAddPairsToFavorite",
+      "audit_category": "FavoritePair",
+      "routing_key": "font.favorite_pair.bulk_added",
+      "export_name": "BULK_ADD_PAIRS_TO_FAVORITE",
+      "ui_files_count": 7,
+      "touchpoints": [
+        "My Library > (useFavouritesPairsTab)",
+        "Discover Fonts > Pairing > (usePairingPageModel)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "bulkAddStylesToFavourites",
+      "audit_category": "Favorite",
+      "routing_key": "font.favorite.added",
+      "export_name": "BULK_ADD_STYLES_TO_FAVOURITES",
+      "ui_files_count": 7,
+      "touchpoints": [
+        "Discover Fonts > Multi-select styles > Add to favorites",
+        "Discover Fonts > Multi-select > Add All to Favroites",
+        "Multi-select toolbar > Add all to favorites",
+        "Font card context menu (shared) > (useFontCardContextMenu)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "bulkAddStylesToList",
+      "audit_category": "FontList",
+      "routing_key": "library.list.font_added",
+      "export_name": "BULK_ADD_STYLES_TO_LIST",
+      "ui_files_count": 12,
+      "touchpoints": [
+        "Discover Fonts > Multi-select styles > Add to list",
+        "My Library > (useFontCardGridPage)",
+        "Document scan > (useDocumentScanAddToListOrFolder)",
+        "Font card context menu (shared) > (useFontCardContextMenu)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "bulkCopyAssets",
+      "audit_category": "Asset",
+      "routing_key": "library.asset.copied",
+      "export_name": "BULK_COPY_ASSETS",
+      "ui_files_count": 18,
+      "touchpoints": [
+        "Discover Fonts > Assets > Multi-select > Copy",
+        "Discover> Show all Assets> Asset> Copy to> Project Name",
+        "Library > Show all assets > Asset > Copy to > Project/List",
+        "Discover Fonts > Assets > Copy to",
+        "Projects > (useDuplicateProject)",
+        "My Library > reportBulkCopyDrawerFailure",
+        "My Library > AssetFolderPage",
+        "My Library > bulkCopyOutcome",
+        "Search > ListsFoldersTableView",
+        "My Library > (useBulkCopyAssets)",
+        "My Library > MyLibraryPage",
+        "Projects > allProjectsTableShared"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "bulkMoveAssets",
+      "audit_category": "Asset",
+      "routing_key": "library.asset.moved",
+      "export_name": "BULK_MOVE_ASSETS",
+      "ui_files_count": 6,
+      "touchpoints": [
+        "Discover Fonts > Assets > Multi-select > Move",
+        "Discover> Show all Assets> Asset> Copy > Project Name",
+        "Library > Show all assets > Asset > Move to folder/project",
+        "My Library > bulkMoveOutcome",
+        "My Library > (useBulkMoveAssets)",
+        "My Library > CopyAssetsDrawer"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "bulkRemovePairsFromFavorite",
+      "audit_category": "FavoritePair",
+      "routing_key": "font.favorite_pair.bulk_removed",
+      "export_name": "BULK_REMOVE_PAIRS_FROM_FAVORITE",
+      "ui_files_count": 7,
+      "touchpoints": [
+        "My Library > (useFavouritesPairsTab)",
+        "Discover Fonts > Pairing > (usePairingPageModel)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "bulkRemoveStyleFromMultipleLists",
+      "audit_category": "(UI only \u2014 not in audit-events.xlsx)",
+      "routing_key": "",
+      "export_name": "BULK_REMOVE_STYLE_FROM_MULTIPLE_LISTS",
+      "ui_files_count": 7,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 7 file(s))"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "bulkRemoveStylesFromFavourites",
+      "audit_category": "Favorite",
+      "routing_key": "font.favorite.removed",
+      "export_name": "BULK_REMOVE_STYLES_FROM_FAVOURITES",
+      "ui_files_count": 6,
+      "touchpoints": [
+        "Discover Fonts > Favorites > Multi-select > Remove",
+        "Discover Fonts > Multi-select > Remove All from Favroites",
+        "Font card context menu (shared) > (useFontCardContextMenu)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "bulkRemoveStylesFromList",
+      "audit_category": "FontList",
+      "routing_key": "library.list.font_removed",
+      "export_name": "BULK_REMOVE_STYLES_FROM_LIST",
+      "ui_files_count": 9,
+      "touchpoints": [
+        "Discover Fonts > Assets > Font list > Remove styles (bulk)",
+        "My Library > (useFontCardGridPage)",
+        "Document scan > (useDocumentScanAddToListOrFolder)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "bulkSubmitIntentForProduction",
+      "audit_category": "(UI only \u2014 not in audit-events.xlsx)",
+      "routing_key": "",
+      "export_name": "BULK_SUBMIT_INTENT_FOR_PRODUCTION",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 3 file(s))"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "bulkTagStyles",
+      "audit_category": "PrivateTag",
+      "routing_key": "font.private_tag.applied",
+      "export_name": "BULK_TAG_STYLES",
+      "ui_files_count": 12,
+      "touchpoints": [
+        "Discover Fonts > Manage > Tags > Apply tag to selected styles",
+        "Font card context menu > Tag styles",
+        "Document scan > (useDocumentScanAddToTag)",
+        "Font card context menu (shared) > (useFontCardContextMenu)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "bulkUnMarkAsProductionFont",
+      "audit_category": "(UI only \u2014 not in audit-events.xlsx)",
+      "routing_key": "",
+      "export_name": "BULK_UNMARK_PRODUCTION_FONT",
+      "ui_files_count": 12,
+      "touchpoints": [
+        "Font card context menu (shared) > (useFontCardContextMenu)",
+        "My Library > (useFavouritesPairsTab)",
+        "Discover Fonts > Pairing > (usePairingPageModel)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "bulkUntagStyles",
+      "audit_category": "PrivateTag",
+      "routing_key": "font.private_tag.removed",
+      "export_name": "BULK_UNTAG_STYLES",
+      "ui_files_count": 9,
+      "touchpoints": [
+        "Discover Fonts > Tags > Remove tag from selected styles",
+        "Font card context menu > Remove tag",
+        "Document scan > (useDocumentScanAddToTag)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "createAsset",
+      "audit_category": "Asset",
+      "routing_key": "library.asset.created",
+      "export_name": "CREATE_ASSET",
+      "ui_files_count": 70,
+      "touchpoints": [
+        "Discover Fonts > Assets > Create folder or font list",
+        "My Library > createCopyMoveSuccessHandlers",
+        "Search > ListsFoldersTableView",
+        "My Library > AssetHeader",
+        "My Library > (useFontCardGridPage)",
+        "My Library > ShareAssetDrawer",
+        "My Library > runMyLibraryAfterCreateAsset",
+        "My Library > CopyAssetsDrawerPanel",
+        "My Library > (useAssetLibraryContextMenu)",
+        "My Library > (useOpenCreateAssetDrawer)",
+        "Projects > assetAttachmentMutations",
+        "My Library > constant"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "createAssetAttachmentUpload",
+      "audit_category": "Asset",
+      "routing_key": "library.asset.attachment_upload_created",
+      "export_name": "CREATE_ASSET_ATTACHMENT_UPLOAD",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "Projects > assetAttachmentMutations",
+        "Projects > (useProjectBriefAttachments)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "createPrivateTags",
+      "audit_category": "PrivateTag",
+      "routing_key": "user.tag.created",
+      "export_name": "CREATE_PRIVATE_TAGS",
+      "ui_files_count": 9,
+      "touchpoints": [
+        "Discover Fonts > Tags > Create private tag",
+        "Discover > manage > tags . Add tags",
+        "Tags > Create tag",
+        "Tags > CreateTagsDrawer"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "createSso",
+      "audit_category": "(UI only \u2014 not in audit-events.xlsx)",
+      "routing_key": "",
+      "export_name": "CREATE_SSO_MAPPING",
+      "ui_files_count": 7,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 7 file(s))"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "createStyleDocumentsUploadUrl",
+      "audit_category": "StyleDocument/Comment (all actor-only)",
+      "routing_key": "library.style_document.upload_url_created",
+      "export_name": "CREATE_STYLE_DOCUMENTS_UPLOAD_URL",
+      "ui_files_count": 2,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 2 file(s))"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "createWebProject",
+      "audit_category": "WebProject",
+      "routing_key": "library.webkit.created",
+      "export_name": "CREATE_WEB_PROJECT",
+      "ui_files_count": 10,
+      "touchpoints": [
+        "My Library > (useEmbedAllFontsInListDrawer)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "deleteAllPrivateTags",
+      "audit_category": "PrivateTag",
+      "routing_key": "user.tag.deleted",
+      "export_name": "DELETE_ALL_PRIVATE_TAGS",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "Tags > (useDeleteAllPrivateTags)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "deleteAssetAttachment",
+      "audit_category": "Asset",
+      "routing_key": "library.asset.attachment_deleted",
+      "export_name": "DELETE_ASSET_ATTACHMENT",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "Projects > assetAttachmentMutations",
+        "Projects > (useProjectBriefAttachments)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "deleteAssets",
+      "audit_category": "Asset",
+      "routing_key": "library.asset.deleted",
+      "export_name": "DELETE_ASSETS",
+      "ui_files_count": 41,
+      "touchpoints": [
+        "Discover Fonts > Assets > Delete",
+        "Discover Fonts> My Library> Asset> Delete",
+        "My Library > assetTableData",
+        "My Library > (useMyLibraryWebkitArchiveActions)",
+        "My Library > (useAssetLibraryDeleteFlow)",
+        "My Library > DeleteAssetsModal",
+        "My Library > copyAsProjectTableSelection",
+        "My Library > (useMyLibraryWebkitFlow)",
+        "My Library > buildDeleteWebkitsInput",
+        "My Library > (useAssetLibraryContextMenu)",
+        "My Library > buildAssetSelectionKey",
+        "Projects > (useProjectLibraryWebkitsPanel)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "deletePrivateTags",
+      "audit_category": "PrivateTag",
+      "routing_key": "user.tag.deleted",
+      "export_name": "DELETE_PRIVATE_TAGS",
+      "ui_files_count": 6,
+      "touchpoints": [
+        "Discover Fonts > Tags > Delete all tags (admin)",
+        "Discover > manage > Tags> Tag Name> Delete Tag",
+        "Tags > Delete tag",
+        "Tags > TagsTable",
+        "Tags > (useDeletePrivateTags)",
+        "Tags > TagsPage",
+        "Tags > ConfigureTagDrawer"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "deleteProfile",
+      "audit_category": "(UI only \u2014 not in audit-events.xlsx)",
+      "routing_key": "",
+      "export_name": "DELETE_PROFILE",
+      "ui_files_count": 7,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 7 file(s))"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "deleteStyleComment",
+      "audit_category": "StyleDocument/Comment (all actor-only)",
+      "routing_key": "library.style_comment.deleted",
+      "export_name": "DELETE_STYLE_COMMENT",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 4 file(s))"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "deleteStyleDocument",
+      "audit_category": "StyleDocument/Comment (all actor-only)",
+      "routing_key": "library.style_document.deleted",
+      "export_name": "DELETE_STYLE_DOCUMENT",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 4 file(s))"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "deleteTeam",
+      "audit_category": "(UI only \u2014 not in audit-events.xlsx)",
+      "routing_key": "",
+      "export_name": "DELETE_TEAMS",
+      "ui_files_count": 7,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 7 file(s))"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "downloadWebProject",
+      "audit_category": "WebProject",
+      "routing_key": "library.webkit.download",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "Web projects > Open project > Download kit"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "editWebProject",
+      "audit_category": "WebProject",
+      "routing_key": "library.webkit.updated",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "finalizeAssetAttachments",
+      "audit_category": "Asset",
+      "routing_key": "library.asset.attachments_finalized",
+      "export_name": "FINALIZE_ASSET_ATTACHMENTS",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "Projects > assetAttachmentMutations",
+        "Projects > (useProjectBriefAttachments)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "getFamiliesOfAllFontLists",
+      "audit_category": "Asset",
+      "routing_key": "library.asset.font_list_families_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "getStyleDocuments",
+      "audit_category": "StyleDocument/Comment (all actor-only)",
+      "routing_key": "font.style.documents_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "getStyleDocumentsDownloadUrls",
+      "audit_category": "StyleDocument/Comment (all actor-only)",
+      "routing_key": "font.style.documents_download_urls_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "getStylesOfAllFontLists",
+      "audit_category": "Asset",
+      "routing_key": "library.asset.font_list_styles_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "pinAsset",
+      "audit_category": "PinnedAsset + AddOn",
+      "routing_key": "library.pin.added",
+      "export_name": "PIN_ASSET",
+      "ui_files_count": 10,
+      "touchpoints": [
+        "Discover Fonts > Assets > Pin folder",
+        "My Library > (usePinnedAssets)",
+        "My Library > (usePinAsset)",
+        "My Library > AssetFolderPage",
+        "Projects > (useUnpinProject)",
+        "My Library > (useUnpinAsset)",
+        "Projects > (usePinProject)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "processUploadSessionFonts",
+      "audit_category": "(UI only \u2014 not in audit-events.xlsx)",
+      "routing_key": "",
+      "export_name": "PROCESS_UPLOAD_SESSION_FONTS",
+      "ui_files_count": 9,
+      "touchpoints": [
+        "Document scan > Process uploaded fonts",
+        "Document scan > applyUploadSessionFonts",
+        "Document scan > hydrateDocumentScanViewResults",
+        "Document scan > types",
+        "Document scan > getDocumentScanProjectIdFromPathname",
+        "Document scan > (useRefreshScanResultFile)",
+        "Document scan > (useDocumentScanFlowState)",
+        "Document scan > (useHydrateDocumentScanViewResults)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "publishAddOn",
+      "audit_category": "PinnedAsset + AddOn",
+      "routing_key": "font.addon.published",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "refreshScannedDocument",
+      "audit_category": "(UI only \u2014 not in audit-events.xlsx)",
+      "routing_key": "",
+      "export_name": "REFRESH_SCANNED_DOCUMENT",
+      "ui_files_count": 6,
+      "touchpoints": [
+        "Document scan > (useRefreshScanResultFile)",
+        "Document scan > (useRefreshScannedDocumentFlow)",
+        "Document scan > refreshScannedDocumentFlow",
+        "Projects > (useRefreshProjectDocument)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "removeFavoriteFamilies",
+      "audit_category": "Favorite",
+      "routing_key": "font.favorite.removed",
+      "export_name": "REMOVE_FAMILY_FROM_FAV",
+      "ui_files_count": 5,
+      "touchpoints": [
+        "Discover Fonts > Favorites > Remove family",
+        "Favorites action (shared) > (useFavorites)",
+        "Favorites action (shared) > (useFavoritesActions)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "removeFavoritePair",
+      "audit_category": "FavoritePair",
+      "routing_key": "font.favorite_pair.removed",
+      "export_name": "REMOVE_FAVORITE_PAIR",
+      "ui_files_count": 6,
+      "touchpoints": [
+        "Discover Fonts > Favorites > Remove pair",
+        "My Library > (useFavouritesPairsTab)",
+        "Discover Fonts > Pairing > (usePairingPageModel)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "removeFavoriteStyles",
+      "audit_category": "Favorite",
+      "routing_key": "font.favorite.removed",
+      "export_name": "REMOVE_STYLE_FROM_FAV",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "Discover Fonts > Favorites > Remove style",
+        "Favorites action (shared) > (useFavorites)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "removeFontListFamilies",
+      "audit_category": "FontList",
+      "routing_key": "library.list.font_removed",
+      "export_name": "REMOVE_FONT_LIST_FAMILIES",
+      "ui_files_count": 6,
+      "touchpoints": [
+        "Discover Fonts > Assets > Font list > Remove families",
+        "My Library > (useFontCardGridPage)",
+        "Document scan > (useDocumentScanAddToListOrFolder)",
+        "My Library > (useRemoveFamiliesFromFontList)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "removeFontListStyles",
+      "audit_category": "FontList",
+      "routing_key": "library.list.font_removed",
+      "export_name": "REMOVE_FONT_LIST_STYLES",
+      "ui_files_count": 9,
+      "touchpoints": [
+        "Discover Fonts > Assets > Font list > Remove styles",
+        "My Library > (useRemoveStylesFromFontList)",
+        "My Library > (useFontCardGridPage)",
+        "Document scan > (useDocumentScanAddToListOrFolder)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "removeScannedDocuments",
+      "audit_category": "(UI only \u2014 not in audit-events.xlsx)",
+      "routing_key": "",
+      "export_name": "REMOVE_SCANNED_DOCUMENTS",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "Projects > (useRemoveScannedDocuments)",
+        "Projects > ProjectDocumentPage"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "removeStylesFromWebProject",
+      "audit_category": "WebProject",
+      "routing_key": "library.webkit.font_removed",
+      "export_name": "REMOVE_STYLES_FROM_WEB_PROJECT",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "Web projects > Open project > Remove fonts"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "sharingInfoForAssets",
+      "audit_category": "Asset",
+      "routing_key": "library.asset.sharing_info_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "submitFontVariationRequest",
+      "audit_category": "(UI only \u2014 not in audit-events.xlsx)",
+      "routing_key": "",
+      "export_name": "SUBMIT_FONT_VARIATION_REQUEST",
+      "ui_files_count": 5,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 5 file(s))"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "unpinAsset",
+      "audit_category": "PinnedAsset + AddOn",
+      "routing_key": "library.pin.removed",
+      "export_name": "UNPIN_ASSET",
+      "ui_files_count": 7,
+      "touchpoints": [
+        "Discover Fonts > Assets > Unpin folder",
+        "Projects > (useUnpinProject)",
+        "My Library > (usePinnedAssets)",
+        "My Library > (useUnpinAsset)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "updateAsset",
+      "audit_category": "Asset",
+      "routing_key": "Dynamic***",
+      "export_name": "UPDATE_ASSET",
+      "ui_files_count": 42,
+      "touchpoints": [
+        "Discover Fonts > Assets > Folder > Rename",
+        "Discover Fonts>My Library>Asset> Right Click > Edit Details",
+        "My Library > (useMyLibraryWebkitArchiveActions)",
+        "My Library > (useMyLibraryWebkitFlow)",
+        "My Library > (useApplyListUserSharing)",
+        "Projects > (useUpdateProjectStatus)",
+        "My Library > ShareAssetDrawer",
+        "My Library > (useOpenCreateAssetDrawer)",
+        "Projects > (useProjectLibraryWebkitsPanel)",
+        "Projects > projectMembersSharingSaveErrors",
+        "My Library > assetAccess",
+        "My Library > WebkitActionsCell"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "updateAssets",
+      "audit_category": "Asset",
+      "routing_key": "library.asset.bulk_updated",
+      "export_name": "UPDATE_ASSETS",
+      "ui_files_count": 21,
+      "touchpoints": [
+        "My Library > (useMyLibraryWebkitArchiveActions)",
+        "My Library > (useMyLibraryWebkitFlow)",
+        "My Library > MyLibraryPage",
+        "My Library > WebkitsTableColumns",
+        "My Library > buildTakeWebkitsOfflineUpdateInput",
+        "Projects > (useUpdateProjectStatus)",
+        "My Library > WebkitActionsCell",
+        "My Library > (useMyLibraryWebkitMutations)",
+        "Projects > projectQueries",
+        "Projects > (useProjectLibraryWebkitsPanel)",
+        "My Library > buildPublishWebkitOnlineUpdateInput",
+        "My Library > buildTakeWebkitsOnlineUpdateInput"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "updateAssetSharing",
+      "audit_category": "Asset",
+      "routing_key": "Dynamic****",
+      "export_name": "MUTATION",
+      "ui_files_count": 307,
+      "touchpoints": [
+        "Discover Fonts > Assets > Share list > Grant or revoke access",
+        "Discover Fonts> Mylibrary> Asset>RightClick>Share List",
+        "My Library > (useMyLibraryWebkitArchiveActions)",
+        "Font card context menu (shared) > (useFontCardContextMenu)",
+        "My Library > FontLibraryOverlays",
+        "My Library > WebkitDiscardConfirmModals",
+        "Projects > (useUpdateProjectStatus)",
+        "My Library > webkitContextMenuActionGuard",
+        "Document scan > (useRefreshScannedDocumentFlow)",
+        "My Library > bulkCopyOutcome",
+        "Document scan > (useDocumentScanMarkForProduction)",
+        "Projects > (useRemoveScannedDocuments)"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "updateAssetsSharingInfo",
+      "audit_category": "Asset",
+      "routing_key": "library.asset.sharing_updated",
+      "export_name": "UPDATE_ASSETS_SHARING_INFO",
+      "ui_files_count": 5,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 5 file(s))"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "updateNotificationActorAction",
+      "audit_category": "(UI only \u2014 not in audit-events.xlsx)",
+      "routing_key": "",
+      "export_name": "UPDATE_NOTIFICATION_ACTOR_ACTION",
+      "ui_files_count": 5,
+      "touchpoints": [
+        "Notifications > resolveNotificationAccessRequests",
+        "Notifications > NotificationsPage"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "updatePrivateTag",
+      "audit_category": "PrivateTag",
+      "routing_key": "user.tag.updated",
+      "export_name": "UPDATE_PRIVATE_TAG",
+      "ui_files_count": 11,
+      "touchpoints": [
+        "Discover Fonts > Tags > Edit tag name",
+        "Discover > manage > Tags> Tag Name> Tag> Rename>Update Tag",
+        "Tags > Edit tag",
+        "Tags > (useUpdatePrivateTag)",
+        "Document scan > (useDocumentScanAddToTag)",
+        "Tags > FontsTaggedSection",
+        "Tags > ConfigureTagDrawer"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "updatePrivateTagAssociations",
+      "audit_category": "PrivateTag",
+      "routing_key": "font.private_tag.updated",
+      "export_name": "UPDATE_PRIVATE_TAG_ASSOCIATIONS",
+      "ui_files_count": 8,
+      "touchpoints": [
+        "Discover Fonts > Tags > Associate or disassociate styles",
+        "Document scan > (useDocumentScanAddToTag)",
+        "Tags > FontsTaggedSection"
+      ]
+    },
+    {
+      "section_key": "library_and_font_changes",
+      "section_label": "Library & font changes",
+      "operation": "updateStyleComment",
+      "audit_category": "StyleDocument/Comment (all actor-only)",
+      "routing_key": "library.style_comment.updated",
+      "export_name": "UPDATE_STYLE_COMMENT",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 4 file(s))"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "applyUnsubscribe",
+      "audit_category": "Notification (all actor-only)",
+      "routing_key": "user.notification.unsubscribed",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "bulkNotificationAction",
+      "audit_category": "Notification (all actor-only)",
+      "routing_key": "user.notification.bulk_action",
+      "export_name": "BULK_NOTIFICATION_ACTION",
+      "ui_files_count": 6,
+      "touchpoints": [
+        "Notifications > NotificationsPage"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "bulkUpdatePreferences",
+      "audit_category": "Notification (all actor-only)",
+      "routing_key": "user.notification.preferences_updated",
+      "export_name": "BULK_UPDATE_PREFERENCES",
+      "ui_files_count": 5,
+      "touchpoints": [
+        "Preferences > channelStateUtils",
+        "Preferences > (useBulkUpdatePreferences)",
+        "Preferences > NotificationTypeSection"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "createCompanyLogoUploadUrl",
+      "audit_category": "CompanyLogo (all actor-only)",
+      "routing_key": "account.company_logo.upload_url_created",
+      "export_name": "CREATE_COMPANY_LOGO_UPLOAD_URL",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 3 file(s))"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "createCustomer",
+      "audit_category": "Customer",
+      "routing_key": "account.customer.created",
+      "export_name": "CREATE_CUSTOMER",
+      "ui_files_count": 5,
+      "touchpoints": [
+        "Admin > Customers > Create customer"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "deleteCompanyLogo",
+      "audit_category": "CompanyLogo (all actor-only)",
+      "routing_key": "account.company_logo.deleted",
+      "export_name": "DELETE_COMPANY_LOGO",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 4 file(s))"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "dismissNotification",
+      "audit_category": "Notification (all actor-only)",
+      "routing_key": "user.notification.dismissed",
+      "export_name": "DISMISS_NOTIFICATION",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "Discover Fonts>notification > clcik dismis icon",
+        "Notifications > Dismiss",
+        "Notifications > NotificationsPage"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "getCustomerSettings",
+      "audit_category": "Customer",
+      "routing_key": "account.customer.settings_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "globalEmailOptOut",
+      "audit_category": "Notification (all actor-only)",
+      "routing_key": "user.notification.email_opted_out",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "markAllNotificationsRead",
+      "audit_category": "Notification (all actor-only)",
+      "routing_key": "user.notification.all_marked_read",
+      "export_name": "MARK_ALL_NOTIFICATIONS_READ",
+      "ui_files_count": 5,
+      "touchpoints": [
+        "Discover Fonts>notification > click mark all notification read",
+        "Notifications > Mark all read",
+        "Notifications > notificationPageUtils",
+        "Notifications > NotificationsPage"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "markCompanyLogoUploadSuccess",
+      "audit_category": "CompanyLogo (all actor-only)",
+      "routing_key": "account.company_logo.uploaded",
+      "export_name": "MARK_COMPANY_LOGO_UPLOAD_SUCCESS",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 3 file(s))"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "markNotificationRead",
+      "audit_category": "Notification (all actor-only)",
+      "routing_key": "user.notification.marked_read",
+      "export_name": "MARK_NOTIFICATION_READ",
+      "ui_files_count": 7,
+      "touchpoints": [
+        "Discover Fonts>notification >hover on unread notification > click eye icon",
+        "Click Notificaton Row",
+        "Notifications > Mark as read",
+        "Notifications > notificationPageUtils",
+        "Notifications > NotificationsList",
+        "Notifications > NotificationsSection",
+        "Notifications > NotificationsPage"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "markOnboardingCompleted",
+      "audit_category": "Customer",
+      "routing_key": "account.customer.onboarding_completed",
+      "export_name": "MARK_ONBOARDING_COMPLETED",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 3 file(s))"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "resetPreferences",
+      "audit_category": "Notification (all actor-only)",
+      "routing_key": "user.notification.preferences_reset",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "updateCustomer",
+      "audit_category": "Customer",
+      "routing_key": "account.customer.updated",
+      "export_name": "UPDATE_CUSTOMER",
+      "ui_files_count": 7,
+      "touchpoints": [
+        "Setting>company > Customers >company management> Edit company"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "updateCustomerSettings",
+      "audit_category": "Customer",
+      "routing_key": "account.customer.settings_updated",
+      "export_name": "UPDATE_CUSTOMER_SETTINGS",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 3 file(s))"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "updatePreference",
+      "audit_category": "Notification (all actor-only)",
+      "routing_key": "user.notification.preference_updated",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "account_and_workspace",
+      "section_label": "Account & workspace",
+      "operation": "updateSubToggle",
+      "audit_category": "Notification (all actor-only)",
+      "routing_key": "user.notification.sub_toggle_updated",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "completeUploadSession",
+      "audit_category": "DocumentScanning",
+      "routing_key": "document.scan.session_completed",
+      "export_name": "COMPLETE_UPLOAD_SESSION",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "Document scanning > Complete session",
+        "Document scan > (useCompleteUploadSession)",
+        "Document scan > (useDocumentScanFlowState)"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "createUploadSession",
+      "audit_category": "DocumentScanning",
+      "routing_key": "document.scan.session_created",
+      "export_name": "CREATE_UPLOAD_SESSION",
+      "ui_files_count": 9,
+      "touchpoints": [
+        "Document scanning > Start upload session",
+        "Document scan > Start upload session",
+        "Document scan > (useUpdateSessionFiles)",
+        "Document scan > index",
+        "Document scan > (useDocumentScanFlowState)",
+        "Document scan > (useCreateUploadSession)"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "downloadAssetAttachmentSignedUrl",
+      "audit_category": "Query/Read (all actor-only)",
+      "routing_key": "library.asset.attachment_url_generated",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "exportFontTemplate",
+      "audit_category": "FontTemplate (all actor-only)",
+      "routing_key": "font.template.exported",
+      "export_name": "EXPORT_FONT_TEMPLATE",
+      "ui_files_count": 6,
+      "touchpoints": [
+        "Imported Fonts > Export template"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "exportUnassignedImportedFontsTemplate",
+      "audit_category": "FontTemplate (all actor-only)",
+      "routing_key": "font.template.unassigned_exported",
+      "export_name": "EXPORT_UNASSIGNED_IMPORTED_FONTS_TEMPLATE",
+      "ui_files_count": 3,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 3 file(s))"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "getActiveBatches",
+      "audit_category": "Query/Read (all actor-only)",
+      "routing_key": "font.batch.active_batches_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "getAssetAttachments",
+      "audit_category": "Query/Read (all actor-only)",
+      "routing_key": "library.asset.attachments_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "getBatchProgress",
+      "audit_category": "Query/Read (all actor-only)",
+      "routing_key": "font.batch.progress_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "getCategorizedGlyphs",
+      "audit_category": "Query/Read (all actor-only)",
+      "routing_key": "font.glyph.categorized_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "getDocumentMetadata",
+      "audit_category": "DocumentMetadata (all actor-only)",
+      "routing_key": "font.document.metadata_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "getProjectByDocumentId",
+      "audit_category": "Query/Read (all actor-only)",
+      "routing_key": "library.project.by_document_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "getStyleComments",
+      "audit_category": "Query/Read (all actor-only)",
+      "routing_key": "font.style.comments_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "getUploadSessionFonts",
+      "audit_category": "Query/Read (all actor-only)",
+      "routing_key": "font.upload_session.fonts_retrieved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "importFontTemplate",
+      "audit_category": "FontTemplate (all actor-only)",
+      "routing_key": "font.template.imported",
+      "export_name": "IMPORT_FONT_TEMPLATE",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "Imported Fonts > Import template"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "markSessionFileUploaded",
+      "audit_category": "DocumentScanning",
+      "routing_key": "document.scan.file_uploaded",
+      "export_name": "MARK_FILE_UPLOADED",
+      "ui_files_count": 6,
+      "touchpoints": [
+        "Document scanning > Mark file uploaded",
+        "Document scan > (useMarkFileUploaded)",
+        "Document scan > (useDocumentScanFlowState)"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "saveDocumentMetadata",
+      "audit_category": "DocumentMetadata (all actor-only)",
+      "routing_key": "document.metadata.saved",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "submitFontUsageReport",
+      "audit_category": "LicenseManagement (all actor-only)",
+      "routing_key": "font.licence.usage_report_submitted",
+      "export_name": "SUBMIT_FONT_USAGE_REPORT",
+      "ui_files_count": 4,
+      "touchpoints": [
+        "Compliance > Submit usage report"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "submitIntentForProduction",
+      "audit_category": "LicenseManagement (all actor-only)",
+      "routing_key": "font.licence.intent_for_production_submitted",
+      "export_name": "",
+      "ui_files_count": 0,
+      "touchpoints": [
+        "(No UI touchpoint found in mtconnect-ui)"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "updateFontsForReview",
+      "audit_category": "LicenseManagement (all actor-only)",
+      "routing_key": "font.licence.fonts_for_review_updated",
+      "export_name": "UPDATE_FONTS_FOR_REVIEW",
+      "ui_files_count": 5,
+      "touchpoints": [
+        "(UI code only \u2014 verify manually: 5 file(s))"
+      ]
+    },
+    {
+      "section_key": "exports_and_maintenance",
+      "section_label": "Exports & maintenance",
+      "operation": "updateSessionFiles",
+      "audit_category": "DocumentScanning",
+      "routing_key": "document.scan.session_updated",
+      "export_name": "UPDATE_SESSION_FILES",
+      "ui_files_count": 6,
+      "touchpoints": [
+        "Document scanning > Update session files",
+        "Document scan > (useUpdateSessionFiles)",
+        "Document scan > (useDocumentScanFlowState)"
+      ]
+    }
+  ]
+}

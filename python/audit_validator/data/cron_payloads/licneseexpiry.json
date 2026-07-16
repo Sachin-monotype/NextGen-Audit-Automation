@@ -1,0 +1,65 @@
+{
+    "xCorrelationId": "corr-1",
+    "eventId": "550e8400-e29b-41d4-a716-446655440000",
+    "eventVersion": 1,
+    "occurredAt": "2026-07-09T06:30:00.000Z",
+    "routingKey": "byof.licence.expiring",
+    "actor": {
+      "globalUserId": "null",
+      "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
+    },
+    "source": {
+      "type": ["BYOF Licence Expiry"],
+      "service": "byof-license-service",
+      "operation": "notifyByofLicenceExpiry",
+      "operationState": "success"
+    },
+    "subject": {
+      "id": ["contract-due-1"],
+      "type": "BYOF Licence Expiry",
+      "contractId": ["contract-due-1"],
+      "contract": {
+        "contractId": "contract-due-1",
+        "companyId": "4a949153-9cab-4023-b31c-8336a8a3ec46",
+        "licenceName": "Test Licence",
+        "isFreeToUse": false,
+        "isPayOnce": false,
+        "isReviewed": true,
+        "licenceType": "DESKTOP",
+        "linkedImportedFontScope": "GLOBAL",
+        "projectId": null,
+        "licenceStartDate": "2025-01-01T00:00:00.000Z",
+        "licenceEndDate": "2026-12-31T00:00:00.000Z",
+        "totalLicensedSeats": 10,
+        "usedSeats": 5,
+        "costPerSeat": 100,
+        "totalCost": 1000,
+        "licencePurchaseDate": null,
+        "foundry": "Test Foundry",
+        "vendorName": null,
+        "contractReference": null,
+        "purchaseOrder": null,
+        "invoiceNumber": null,
+        "currency": "USD",
+        "title": null,
+        "registeredUsers": null,
+        "notes": null,
+        "notifyBeforeExpiry": true,
+        "notifyDays": 30,
+        "licenceSubTypes": null,
+        "status": "ACTIVE",
+        "createdAt": "2025-01-01T00:00:00.000Z",
+        "createdBy": "user-1",
+        "updatedAt": "2025-01-01T00:00:00.000Z",
+        "updatedBy": null
+      },
+      "styles": [
+        {
+          "styleId": "style-1",
+          "styleName": "Open Sans Italic",
+          "linkedAt": "2025-01-01T00:00:00.000Z",
+          "linkedBy": "user-1"
+        }
+      ]
+    }
+  }

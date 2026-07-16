@@ -1,0 +1,18 @@
+{
+  "_source": "NextGen PP UI browser curls (nextgen.monotype-pp.com/graph) — 2026-06",
+  "CREATE_PRIVATE_TAGS": "mutation CreatePrivateTags($input: CreatePrivateTagsInput!) { createPrivateTags(input: $input) { success errors { code message field __typename } data { tag { id customerId name __typename } success message associations { styleId success message __typename } __typename } __typename } }",
+  "UPDATE_PRIVATE_TAG": "mutation UpdatePrivateTag($input: UpdatePrivateTagInput!) { updatePrivateTag(input: $input) { success errors { code message field __typename } tag { id customerId name __typename } __typename } }",
+  "DELETE_PRIVATE_TAGS": "mutation DeletePrivateTags($input: DeletePrivateTagsInput!) { deletePrivateTags(input: $input) { success errors { code message field __typename } results { success errors { code message field __typename } tag { id customerId __typename } __typename } __typename } }",
+  "UPDATE_PROFILE": "mutation UpdateProfile($input: UpdateProfileInput!) { updateProfile(input: $input) { id isActive __typename } }",
+  "CREATE_TEAM": "mutation CreateTeam($input: CreateTeamInput!) { createTeam(input: $input) { id name __typename } }",
+  "UPDATE_TEAM": "mutation UpdateTeam($input: UpdateTeamInput!) { updateTeam(input: $input) { id name __typename } }",
+  "DELETE_TEAMS": "mutation deleteTeams($input: DeleteTeamsInput!) { deleteTeams(input: $input) }",
+  "CREATE_ROLE": "mutation CreateRole($input: CreateRoleInput!) { createRole(input: $input) { errors { code field message __typename } role { id __typename } success __typename } }",
+  "UPDATE_ROLE": "mutation UpdateRole($input: UpdateRoleInput!) { updateRole(input: $input) { errors { code field message __typename } role { id __typename } success __typename } }",
+  "DELETE_ROLES": "mutation DeleteRole($input: DeleteRolesInput!) { deleteRoles(input: $input) { deletedIds errors { code field message __typename } success __typename } }",
+  "BULK_ACTIVATE_STYLES": "mutation BulkActivateStyles($input: BulkStyleActivationInput!) { bulkActivateStyles(input: $input) { actionCounts { fontsFailed fontsProcessed fontsSkipped totalFonts __typename } actionType batchId createdAt progressPercent status updatedAt __typename } }",
+  "BULK_DEACTIVATE_STYLES": "mutation BulkDeactivateStyles($input: BulkStyleDeactivationInput!) { bulkDeactivateStyles(input: $input) { actionCounts { fontsFailed fontsProcessed fontsSkipped totalFonts __typename } actionType batchId createdAt progressPercent status updatedAt __typename } }",
+  "BULK_ADD_STYLES_TO_FAVOURITES": "mutation BulkAddStylesToFavourites($input: BulkStyleInput!) { bulkAddStylesToFavourites(input: $input) { actionCounts { fontsFailed fontsProcessed fontsSkipped totalFonts __typename } actionType batchId createdAt progressPercent status updatedAt __typename } }",
+  "CREATE_USER_INVITATIONS": "mutation CreateUserInvitations($input: CreateInvitationsInput!) { createUserInvitations(input: $input) { data { invitationId email __typename } error { message __typename } __typename } }",
+  "UPDATE_USER_INVITATIONS": "mutation UpdateUserInvitations($input: UpdateInvitationsInput!) { updateUserInvitations(input: $input) { data { invitationId status globalCustomerId __typename } error { invitationId message __typename } __typename } }"
+}

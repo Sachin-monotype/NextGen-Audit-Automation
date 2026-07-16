@@ -1,0 +1,37 @@
+{
+  "xCorrelationId": "74bfc6ee-864a-47a4-93cb-9aa70f43d3d3",
+  "eventId": "5b9b6bba-f88f-4fb8-94ab-48d4fdc432fa",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-03T12:24:48.0450960Z",
+  "source": {
+    "type": [
+      "App",
+      "Logs"
+    ],
+    "service": "mtconnect-ui",
+    "operation": "appLogsExported",
+    "operationIndex": 0,
+    "operationState": "success",
+    "platform": "nextGen",
+    "platformEnvironment": "app",
+    "platformVersion": "1.0.0.0",
+    "actorUserAgent": "MonotypeNextGen/1.0.0.0",
+    "osName": "mac",
+    "osVersion": "26.5.1",
+    "cpuArch": "arm64"
+  },
+  "actor": {
+    "authenticationState": "authenticated",
+    "machineId": "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60",
+    "uniqueId": "AED633E846F09CDA06EAFBDC",
+    "globalUserId": "293ba856-5a89-11f1-a522-0e0a04e472ab",
+    "globalCustomerId": "d677fdca-5424-43a6-875f-b390b59231bf"
+  },
+  "subject": {
+    "type": "machine",
+    "id": [
+      "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60"
+    ],
+    "logFilePath": "/Users/sumityadav/Downloads/logs-2026-07-03T12-24-47.zip"
+  }
+}

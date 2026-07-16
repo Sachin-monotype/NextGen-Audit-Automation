@@ -1,0 +1,22 @@
+{
+  "xCorrelationId": "",
+  "eventId": "",
+  "eventVersion": 1,
+  "occurredAt": "",
+  "routingKey": "byof.license.mapped",
+  "source": {
+    "service": "batch-orchestration-service",
+    "operation": "licenseLinked",
+    "operationState": "success"
+  },
+  "actor": {
+    "globalUserId": "",
+    "globalCustomerId": ""
+  },
+  "subject": {
+    "type": "batch",
+    "id": ["00000000-0000-0000-0000-000000000004"],
+    "status": "COMPLETED",
+    "items": [{ "styles": [{ "id": "794981" }] }]
+  }
+}

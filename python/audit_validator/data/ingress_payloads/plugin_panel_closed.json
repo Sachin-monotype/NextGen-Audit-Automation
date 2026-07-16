@@ -1,0 +1,36 @@
+{
+  "xCorrelationId": "b8a2d79e-fabe-480f-b3c7-f1b9271ebc94",
+  "eventId": "75577b24-708f-4781-94cb-20021346f8bb",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-06T16:36:12.8986910Z",
+  "source": {
+    "type": [
+      "Plugin"
+    ],
+    "service": "Plugin",
+    "operation": "pluginPanelClosed",
+    "operationIndex": 0,
+    "operationState": "success",
+    "platform": "nextGen",
+    "platformEnvironment": "app",
+    "platformVersion": "1.0.0.0",
+    "actorUserAgent": "MonotypeNextGen/1.0.0.0",
+    "osName": "mac",
+    "osVersion": "26.5.0",
+    "cpuArch": "arm64"
+  },
+  "actor": {
+    "authenticationState": "authenticated",
+    "machineId": "NFJJ96GT2M1KR8BCJJ6Z4N2KYRZQXV30MX0H01GECGK4JEGCKK20",
+    "uniqueId": "25163212006601180F030E3E",
+    "globalUserId": "114cf0cf-7131-11f1-a522-0e0a04e472ab",
+    "globalCustomerId": "444ff127-5d0f-453b-be6e-3dec0fffad2a"
+  },
+  "subject": {
+    "type": "machine",
+    "id": [
+      "NFJJ96GT2M1KR8BCJJ6Z4N2KYRZQXV30MX0H01GECGK4JEGCKK20"
+    ],
+    "plugin": "InDesign-Plugin-ID19"
+  }
+}

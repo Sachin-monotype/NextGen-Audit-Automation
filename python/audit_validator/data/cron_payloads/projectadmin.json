@@ -1,0 +1,28 @@
+{
+    "xCorrelationId": "112fbe7d-2b25-4225-9822-234ed860b742",
+    "eventId": "22222222-2222-2222-2222-222222222222",
+    "occurredAt": "2026-07-09T08:42:54.843Z",
+    "eventVersion": 1,
+    "source": {
+      "service": "mosaic-asset-mgmt-service",
+      "trigger": "G-1",
+      "operation": "projectArchivalWarningAdmin",
+      "operationState": "success"
+    },
+    "actor": {
+      "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
+    },
+    "subject": {
+      "id": ["d297eeb2-efe0-4186-957f-92a64c1f49a2"],
+      "triggerCode": "G-1",
+      "projectId": "34ad7238-c7b3-4a9d-a28f-5a88da7a278a",
+      "projectName": "Archival Warning 7-Day Project",
+      "projectExpiryDate": "2026-07-16",
+      "primaryAdminId": "7063f9ff-6884-11f1-a522-0e0a04e472ab",
+      "assetType": "FontProject",
+      "isAdmin": true,
+      "isMember": false
+    },
+    "recipients": [],
+    "routingKey": "project.archival.warning.admin"
+  }

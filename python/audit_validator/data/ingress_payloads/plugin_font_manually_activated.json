@@ -1,0 +1,41 @@
+{
+  "xCorrelationId": "5F7C334E-1576-4330-BADF-33FD7A3C5E90",
+  "eventId": "43a271ac-78e8-4c47-b7a9-3667fd0e6c61",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-03T06:51:12.1272100Z",
+  "source": {
+    "type": [
+      "Plugin",
+      "Font conflict"
+    ],
+    "service": "MonotypeNextGenConnectService",
+    "operation": "pluginFontManuallyActivated",
+    "operationIndex": 0,
+    "operationState": "success",
+    "platform": "nextGen",
+    "platformEnvironment": "app",
+    "platformVersion": "1.0.0.0",
+    "actorUserAgent": "MonotypeNextGen/1.0.0.0",
+    "osName": "mac",
+    "osVersion": "26.5.1",
+    "cpuArch": "arm64"
+  },
+  "actor": {
+    "authenticationState": "authenticated",
+    "machineId": "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60",
+    "uniqueId": "AED633E846F09CDA06EAFBDC",
+    "globalUserId": "ae76bf6f-28e8-11f1-a61d-0eedb5fed28b",
+    "globalCustomerId": "52b3f06c-8dc8-4b41-9e79-0fe251cb05e3"
+  },
+  "subject": {
+    "type": "fontVariation",
+    "id": [
+      "c2a9e423606733dd77b7d97780e4bbe5"
+    ],
+    "plugin": "InDesign-Plugin-ID21",
+    "documentId": "/Users/sumityadav/Downloads/Test Docs for plugins/TestMissingID-RqstAcc 3.indd",
+    "documentName": "TestMissingID-RqstAcc 3.indd",
+    "activationMode": "manual",
+    "activationType": "temporary"
+  }
+}

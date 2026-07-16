@@ -1,0 +1,1472 @@
+{
+  "activateFamily": {
+    "Discovery/Browse (global)": [
+      "activateFamily"
+    ],
+    "List (FONTLIST)": [
+      "createAsset",
+      "addFontListFamilies",
+      "activateFamily"
+    ],
+    "Favourite": [
+      "addFavoriteFamilies",
+      "activateFamily"
+    ],
+    "Project": [
+      "createProject",
+      "addFontProjectFamilies",
+      "activateFamily"
+    ],
+    "Project > List": [
+      "createProject",
+      "addFontProjectFamilies",
+      "createAsset",
+      "addFontListFamilies",
+      "activateFamily"
+    ],
+    "default": [
+      "activateFamily"
+    ]
+  },
+  "activateFontProject": {
+    "Project": [
+      "createProject",
+      "addFontProjectFamilies",
+      "activateFontProject"
+    ],
+    "default": [
+      "createProject",
+      "addFontProjectFamilies",
+      "activateFontProject"
+    ]
+  },
+  "activateList": {
+    "List (FONTLIST)": [
+      "createAsset",
+      "addFontListFamilies",
+      "activateList"
+    ],
+    "Favourite": [
+      "addFavoriteFamilies",
+      "activateList"
+    ],
+    "Project > List": [
+      "createProject",
+      "createAsset",
+      "addFontListFamilies",
+      "activateList"
+    ],
+    "default": [
+      "createAsset",
+      "addFontListFamilies",
+      "activateList"
+    ]
+  },
+  "activateStyle": {
+    "Discovery/Browse (global)": [
+      "activateStyle"
+    ],
+    "List (FONTLIST)": [
+      "createAsset",
+      "addFontListStyles",
+      "activateStyle"
+    ],
+    "Favourite": [
+      "addFavoriteStyles",
+      "activateStyle"
+    ],
+    "Project": [
+      "createProject",
+      "addFontProjectStyles",
+      "activateStyle"
+    ],
+    "Project > List": [
+      "createProject",
+      "createAsset",
+      "addFontListStyles",
+      "activateStyle"
+    ],
+    "default": [
+      "activateStyle"
+    ]
+  },
+  "activateVariation": {
+    "Discovery/Browse (global)": [
+      "activateVariation"
+    ],
+    "List (FONTLIST)": [
+      "createAsset",
+      "addFontListStyles",
+      "activateVariation"
+    ],
+    "Favourite": [
+      "addFavoriteStyles",
+      "activateVariation"
+    ],
+    "Project": [
+      "createProject",
+      "addFontProjectStyles",
+      "activateVariation"
+    ],
+    "Project > List": [
+      "createProject",
+      "createAsset",
+      "addFontListStyles",
+      "activateVariation"
+    ],
+    "default": [
+      "activateVariation"
+    ]
+  },
+  "addFavoriteFamilies": {
+    "Discovery/Browse (global)": [
+      "addFavoriteFamilies"
+    ],
+    "default": [
+      "addFavoriteFamilies"
+    ]
+  },
+  "addFavoritePair": {
+    "Discovery/Browse (global)": [
+      "addFavoritePair"
+    ],
+    "default": [
+      "addFavoritePair"
+    ]
+  },
+  "addFavoriteStyles": {
+    "Discovery/Browse (global)": [
+      "addFavoriteStyles"
+    ],
+    "default": [
+      "addFavoriteStyles"
+    ]
+  },
+  "addFontListFamilies": {
+    "List (FONTLIST)": [
+      "createAsset",
+      "addFontListFamilies"
+    ],
+    "Project > List": [
+      "createProject",
+      "createAsset",
+      "addFontListFamilies"
+    ],
+    "default": [
+      "createAsset",
+      "addFontListFamilies"
+    ]
+  },
+  "addFontListStyles": {
+    "List (FONTLIST)": [
+      "createAsset",
+      "addFontListStyles"
+    ],
+    "Project > List": [
+      "createProject",
+      "createAsset",
+      "addFontListStyles"
+    ],
+    "default": [
+      "createAsset",
+      "addFontListStyles"
+    ]
+  },
+  "addFontProjectFamilies": {
+    "Project": [
+      "createProject",
+      "addFontProjectFamilies"
+    ],
+    "default": [
+      "createProject",
+      "addFontProjectFamilies"
+    ]
+  },
+  "addFontProjectStyles": {
+    "Project": [
+      "createProject",
+      "addFontProjectStyles"
+    ],
+    "default": [
+      "createProject",
+      "addFontProjectStyles"
+    ]
+  },
+  "addStyleComment": {
+    "Discovery/Browse (global)": [
+      "addStyleComment"
+    ],
+    "Project": [
+      "createProject",
+      "addStyleComment"
+    ],
+    "default": [
+      "addStyleComment"
+    ]
+  },
+  "addStyleDocument": {
+    "Discovery/Browse (global)": [
+      "addStyleDocument"
+    ],
+    "Project": [
+      "createProject",
+      "addStyleDocument"
+    ],
+    "default": [
+      "addStyleDocument"
+    ]
+  },
+  "addStylesToWebProject": {
+    "Project": [
+      "createProject",
+      "addStylesToWebProject"
+    ],
+    "default": [
+      "createProject",
+      "addStylesToWebProject"
+    ]
+  },
+  "applyUnsubscribe": {
+    "Discovery/Browse (global)": [
+      "applyUnsubscribe"
+    ],
+    "default": [
+      "applyUnsubscribe"
+    ]
+  },
+  "approveFontAccess": {
+    "Discovery/Browse (global)": [
+      "approveFontAccess"
+    ],
+    "default": [
+      "approveFontAccess"
+    ]
+  },
+  "bulkActivateLists": {
+    "List (FONTLIST)": [
+      "createAsset",
+      "bulkActivateLists"
+    ],
+    "Project": [
+      "createProject",
+      "createAsset",
+      "bulkActivateLists"
+    ],
+    "default": [
+      "createAsset",
+      "bulkActivateLists"
+    ]
+  },
+  "bulkActivateStyles": {
+    "Discovery/Browse (global)": [
+      "bulkActivateStyles"
+    ],
+    "Project": [
+      "createProject",
+      "bulkActivateStyles"
+    ],
+    "default": [
+      "bulkActivateStyles"
+    ]
+  },
+  "bulkAddPairsToFavorite": {
+    "Discovery/Browse (global)": [
+      "bulkAddPairsToFavorite"
+    ],
+    "default": [
+      "bulkAddPairsToFavorite"
+    ]
+  },
+  "bulkAddStylesToFavourites": {
+    "Discovery/Browse (global)": [
+      "bulkAddStylesToFavourites"
+    ],
+    "default": [
+      "bulkAddStylesToFavourites"
+    ]
+  },
+  "bulkAddStylesToList": {
+    "List (FONTLIST)": [
+      "createAsset",
+      "bulkAddStylesToList"
+    ],
+    "default": [
+      "createAsset",
+      "bulkAddStylesToList"
+    ]
+  },
+  "bulkCopyAssets": {
+    "Discovery/Browse (global)": [
+      "bulkCopyAssets"
+    ],
+    "default": [
+      "bulkCopyAssets"
+    ]
+  },
+  "bulkDeactivateLists": {
+    "List (FONTLIST)": [
+      "createAsset",
+      "bulkDeactivateLists"
+    ],
+    "Project": [
+      "createProject",
+      "createAsset",
+      "bulkDeactivateLists"
+    ],
+    "default": [
+      "createAsset",
+      "bulkDeactivateLists"
+    ]
+  },
+  "bulkDeactivateStyles": {
+    "Discovery/Browse (global)": [
+      "bulkDeactivateStyles"
+    ],
+    "Project": [
+      "createProject",
+      "bulkDeactivateStyles"
+    ],
+    "default": [
+      "bulkDeactivateStyles"
+    ]
+  },
+  "bulkMarkAsProductionFontsRequest": {
+    "Discovery/Browse (global)": [
+      "bulkMarkAsProductionFontsRequest"
+    ],
+    "default": [
+      "bulkMarkAsProductionFontsRequest"
+    ]
+  },
+  "bulkMoveAssets": {
+    "Discovery/Browse (global)": [
+      "bulkMoveAssets"
+    ],
+    "default": [
+      "bulkMoveAssets"
+    ]
+  },
+  "bulkNotificationAction": {
+    "Discovery/Browse (global)": [
+      "bulkNotificationAction"
+    ],
+    "default": [
+      "bulkNotificationAction"
+    ]
+  },
+  "bulkRemovePairsFromFavorite": {
+    "Discovery/Browse (global)": [
+      "bulkRemovePairsFromFavorite"
+    ],
+    "default": [
+      "bulkRemovePairsFromFavorite"
+    ]
+  },
+  "bulkRemoveStylesFromFavourites": {
+    "Discovery/Browse (global)": [
+      "bulkRemoveStylesFromFavourites"
+    ],
+    "default": [
+      "bulkRemoveStylesFromFavourites"
+    ]
+  },
+  "bulkRemoveStylesFromList": {
+    "List (FONTLIST)": [
+      "createAsset",
+      "bulkRemoveStylesFromList"
+    ],
+    "default": [
+      "createAsset",
+      "bulkRemoveStylesFromList"
+    ]
+  },
+  "bulkTagStyles": {
+    "Discovery/Browse (global)": [
+      "bulkTagStyles"
+    ],
+    "default": [
+      "bulkTagStyles"
+    ]
+  },
+  "bulkUnmarkProductionFont": {
+    "Discovery/Browse (global)": [
+      "bulkUnmarkProductionFont"
+    ],
+    "default": [
+      "bulkUnmarkProductionFont"
+    ]
+  },
+  "bulkUntagStyles": {
+    "Discovery/Browse (global)": [
+      "bulkUntagStyles"
+    ],
+    "default": [
+      "bulkUntagStyles"
+    ]
+  },
+  "bulkUpdatePreferences": {
+    "Discovery/Browse (global)": [
+      "bulkUpdatePreferences"
+    ],
+    "default": [
+      "bulkUpdatePreferences"
+    ]
+  },
+  "bulkUpdateProfiles": {
+    "Discovery/Browse (global)": [
+      "bulkUpdateProfiles"
+    ],
+    "default": [
+      "bulkUpdateProfiles"
+    ]
+  },
+  "cancelBatch": {
+    "Discovery/Browse (global)": [
+      "cancelBatch"
+    ],
+    "default": [
+      "cancelBatch"
+    ]
+  },
+  "completeUploadSession": {
+    "Document": [
+      "completeUploadSession"
+    ],
+    "default": [
+      "completeUploadSession"
+    ]
+  },
+  "createAsset": {
+    "Discovery/Browse (global)": [
+      "createAsset"
+    ],
+    "default": [
+      "createAsset"
+    ]
+  },
+  "createAssetAttachmentUpload": {
+    "Discovery/Browse (global)": [
+      "createAssetAttachmentUpload"
+    ],
+    "default": [
+      "createAssetAttachmentUpload"
+    ]
+  },
+  "createBYOFBatchAndCheckDuplicates": {
+    "Discovery/Browse (global)": [
+      "createBYOFBatchAndCheckDuplicates"
+    ],
+    "default": [
+      "createBYOFBatchAndCheckDuplicates"
+    ]
+  },
+  "createCompanyLogoUploadUrl": {
+    "Discovery/Browse (global)": [
+      "createCompanyLogoUploadUrl"
+    ],
+    "default": [
+      "createCompanyLogoUploadUrl"
+    ]
+  },
+  "createContract": {
+    "Discovery/Browse (global)": [
+      "createContract"
+    ],
+    "Project": [
+      "createProject",
+      "createContract"
+    ],
+    "default": [
+      "createContract"
+    ]
+  },
+  "createCustomer": {
+    "Discovery/Browse (global)": [
+      "createCustomer"
+    ],
+    "default": [
+      "createCustomer"
+    ]
+  },
+  "createPrivateTags": {
+    "Discovery/Browse (global)": [
+      "createPrivateTags"
+    ],
+    "default": [
+      "createPrivateTags"
+    ]
+  },
+  "createProject": {
+    "Project": [
+      "createProject",
+      "createProject"
+    ],
+    "default": [
+      "createProject",
+      "createProject"
+    ]
+  },
+  "createRole": {
+    "Discovery/Browse (global)": [
+      "createRole"
+    ],
+    "default": [
+      "createRole"
+    ]
+  },
+  "createServiceAccount": {
+    "Discovery/Browse (global)": [
+      "createServiceAccount"
+    ],
+    "default": [
+      "createServiceAccount"
+    ]
+  },
+  "createSsoMapping": {
+    "Discovery/Browse (global)": [
+      "createSsoMapping"
+    ],
+    "default": [
+      "createSsoMapping"
+    ]
+  },
+  "createStyleDocumentsUploadUrl": {
+    "Discovery/Browse (global)": [
+      "createStyleDocumentsUploadUrl"
+    ],
+    "Project": [
+      "createProject",
+      "createStyleDocumentsUploadUrl"
+    ],
+    "default": [
+      "createStyleDocumentsUploadUrl"
+    ]
+  },
+  "createTeam": {
+    "Discovery/Browse (global)": [
+      "createTeam"
+    ],
+    "default": [
+      "createTeam"
+    ]
+  },
+  "createUploadSession": {
+    "Document": [
+      "createUploadSession"
+    ],
+    "default": [
+      "createUploadSession"
+    ]
+  },
+  "createUserInvitations": {
+    "Discovery/Browse (global)": [
+      "createUserInvitations"
+    ],
+    "default": [
+      "createUserInvitations"
+    ]
+  },
+  "createWebProject": {
+    "Project": [
+      "createProject",
+      "createWebProject"
+    ],
+    "default": [
+      "createProject",
+      "createWebProject"
+    ]
+  },
+  "deActivateFontProject": {
+    "Project": [
+      "createProject",
+      "addFontProjectFamilies",
+      "deActivateFontProject"
+    ],
+    "default": [
+      "createProject",
+      "addFontProjectFamilies",
+      "deActivateFontProject"
+    ]
+  },
+  "deActivateList": {
+    "List (FONTLIST)": [
+      "createAsset",
+      "addFontListFamilies",
+      "deActivateList"
+    ],
+    "Favourite": [
+      "addFavoriteFamilies",
+      "deActivateList"
+    ],
+    "Project > List": [
+      "createProject",
+      "createAsset",
+      "addFontListFamilies",
+      "deActivateList"
+    ],
+    "default": [
+      "createAsset",
+      "addFontListFamilies",
+      "deActivateList"
+    ]
+  },
+  "deactivateFamilies": {
+    "Discovery/Browse (global)": [
+      "deactivateFamilies"
+    ],
+    "List (FONTLIST)": [
+      "createAsset",
+      "addFontListFamilies",
+      "deactivateFamilies"
+    ],
+    "Favourite": [
+      "addFavoriteFamilies",
+      "deactivateFamilies"
+    ],
+    "Project": [
+      "createProject",
+      "addFontProjectFamilies",
+      "deactivateFamilies"
+    ],
+    "Project > List": [
+      "createProject",
+      "createAsset",
+      "addFontListFamilies",
+      "deactivateFamilies"
+    ],
+    "default": [
+      "deactivateFamilies"
+    ]
+  },
+  "deactivateStyle": {
+    "Discovery/Browse (global)": [
+      "deactivateStyle"
+    ],
+    "List (FONTLIST)": [
+      "createAsset",
+      "addFontListStyles",
+      "deactivateStyle"
+    ],
+    "Favourite": [
+      "addFavoriteStyles",
+      "deactivateStyle"
+    ],
+    "Project": [
+      "createProject",
+      "addFontProjectStyles",
+      "deactivateStyle"
+    ],
+    "Project > List": [
+      "createProject",
+      "createAsset",
+      "addFontListStyles",
+      "deactivateStyle"
+    ],
+    "default": [
+      "deactivateStyle"
+    ]
+  },
+  "deactivateVariation": {
+    "Discovery/Browse (global)": [
+      "deactivateVariation"
+    ],
+    "List (FONTLIST)": [
+      "createAsset",
+      "addFontListStyles",
+      "deactivateVariation"
+    ],
+    "Favourite": [
+      "addFavoriteStyles",
+      "deactivateVariation"
+    ],
+    "Project": [
+      "createProject",
+      "addFontProjectStyles",
+      "deactivateVariation"
+    ],
+    "Project > List": [
+      "createProject",
+      "createAsset",
+      "addFontListStyles",
+      "deactivateVariation"
+    ],
+    "default": [
+      "deactivateVariation"
+    ]
+  },
+  "deleteAllPrivateTags": {
+    "Discovery/Browse (global)": [
+      "deleteAllPrivateTags"
+    ],
+    "default": [
+      "deleteAllPrivateTags"
+    ]
+  },
+  "deleteAssetAttachment": {
+    "Discovery/Browse (global)": [
+      "deleteAssetAttachment"
+    ],
+    "default": [
+      "deleteAssetAttachment"
+    ]
+  },
+  "deleteAssets": {
+    "Discovery/Browse (global)": [
+      "deleteAssets"
+    ],
+    "default": [
+      "deleteAssets"
+    ]
+  },
+  "deleteCompanyLogo": {
+    "Discovery/Browse (global)": [
+      "deleteCompanyLogo"
+    ],
+    "default": [
+      "deleteCompanyLogo"
+    ]
+  },
+  "deleteContracts": {
+    "Discovery/Browse (global)": [
+      "deleteContracts"
+    ],
+    "default": [
+      "deleteContracts"
+    ]
+  },
+  "deleteImportedFonts": {
+    "Discovery/Browse (global)": [
+      "deleteImportedFonts"
+    ],
+    "default": [
+      "deleteImportedFonts"
+    ]
+  },
+  "deletePrivateTags": {
+    "Discovery/Browse (global)": [
+      "deletePrivateTags"
+    ],
+    "default": [
+      "deletePrivateTags"
+    ]
+  },
+  "deleteProfiles": {
+    "Discovery/Browse (global)": [
+      "deleteProfiles"
+    ],
+    "default": [
+      "deleteProfiles"
+    ]
+  },
+  "deleteProject": {
+    "Project": [
+      "createProject",
+      "deleteProject"
+    ],
+    "default": [
+      "createProject",
+      "deleteProject"
+    ]
+  },
+  "deleteRoles": {
+    "Discovery/Browse (global)": [
+      "deleteRoles"
+    ],
+    "default": [
+      "deleteRoles"
+    ]
+  },
+  "deleteServiceAccount": {
+    "Discovery/Browse (global)": [
+      "deleteServiceAccount"
+    ],
+    "default": [
+      "deleteServiceAccount"
+    ]
+  },
+  "deleteSsoMappings": {
+    "Discovery/Browse (global)": [
+      "deleteSsoMappings"
+    ],
+    "default": [
+      "deleteSsoMappings"
+    ]
+  },
+  "deleteStyleComment": {
+    "Discovery/Browse (global)": [
+      "deleteStyleComment"
+    ],
+    "Project": [
+      "createProject",
+      "deleteStyleComment"
+    ],
+    "default": [
+      "deleteStyleComment"
+    ]
+  },
+  "deleteStyleDocument": {
+    "Discovery/Browse (global)": [
+      "deleteStyleDocument"
+    ],
+    "Project": [
+      "createProject",
+      "deleteStyleDocument"
+    ],
+    "Document": [
+      "deleteStyleDocument"
+    ],
+    "Document > Project": [
+      "deleteStyleDocument"
+    ],
+    "default": [
+      "deleteStyleDocument"
+    ]
+  },
+  "deleteTeams": {
+    "Discovery/Browse (global)": [
+      "deleteTeams"
+    ],
+    "default": [
+      "deleteTeams"
+    ]
+  },
+  "denyIntentForProduction": {
+    "Discovery/Browse (global)": [
+      "denyIntentForProduction"
+    ],
+    "default": [
+      "denyIntentForProduction"
+    ]
+  },
+  "dismissNotification": {
+    "Discovery/Browse (global)": [
+      "dismissNotification"
+    ],
+    "default": [
+      "dismissNotification"
+    ]
+  },
+  "duplicateProject": {
+    "Project": [
+      "createProject",
+      "duplicateProject"
+    ],
+    "default": [
+      "createProject",
+      "duplicateProject"
+    ]
+  },
+  "editWebProject": {
+    "Project": [
+      "createProject",
+      "editWebProject"
+    ],
+    "default": [
+      "createProject",
+      "editWebProject"
+    ]
+  },
+  "finalizeAssetAttachments": {
+    "Discovery/Browse (global)": [
+      "finalizeAssetAttachments"
+    ],
+    "default": [
+      "finalizeAssetAttachments"
+    ]
+  },
+  "fontSimilarViewed": {
+    "Discovery/Browse (global)": [
+      "fontSimilarViewed"
+    ],
+    "default": [
+      "fontSimilarViewed"
+    ]
+  },
+  "globalEmailOptOut": {
+    "Discovery/Browse (global)": [
+      "globalEmailOptOut"
+    ],
+    "default": [
+      "globalEmailOptOut"
+    ]
+  },
+  "importFontTemplate": {
+    "Discovery/Browse (global)": [
+      "importFontTemplate"
+    ],
+    "default": [
+      "importFontTemplate"
+    ]
+  },
+  "keepInProduction": {
+    "Discovery/Browse (global)": [
+      "keepInProduction"
+    ],
+    "default": [
+      "keepInProduction"
+    ]
+  },
+  "licenseLinked": {
+    "Discovery/Browse (global)": [
+      "licenseLinked"
+    ],
+    "default": [
+      "licenseLinked"
+    ]
+  },
+  "linkContractToStyles": {
+    "Discovery/Browse (global)": [
+      "linkContractToStyles"
+    ],
+    "default": [
+      "linkContractToStyles"
+    ]
+  },
+  "linkDocumentToProject": {
+    "Project": [
+      "createProject",
+      "linkDocumentToProject"
+    ],
+    "Document": [
+      "linkDocumentToProject"
+    ],
+    "Document > Project": [
+      "linkDocumentToProject"
+    ],
+    "default": [
+      "createProject",
+      "linkDocumentToProject"
+    ]
+  },
+  "linkDocumentsToContract": {
+    "Document": [
+      "linkDocumentsToContract"
+    ],
+    "default": [
+      "linkDocumentsToContract"
+    ]
+  },
+  "markAllNotificationsRead": {
+    "Discovery/Browse (global)": [
+      "markAllNotificationsRead"
+    ],
+    "default": [
+      "markAllNotificationsRead"
+    ]
+  },
+  "markCompanyLogoUploadSuccess": {
+    "Discovery/Browse (global)": [
+      "markCompanyLogoUploadSuccess"
+    ],
+    "default": [
+      "markCompanyLogoUploadSuccess"
+    ]
+  },
+  "markNotificationRead": {
+    "Discovery/Browse (global)": [
+      "markNotificationRead"
+    ],
+    "default": [
+      "markNotificationRead"
+    ]
+  },
+  "markOnboardingCompleted": {
+    "Discovery/Browse (global)": [
+      "markOnboardingCompleted"
+    ],
+    "default": [
+      "markOnboardingCompleted"
+    ]
+  },
+  "markProductionFonts": {
+    "Discovery/Browse (global)": [
+      "markProductionFonts"
+    ],
+    "default": [
+      "markProductionFonts"
+    ]
+  },
+  "markSessionFileUploaded": {
+    "Document": [
+      "markSessionFileUploaded"
+    ],
+    "default": [
+      "markSessionFileUploaded"
+    ]
+  },
+  "parseAndCreateContract": {
+    "Discovery/Browse (global)": [
+      "parseAndCreateContract"
+    ],
+    "Project": [
+      "createProject",
+      "parseAndCreateContract"
+    ],
+    "default": [
+      "parseAndCreateContract"
+    ]
+  },
+  "pinAsset": {
+    "Discovery/Browse (global)": [
+      "pinAsset"
+    ],
+    "default": [
+      "pinAsset"
+    ]
+  },
+  "processUploadSessionFonts": {
+    "Project": [
+      "createProject",
+      "processUploadSessionFonts"
+    ],
+    "Document": [
+      "processUploadSessionFonts"
+    ],
+    "Document > Project": [
+      "processUploadSessionFonts"
+    ],
+    "default": [
+      "createProject",
+      "processUploadSessionFonts"
+    ]
+  },
+  "publishAddOn": {
+    "Discovery/Browse (global)": [
+      "publishAddOn"
+    ],
+    "default": [
+      "publishAddOn"
+    ]
+  },
+  "publishProject": {
+    "Project": [
+      "createProject",
+      "publishProject"
+    ],
+    "default": [
+      "createProject",
+      "publishProject"
+    ]
+  },
+  "regenerateToken": {
+    "Discovery/Browse (global)": [
+      "regenerateToken"
+    ],
+    "default": [
+      "regenerateToken"
+    ]
+  },
+  "rejectFontAccess": {
+    "Discovery/Browse (global)": [
+      "rejectFontAccess"
+    ],
+    "default": [
+      "rejectFontAccess"
+    ]
+  },
+  "removeFavoriteFamilies": {
+    "Discovery/Browse (global)": [
+      "removeFavoriteFamilies"
+    ],
+    "default": [
+      "removeFavoriteFamilies"
+    ]
+  },
+  "removeFavoritePair": {
+    "Discovery/Browse (global)": [
+      "removeFavoritePair"
+    ],
+    "default": [
+      "removeFavoritePair"
+    ]
+  },
+  "removeFavoriteStyles": {
+    "Discovery/Browse (global)": [
+      "removeFavoriteStyles"
+    ],
+    "default": [
+      "removeFavoriteStyles"
+    ]
+  },
+  "removeFontListFamilies": {
+    "List (FONTLIST)": [
+      "createAsset",
+      "removeFontListFamilies"
+    ],
+    "default": [
+      "createAsset",
+      "removeFontListFamilies"
+    ]
+  },
+  "removeFontListStyles": {
+    "List (FONTLIST)": [
+      "createAsset",
+      "removeFontListStyles"
+    ],
+    "default": [
+      "createAsset",
+      "removeFontListStyles"
+    ]
+  },
+  "removeFontProjectFamilies": {
+    "Project": [
+      "createProject",
+      "removeFontProjectFamilies"
+    ],
+    "default": [
+      "createProject",
+      "removeFontProjectFamilies"
+    ]
+  },
+  "removeFontProjectStyles": {
+    "Project": [
+      "createProject",
+      "removeFontProjectStyles"
+    ],
+    "default": [
+      "createProject",
+      "removeFontProjectStyles"
+    ]
+  },
+  "removeStylesFromWebProject": {
+    "Project": [
+      "createProject",
+      "removeStylesFromWebProject"
+    ],
+    "default": [
+      "createProject",
+      "removeStylesFromWebProject"
+    ]
+  },
+  "reorderSsoMappings": {
+    "Discovery/Browse (global)": [
+      "reorderSsoMappings"
+    ],
+    "default": [
+      "reorderSsoMappings"
+    ]
+  },
+  "requestFontAccess": {
+    "Discovery/Browse (global)": [
+      "requestFontAccess"
+    ],
+    "default": [
+      "requestFontAccess"
+    ]
+  },
+  "resetPassword": {
+    "Discovery/Browse (global)": [
+      "resetPassword"
+    ],
+    "default": [
+      "resetPassword"
+    ]
+  },
+  "resetPreferences": {
+    "Discovery/Browse (global)": [
+      "resetPreferences"
+    ],
+    "default": [
+      "resetPreferences"
+    ]
+  },
+  "revokeToken": {
+    "Discovery/Browse (global)": [
+      "revokeToken"
+    ],
+    "default": [
+      "revokeToken"
+    ]
+  },
+  "saveDocumentMetadata": {
+    "Document": [
+      "saveDocumentMetadata"
+    ],
+    "default": [
+      "saveDocumentMetadata"
+    ]
+  },
+  "setLanguagePreference": {
+    "Discovery/Browse (global)": [
+      "setLanguagePreference"
+    ],
+    "default": [
+      "setLanguagePreference"
+    ]
+  },
+  "sharingInfoForAssets": {
+    "Discovery/Browse (global)": [
+      "sharingInfoForAssets"
+    ],
+    "default": [
+      "sharingInfoForAssets"
+    ]
+  },
+  "submitFontUsageReport": {
+    "Discovery/Browse (global)": [
+      "submitFontUsageReport"
+    ],
+    "default": [
+      "submitFontUsageReport"
+    ]
+  },
+  "submitIntentForProduction": {
+    "Discovery/Browse (global)": [
+      "submitIntentForProduction"
+    ],
+    "default": [
+      "submitIntentForProduction"
+    ]
+  },
+  "suspendServiceAccount": {
+    "Discovery/Browse (global)": [
+      "suspendServiceAccount"
+    ],
+    "default": [
+      "suspendServiceAccount"
+    ]
+  },
+  "syncUnSyncVariations": {
+    "default": [
+      "syncUnSyncVariations"
+    ]
+  },
+  "unlinkDocumentFromProject": {
+    "Project": [
+      "createProject",
+      "unlinkDocumentFromProject"
+    ],
+    "Document": [
+      "unlinkDocumentFromProject"
+    ],
+    "Document > Project": [
+      "unlinkDocumentFromProject"
+    ],
+    "default": [
+      "createProject",
+      "unlinkDocumentFromProject"
+    ]
+  },
+  "unlinkDocumentsFromContract": {
+    "Document": [
+      "unlinkDocumentsFromContract"
+    ],
+    "default": [
+      "unlinkDocumentsFromContract"
+    ]
+  },
+  "unlinkStyleFromContract": {
+    "Discovery/Browse (global)": [
+      "unlinkStyleFromContract"
+    ],
+    "default": [
+      "unlinkStyleFromContract"
+    ]
+  },
+  "unpinAsset": {
+    "Discovery/Browse (global)": [
+      "unpinAsset"
+    ],
+    "default": [
+      "unpinAsset"
+    ]
+  },
+  "updateAsset": {
+    "Discovery/Browse (global)": [
+      "updateAsset"
+    ],
+    "default": [
+      "updateAsset"
+    ]
+  },
+  "updateAssetSharing": {
+    "Discovery/Browse (global)": [
+      "updateAssetSharing"
+    ],
+    "default": [
+      "updateAssetSharing"
+    ]
+  },
+  "updateAssets": {
+    "Discovery/Browse (global)": [
+      "updateAssets"
+    ],
+    "default": [
+      "updateAssets"
+    ]
+  },
+  "updateAssetsSharingInfo": {
+    "Discovery/Browse (global)": [
+      "updateAssetsSharingInfo"
+    ],
+    "default": [
+      "updateAssetsSharingInfo"
+    ]
+  },
+  "updateCompanySsoStatus": {
+    "Discovery/Browse (global)": [
+      "updateCompanySsoStatus"
+    ],
+    "default": [
+      "updateCompanySsoStatus"
+    ]
+  },
+  "updateContract": {
+    "Discovery/Browse (global)": [
+      "updateContract"
+    ],
+    "default": [
+      "updateContract"
+    ]
+  },
+  "updateCustomer": {
+    "Discovery/Browse (global)": [
+      "updateCustomer"
+    ],
+    "default": [
+      "updateCustomer"
+    ]
+  },
+  "updateCustomerSettings": {
+    "Discovery/Browse (global)": [
+      "updateCustomerSettings"
+    ],
+    "default": [
+      "updateCustomerSettings"
+    ]
+  },
+  "updateFontProjectStyles": {
+    "Project": [
+      "createProject",
+      "updateFontProjectStyles"
+    ],
+    "default": [
+      "createProject",
+      "updateFontProjectStyles"
+    ]
+  },
+  "updateFontsForReview": {
+    "Discovery/Browse (global)": [
+      "updateFontsForReview"
+    ],
+    "default": [
+      "updateFontsForReview"
+    ]
+  },
+  "updatePreference": {
+    "Discovery/Browse (global)": [
+      "updatePreference"
+    ],
+    "default": [
+      "updatePreference"
+    ]
+  },
+  "updatePrivateTag": {
+    "Discovery/Browse (global)": [
+      "updatePrivateTag"
+    ],
+    "default": [
+      "updatePrivateTag"
+    ]
+  },
+  "updatePrivateTagAssociations": {
+    "Discovery/Browse (global)": [
+      "updatePrivateTagAssociations"
+    ],
+    "default": [
+      "updatePrivateTagAssociations"
+    ]
+  },
+  "updateProductionFont": {
+    "Discovery/Browse (global)": [
+      "updateProductionFont"
+    ],
+    "default": [
+      "updateProductionFont"
+    ]
+  },
+  "updateProfile": {
+    "Discovery/Browse (global)": [
+      "updateProfile"
+    ],
+    "default": [
+      "updateProfile"
+    ]
+  },
+  "updateRole": {
+    "Discovery/Browse (global)": [
+      "updateRole"
+    ],
+    "default": [
+      "updateRole"
+    ]
+  },
+  "updateServiceAccount": {
+    "Discovery/Browse (global)": [
+      "updateServiceAccount"
+    ],
+    "default": [
+      "updateServiceAccount"
+    ]
+  },
+  "updateSessionFiles": {
+    "Document": [
+      "updateSessionFiles"
+    ],
+    "default": [
+      "updateSessionFiles"
+    ]
+  },
+  "updateSsoMapping": {
+    "Discovery/Browse (global)": [
+      "updateSsoMapping"
+    ],
+    "default": [
+      "updateSsoMapping"
+    ]
+  },
+  "updateStyleComment": {
+    "Discovery/Browse (global)": [
+      "updateStyleComment"
+    ],
+    "Project": [
+      "createProject",
+      "updateStyleComment"
+    ],
+    "default": [
+      "updateStyleComment"
+    ]
+  },
+  "updateSubToggle": {
+    "Discovery/Browse (global)": [
+      "updateSubToggle"
+    ],
+    "default": [
+      "updateSubToggle"
+    ]
+  },
+  "updateTeam": {
+    "Discovery/Browse (global)": [
+      "updateTeam"
+    ],
+    "default": [
+      "updateTeam"
+    ]
+  },
+  "updateUserInvitations": {
+    "Discovery/Browse (global)": [
+      "updateUserInvitations"
+    ],
+    "default": [
+      "updateUserInvitations"
+    ]
+  },
+  "uploadImportedFonts": {
+    "Discovery/Browse (global)": [
+      "uploadImportedFonts"
+    ],
+    "default": [
+      "uploadImportedFonts"
+    ]
+  }
+}

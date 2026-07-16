@@ -1,0 +1,37 @@
+{
+  "xCorrelationId": "fee139f7-3d62-471c-ae8e-41cbe770c44c",
+  "eventId": "54461533-8c41-46e0-ae40-baec3ad7a37a",
+  "eventVersion": 1,
+  "occurredAt": "2026-07-03T12:27:39.0299230Z",
+  "source": {
+    "type": [
+      "App",
+      "Setting"
+    ],
+    "service": "mtconnect-ui",
+    "operation": "appSettingsPluginInstallAllDisabled",
+    "operationIndex": 0,
+    "operationState": "success",
+    "platform": "nextGen",
+    "platformEnvironment": "app",
+    "platformVersion": "1.0.0.0",
+    "actorUserAgent": "MonotypeNextGen/1.0.0.0",
+    "osName": "mac",
+    "osVersion": "26.5.1",
+    "cpuArch": "arm64"
+  },
+  "actor": {
+    "authenticationState": "authenticated",
+    "machineId": "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60",
+    "uniqueId": "AED633E846F09CDA06EAFBDC",
+    "globalUserId": "293ba856-5a89-11f1-a522-0e0a04e472ab",
+    "globalCustomerId": "d677fdca-5424-43a6-875f-b390b59231bf"
+  },
+  "subject": {
+    "type": "machine",
+    "id": [
+      "895E0NTJRKP9HBKCEBVTYHNVKAJNDZYFD7Q4TY69V2FCV5JMFF60"
+    ],
+    "installAllEnabled": false
+  }
+}
