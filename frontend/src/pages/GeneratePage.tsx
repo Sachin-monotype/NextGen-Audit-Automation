@@ -12,6 +12,7 @@ import {
   fetchPipelineConfig,
   fetchTokenStatus,
   refreshToken,
+  setPipelineTarget,
   sendCustomPayload,
   startGenerate,
   type CategoryReport,
@@ -176,14 +177,24 @@ function PayloadEditor({ itemId, label, onClose }: PayloadEditorProps) {
   const [copied, setCopied] = useState(false);
   const [result, setResult] = useState<SendCustomResult | null>(null);
   const [loadError, setLoadError] = useState("");
+  const [curlText, setCurlText] = useState("");
+  const [correlationId, setCorrelationId] = useState("");
 
   useEffect(() => {
     setLoading(true);
     fetchDefaultPayload(itemId)
       .then((p) => {
         setMeta({ kind: p.kind, endpoint: p.endpoint, hint: p.hint, note: p.note });
+        setCorrelationId(p.correlation_id || "");
         if (p.error) setLoadError(p.error);
-        if (p.payload !== undefined) setText(JSON.stringify(p.payload, null, 2));
+        if (p.payload !== undefined) {
+          setText(JSON.stringify(p.payload, null, 2));
+          if (p.kind !== "cron") {
+            fetchPayloadCurl(itemId, p.payload, p.correlation_id)
+              .then((r) => setCurlText(r.curl || ""))
+              .catch(() => {});
+          }
+        }
         else if (!p.editable) setLoadError(p.note || "This event is not editable.");
       })
       .catch((e) => setLoadError(String(e)))
@@ -234,6 +245,7 @@ function PayloadEditor({ itemId, label, onClose }: PayloadEditorProps) {
         return;
       }
       await navigator.clipboard.writeText(r.curl);
+      setCurlText(r.curl);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch (e) {
@@ -255,6 +267,15 @@ function PayloadEditor({ itemId, label, onClose }: PayloadEditorProps) {
           <button type="button" className="link-btn" onClick={onClose}>close ✕</button>
         </div>
         {meta.endpoint && <div className="payload-editor-endpoint mono">→ {meta.endpoint}</div>}
+        {correlationId && (
+          <div className="payload-editor-cid">
+            <strong>x-correlation-id</strong>
+            <code>{correlationId}</code>
+            <button type="button" className="link-btn" onClick={() => navigator.clipboard.writeText(correlationId)}>
+              copy
+            </button>
+          </div>
+        )}
         {meta.hint && <p className="muted small">{meta.hint}</p>}
         {loadError && <p className="error">{loadError}</p>}
         {loading ? (
@@ -268,6 +289,12 @@ function PayloadEditor({ itemId, label, onClose }: PayloadEditorProps) {
               onChange={(e) => validate(e.target.value)}
             />
             {jsonError && <p className="error small">Invalid JSON: {jsonError}</p>}
+            {curlText && (
+              <details className="payload-curl-preview" open>
+                <summary>Exact curl sent by this payload</summary>
+                <pre className="curl-block">{curlText}</pre>
+              </details>
+            )}
             <div className="actions">
               <button type="button" className="primary" disabled={sending || !!jsonError || !text} onClick={send}>
                 {sending ? "Sending…" : "Send payload"}
@@ -321,6 +348,8 @@ export default function GeneratePage() {
   const [lastRunBusy, setLastRunBusy] = useState(false);
   const [showLastRun, setShowLastRun] = useState(false);
   const [listModal, setListModal] = useState<ListModalState | null>(null);
+  const [targetBusy, setTargetBusy] = useState(false);
+  const logRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
     fetchOperations().then((r) => setAvailable(r.operations));
@@ -331,6 +360,10 @@ export default function GeneratePage() {
     fetchOperationSources().then(setSources).catch(() => {});
     fetchOperationStats().then(setOpStats).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [job?.logs]);
 
   const visibleOperations = useMemo<DropdownItem[]>(() => {
     let items: DropdownItem[] =
@@ -370,6 +403,19 @@ export default function GeneratePage() {
       setToken(await refreshToken());
     } finally {
       setTokenBusy(false);
+    }
+  }
+
+  async function onTargetChange(target: string) {
+    setTargetBusy(true);
+    setError("");
+    try {
+      setPipeline(await setPipelineTarget(target));
+      setToken(await fetchTokenStatus());
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setTargetBusy(false);
     }
   }
 
@@ -476,163 +522,138 @@ export default function GeneratePage() {
 
   const runReport = showLastRun && lastRun ? lastRun : mongo;
 
-  function openFunnelList(title: string, ops: string[], note = "") {
+  function openAllCoverage() {
     setListModal({
-      title,
-      columns: note ? ["operation", "note"] : ["operation"],
-      rows: ops.map((op) => (note ? { operation: op, note } : { operation: op })),
+      title: "Validation coverage by event",
+      columns: ["operation", "status", "gaps", "category"],
+      rows: (coverage?.operations ?? []).map((o) => ({
+        operation: o.operation,
+        status: o.status,
+        gaps: (o.gaps || []).join(", ") || "—",
+        category: o.category || "",
+      })),
     });
   }
 
-  function openCoverageList(status: string, title: string) {
-    const ops = (coverage?.operations ?? []).filter((o) => o.status === status);
+  function openQueueCoverage() {
+    if (!opStats) return;
+    const rawOnly = new Set(opStats.raw_only ?? []);
+    const enrichOnly = new Set(opStats.enriched_only ?? []);
+    const paired = new Set(opStats.paired_operations ?? []);
+    const both = new Set(opStats.in_both_operations ?? []);
+    const ops = opStats.tracked_operations ?? available;
     setListModal({
-      title,
-      columns: ["operation", "status", "gaps", "category"],
-      rows: ops.map((o) => ({
-        operation: o.operation,
-        status: o.status,
-        gaps: (o.gaps || []).join(", "),
-        category: o.category || "",
+      title: "Raw / enriched event coverage",
+      columns: ["operation", "queue status"],
+      rows: ops.map((operation) => ({
+        operation,
+        "queue status": paired.has(operation)
+          ? "validatable pair"
+          : rawOnly.has(operation)
+            ? "raw only"
+            : enrichOnly.has(operation)
+              ? "enriched only"
+              : both.has(operation)
+                ? "raw + enriched (not paired)"
+                : "not observed",
       })),
     });
   }
 
   return (
     <section className="panel">
-      <header className="panel-head">
+      <header className="panel-head compact-page-head">
         <h2>Generate events</h2>
-        <p>Pick operations from the dropdown, or leave empty for all. Pipeline runs in PP preprod.</p>
+        <p>Choose a scenario, generate it, then inspect its exact input and correlation ID.</p>
       </header>
 
-      {pipeline && !pipeline.error && (
-        <div className="pipeline-info">
-          <span><strong>Environment</strong> {pipeline.target?.toUpperCase()}</span>
-          <span><strong>Raw queue</strong> {pipeline.raw_queue}</span>
-          <span><strong>Enriched queue</strong> {pipeline.enriched_queue}</span>
-          <span title="Backend RabbitMQ → Mongo dump (auto-started so Generate can poll for raw+enrich)">
-            <strong>Ingestion</strong>{" "}
-            {pipeline.ingestion_running ? (
-              <span className="ok">running</span>
-            ) : (
-              <span className="warn">stopped (starts with Generate)</span>
-            )}
-          </span>
-        </div>
-      )}
-
-      {token && (
-        <div className={`token-status ${!token.present ? "missing" : token.expired ? "expired" : "valid"}`}>
-          <span className="token-dot" />
-          <strong>Bearer token</strong>
-          {!token.present ? (
-            <span>not set — paste one into <code>.env</code></span>
-          ) : token.expired ? (
-            <span>expired{token.can_regenerate ? " — will auto-refresh on generate" : " — no creds to refresh"}</span>
-          ) : (
-            <span>
-              valid{token.expires_in_hours != null ? ` · expires in ${token.expires_in_hours}h` : ""}
-              {token.email ? ` · ${token.email}` : ""}
-            </span>
-          )}
-          {token.regenerated && <span className="routing-tag">auto-refreshed</span>}
-          {token.matches_provided === false && <span className="routing-tag warn">identity changed</span>}
-          <button type="button" className="link-btn" disabled={tokenBusy} onClick={onRefreshToken}>
-            {tokenBusy ? "refreshing…" : "refresh"}
-          </button>
-        </div>
-      )}
-
-      {opStats && !opStats.error && (
-        <div className="op-funnel" title="Click a tile to open the operation list. An op is validatable only when raw+enriched share an xCorrelationId (or fingerprint match).">
-          <button
-            type="button"
-            className="funnel-step funnel-cta"
-            onClick={() => openFunnelList("Tracked operations", opStats.tracked_operations ?? available)}
-          >
-            <div className="funnel-num">{opStats.tracked ?? "—"}</div>
-            <div className="funnel-label">tracked operations</div>
-          </button>
-          <button
-            type="button"
-            className="funnel-step funnel-cta"
-            onClick={() => openFunnelList("In raw + enriched", opStats.in_both_operations ?? [])}
-          >
-            <div className="funnel-num">{opStats.in_both}</div>
-            <div className="funnel-label">in raw + enriched</div>
-          </button>
-          <button
-            type="button"
-            className="funnel-step funnel-cta"
-            onClick={() => openFunnelList("True pairs (validatable)", opStats.paired_operations ?? [])}
-          >
-            <div className="funnel-num">{opStats.true_pairs}</div>
-            <div className="funnel-label">true pairs (validatable)</div>
-          </button>
-          <button
-            type="button"
-            className="funnel-step funnel-cta"
-            onClick={() => openFunnelList("Raw only (no enrich)", opStats.raw_only ?? [], "raw in Mongo; enrich missing")}
-          >
-            <div className="funnel-num">{opStats.raw_only.length}</div>
-            <div className="funnel-label">raw only (no enrich)</div>
-          </button>
-          <button
-            type="button"
-            className="funnel-step funnel-cta"
-            onClick={() => openFunnelList("Enriched only (no raw)", opStats.enriched_only ?? [], "enrich in Mongo; raw missing")}
-          >
-            <div className="funnel-num">{opStats.enriched_only.length}</div>
-            <div className="funnel-label">enriched only (no raw)</div>
-          </button>
-        </div>
-      )}
-
-      {coverage && !coverage.error && (
-        <div className="coverage-badge">
-          <strong>Validation coverage</strong>
-          <button type="button" className="link-btn ok" onClick={() => openCoverageList("complete", "Complete mapping")}>
-            {coverage.summary.complete ?? 0} complete
-          </button>
-          <button type="button" className="link-btn warn" onClick={() => openCoverageList("needs_mapping", "Need mapping")}>
-            {coverage.summary.needs_mapping ?? 0} need mapping
-          </button>
-          <button type="button" className="link-btn warn" onClick={() => openCoverageList("needs_template", "Need template")}>
-            {coverage.summary.needs_template ?? 0} need template
-          </button>
-          <button type="button" className="link-btn muted" onClick={() => openCoverageList("unmapped", "Unmapped")}>
-            {coverage.summary.unmapped ?? 0} unmapped
-          </button>
-          <span className="muted">/ {coverage.total} tracked</span>
-        </div>
-      )}
-
-      <OpListModal state={listModal} onClose={() => setListModal(null)} />
-
-      <div className="source-kind-filter">
-        <span className="muted">Type</span>
-        {SOURCE_KINDS.map((k) => {
-          const n = sources?.counts?.[k.id] ?? 0;
-          return (
-            <label key={k.id} className="checkbox source-kind">
-              <input
-                type="checkbox"
-                checked={sourceKinds.has(k.id)}
-                onChange={() => toggleSourceKind(k.id)}
-              />
-              {k.label}{n ? ` (${n})` : ""}
+      <div className="generate-context-bar">
+        {pipeline && !pipeline.error && (
+          <>
+            <label className="inline-control">
+              Environment
+              <select
+                value={pipeline.target || "pp"}
+                disabled={targetBusy || running}
+                onChange={(e) => onTargetChange(e.target.value)}
+              >
+                {(pipeline.available_targets ?? []).map((t) => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
+              </select>
             </label>
-          );
-        })}
-        {sourceKinds.size > 0 && (
-          <button type="button" className="link-btn" onClick={() => { setSourceKinds(new Set()); setSelected(new Set()); }}>
-            reset
+            {pipeline.nextgen_url && (
+              <a href={pipeline.nextgen_url} target="_blank" rel="noreferrer" className="context-link">
+                Open NextGen ↗
+              </a>
+            )}
+            <a
+              href={pipeline.raw_queue_url || "#"}
+              target="_blank"
+              rel="noreferrer"
+              className={`context-link${pipeline.raw_queue_url ? "" : " disabled"}`}
+              title={pipeline.raw_queue}
+            >
+              Raw queue ↗
+            </a>
+            <a
+              href={pipeline.enriched_queue_url || "#"}
+              target="_blank"
+              rel="noreferrer"
+              className={`context-link${pipeline.enriched_queue_url ? "" : " disabled"}`}
+              title={pipeline.enriched_queue}
+            >
+              Enriched queue ↗
+            </a>
+            <span className={pipeline.ingestion_running ? "ok" : "warn"}>
+              ● ingestion {pipeline.ingestion_running ? "running" : "stopped"}
+            </span>
+            {pipeline.queue_warning && (
+              <span className="warn" title={pipeline.queue_warning}>⚠ queues: {pipeline.queue_environment?.toUpperCase()}</span>
+            )}
+          </>
+        )}
+        {coverage && !coverage.error && (
+          <button type="button" onClick={openAllCoverage}>
+            Validation coverage ({coverage.summary.complete ?? 0}/{coverage.total})…
           </button>
+        )}
+        {opStats && !opStats.error && (
+          <button type="button" onClick={openQueueCoverage}>
+            Raw/enrich coverage ({opStats.true_pairs ?? 0} paired)…
+          </button>
+        )}
+        {token && (
+          <span className={`compact-token ${!token.present || token.expired ? "warn" : "ok"}`}>
+            ● token {!token.present ? "missing" : token.expired ? "expired" : "valid"}
+            {token.expires_in_hours != null && !token.expired ? ` ${token.expires_in_hours}h` : ""}
+            <button type="button" className="link-btn" disabled={tokenBusy} onClick={onRefreshToken}>
+              {tokenBusy ? "…" : "refresh"}
+            </button>
+          </span>
         )}
       </div>
 
-      <div className="generate-controls">
-        <label className="category-select">
+      <OpListModal state={listModal} onClose={() => setListModal(null)} />
+
+      <div className="generate-filter-row">
+        <div className="source-kind-filter">
+          <span className="muted">Type</span>
+          {SOURCE_KINDS.map((k) => {
+            const n = sources?.counts?.[k.id] ?? 0;
+            return (
+              <label key={k.id} className="checkbox source-kind">
+                <input
+                  type="checkbox"
+                  checked={sourceKinds.has(k.id)}
+                  onChange={() => toggleSourceKind(k.id)}
+                />
+                {k.label}{n ? ` (${n})` : ""}
+              </label>
+            );
+          })}
+        </div>
+        <label className="category-select inline-control">
           Category
           <select value={category} onChange={(e) => { setCategory(e.target.value); setSelected(new Set()); }}>
             <option value="all">All categories ({visibleOperations.length})</option>
@@ -651,10 +672,15 @@ export default function GeneratePage() {
           onSelectAll={() => setSelected(new Set(visibleOperations.map((i) => i.id)))}
           onClear={() => setSelected(new Set())}
         />
-        <label className="checkbox">
+        <label className="checkbox compact-checkbox">
           <input type="checkbox" checked={skipPassed} onChange={(e) => setSkipPassed(e.target.checked)} />
-          Skip already-passed operations
+          Skip passed
         </label>
+        {(sourceKinds.size > 0 || category !== "all") && (
+          <button type="button" onClick={() => { setSourceKinds(new Set()); setCategory("all"); setSelected(new Set()); }}>
+            Reset filters
+          </button>
+        )}
       </div>
 
       {selected.size > 0 && (
@@ -695,6 +721,19 @@ export default function GeneratePage() {
 
       {error && <p className="error">{error}</p>}
 
+      {job && (
+        <div className="log-box generation-log-box">
+          <div className="log-head">
+            <strong>Live generation log · Job {job.id.slice(0, 8)}</strong>
+            {!!job.params.validate && <span className="routing-tag">generate + validate</span>}
+            <span className={`status-pill ${job.status}`}>{job.status}</span>
+            {job.error && <span className="error">{job.error}</span>}
+            {job.result?.exit_code !== undefined && <span>exit {job.result.exit_code}</span>}
+          </div>
+          <pre ref={logRef} className="job-logs">{job.logs.join("\n") || "Waiting for logs…"}</pre>
+        </div>
+      )}
+
       {runReport && (job?.status === "completed" || job?.status === "failed" || showLastRun) && (
         <div className="generate-run-status">
           <div className="mongo-status">
@@ -711,6 +750,57 @@ export default function GeneratePage() {
               </span>
             )}
           </div>
+          {(runReport.scenarios?.length ?? 0) > 0 && (
+            <div className="result-table-wrap compact-table-wrap generate-status-table">
+              <table className="result-table scenario-status-table">
+                <thead>
+                  <tr>
+                    <th>Scenario / touchpoint</th>
+                    <th>Status</th>
+                    <th>Raw</th>
+                    <th>Enrich</th>
+                    <th>x-correlation-id</th>
+                    <th>Main input sent</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runReport.scenarios?.map((s) => (
+                    <tr key={`${s.scenario_id}-${s.xCorrelationId || ""}`}>
+                      <td>
+                        <code>{s.operation}</code>
+                        <div className="muted">{s.touchpoint}</div>
+                      </td>
+                      <td>
+                        <span className={`status-pill ${s.status === "PASS" ? "completed" : "failed"}`}>
+                          {s.status}
+                        </span>
+                        {s.error && <div className="error small">{s.error}</div>}
+                      </td>
+                      <td>{s.raw ? "✓" : "—"}</td>
+                      <td>{s.enriched ? "✓" : "—"}</td>
+                      <td className="cid-cell">
+                        {s.xCorrelationId ? (
+                          <>
+                            <code>{s.xCorrelationId}</code>
+                            <button
+                              type="button"
+                              className="link-btn"
+                              onClick={() => navigator.clipboard.writeText(String(s.xCorrelationId))}
+                            >
+                              copy
+                            </button>
+                          </>
+                        ) : "—"}
+                      </td>
+                      <td><pre className="input-preview">{JSON.stringify(s.input || {}, null, 2)}</pre></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <details className="operation-summary-details" open={!runReport.scenarios?.length}>
+            <summary>Operation-level Mongo summary</summary>
           <div className="result-table-wrap compact-table-wrap generate-status-table">
             <table className="result-table">
               <thead>
@@ -724,34 +814,31 @@ export default function GeneratePage() {
                 </tr>
               </thead>
               <tbody>
-                {(runReport.operations || []).map((o) => {
+                {(runReport.operations || []).map((o, index) => {
                   const ui = o.ui_status || (o.status === "success" ? "PASS" : o.status === "no_correlation" ? "N/A" : "FAIL");
                   return (
-                    <tr key={o.operation}>
+                    <tr key={`${o.operation}-${o.xCorrelationId || index}`}>
                       <td><code>{o.operation}</code></td>
                       <td><span className={`status-pill ${ui === "PASS" ? "completed" : ui === "N/A" ? "pending" : "failed"}`}>{ui}</span></td>
                       <td>{o.raw ? "✓" : "—"}</td>
                       <td>{o.enriched ? "✓" : "—"}</td>
                       <td className="muted">{o.pairing_method || (o.xCorrelationId ? "owned_cid" : "—")}</td>
-                      <td className="remark-cell">{o.remark || o.status}{o.xCorrelationId ? ` · cid ${String(o.xCorrelationId).slice(0, 8)}` : ""}</td>
+                      <td className="remark-cell">
+                        {o.remark || o.status}
+                        {o.xCorrelationId && (
+                          <>
+                            <div><code>{String(o.xCorrelationId)}</code></div>
+                            <button type="button" className="link-btn" onClick={() => navigator.clipboard.writeText(String(o.xCorrelationId))}>copy cid</button>
+                          </>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-        </div>
-      )}
-
-      {job && (
-        <div className="log-box">
-          <div className="log-head">
-            <strong>Job {job.id.slice(0, 8)}</strong>
-            {!!job.params.validate && <span className="routing-tag">generate + validate</span>}
-            {job.error && <span className="error">{job.error}</span>}
-            {job.result?.exit_code !== undefined && <span>exit {job.result.exit_code}</span>}
-          </div>
-          <pre className="job-logs">{job.logs.join("\n") || "Waiting for logs…"}</pre>
+          </details>
         </div>
       )}
     </section>

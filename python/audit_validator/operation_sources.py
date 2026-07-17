@@ -86,7 +86,27 @@ def operation_source_report() -> dict:
         and is_mutation_operation(op)
     )
     for op in gql_ops:
-        catalog.append({"id": op, "label": op, "kind": "graphql", "operation": op})
+        # Prefer touchpoint scenarios when FLOW_DEFS defines them (Generate multi-path).
+        try:
+            from audit_validator.touchpoint.scenarios import scenarios_for_operation
+
+            scenarios = scenarios_for_operation(op)
+        except Exception:  # noqa: BLE001
+            scenarios = []
+        if scenarios:
+            for sc in scenarios:
+                catalog.append(
+                    {
+                        "id": sc["id"],
+                        "label": sc["label"],
+                        "kind": "graphql",
+                        "operation": op,
+                        "touchpoint": sc["touchpoint"],
+                        "steps": sc["steps"],
+                    }
+                )
+        else:
+            catalog.append({"id": op, "label": op, "kind": "graphql", "operation": op})
         by_operation[op] = "graphql"
 
     # Ingress — one item per desktop/plugin payload (event).
@@ -159,6 +179,9 @@ def split_selection(ids: list[str]) -> dict[str, list[str]]:
             ingress_cases.append(raw[len(INGRESS_PREFIX) :])
         elif raw.startswith(CRON_PREFIX):
             cron_cases.append(raw[len(CRON_PREFIX) :])
+        elif "::" in raw:
+            # Touchpoint scenario id — keep full id for the runner
+            graphql.append(raw)
         elif raw in gql_ops:
             graphql.append(raw)
         elif raw in ingress_by_op:

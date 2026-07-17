@@ -32,14 +32,32 @@ export type ComparisonRow = {
 
 export type PipelineConfig = {
   target?: string;
+  target_label?: string;
+  nextgen_url?: string;
+  queue_environment?: string;
+  queue_warning?: string;
+  available_targets?: Array<{ id: string; label: string; url: string }>;
   graphql_endpoint?: string;
   raw_queue?: string;
+  raw_queue_url?: string;
   ingestion_running?: boolean;
   ingestion_auto_start?: boolean;
   enriched_queue?: string;
+  enriched_queue_url?: string;
   dlq?: string;
+  dlq_url?: string;
   error?: string;
 };
+
+export async function setPipelineTarget(target: string) {
+  const res = await fetch(`${API}/api/meta/pipeline-target`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ target }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<PipelineConfig>;
+}
 
 export type TokenStatus = {
   present: boolean;
@@ -99,12 +117,8 @@ export type Job = {
     skipped?: number;
     rows?: ComparisonRow[];
     operations?: string[];
-    mongo?: {
-      raw_found?: string[];
-      enriched_found?: string[];
-      raw_queue?: string;
-      enriched_queue?: string;
-    };
+    mongo?: GenerateRunReport;
+    generate_run?: GenerateRunReport;
     token?: TokenStatus;
     validation?: {
       passed?: number;
@@ -242,6 +256,8 @@ export type CatalogItem = {
   label: string;
   kind: string;
   operation: string;
+  touchpoint?: string | null;
+  steps?: string[] | null;
 };
 
 export type OperationSources = {
@@ -458,6 +474,8 @@ export type DefaultPayload = {
   id: string;
   kind?: string;
   operation?: string;
+  touchpoint?: string;
+  correlation_id?: string;
   endpoint?: string;
   editable: boolean;
   payload?: unknown;
@@ -560,6 +578,18 @@ export type GenerateRunOpStatus = {
   occurred_at_enriched?: string | null;
 };
 
+export type GenerateScenarioStatus = {
+  scenario_id: string;
+  operation: string;
+  touchpoint: string;
+  status: string;
+  xCorrelationId?: string | null;
+  input?: Record<string, unknown>;
+  raw?: boolean;
+  enriched?: boolean;
+  error?: string | null;
+};
+
 export type GenerateRunReport = {
   checked_at?: string;
   job_id?: string;
@@ -578,6 +608,7 @@ export type GenerateRunReport = {
     fingerprint_matched?: number;
   };
   operations?: GenerateRunOpStatus[];
+  scenarios?: GenerateScenarioStatus[];
   success_ops?: string[];
   needs_work_ops?: string[];
   raw_found?: string[];

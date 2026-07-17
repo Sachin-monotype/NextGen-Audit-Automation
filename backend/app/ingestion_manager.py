@@ -49,6 +49,17 @@ class IngestionManager:
                 self._service.stop()
         return self.status()
 
+    def reconfigure(self) -> dict[str, Any]:
+        """Rebuild consumers from the current environment profile."""
+        with self._lock:
+            was_running = bool(self._service is not None and self._service.running)
+            if was_running:
+                self._service.stop()
+            self._service = None
+        if was_running:
+            return self.start()
+        return self.status()
+
     def purge(self) -> dict[str, Any]:
         with self._lock:
             if self._service is None:

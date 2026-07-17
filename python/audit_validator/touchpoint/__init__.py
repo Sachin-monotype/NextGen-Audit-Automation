@@ -7,6 +7,17 @@ from audit_validator.touchpoint.payloads import (
     assert_add_font_list_families_shape,
     variables_for,
 )
+from audit_validator.touchpoint.assertions import (
+    assert_raw_input_matches_touchpoint,
+    expected_activate_family_input_keys,
+    normalize_touchpoint,
+)
+from audit_validator.touchpoint.scenarios import (
+    expand_selection_to_scenarios,
+    list_scenarios,
+    parse_selection_id,
+    scenario_id,
+)
 
 __all__ = [
     "MODULES",
@@ -16,4 +27,11 @@ __all__ = [
     "SeedIds",
     "assert_add_font_list_families_shape",
     "variables_for",
+    "assert_raw_input_matches_touchpoint",
+    "expected_activate_family_input_keys",
+    "normalize_touchpoint",
+    "expand_selection_to_scenarios",
+    "list_scenarios",
+    "parse_selection_id",
+    "scenario_id",
 ]

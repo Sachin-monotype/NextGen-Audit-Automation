@@ -182,8 +182,13 @@ def _flows_for_operations(operations: list[str]) -> frozenset[str] | None:
     if not operations:
         return None
     from audit_validator.simulation.flow_catalog import flow_operations
+    from audit_validator.touchpoint.scenarios import parse_selection_id
 
-    ops_set = set(operations)
+    ops_set = set()
+    for raw in operations:
+        op, _touch = parse_selection_id(raw)
+        if op:
+            ops_set.add(op)
     flows: set[str] = set()
     for fo in flow_operations():
         if fo.graphql_operation in ops_set or audit_label_match(fo.label, ops_set):
@@ -464,20 +469,23 @@ class AuditBridge:
         gql_ops = sel["graphql"]
         ingress_cases = sel["ingress_cases"]
         cron_cases = sel["cron_cases"]
-        # When validate+empty previously used full.py, keep that path when
-        # include_ingress is requested via the checkbox; otherwise the per-kind
-        # injector path below still covers ingress/cron for empty selection.
-        resolved_ops = list(
-            dict.fromkeys(id_to_op.get(i, i) for i in selection)
-        )
+        from audit_validator.touchpoint.scenarios import parse_selection_id
+
+        resolved_ops = []
+        for i in selection:
+            op_name = id_to_op.get(i) or parse_selection_id(i)[0] or i
+            if op_name and not op_name.startswith(("ingress:", "cron:")):
+                resolved_ops.append(op_name)
+        resolved_ops = list(dict.fromkeys(resolved_ops))
 
         flow_set = _flows_for_operations(gql_ops)
         if gql_ops and not flow_set:
-            self.store.append_log(job_id, f"⚠ Could not map operations to flows: {gql_ops}")
+            self.store.append_log(job_id, f"▸ GraphQL selection will use touchpoint runner: {len(gql_ops)} id(s)")
 
         try:
             exit_code = 0
             mongo_status: dict[str, Any] = {}
+            scenario_results: list[dict[str, Any]] = []
 
             if validate and not operations and include_ingress:
                 self.store.append_log(job_id, "▸ Running full pipeline (generate + validate)…")
@@ -495,7 +503,8 @@ class AuditBridge:
                     f"(graphql={len(gql_ops)}, cron={len(cron_cases)}, ingress={len(ingress_cases)})…",
                 )
                 if gql_ops:
-                    exit_code = max(exit_code, self._run_e2e(job_id, flow_set, skip_passed, operations=gql_ops))
+                    scenario_code, scenario_results = self._run_touchpoint_scenarios(job_id, gql_ops)
+                    exit_code = max(exit_code, scenario_code)
                 if cron_cases:
                     exit_code = max(exit_code, self._run_cron_cases(job_id, cron_cases))
                 if ingress_cases:
@@ -504,6 +513,8 @@ class AuditBridge:
                 val_result = self._run_source_validation(job_id, resolved_ops)
                 ingest_status = self._ensure_ingestion(job_id)
                 mongo_status = self._verify_mongo(job_id, resolved_ops)
+                self._verify_scenario_results(scenario_results)
+                mongo_status["scenarios"] = scenario_results
                 mongo_status["ingestion"] = ingest_status
                 self.store.update(
                     job_id,
@@ -522,17 +533,10 @@ class AuditBridge:
                 if gql_ops:
                     self.store.append_log(
                         job_id,
-                        f"▸ Triggering GraphQL flows: {', '.join(sorted(flow_set or [])) or 'all'}",
+                        f"▸ Triggering GraphQL touchpoint scenarios ({len(gql_ops)} selection id(s))",
                     )
-                    exit_code = max(
-                        exit_code,
-                        self._run_e2e(
-                            job_id,
-                            flow_set if operations else None,
-                            skip_passed,
-                            operations=gql_ops if operations else None,
-                        ),
-                    )
+                    scenario_code, scenario_results = self._run_touchpoint_scenarios(job_id, gql_ops)
+                    exit_code = max(exit_code, scenario_code)
                 if cron_cases:
                     exit_code = max(exit_code, self._run_cron_cases(job_id, cron_cases))
                 if ingress_cases:
@@ -542,6 +546,8 @@ class AuditBridge:
             # Re-ensure just before poll — user may have stopped ingestion mid-run.
             ingest_status = self._ensure_ingestion(job_id)
             mongo_status = self._verify_mongo(job_id, ops_to_check if ops_to_check else [])
+            self._verify_scenario_results(scenario_results)
+            mongo_status["scenarios"] = scenario_results
             mongo_status["ingestion"] = ingest_status
 
             self.store.update(
@@ -561,6 +567,134 @@ class AuditBridge:
             )
         finally:
             root_logger.removeHandler(handler)
+
+    def _verify_scenario_results(self, scenarios: list[dict[str, Any]]) -> None:
+        """Attach raw/enriched landing state to each scenario correlation."""
+        if not self.db:
+            return
+        for scenario in scenarios:
+            cid = str(scenario.get("xCorrelationId") or "")
+            op = str(scenario.get("operation") or "")
+            if not cid or not op:
+                continue
+            try:
+                raw, enriched = self.db.latest_pair(
+                    op, require_pair=False, correlation_id=cid
+                )
+                scenario["raw"] = bool(raw)
+                scenario["enriched"] = bool(enriched)
+            except Exception:
+                scenario["raw"] = False
+                scenario["enriched"] = False
+
+    def _run_touchpoint_scenarios(
+        self, job_id: str, selection: list[str]
+    ) -> tuple[int, list[dict[str, Any]]]:
+        """Generate GraphQL events per touchpoint scenario (create→seed→trigger→cleanup)."""
+        from audit_validator.generation_tracker import record_generation
+        from audit_validator.simulation.client import DualEndpointGraphQLClient
+        from audit_validator.simulation.config import load_simulation_config
+        from audit_validator.touchpoint.payloads import FLOW_DEFS
+        from audit_validator.touchpoint.scenarios import expand_selection_to_scenarios
+        from audit_validator.simulation.touchpoint_runner import run_scenario
+
+        scenarios = expand_selection_to_scenarios(selection)
+        if not scenarios:
+            self.store.append_log(job_id, "⚠ No GraphQL touchpoint scenarios to run")
+            return 0, []
+
+        from audit_validator.auth import customer_context_header_id
+
+        cfg = load_simulation_config(self.project_root)
+        client = DualEndpointGraphQLClient(cfg)
+        client.set_project_root(self.project_root)
+        # Match browser / e2e: never echo own GCID as x-context-customerid
+        # (that requires MANAGE_COMPANIES and FORBIDs normal mutations).
+        try:
+            profile = client.request(
+                "query GetProfile { getProfile { id customer { id } } }"
+            )
+            profile_customer = (
+                ((profile.get("getProfile") or {}).get("customer") or {}).get("id") or ""
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.store.append_log(job_id, f"⚠ getProfile for context: {exc}")
+            profile_customer = ""
+        context_id = customer_context_header_id(
+            use_customer_context=bool(getattr(cfg, "use_customer_context", False)),
+            customer_context_id=getattr(cfg, "customer_context_id", "") or "",
+            profile_customer_id=profile_customer,
+        )
+        if context_id:
+            client.set_customer_id(context_id)
+            self.store.append_log(job_id, f"  context header: {context_id[:8]}…")
+        else:
+            self.store.append_log(job_id, "  context header: off (own company)")
+        self.store.append_log(
+            job_id,
+            f"▸ Touchpoint generate: {len(scenarios)} scenario(s) "
+            f"(cleanup={'on' if (os.getenv('GENERATE_CLEANUP', '1') not in {'0','false','no'}) else 'off'})",
+        )
+
+        fails = 0
+        scenario_rows: list[dict[str, Any]] = []
+        ops_for_verify: list[str] = []
+        for sc in scenarios:
+            op = sc["operation"]
+            touch = sc["touchpoint"]
+            steps = list(sc.get("steps") or [op])
+            # Ensure FLOW_DEFS steps win when available
+            if op in FLOW_DEFS and touch in FLOW_DEFS[op]:
+                steps = list(FLOW_DEFS[op][touch])
+            result = run_scenario(
+                client=client,
+                cfg=cfg,
+                operation=op,
+                touchpoint=touch,
+                steps=steps,
+                scenario_id=sc["id"],
+                log_fn=lambda m, jid=job_id: self.store.append_log(jid, m),
+            )
+            target_step = next(
+                (s for s in reversed(result.step_results) if s.get("op") == op),
+                {},
+            )
+            scenario_rows.append(
+                {
+                    "scenario_id": sc["id"],
+                    "operation": op,
+                    "touchpoint": touch,
+                    "status": result.status,
+                    "xCorrelationId": result.correlation_id,
+                    "input": target_step.get("input") or {},
+                    "error": result.error,
+                    "raw": False,
+                    "enriched": False,
+                }
+            )
+            if result.correlation_id:
+                record_generation(
+                    op,
+                    result.correlation_id,
+                    project_root=self.project_root,
+                    kind="graphql",
+                    meta={"touchpoint": touch, "scenario_id": sc["id"], "status": result.status},
+                )
+                ops_for_verify.append(op)
+            if result.status != "PASS":
+                fails += 1
+                self.store.append_log(
+                    job_id,
+                    f"✖ {sc['id']}: {result.error or result.status}",
+                )
+            else:
+                self.store.append_log(
+                    job_id,
+                    f"✓ {sc['id']} cid={(result.correlation_id or '')[:8]}",
+                )
+
+        # Stash nothing extra — mongo verify uses resolved_ops
+        return (1 if fails else 0), scenario_rows
 
     def _run_e2e(
         self,

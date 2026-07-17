@@ -32,13 +32,16 @@ from .utility.operation_graphql import get_document_for_operation
 _TIMEOUT = float(os.getenv("CUSTOM_SEND_TIMEOUT_SEC", "30"))
 
 
-def _kind_of(item_id: str) -> tuple[str, str]:
-    """Return (kind, key) where key is the operation (graphql) or case_id (ingress/cron)."""
+def _kind_of(item_id: str) -> tuple[str, str, str | None]:
+    """Return (kind, key, touchpoint) for a catalog selection id."""
     if item_id.startswith(INGRESS_PREFIX):
-        return "ingress", item_id[len(INGRESS_PREFIX):]
+        return "ingress", item_id[len(INGRESS_PREFIX):], None
     if item_id.startswith(CRON_PREFIX):
-        return "cron", item_id[len(CRON_PREFIX):]
-    return "graphql", item_id
+        return "cron", item_id[len(CRON_PREFIX):], None
+    from .touchpoint.scenarios import parse_selection_id
+
+    operation, touchpoint = parse_selection_id(item_id)
+    return "graphql", operation, touchpoint
 
 
 def _ingress_case(case_id: str):
@@ -72,6 +75,7 @@ def _graphql_variables(
     raw: dict[str, Any] | None,
     *,
     project_root: Path | None = None,
+    touchpoint: str | None = None,
 ) -> dict[str, Any]:
     """Build GraphQL ``variables`` with *working* tenant inventory IDs.
 
@@ -88,6 +92,20 @@ def _graphql_variables(
     )
 
     root = _project_root(project_root)
+    if touchpoint:
+        try:
+            from .simulation.config import load_simulation_config
+            from .simulation.touchpoint_runner import _make_seed
+            from .touchpoint.payloads import variables_for
+
+            cfg = load_simulation_config(root)
+            variables = variables_for(operation, _make_seed(cfg), touch=touchpoint)
+            if variables:
+                return variables
+        except Exception:
+            # Fall through to operation templates/Mongo when a scenario seed
+            # cannot be resolved (the editor must still show a useful payload).
+            pass
     template = copy.deepcopy(merged_operation_variables_template().get(operation) or {})
     variables: dict[str, Any] = {}
 
@@ -170,7 +188,7 @@ def default_payload(
     ``raw`` (a captured raw event from Mongo) seeds GraphQL variables when available.
     Falls back to ``operation_meta`` templates so Edit&Send is never an empty ``{}``.
     """
-    kind, key = _kind_of(item_id)
+    kind, key, touchpoint = _kind_of(item_id)
 
     if kind == "graphql":
         document = get_document_for_operation(key)
@@ -182,7 +200,13 @@ def default_payload(
                 "editable": False,
                 "note": "No GraphQL document is registered for this operation.",
             }
-        variables = _graphql_variables(key, document, raw, project_root=project_root)
+        variables = _graphql_variables(
+            key,
+            document,
+            raw,
+            project_root=project_root,
+            touchpoint=touchpoint,
+        )
         cid = str(uuid.uuid4())
         # x-correlation-id sits in the JSON so Copy curl / Send share one filter key.
         # It is stripped before the GraphQL POST and sent as the HTTP header.
@@ -204,6 +228,7 @@ def default_payload(
             "id": item_id,
             "kind": "graphql",
             "operation": key,
+            "touchpoint": touchpoint,
             "endpoint": _graphql_endpoint(key),
             "editable": True,
             "payload": body,
@@ -413,7 +438,7 @@ def build_payload_curl(
     """Copy-paste curl for the *edited* payload (same body Edit&Send would POST)."""
     from .curl_builder import _multiline_curl
 
-    kind, key = _kind_of(item_id)
+    kind, key, _touchpoint = _kind_of(item_id)
     authorization, real = _resolve_bearer()
     token_note = "" if real else " Set BEARER_TOKEN in .env for a ready-to-run token."
 
@@ -483,7 +508,7 @@ def send_payload(
     correlation_id: str | None = None,
 ) -> dict[str, Any]:
     """Send an (edited) payload to the right transport for its kind."""
-    kind, key = _kind_of(item_id)
+    kind, key, touchpoint = _kind_of(item_id)
     cid = (correlation_id or "").strip()
     if kind == "graphql":
         if not isinstance(payload, dict):
@@ -491,7 +516,10 @@ def send_payload(
         body, _ = _extract_correlation_id(payload, cid or None)
         if not isinstance(body, dict) or "query" not in body:
             return {"ok": False, "detail": "GraphQL body must be a JSON object with a `query`."}
-        return _send_graphql(key, payload, correlation_id=cid)
+        result = _send_graphql(key, payload, correlation_id=cid)
+        if touchpoint:
+            result["touchpoint"] = touchpoint
+        return result
     if kind == "ingress":
         return _send_ingress(payload, correlation_id=cid)
     return _send_cron(key, payload, project_root=project_root)

@@ -44,13 +44,16 @@ def style_filter() -> dict[str, Any]:
 
 
 def create_font_list(seed: SeedIds, *, name: str | None = None) -> dict[str, Any]:
-    return {
-        "input": {
-            "name": (name or seed.list_name)[:50],
-            "assetType": "FontList",
-            "accessRight": "FullAccess",
-        }
+    inp: dict[str, Any] = {
+        "name": (name or seed.list_name)[:50],
+        "assetType": "FontList",
     }
+    if seed.project_id:
+        # List under a project (UI Navigation: project > list)
+        inp["parentId"] = seed.project_id
+    else:
+        inp["accessRight"] = "FullAccess"
+    return {"input": inp}
 
 
 def create_project(seed: SeedIds, *, name: str | None = None) -> dict[str, Any]:
@@ -1225,3 +1228,35 @@ FLOW_DEFS["deactivateVariation"] = {
     k: [x if x != "activateVariation" else "deactivateVariation" for x in v]
     for k, v in FLOW_DEFS["activateVariation"].items()
 }
+
+# Single-step creates (UI Navigation Discovery/Browse) — cleanup via GENERATE_CLEANUP deletes
+FLOW_DEFS.update(
+    {
+        "createAsset": {
+            "Discovery/Browse (global)": ["createAsset"],
+            "List (FONTLIST)": ["createAsset"],
+            "Project > List": ["createProject", "createAsset"],
+        },
+        "createProject": {
+            "Discovery/Browse (global)": ["createProject"],
+            "Projects": ["createProject"],
+        },
+        "addFontProjectStyles": {
+            "Project": ["createProject", "addFontProjectStyles"],
+            "Discovery/Browse (global)": ["createProject", "addFontProjectStyles"],
+        },
+        "addFavoriteFamilies": {
+            "Favourite": ["addFavoriteFamilies"],
+        },
+        "addFavoriteStyles": {
+            "Favourite": ["addFavoriteStyles"],
+        },
+    }
+)
+
+# Sheet alias: Search/ Family / Discovery ≡ Discovery/Browse (global)
+for _op, _touches in list(FLOW_DEFS.items()):
+    if "Discovery/Browse (global)" in _touches and "Search/ Family / Discovery" not in _touches:
+        FLOW_DEFS[_op]["Search/ Family / Discovery"] = list(
+            _touches["Discovery/Browse (global)"]
+        )

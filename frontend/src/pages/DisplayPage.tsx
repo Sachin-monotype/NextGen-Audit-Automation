@@ -343,6 +343,7 @@ export default function DisplayPage() {
   const [pageSizes, setPageSizes] = useState<number[]>(DEFAULT_PAGE_SIZES);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchUiConfig().then((cfg) => {
@@ -410,14 +411,12 @@ export default function DisplayPage() {
   return (
     <section className="panel display-panel">
       <div className="display-sticky">
-        <header className="panel-head panel-head-row">
-          <div>
-            <h2>Enrich/raw collection</h2>
-            <p>
-              {unique
-                ? "Latest entry per operation — filter to see all matching entries."
-                : "All matching entries — case-insensitive operation search."}
-            </p>
+        <header className="panel-head panel-head-row display-compact-head">
+          <div className="display-title-line">
+            <h2>Enrich/raw</h2>
+            <span className="muted">
+              {unique ? "latest per operation" : "all matches"}
+            </span>
           </div>
           <label className="collection-select">
             Collection
@@ -503,23 +502,66 @@ export default function DisplayPage() {
 
       <div className="display-table">
         {rows.length === 0 && !loading && <p className="muted">No entries match.</p>}
-        {rows.map((row, i) => (
-          <article key={`${row.xCorrelationId}-${i}`} className="log-card">
-            <div className="log-meta">
-              <span className="meta-chip"><strong>operation</strong> {row["source.operation"]}</span>
-              <span className="meta-chip"><strong>state</strong> {row["source.operationState"]}</span>
-              <span className="meta-chip"><strong>service</strong> {row["source.service"]}</span>
-              <span className="meta-chip"><strong>env</strong> {row["source.platformEnvironment"]}</span>
-              <span className="meta-chip"><strong>occurredAt</strong> {row.occurredAt}</span>
-            </div>
-            <div className="log-correlation">
-              <strong>xCorrelationId</strong> {row.xCorrelationId}
-            </div>
-            <TriggerInfo operation={row["source.operation"]} />
-            <JsonBlock data={row.message} />
-          </article>
-        ))}
+        {rows.map((row, i) => {
+          const op = row["source.operation"] || "(unknown)";
+          const rowId = unique
+            ? `${tab}:${op}`
+            : `${tab}:${op}:${row.xCorrelationId || row.occurredAt || i}`;
+          return (
+            <LogCard
+              key={rowId}
+              row={row}
+              open={expandedRows.has(rowId)}
+              onToggle={() => setExpandedRows((current) => {
+                const next = new Set(current);
+                if (next.has(rowId)) next.delete(rowId);
+                else next.add(rowId);
+                return next;
+              })}
+            />
+          );
+        })}
       </div>
     </section>
+  );
+}
+
+/** Enrich/raw payload card — collapsed by default; expand to view JSON. */
+function LogCard({
+  row,
+  open,
+  onToggle,
+}: {
+  row: LogRow;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const op = row["source.operation"] || "(unknown)";
+  return (
+    <article className={`log-card${open ? " is-open" : " is-collapsed"}`}>
+      <button
+        type="button"
+        className="log-card-head"
+        onClick={onToggle}
+        aria-expanded={open}
+      >
+        <span className="chevron">{open ? "▾" : "▸"}</span>
+        <div className="log-meta">
+          <span className="meta-chip"><strong>operation</strong> {op}</span>
+          <span className="meta-chip"><strong>state</strong> {row["source.operationState"]}</span>
+          <span className="meta-chip"><strong>service</strong> {row["source.service"]}</span>
+          <span className="meta-chip"><strong>env</strong> {row["source.platformEnvironment"]}</span>
+          <span className="meta-chip"><strong>occurredAt</strong> {row.occurredAt}</span>
+        </div>
+        <span className="log-card-hint muted">{open ? "collapse" : "expand payload"}</span>
+      </button>
+      <div className="log-correlation">
+        <strong>xCorrelationId</strong> {row.xCorrelationId}
+      </div>
+      <div className="log-card-body" hidden={!open}>
+        <TriggerInfo operation={op} />
+        <JsonBlock data={row.message} />
+      </div>
+    </article>
   );
 }

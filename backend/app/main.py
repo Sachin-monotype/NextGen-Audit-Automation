@@ -312,10 +312,12 @@ def generate_default_payload(item_id: str) -> dict[str, Any]:
     """Return the editable default payload for a generatable event (graphql/ingress/cron)."""
     try:
         from audit_validator.custom_send import default_payload
+        from audit_validator.touchpoint.scenarios import parse_selection_id
 
         raw = None
         if not (item_id.startswith("ingress:") or item_id.startswith("cron:")):
-            raw, _ = db.latest_pair(item_id, require_pair=False)
+            operation, _touchpoint = parse_selection_id(item_id)
+            raw, _ = db.latest_pair(operation or item_id, require_pair=False)
         return default_payload(
             item_id, raw=raw, project_root=settings.audit_project_root
         )
@@ -333,6 +335,10 @@ class PayloadCurlRequest(BaseModel):
     item_id: str
     payload: Any
     correlation_id: str | None = None
+
+
+class PipelineTargetRequest(BaseModel):
+    target: str
 
 
 @app.post("/api/generate/send-custom")
@@ -415,15 +421,46 @@ def list_flows() -> dict[str, Any]:
 def pipeline_config() -> dict[str, Any]:
     try:
         from audit_validator.config import load_config
+        from audit_validator.env_profiles import get_audit_profile
+        from urllib.parse import quote, urlparse
 
         cfg = load_config(settings.audit_project_root)
         ingest = ingestion.status()
+        profile = get_audit_profile()
+        parsed = urlparse(cfg.rabbitmq.url)
+        vhost = parsed.path.lstrip("/") or "/"
+
+        def queue_url(queue: str) -> str:
+            if not parsed.hostname or not queue:
+                return ""
+            return (
+                f"https://{parsed.hostname}/#/queues/"
+                f"{quote(vhost, safe='')}/{quote(queue, safe='')}"
+            )
+
         return {
             "target": __import__("os").getenv("AUDIT_TARGET", "pp"),
+            "target_label": profile.label,
+            "nextgen_url": profile.nextgen_ui_url,
+            "queue_environment": "pp" if profile.rabbitmq_vhost == "mt-connect-preprod" else profile.name,
+            "queue_warning": (
+                "UAT GraphQL selected; RabbitMQ still uses the configured PP/preprod tap queues "
+                "until UAT broker/vhost details are configured."
+                if profile.name == "uat"
+                else ""
+            ),
+            "available_targets": [
+                {"id": "pp", "label": "PP", "url": "https://nextgen.monotype-pp.com"},
+                {"id": "qa", "label": "QA (PP host)", "url": "https://nextgen.monotype-pp.com"},
+                {"id": "uat", "label": "UAT", "url": "https://nextgen.monotype-uat.com"},
+            ],
             "graphql_endpoint": __import__("os").getenv("NEXTGEN_GRAPHQL_ENDPOINT", ""),
             "raw_queue": cfg.rabbitmq.raw_queue,
+            "raw_queue_url": queue_url(cfg.rabbitmq.raw_queue),
             "enriched_queue": cfg.rabbitmq.enriched_queue,
+            "enriched_queue_url": queue_url(cfg.rabbitmq.enriched_queue),
             "dlq": cfg.rabbitmq.dead_letter_queue,
+            "dlq_url": queue_url(cfg.rabbitmq.dead_letter_queue),
             "ingestion_running": bool(ingest.get("running")),
             "ingestion_auto_start": __import__("os")
             .getenv("INGEST_AUTO_START", "true")
@@ -433,6 +470,26 @@ def pipeline_config() -> dict[str, Any]:
         }
     except Exception as exc:
         return {"error": str(exc)}
+
+
+@app.post("/api/meta/pipeline-target")
+def set_pipeline_target(req: PipelineTargetRequest) -> dict[str, Any]:
+    """Switch the runtime Generate target and rebuild queue consumers."""
+    target = req.target.strip().lower()
+    if target not in {"pp", "qa", "uat"}:
+        raise HTTPException(status_code=400, detail="target must be pp, qa, or uat")
+    try:
+        import os
+        from dotenv import set_key
+        from audit_validator.env_profiles import apply_audit_profile
+
+        os.environ["AUDIT_TARGET"] = target
+        set_key(str(settings.audit_project_root / ".env"), "AUDIT_TARGET", target)
+        apply_audit_profile(project_root=settings.audit_project_root)
+        ingestion.reconfigure()
+        return pipeline_config()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.get("/api/meta/coverage")
@@ -464,13 +521,31 @@ def categories() -> dict[str, Any]:
 
 @app.get("/api/meta/operation-sources")
 def operation_sources() -> dict[str, Any]:
-    """Map each tracked operation to its source kind (graphql / ingress / cron)."""
+    """Map each tracked operation to its source kind (graphql / ingress / cron).
+
+    GraphQL items with known UI touchpoints are expanded to
+    ``operation::touchpoint`` scenario ids (see FLOW_DEFS).
+    """
     try:
         from audit_validator.operation_sources import operation_source_report
 
+        # Bust cache so FLOW_DEFS / scenario edits show up without process restart
+        operation_source_report.cache_clear()
         return operation_source_report()
     except Exception as exc:
-        return {"by_operation": {}, "counts": {}, "error": str(exc)}
+        return {"by_operation": {}, "counts": {}, "catalog": [], "error": str(exc)}
+
+
+@app.get("/api/meta/touchpoint-scenarios")
+def touchpoint_scenarios() -> dict[str, Any]:
+    """List GraphQL generate scenarios (operation × touchpoint × steps)."""
+    try:
+        from audit_validator.touchpoint.scenarios import list_scenarios
+
+        scenarios = list_scenarios()
+        return {"scenarios": scenarios, "count": len(scenarios)}
+    except Exception as exc:
+        return {"scenarios": [], "count": 0, "error": str(exc)}
 
 
 @app.get("/api/token/status")

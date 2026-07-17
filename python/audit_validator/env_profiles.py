@@ -57,6 +57,40 @@ PP_PREPROD = AuditTargetProfile(
     seed_deactivate_family_id="8kL8ZM64",
 )
 
+UAT = AuditTargetProfile(
+    name="uat",
+    label="Monotype UAT",
+    nextgen_ui_url="https://nextgen.monotype-uat.com",
+    graphql_endpoint="https://nextgen.monotype-uat.com/graphql",
+    admin_graphql_endpoint="https://nextgen.monotype-uat.com/graphql",
+    nextgen_graphql_endpoint="https://nextgen.monotype-uat.com/graph",
+    nextgen_origin="https://nextgen.monotype-uat.com",
+    nextgen_referer="https://nextgen.monotype-uat.com/discover-fonts/all",
+    simulation_prefer_pp_bearer=False,
+    rabbitmq_vhost="mt-connect-preprod",
+    raw_events_queue="mt.platform,resolver.raw_events_test_queue",
+    enriched_events_queue="mt.platform,resolver.enriched_events_test_queue",
+    consume_dead_letter_queue=False,
+    purge_test_queues_on_e2e=True,
+    ingress_api_url="https://mt-audit-log-resolver-service-uat.monotype-uat.com/v1/audit-events",
+    ingress_raw_queue="mt.platform,resolver.raw_events_test_queue",
+    ingress_enriched_queue="mt.platform,resolver.enriched_events_test_queue",
+    ingress_rabbitmq_vhost="mt-connect-preprod",
+    seed_family_id="794981",
+    seed_deactivate_family_id="8kL8ZM64",
+)
+
+# QA currently uses the PP NextGen host supplied by the platform team. Keeping a
+# separate target makes the choice explicit and allows the endpoint to diverge
+# later without changing the Generate UI.
+QA = AuditTargetProfile(
+    **{
+        **PP_PREPROD.__dict__,
+        "name": "qa",
+        "label": "QA (PP host)",
+    }
+)
+
 EVEREST_DEV = AuditTargetProfile(
     name="everest",
     label="Everest dev / mt-connect",
@@ -83,6 +117,8 @@ EVEREST_DEV = AuditTargetProfile(
 _PROFILES: dict[str, AuditTargetProfile] = {
     "pp": PP_PREPROD,
     "preprod": PP_PREPROD,
+    "qa": QA,
+    "uat": UAT,
     "everest": EVEREST_DEV,
     "dev": EVEREST_DEV,
     "everest-dev": EVEREST_DEV,
