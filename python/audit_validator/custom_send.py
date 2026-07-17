@@ -177,6 +177,58 @@ def _extract_correlation_id(payload: Any, explicit: str | None = None) -> tuple[
     return cleaned, cid
 
 
+def _flow_preview(
+    operation: str,
+    touchpoint: str | None,
+    *,
+    project_root: Path | None = None,
+) -> dict[str, Any]:
+    """Dependency chain for Edit&Send (matches Generate touchpoint runner / sheet)."""
+    from .touchpoint.payloads import FLOW_DEFS, variables_for
+    from .touchpoint.scenarios import scenario_id
+
+    touches = FLOW_DEFS.get(operation) or {}
+    touch = touchpoint or next(iter(touches), "Discovery/Browse (global)")
+    steps = list(touches.get(touch) or [operation])
+    try:
+        from .simulation.config import load_simulation_config
+        from .simulation.touchpoint_runner import _make_seed
+
+        cfg = load_simulation_config(_project_root(project_root))
+        seed = _make_seed(cfg)
+    except Exception:  # noqa: BLE001
+        seed = None
+
+    step_payloads: list[dict[str, Any]] = []
+    for step in steps:
+        vars_: dict[str, Any] = {}
+        if seed is not None:
+            try:
+                vars_ = variables_for(step, seed, touch=touch)
+            except Exception:  # noqa: BLE001
+                vars_ = {}
+        step_payloads.append(
+            {
+                "operation": step,
+                "is_trigger": step == operation,
+                "variables": vars_,
+                "document": get_document_for_operation(
+                    "createAsset" if step == "createFolder" else step
+                ),
+            }
+        )
+    return {
+        "scenario_id": scenario_id(operation, touch) if touch else operation,
+        "touchpoint": touch,
+        "steps": steps,
+        "step_payloads": step_payloads,
+        "note": (
+            "Generate creates dependencies in order, runs the trigger, then cleans up. "
+            "Edit&Send below edits the final trigger curl only."
+        ),
+    }
+
+
 def default_payload(
     item_id: str,
     *,
@@ -224,6 +276,16 @@ def default_payload(
                 "variables.input is empty — fill required fields (IDs) from .env seeds "
                 "(PROJECT_ID, SEED_FAMILY_ID, …) before Send."
             )
+
+        flow = _flow_preview(key, touchpoint, project_root=project_root)
+        if flow.get("steps") and len(flow["steps"]) > 1:
+            hint = (
+                f"Full Generate runs {len(flow['steps'])} dependency steps "
+                f"({' → '.join(flow['steps'])}), then cleans up. "
+                "Send here fires the final trigger only (IDs must already exist), "
+                "or use Generate on this scenario for create→seed→activate."
+            )
+
         return {
             "id": item_id,
             "kind": "graphql",
@@ -234,6 +296,7 @@ def default_payload(
             "payload": body,
             "correlation_id": cid,
             "hint": hint,
+            "flow": flow,
         }
 
     if kind == "ingress":

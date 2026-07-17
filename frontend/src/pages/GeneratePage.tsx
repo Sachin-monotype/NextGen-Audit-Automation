@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import JsonTree from "../components/JsonTree";
 import {
   fetchCategories,
   fetchCoverage,
@@ -17,7 +18,10 @@ import {
   startGenerate,
   type CategoryReport,
   type CoverageReport,
+  type DefaultPayload,
+  type GenerateRunOpStatus,
   type GenerateRunReport,
+  type GenerateScenarioStatus,
   type Job,
   type OperationSources,
   type OperationStats,
@@ -34,13 +38,63 @@ const SOURCE_KINDS = [
 
 const JOB_KEY = "audit-generate-job";
 
-type DropdownItem = { id: string; label: string; kind: string };
+type DropdownItem = {
+  id: string;
+  label: string;
+  kind: string;
+  operation?: string;
+  touchpoint?: string | null;
+  steps?: string[] | null;
+};
 
 type ListModalState = {
   title: string;
   columns: string[];
   rows: Array<Record<string, string | number>>;
 };
+
+function csvEscape(v: unknown): string {
+  const s = v == null ? "" : String(v);
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function downloadCsv(filename: string, headers: string[], rows: string[][]) {
+  const lines = [headers.map(csvEscape).join(",")];
+  for (const row of rows) lines.push(row.map(csvEscape).join(","));
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function EventJsonCell({
+  label,
+  present,
+  data,
+}: {
+  label: string;
+  present?: boolean;
+  data?: Record<string, unknown> | null;
+}) {
+  const [open, setOpen] = useState(false);
+  if (!present && !data) return <span className="muted">—</span>;
+  return (
+    <div className="event-json-cell">
+      <button type="button" className="link-btn" onClick={() => setOpen((o) => !o)}>
+        {present ? "✓" : "—"} {label} {open ? "▴" : "▾"}
+      </button>
+      {open && (
+        <div className="event-json-panel">
+          {data ? <JsonTree data={data} defaultOpen={false} /> : <span className="muted">No JSON captured</span>}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function OpListModal({
   state,
@@ -95,9 +149,17 @@ type OperationDropdownProps = {
   onClear: () => void;
 };
 
+type OpGroup = {
+  key: string;
+  operation: string;
+  kind: string;
+  children: DropdownItem[];
+};
+
 function OperationDropdown({ options, selected, onToggle, onSelectAll, onClear }: OperationDropdownProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -109,11 +171,79 @@ function OperationDropdown({ options, selected, onToggle, onSelectAll, onClear }
   }, []);
 
   const q = search.toLowerCase();
-  const filtered = options.filter((o) => o.label.toLowerCase().includes(q));
+
+  const groups = useMemo(() => {
+    const byOp = new Map<string, OpGroup>();
+    const flat: DropdownItem[] = [];
+    for (const o of options) {
+      const opName = o.operation || o.id;
+      const hasTouch = Boolean(o.touchpoint) || o.id.includes("::");
+      if (o.kind === "graphql" && hasTouch) {
+        const g = byOp.get(opName) || {
+          key: opName,
+          operation: opName,
+          kind: "graphql",
+          children: [],
+        };
+        g.children.push(o);
+        byOp.set(opName, g);
+      } else {
+        flat.push(o);
+      }
+    }
+    const grouped = [...byOp.values()].sort((a, b) => a.operation.localeCompare(b.operation));
+    return { grouped, flat };
+  }, [options]);
+
+  const filteredGroups = useMemo(() => {
+    if (!q) return groups;
+    const grouped = groups.grouped
+      .map((g) => {
+        if (g.operation.toLowerCase().includes(q)) return g;
+        const children = g.children.filter(
+          (c) =>
+            c.label.toLowerCase().includes(q) ||
+            (c.touchpoint || "").toLowerCase().includes(q),
+        );
+        return children.length ? { ...g, children } : null;
+      })
+      .filter(Boolean) as OpGroup[];
+    const flat = groups.flat.filter((o) => o.label.toLowerCase().includes(q));
+    return { grouped, flat };
+  }, [groups, q]);
+
+  const shownCount =
+    filteredGroups.grouped.reduce((n, g) => n + g.children.length, 0) + filteredGroups.flat.length;
 
   const label = selected.size
     ? `${selected.size} operation${selected.size > 1 ? "s" : ""} selected`
     : "All operations";
+
+  function toggleGroup(g: OpGroup) {
+    const ids = g.children.map((c) => c.id);
+    const allOn = ids.every((id) => selected.has(id));
+    for (const id of ids) {
+      if (allOn) {
+        if (selected.has(id)) onToggle(id);
+      } else if (!selected.has(id)) {
+        onToggle(id);
+      }
+    }
+  }
+
+  function toggleExpand(key: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  useEffect(() => {
+    if (!q) return;
+    setExpanded(new Set(filteredGroups.grouped.map((g) => g.key)));
+  }, [q, filteredGroups.grouped]);
 
   return (
     <div className="op-dropdown" ref={ref}>
@@ -139,10 +269,64 @@ function OperationDropdown({ options, selected, onToggle, onSelectAll, onClear }
           <div className="op-dropdown-actions">
             <button type="button" onClick={onSelectAll}>Select all</button>
             <button type="button" onClick={onClear}>Clear</button>
-            <span className="muted">{filtered.length} shown</span>
+            <span className="muted">{shownCount} shown</span>
           </div>
           <div className="op-dropdown-list">
-            {filtered.map((o) => (
+            {filteredGroups.grouped.map((g) => {
+              const ids = g.children.map((c) => c.id);
+              const selectedCount = ids.filter((id) => selected.has(id)).length;
+              const allOn = selectedCount === ids.length && ids.length > 0;
+              const someOn = selectedCount > 0 && !allOn;
+              const isOpen = expanded.has(g.key) || Boolean(q);
+              return (
+                <div key={g.key} className="op-dropdown-group">
+                  <div className="op-dropdown-group-head">
+                    <button
+                      type="button"
+                      className="op-group-expand"
+                      onClick={() => toggleExpand(g.key)}
+                      aria-expanded={isOpen}
+                    >
+                      {isOpen ? "▾" : "▸"}
+                    </button>
+                    <label className="op-dropdown-item op-group-label">
+                      <input
+                        type="checkbox"
+                        checked={allOn}
+                        ref={(el) => {
+                          if (el) el.indeterminate = someOn;
+                        }}
+                        onChange={() => toggleGroup(g)}
+                      />
+                      <span>
+                        <strong>{g.operation}</strong>
+                        <span className="muted"> · {g.children.length}</span>
+                      </span>
+                    </label>
+                  </div>
+                  {isOpen && (
+                    <div className="op-dropdown-children">
+                      {g.children.map((o) => (
+                        <label key={o.id} className="op-dropdown-item nested">
+                          <input
+                            type="checkbox"
+                            checked={selected.has(o.id)}
+                            onChange={() => onToggle(o.id)}
+                          />
+                          <span>{o.touchpoint || o.label}</span>
+                          {(o.steps?.length ?? 0) > 1 && (
+                            <span className="muted steps-hint" title={o.steps?.join(" → ")}>
+                              {o.steps!.length} steps
+                            </span>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {filteredGroups.flat.map((o) => (
               <label key={o.id} className="op-dropdown-item">
                 <input
                   type="checkbox"
@@ -153,7 +337,7 @@ function OperationDropdown({ options, selected, onToggle, onSelectAll, onClear }
                 {o.kind !== "graphql" && <span className={`kind-tag ${o.kind}`}>{o.kind}</span>}
               </label>
             ))}
-            {filtered.length === 0 && <p className="muted op-dropdown-empty">No operations found.</p>}
+            {shownCount === 0 && <p className="muted op-dropdown-empty">No operations found.</p>}
           </div>
         </div>
       )}
@@ -165,12 +349,13 @@ type PayloadEditorProps = {
   itemId: string;
   label: string;
   onClose: () => void;
+  onGenerateScenario?: (id: string) => void;
 };
 
-function PayloadEditor({ itemId, label, onClose }: PayloadEditorProps) {
+function PayloadEditor({ itemId, label, onClose, onGenerateScenario }: PayloadEditorProps) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
-  const [meta, setMeta] = useState<{ kind?: string; endpoint?: string; hint?: string; note?: string }>({});
+  const [meta, setMeta] = useState<Partial<DefaultPayload>>({});
   const [jsonError, setJsonError] = useState("");
   const [sending, setSending] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -184,7 +369,7 @@ function PayloadEditor({ itemId, label, onClose }: PayloadEditorProps) {
     setLoading(true);
     fetchDefaultPayload(itemId)
       .then((p) => {
-        setMeta({ kind: p.kind, endpoint: p.endpoint, hint: p.hint, note: p.note });
+        setMeta(p);
         setCorrelationId(p.correlation_id || "");
         if (p.error) setLoadError(p.error);
         if (p.payload !== undefined) {
@@ -194,14 +379,13 @@ function PayloadEditor({ itemId, label, onClose }: PayloadEditorProps) {
               .then((r) => setCurlText(r.curl || ""))
               .catch(() => {});
           }
-        }
-        else if (!p.editable) setLoadError(p.note || "This event is not editable.");
+        } else if (!p.editable) setLoadError(p.note || "This event is not editable.");
       })
       .catch((e) => setLoadError(String(e)))
       .finally(() => setLoading(false));
   }, [itemId]);
 
-  function validate(next: string) {
+  function validateJson(next: string) {
     setText(next);
     try {
       JSON.parse(next);
@@ -255,6 +439,9 @@ function PayloadEditor({ itemId, label, onClose }: PayloadEditorProps) {
     }
   }
 
+  const flow = meta.flow;
+  const multiStep = (flow?.steps?.length ?? 0) > 1;
+
   return (
     <div className="payload-editor-overlay" onClick={onClose}>
       <div className="payload-editor" onClick={(e) => e.stopPropagation()}>
@@ -277,6 +464,37 @@ function PayloadEditor({ itemId, label, onClose }: PayloadEditorProps) {
           </div>
         )}
         {meta.hint && <p className="muted small">{meta.hint}</p>}
+        {multiStep && flow && (
+          <details className="flow-preview" open>
+            <summary>
+              Dependency flow ({flow.steps!.length} steps) — same as Generate / UI Navigation sheet
+            </summary>
+            <ol className="flow-steps">
+              {flow.step_payloads?.map((s, i) => (
+                <li key={`${s.operation}-${i}`} className={s.is_trigger ? "trigger-step" : ""}>
+                  <div>
+                    <code>{s.operation}</code>
+                    {s.is_trigger && <span className="routing-tag">trigger</span>}
+                  </div>
+                  <pre className="input-preview">{JSON.stringify(s.variables || {}, null, 2)}</pre>
+                </li>
+              ))}
+            </ol>
+            {flow.note && <p className="muted small">{flow.note}</p>}
+            {onGenerateScenario && (
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  onGenerateScenario(itemId);
+                  onClose();
+                }}
+              >
+                Generate full flow (create → seed → trigger)
+              </button>
+            )}
+          </details>
+        )}
         {loadError && <p className="error">{loadError}</p>}
         {loading ? (
           <p className="muted">Loading default payload…</p>
@@ -286,18 +504,18 @@ function PayloadEditor({ itemId, label, onClose }: PayloadEditorProps) {
               className="payload-editor-text mono"
               value={text}
               spellCheck={false}
-              onChange={(e) => validate(e.target.value)}
+              onChange={(e) => validateJson(e.target.value)}
             />
             {jsonError && <p className="error small">Invalid JSON: {jsonError}</p>}
             {curlText && (
-              <details className="payload-curl-preview" open>
-                <summary>Exact curl sent by this payload</summary>
+              <details className="payload-curl-preview" open={!multiStep}>
+                <summary>Exact curl for final trigger (expects IDs already created)</summary>
                 <pre className="curl-block">{curlText}</pre>
               </details>
             )}
             <div className="actions">
               <button type="button" className="primary" disabled={sending || !!jsonError || !text} onClick={send}>
-                {sending ? "Sending…" : "Send payload"}
+                {sending ? "Sending…" : "Send trigger only"}
               </button>
               {meta.kind !== "cron" && (
                 <button
@@ -367,9 +585,15 @@ export default function GeneratePage() {
 
   const visibleOperations = useMemo<DropdownItem[]>(() => {
     let items: DropdownItem[] =
-      sources?.catalog?.map((c) => ({ id: c.id, label: c.label, kind: c.kind })) ?? [];
-    // Fallback to the plain operation list before the catalog loads.
-    if (!items.length) items = available.map((op) => ({ id: op, label: op, kind: "graphql" }));
+      sources?.catalog?.map((c) => ({
+        id: c.id,
+        label: c.label,
+        kind: c.kind,
+        operation: c.operation,
+        touchpoint: c.touchpoint,
+        steps: c.steps,
+      })) ?? [];
+    if (!items.length) items = available.map((op) => ({ id: op, label: op, kind: "graphql", operation: op }));
     if (sourceKinds.size) {
       items = items.filter((i) => sourceKinds.has(i.kind));
     }
@@ -393,7 +617,6 @@ export default function GeneratePage() {
       else next.add(kind);
       return next;
     });
-    // Drop selections no longer visible under the new filter.
     setSelected(new Set());
   }
 
@@ -433,12 +656,9 @@ export default function GeneratePage() {
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
           if (j.result?.token) setToken(j.result.token);
-          // Ingestion is auto-started during Generate — refresh header status.
           fetchPipelineConfig().then(setPipeline).catch(() => {});
         }
       } catch {
-        // Job no longer on the server (e.g. backend restarted). Stop after a few misses
-        // and forget the stored id so we don't poll a dead job forever.
         misses += 1;
         if (misses >= 3) {
           if (pollRef.current) clearInterval(pollRef.current);
@@ -449,7 +669,6 @@ export default function GeneratePage() {
     }, 1500);
   }, []);
 
-  // Restore the last generate/validate job across page refreshes.
   useEffect(() => {
     const savedId = localStorage.getItem(JOB_KEY);
     if (!savedId) return;
@@ -474,14 +693,12 @@ export default function GeneratePage() {
     });
   }
 
-  async function run(validate: boolean) {
+  async function run(validate: boolean, opsOverride?: string[]) {
     setBusy(true);
     setError("");
     setShowLastRun(false);
     try {
-      const ops = selected.size ? [...selected] : [];
-      // Empty selection = full catalog (GQL+ingress+cron). When the user filters
-      // by source kind or picks ingress:* ids, always allow the ingress injector.
+      const ops = opsOverride ?? (selected.size ? [...selected] : []);
       const wantsIngress =
         !ops.length ||
         ops.some((id) => id.startsWith("ingress:")) ||
@@ -521,6 +738,59 @@ export default function GeneratePage() {
   }
 
   const runReport = showLastRun && lastRun ? lastRun : mongo;
+  const isValidateMode = Boolean(
+    runReport?.validate ?? (showLastRun ? lastRun?.validate : job?.params?.validate),
+  );
+
+  function exportStatusCsv() {
+    if (!runReport) return;
+    if (runReport.scenarios?.length) {
+      const headers = isValidateMode
+        ? ["operation", "touchpoint", "status", "raw", "enrich", "xCorrelationId", "steps", "error"]
+        : ["operation", "touchpoint", "raw", "enrich", "xCorrelationId", "steps"];
+      const rows = runReport.scenarios.map((s: GenerateScenarioStatus) =>
+        isValidateMode
+          ? [
+              s.operation,
+              s.touchpoint,
+              s.status,
+              s.raw ? "yes" : "no",
+              s.enriched ? "yes" : "no",
+              s.xCorrelationId || "",
+              (s.steps || []).join(" > "),
+              s.error || "",
+            ]
+          : [
+              s.operation,
+              s.touchpoint,
+              s.raw ? "yes" : "no",
+              s.enriched ? "yes" : "no",
+              s.xCorrelationId || "",
+              (s.steps || []).join(" > "),
+            ],
+      );
+      downloadCsv(`generate-status-${isValidateMode ? "validate" : "generate"}.csv`, headers, rows);
+      return;
+    }
+    const headers = isValidateMode
+      ? ["operation", "status", "raw", "enrich", "match", "remark", "xCorrelationId"]
+      : ["operation", "raw", "enrich", "xCorrelationId"];
+    const rows = (runReport.operations || []).map((o: GenerateRunOpStatus) => {
+      const ui = o.ui_status || (o.status === "success" ? "PASS" : o.status === "no_correlation" ? "N/A" : "FAIL");
+      return isValidateMode
+        ? [
+            o.operation,
+            ui,
+            o.raw ? "yes" : "no",
+            o.enriched ? "yes" : "no",
+            o.pairing_method || "",
+            o.remark || o.status || "",
+            o.xCorrelationId || "",
+          ]
+        : [o.operation, o.raw ? "yes" : "no", o.enriched ? "yes" : "no", o.xCorrelationId || ""];
+    });
+    downloadCsv(`generate-status-${isValidateMode ? "validate" : "generate"}.csv`, headers, rows);
+  }
 
   function openAllCoverage() {
     setListModal({
@@ -623,6 +893,13 @@ export default function GeneratePage() {
             Raw/enrich coverage ({opStats.true_pairs ?? 0} paired)…
           </button>
         )}
+        <a
+          className="context-link"
+          href="/api/meta/ui-navigation-mapping.xlsx"
+          download
+        >
+          UI Navigation mapping.xlsx ↗
+        </a>
         {token && (
           <span className={`compact-token ${!token.present || token.expired ? "warn" : "ok"}`}>
             ● token {!token.present ? "missing" : token.expired ? "expired" : "valid"}
@@ -703,6 +980,7 @@ export default function GeneratePage() {
           itemId={editItem}
           label={labelById.get(editItem) ?? editItem}
           onClose={() => setEditItem(null)}
+          onGenerateScenario={(id) => run(false, [id])}
         />
       )}
 
@@ -738,17 +1016,25 @@ export default function GeneratePage() {
         <div className="generate-run-status">
           <div className="mongo-status">
             <strong>Generation Status</strong>
-            <span className="ok">PASS: {runReport.summary?.pass ?? runReport.summary?.success ?? 0}</span>
-            <span className="warn">FAIL: {runReport.summary?.fail ?? runReport.summary?.needs_work ?? 0}</span>
-            <span className="muted">N/A: {runReport.summary?.na ?? 0}</span>
-            {runReport.summary?.total != null && (
-              <span className="muted">/ {runReport.summary.total}</span>
+            <span className="routing-tag">{isValidateMode ? "generate + validate" : "generate only"}</span>
+            {isValidateMode && (
+              <>
+                <span className="ok">PASS: {runReport.summary?.pass ?? runReport.summary?.success ?? 0}</span>
+                <span className="warn">FAIL: {runReport.summary?.fail ?? runReport.summary?.needs_work ?? 0}</span>
+                <span className="muted">N/A: {runReport.summary?.na ?? 0}</span>
+              </>
             )}
-            {(runReport.summary?.fingerprint_matched ?? 0) > 0 && (
-              <span className="muted" title="Matched without xCorrelationId on the envelope">
-                fingerprint: {runReport.summary?.fingerprint_matched}
+            {!isValidateMode && (
+              <span className="muted">
+                {runReport.scenarios?.length ?? runReport.operations?.length ?? 0} event(s) · raw/enrich landing only
               </span>
             )}
+            {runReport.summary?.total != null && isValidateMode && (
+              <span className="muted">/ {runReport.summary.total}</span>
+            )}
+            <button type="button" className="link-btn" onClick={exportStatusCsv}>
+              Export CSV
+            </button>
           </div>
           {(runReport.scenarios?.length ?? 0) > 0 && (
             <div className="result-table-wrap compact-table-wrap generate-status-table">
@@ -756,11 +1042,11 @@ export default function GeneratePage() {
                 <thead>
                   <tr>
                     <th>Scenario / touchpoint</th>
-                    <th>Status</th>
+                    {isValidateMode && <th>Status</th>}
                     <th>Raw</th>
                     <th>Enrich</th>
                     <th>x-correlation-id</th>
-                    <th>Main input sent</th>
+                    <th>Flow / input</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -769,15 +1055,24 @@ export default function GeneratePage() {
                       <td>
                         <code>{s.operation}</code>
                         <div className="muted">{s.touchpoint}</div>
+                        {(s.steps?.length ?? 0) > 0 && (
+                          <div className="muted small">{s.steps!.join(" → ")}</div>
+                        )}
+                      </td>
+                      {isValidateMode && (
+                        <td>
+                          <span className={`status-pill ${s.status === "PASS" ? "completed" : "failed"}`}>
+                            {s.status}
+                          </span>
+                          {s.error && <div className="error small">{s.error}</div>}
+                        </td>
+                      )}
+                      <td>
+                        <EventJsonCell label="raw" present={s.raw} data={s.raw_event} />
                       </td>
                       <td>
-                        <span className={`status-pill ${s.status === "PASS" ? "completed" : "failed"}`}>
-                          {s.status}
-                        </span>
-                        {s.error && <div className="error small">{s.error}</div>}
+                        <EventJsonCell label="enrich" present={s.enriched} data={s.enriched_event} />
                       </td>
-                      <td>{s.raw ? "✓" : "—"}</td>
-                      <td>{s.enriched ? "✓" : "—"}</td>
                       <td className="cid-cell">
                         {s.xCorrelationId ? (
                           <>
@@ -801,43 +1096,59 @@ export default function GeneratePage() {
           )}
           <details className="operation-summary-details" open={!runReport.scenarios?.length}>
             <summary>Operation-level Mongo summary</summary>
-          <div className="result-table-wrap compact-table-wrap generate-status-table">
-            <table className="result-table">
-              <thead>
-                <tr>
-                  <th>Operation</th>
-                  <th>Status</th>
-                  <th>Raw</th>
-                  <th>Enrich</th>
-                  <th>Match</th>
-                  <th>Remark</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(runReport.operations || []).map((o, index) => {
-                  const ui = o.ui_status || (o.status === "success" ? "PASS" : o.status === "no_correlation" ? "N/A" : "FAIL");
-                  return (
-                    <tr key={`${o.operation}-${o.xCorrelationId || index}`}>
-                      <td><code>{o.operation}</code></td>
-                      <td><span className={`status-pill ${ui === "PASS" ? "completed" : ui === "N/A" ? "pending" : "failed"}`}>{ui}</span></td>
-                      <td>{o.raw ? "✓" : "—"}</td>
-                      <td>{o.enriched ? "✓" : "—"}</td>
-                      <td className="muted">{o.pairing_method || (o.xCorrelationId ? "owned_cid" : "—")}</td>
-                      <td className="remark-cell">
-                        {o.remark || o.status}
-                        {o.xCorrelationId && (
-                          <>
-                            <div><code>{String(o.xCorrelationId)}</code></div>
-                            <button type="button" className="link-btn" onClick={() => navigator.clipboard.writeText(String(o.xCorrelationId))}>copy cid</button>
-                          </>
+            <div className="result-table-wrap compact-table-wrap generate-status-table">
+              <table className="result-table">
+                <thead>
+                  <tr>
+                    <th>Operation</th>
+                    {isValidateMode && <th>Status</th>}
+                    <th>Raw</th>
+                    <th>Enrich</th>
+                    {isValidateMode && <th>Match</th>}
+                    {isValidateMode && <th>Remark</th>}
+                    {!isValidateMode && <th>x-correlation-id</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(runReport.operations || []).map((o, index) => {
+                    const ui = o.ui_status || (o.status === "success" ? "PASS" : o.status === "no_correlation" ? "N/A" : "FAIL");
+                    return (
+                      <tr key={`${o.operation}-${o.xCorrelationId || index}`}>
+                        <td><code>{o.operation}</code></td>
+                        {isValidateMode && (
+                          <td><span className={`status-pill ${ui === "PASS" ? "completed" : ui === "N/A" ? "pending" : "failed"}`}>{ui}</span></td>
                         )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        <td>
+                          <EventJsonCell label="raw" present={o.raw} data={o.raw_event} />
+                        </td>
+                        <td>
+                          <EventJsonCell label="enrich" present={o.enriched} data={o.enriched_event} />
+                        </td>
+                        {isValidateMode && (
+                          <td className="muted">{o.pairing_method || (o.xCorrelationId ? "owned_cid" : "—")}</td>
+                        )}
+                        {isValidateMode && (
+                          <td className="remark-cell">
+                            {o.remark || o.status}
+                            {o.xCorrelationId && (
+                              <>
+                                <div><code>{String(o.xCorrelationId)}</code></div>
+                                <button type="button" className="link-btn" onClick={() => navigator.clipboard.writeText(String(o.xCorrelationId))}>copy cid</button>
+                              </>
+                            )}
+                          </td>
+                        )}
+                        {!isValidateMode && (
+                          <td className="cid-cell">
+                            {o.xCorrelationId ? <code>{o.xCorrelationId}</code> : "—"}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </details>
         </div>
       )}

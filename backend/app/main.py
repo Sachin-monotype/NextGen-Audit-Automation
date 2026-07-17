@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .audit_bridge import AuditBridge, JobStore, JobStatus
@@ -546,6 +547,24 @@ def touchpoint_scenarios() -> dict[str, Any]:
         return {"scenarios": scenarios, "count": len(scenarios)}
     except Exception as exc:
         return {"scenarios": [], "count": 0, "error": str(exc)}
+
+
+@app.get("/api/meta/ui-navigation-mapping.xlsx")
+def ui_navigation_mapping_xlsx():
+    """Multi-sheet Excel: UI Navigation events ↔ FLOW_DEFS / generate catalog."""
+    from fastapi.responses import FileResponse
+
+    try:
+        from audit_validator.export_ui_navigation_mapping import write_ui_navigation_mapping
+
+        path = write_ui_navigation_mapping(project_root=settings.audit_project_root)
+        return FileResponse(
+            path,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            filename="ui-navigation-event-mapping.xlsx",
+        )
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
 @app.get("/api/token/status")

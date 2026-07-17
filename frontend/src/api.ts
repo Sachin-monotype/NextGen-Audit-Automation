@@ -482,6 +482,18 @@ export type DefaultPayload = {
   hint?: string;
   note?: string;
   error?: string;
+  flow?: {
+    scenario_id?: string;
+    touchpoint?: string;
+    steps?: string[];
+    note?: string;
+    step_payloads?: Array<{
+      operation: string;
+      is_trigger?: boolean;
+      variables?: Record<string, unknown>;
+      document?: string | null;
+    }>;
+  };
 };
 
 export async function fetchDefaultPayload(itemId: string) {
@@ -568,7 +580,9 @@ export type GenerateRunOpStatus = {
   trigger_error?: string | null;
   raw?: boolean;
   enriched?: boolean;
-  status: string;
+  raw_event?: Record<string, unknown> | null;
+  enriched_event?: Record<string, unknown> | null;
+  status?: string;
   ui_status?: "PASS" | "FAIL" | "N/A" | string;
   remark?: string;
   pairing_method?: string | null;
@@ -582,17 +596,21 @@ export type GenerateScenarioStatus = {
   scenario_id: string;
   operation: string;
   touchpoint: string;
+  steps?: string[];
   status: string;
   xCorrelationId?: string | null;
   input?: Record<string, unknown>;
   raw?: boolean;
   enriched?: boolean;
+  raw_event?: Record<string, unknown> | null;
+  enriched_event?: Record<string, unknown> | null;
   error?: string | null;
 };
 
 export type GenerateRunReport = {
   checked_at?: string;
   job_id?: string;
+  validate?: boolean;
   summary?: {
     total?: number;
     success?: number;

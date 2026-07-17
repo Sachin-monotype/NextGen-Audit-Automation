@@ -212,6 +212,8 @@ def verify_owned_queue_landing(
             "kind": entry.get("kind"),
             "raw": False,
             "enriched": False,
+            "raw_event": None,
+            "enriched_event": None,
             "status": "missing" if can_fingerprint else "no_correlation",
             "pairing_method": None,
             "occurred_at_raw": None,
@@ -238,6 +240,8 @@ def verify_owned_queue_landing(
             row["pairing_method"] = method if (raw or enriched) else row.get("pairing_method")
             row["raw"] = bool(raw)
             row["enriched"] = bool(enriched)
+            row["raw_event"] = raw if isinstance(raw, dict) else None
+            row["enriched_event"] = enriched if isinstance(enriched, dict) else None
             if raw:
                 row["occurred_at_raw"] = raw.get("occurredAt")
                 # Backfill cid if envelope finally has it
@@ -257,7 +261,6 @@ def verify_owned_queue_landing(
                 if row["status"] != "no_correlation":
                     row["status"] = "missing"
                 pending += 1
-
         remaining = deadline - time.monotonic()
         if pending == 0 or remaining <= 0:
             break

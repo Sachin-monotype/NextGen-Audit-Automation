@@ -515,7 +515,14 @@ class AuditBridge:
                 mongo_status = self._verify_mongo(job_id, resolved_ops)
                 self._verify_scenario_results(scenario_results)
                 mongo_status["scenarios"] = scenario_results
+                mongo_status["validate"] = True
                 mongo_status["ingestion"] = ingest_status
+                try:
+                    from audit_validator.generate_run_report import save_generate_run
+
+                    save_generate_run(mongo_status, project_root=self.project_root)
+                except Exception:  # noqa: BLE001
+                    pass
                 self.store.update(
                     job_id,
                     status=JobStatus.COMPLETED if exit_code == 0 and val_result.get("failed", 0) == 0 else JobStatus.FAILED,
@@ -548,7 +555,14 @@ class AuditBridge:
             mongo_status = self._verify_mongo(job_id, ops_to_check if ops_to_check else [])
             self._verify_scenario_results(scenario_results)
             mongo_status["scenarios"] = scenario_results
+            mongo_status["validate"] = bool(validate)
             mongo_status["ingestion"] = ingest_status
+            try:
+                from audit_validator.generate_run_report import save_generate_run
+
+                save_generate_run(mongo_status, project_root=self.project_root)
+            except Exception:  # noqa: BLE001
+                pass
 
             self.store.update(
                 job_id,
@@ -569,13 +583,15 @@ class AuditBridge:
             root_logger.removeHandler(handler)
 
     def _verify_scenario_results(self, scenarios: list[dict[str, Any]]) -> None:
-        """Attach raw/enriched landing state to each scenario correlation."""
+        """Attach raw/enriched landing state (+ JSON bodies) to each scenario correlation."""
         if not self.db:
             return
         for scenario in scenarios:
             cid = str(scenario.get("xCorrelationId") or "")
             op = str(scenario.get("operation") or "")
             if not cid or not op:
+                scenario.setdefault("raw", False)
+                scenario.setdefault("enriched", False)
                 continue
             try:
                 raw, enriched = self.db.latest_pair(
@@ -583,9 +599,15 @@ class AuditBridge:
                 )
                 scenario["raw"] = bool(raw)
                 scenario["enriched"] = bool(enriched)
+                scenario["raw_event"] = raw if isinstance(raw, dict) else None
+                scenario["enriched_event"] = (
+                    enriched if isinstance(enriched, dict) else None
+                )
             except Exception:
                 scenario["raw"] = False
                 scenario["enriched"] = False
+                scenario["raw_event"] = None
+                scenario["enriched_event"] = None
 
     def _run_touchpoint_scenarios(
         self, job_id: str, selection: list[str]
@@ -664,12 +686,15 @@ class AuditBridge:
                     "scenario_id": sc["id"],
                     "operation": op,
                     "touchpoint": touch,
+                    "steps": steps,
                     "status": result.status,
                     "xCorrelationId": result.correlation_id,
                     "input": target_step.get("input") or {},
                     "error": result.error,
                     "raw": False,
                     "enriched": False,
+                    "raw_event": None,
+                    "enriched_event": None,
                 }
             )
             if result.correlation_id:

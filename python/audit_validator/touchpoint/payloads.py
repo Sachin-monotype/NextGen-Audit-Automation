@@ -37,6 +37,7 @@ class SeedIds:
     headline_style_id: str = ""
     body_style_id: str = ""
     access_request_id: str = ""
+    folder_id: str = ""
 
 
 def style_filter() -> dict[str, Any]:
@@ -295,6 +296,13 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
 
     builders = {
         "createAsset": lambda: create_font_list(seed),
+        "createFolder": lambda: {
+            "input": {
+                "name": f"QA_Gen_Folder_{seed.list_name[-10:] or 'tmp'}"[:50],
+                "assetType": "Folder",
+                "accessRight": "FullAccess",
+            }
+        },
         "createProject": lambda: create_project(seed),
         "addFontListFamilies": lambda: add_font_list_families(
             seed,
@@ -374,7 +382,7 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
             "input": {"styles": [{"id": seed.style_id}]}
         },
         "bulkRemoveStylesFromFavourites": lambda: {
-            "input": {"styleIds": [seed.style_id]}
+            "input": {"styles": [{"id": seed.style_id}]}
         },
         # Library / assets
         "updateAsset": lambda: {
@@ -386,7 +394,7 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
         },
         "updateAssets": lambda: {
             "input": {
-                "assets": [
+                "items": [
                     {
                         "assetId": seed.list_id,
                         "assetType": "FontList",
@@ -405,7 +413,11 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
                 "items": [
                     {
                         "source": {"assetId": seed.list_id, "assetType": "FontList"},
-                        "target": {"assetId": "root"},
+                        "target": (
+                            {"assetId": seed.folder_id, "assetType": "Folder"}
+                            if seed.folder_id
+                            else {"assetId": "root"}
+                        ),
                     }
                 ]
             }
@@ -413,7 +425,7 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
         "bulkMoveAssets": lambda: {
             "input": {
                 "sourceAssetIds": [seed.list_id],
-                "targetAssetId": "root",
+                "targetAssetId": seed.folder_id or "root",
             }
         },
         "bulkAddStylesToList": lambda: {
@@ -473,7 +485,7 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
         "removeFontProjectStyles": lambda: {
             "input": {
                 "fontProjectId": seed.project_id,
-                "styles": [{"styleId": seed.style_id}],
+                "styles": {"styleIds": [seed.style_id]},
             }
         },
         "syncUnSyncVariations": lambda: {
@@ -495,12 +507,12 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
         "updatePrivateTag": lambda: {
             "input": {
                 "customerId": seed.customer_id,
-                "id": seed.tag_id,
+                "tagId": seed.tag_id,
                 "name": f"QA_Tag_Updated_{seed.style_id[-4:] or 'tmp'}",
             }
         },
         "deletePrivateTags": lambda: {
-            "input": {"customerId": seed.customer_id, "ids": [seed.tag_id]}
+            "input": {"customerId": seed.customer_id, "tagIds": [seed.tag_id]}
         },
         "deleteAllPrivateTags": lambda: {
             "input": {"customerId": seed.customer_id}
@@ -564,10 +576,10 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
         "globalEmailOptOut": lambda: {},
         # Notifications
         "dismissNotification": lambda: {
-            "input": {"notificationId": seed.notification_id}
+            "input": {"id": seed.notification_id, "action": "DISMISS"}
         },
         "markNotificationRead": lambda: {
-            "input": {"notificationId": seed.notification_id}
+            "input": {"id": seed.notification_id, "action": "MARK_READ"}
         },
         "markAllNotificationsRead": lambda: {"input": {}},
         "updatePreference": lambda: {
@@ -595,8 +607,8 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
         },
         "bulkNotificationAction": lambda: {
             "input": {
-                "action": "READ",
-                "notificationIds": [seed.notification_id],
+                "action": "MARK_READ",
+                "ids": [seed.notification_id],
             }
         },
         "applyUnsubscribe": lambda: {"token": "QA_PLACEHOLDER_UNSUBSCRIBE_TOKEN"},
@@ -605,13 +617,13 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
             "input": {"styleIds": [seed.style_id], "inProduction": True}
         },
         "bulkUnmarkProductionFont": lambda: {
-            "input": {"styleIds": [seed.style_id]}
+            "input": {"styles": [{"id": seed.style_id}]}
         },
         "submitIntentForProduction": lambda: {
-            "input": {"styleIds": [seed.style_id]}
+            "input": {"styleId": seed.style_id}
         },
         "denyIntentForProduction": lambda: {
-            "input": {"styleIds": [seed.style_id]}
+            "input": {"styleId": seed.style_id}
         },
         "deleteImportedFonts": lambda: {
             "input": {"styleIds": [seed.style_id]}
@@ -796,12 +808,12 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
         # ── Contracts / BYOF (some destructive) ──
         "createContract": lambda: {
             "input": {
-                "styleIds": [],
+                "styleIds": [seed.style_id] if seed.style_id else [],
                 "isFreeToUse": False,
                 "licenceType": "DESKTOP",
                 "isReviewed": False,
                 "linkedImportedFontScope": "GLOBAL",
-                "licenceName": "QA_TouchPoint_Licence",
+                "licenceName": f"QA_TouchPoint_Licence_{seed.style_id[-6:] or 'tmp'}",
             }
         },
         "updateContract": lambda: {
@@ -878,7 +890,7 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
         "createServiceAccount": lambda: {
             "input": {
                 "customerId": seed.customer_id,
-                "serverName": "QA_TouchPoint_SA",
+                "serverName": f"QA_TP_SA_{seed.list_name[-12:] or seed.style_id[-6:]}"[:64],
                 "serverDescription": "QA TouchPoint seed service account",
                 "serverType": "TESTING",
                 "tokenExpiry": "2030-01-01T00:00:00.000Z",
@@ -986,12 +998,26 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
             "sessionId": seed.session_id,
             "files": [
                 {
+                    "status": "ADD",
                     "fileName": "qa-touchpoint-scan.pdf",
                     "size": 1024,
                     "contentType": "application/pdf",
-                    "fileId": seed.file_id or None,
+                    **({"fileId": seed.file_id} if seed.file_id else {}),
                 }
             ],
+        },
+        "processUploadSessionFonts": lambda: {
+            "sessionId": seed.session_id,
+            **({"fileId": seed.file_id} if seed.file_id else {}),
+            **({"projectId": seed.project_id} if seed.project_id else {}),
+        },
+        "exportFontTemplate": lambda: {
+            "input": {
+                "columns": [
+                    {"key": "styleName", "label": "Style"},
+                    {"key": "familyName", "label": "Family"},
+                ]
+            }
         },
         "markSessionFileUploaded": lambda: {
             "sessionId": seed.session_id,
@@ -1039,7 +1065,8 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
         },
         "resetPassword": lambda: {"input": {"profileId": seed.profile_id}},
         "deleteProfiles": lambda: {
-            "input": {"profileIds": [seed.profile_id]}
+            # Disposable profile only — set SEED_DELETE_PROFILE_ID (never the actor).
+            "input": {"profileIds": [seed.profile_id] if seed.profile_id else []}
         },
         "createRole": lambda: {
             "input": {
@@ -1250,6 +1277,111 @@ FLOW_DEFS.update(
         },
         "addFavoriteStyles": {
             "Favourite": ["addFavoriteStyles"],
+        },
+        # Sheet multi-step: create → seed → trigger
+        "removeFontProjectStyles": {
+            "Project": ["createProject", "addFontProjectStyles", "removeFontProjectStyles"],
+            "Discovery/Browse (global)": [
+                "createProject",
+                "addFontProjectStyles",
+                "removeFontProjectStyles",
+            ],
+        },
+        "updateAssets": {
+            "Discovery/Browse (global)": ["createAsset", "updateAssets"],
+        },
+        "pinAsset": {
+            "Discovery/Browse (global)": ["createAsset", "pinAsset"],
+        },
+        "unpinAsset": {
+            "Discovery/Browse (global)": ["createAsset", "pinAsset", "unpinAsset"],
+        },
+        "updatePrivateTag": {
+            "Manage>Tags": ["createPrivateTags", "updatePrivateTag"],
+            "Discovery/Browse (global)": ["createPrivateTags", "updatePrivateTag"],
+        },
+        "updatePrivateTagAssociations": {
+            "Browse/Discovery/List/TagsManage": [
+                "createPrivateTags",
+                "updatePrivateTagAssociations",
+            ],
+            "Discovery/Browse (global)": [
+                "createPrivateTags",
+                "updatePrivateTagAssociations",
+            ],
+        },
+        "bulkTagStyles": {
+            "Discovery/Browse": ["createPrivateTags", "bulkTagStyles"],
+            "Discovery/Browse (global)": ["createPrivateTags", "bulkTagStyles"],
+        },
+        "bulkUntagStyles": {
+            "Discovery/Browse": ["createPrivateTags", "bulkTagStyles", "bulkUntagStyles"],
+            "Discovery/Browse (global)": [
+                "createPrivateTags",
+                "bulkTagStyles",
+                "bulkUntagStyles",
+            ],
+        },
+        "bulkAddStylesToList": {
+            "Browse/Discovery": ["createAsset", "bulkAddStylesToList"],
+            "Discovery/Browse (global)": ["createAsset", "bulkAddStylesToList"],
+        },
+        "bulkRemoveStylesFromList": {
+            "Mylibrary>Assets": ["createAsset", "bulkAddStylesToList", "bulkRemoveStylesFromList"],
+            "Discovery/Browse (global)": [
+                "createAsset",
+                "bulkAddStylesToList",
+                "bulkRemoveStylesFromList",
+            ],
+        },
+        "bulkCopyAssets": {
+            "Mylibrary>Assets": ["createAsset", "createFolder", "bulkCopyAssets"],
+            "Discovery/Browse (global)": ["createAsset", "createFolder", "bulkCopyAssets"],
+        },
+        "bulkMoveAssets": {
+            "Mylibrary>Assets": ["createAsset", "createFolder", "bulkMoveAssets"],
+            "Discovery/Browse (global)": ["createAsset", "createFolder", "bulkMoveAssets"],
+        },
+        "bulkRemoveStylesFromFavourites": {
+            "Favourite": ["bulkAddStylesToFavourites", "bulkRemoveStylesFromFavourites"],
+            "Discovery/Browse (global)": [
+                "bulkAddStylesToFavourites",
+                "bulkRemoveStylesFromFavourites",
+            ],
+        },
+        "updateSessionFiles": {
+            "Discovery/Browse (global)": ["createUploadSession", "updateSessionFiles"],
+        },
+        "processUploadSessionFonts": {
+            "Discovery/Browse (global)": [
+                "createUploadSession",
+                "updateSessionFiles",
+                "processUploadSessionFonts",
+            ],
+        },
+        "parseAndCreateContract": {
+            "Discovery/Browse (global)": [
+                "createUploadSession",
+                "parseAndCreateContract",
+            ],
+        },
+        "cancelBatch": {
+            "Discovery/Browse (global)": ["bulkActivateStyles", "cancelBatch"],
+        },
+        "createServiceAccount": {
+            "Discovery/Browse (global)": ["createServiceAccount"],
+        },
+        "syncUnSyncVariations": {
+            "Discovery/Browse (global)": ["syncUnSyncVariations"],
+        },
+        "submitIntentForProduction": {
+            "Discovery/Browse (global)": ["submitIntentForProduction"],
+        },
+        "addStyleDocument": {
+            "Discovery/Browse (global)": ["addStyleDocument"],
+        },
+        "createContract": {
+            "Discovery/Browse (global)": ["createContract"],
         },
     }
 )

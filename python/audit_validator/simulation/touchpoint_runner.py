@@ -72,15 +72,75 @@ def _make_seed(cfg: Any) -> SeedIds:
         list_name=f"QA_Gen_List_{ts}",
         project_name=f"QA_Gen_Proj_{ts}",
         customer_id=str(gcid),
+        # Disposable delete target only — never auto-fill with actor profile.
+        profile_id=(os.getenv("SEED_DELETE_PROFILE_ID") or "").strip(),
+        notification_id=(os.getenv("SEED_NOTIFICATION_ID") or "").strip(),
+        tag_id=(os.getenv("SEED_TAG_ID") or "").strip(),
     )
     return seed
 
 
 def _request(client: Any, operation: str, variables: dict[str, Any]) -> dict[str, Any]:
-    doc = get_document_for_operation(operation)
+    # Seed helpers that reuse createAsset GraphQL document
+    doc_op = "createAsset" if operation == "createFolder" else operation
+    doc = get_document_for_operation(doc_op)
     if not doc:
         raise RuntimeError(f"No GraphQL document for {operation}")
     return client.request(doc, variables) or {}
+
+
+def _capture_seed_ids(seed: SeedIds, step_op: str, data: dict[str, Any]) -> None:
+    """Pull created entity IDs from mutation responses into seed."""
+    if step_op == "createAsset":
+        asset = ((data.get("createAsset") or {}).get("asset") or {})
+        lid = asset.get("id") or ""
+        if lid:
+            seed.list_id = lid
+        return
+    if step_op == "createFolder":
+        asset = ((data.get("createAsset") or {}).get("asset") or {})
+        fid = asset.get("id") or ""
+        if fid:
+            seed.folder_id = fid
+        return
+    if step_op == "createProject":
+        asset = ((data.get("createProject") or {}).get("asset") or {})
+        pid = asset.get("id") or ""
+        if pid:
+            seed.project_id = pid
+        return
+    if step_op == "createPrivateTags":
+        node = data.get("createPrivateTags") or {}
+        rows = node.get("data") or []
+        if rows and isinstance(rows[0], dict):
+            tag = (rows[0].get("tag") or {}) if isinstance(rows[0].get("tag"), dict) else {}
+            tid = tag.get("id") or rows[0].get("id") or ""
+            if tid:
+                seed.tag_id = str(tid)
+        return
+    if step_op == "createUploadSession":
+        session = ((data.get("createUploadSession") or {}).get("session") or {})
+        sid = session.get("sessionId") or ""
+        if sid:
+            seed.session_id = str(sid)
+        files = session.get("files") or []
+        if files and isinstance(files[0], dict) and files[0].get("fileId"):
+            seed.file_id = str(files[0]["fileId"])
+        return
+    if step_op == "createServiceAccount":
+        sa = data.get("createServiceAccount") or {}
+        if isinstance(sa, dict) and sa.get("id"):
+            seed.service_account_id = str(sa["id"])
+        return
+    if step_op == "createContract":
+        c = data.get("createContract") or {}
+        if isinstance(c, dict) and c.get("contractId"):
+            seed.contract_id = str(c["contractId"])
+        return
+    # Bulk ops return BatchProgress with batchId
+    node = data.get(step_op)
+    if isinstance(node, dict) and node.get("batchId"):
+        seed.batch_id = str(node["batchId"])
 
 
 def _extract_success(data: dict[str, Any], operation: str) -> bool | None:
@@ -294,8 +354,9 @@ def run_scenario(
             if step_op == operation:
                 target_cid = cid
 
-            ok, err_msg = _step_ok(data, step_op)
-            if not ok and step_op not in {"createAsset", "createProject"}:
+            check_op = "createAsset" if step_op == "createFolder" else step_op
+            ok, err_msg = _step_ok(data, check_op)
+            if not ok and step_op not in {"createAsset", "createProject", "createFolder"}:
                 last_error = err_msg or str(data)[:300]
                 step_results.append(
                     {"op": step_op, "status": "FAIL", "error": last_error, "cid": cid}
@@ -325,32 +386,43 @@ def run_scenario(
                 continue
 
             # Capture created ids
+            _capture_seed_ids(seed, step_op, data)
             if step_op == "createAsset":
-                asset = ((data.get("createAsset") or {}).get("asset") or {})
-                lid = asset.get("id") or ""
-                if not lid:
+                if not seed.list_id:
                     last_error = f"createAsset returned no id: {str(data)[:200]}"
                     step_results.append(
                         {"op": step_op, "status": "FAIL", "error": last_error, "cid": cid}
                     )
                     _log(f"  ✖ {step_op} {last_error}")
                     continue
-                seed.list_id = lid
-                created_lists.append(lid)
-                _log(f"  ✓ createAsset list={lid[:8]}…")
+                created_lists.append(seed.list_id)
+                _log(f"  ✓ createAsset list={seed.list_id[:8]}…")
+            elif step_op == "createFolder":
+                if not seed.folder_id:
+                    last_error = f"createFolder returned no id: {str(data)[:200]}"
+                    step_results.append(
+                        {"op": step_op, "status": "FAIL", "error": last_error, "cid": cid}
+                    )
+                    _log(f"  ✖ {step_op} {last_error}")
+                    continue
+                created_lists.append(seed.folder_id)
+                _log(f"  ✓ createFolder folder={seed.folder_id[:8]}…")
             elif step_op == "createProject":
-                asset = ((data.get("createProject") or {}).get("asset") or {})
-                pid = asset.get("id") or ""
-                if not pid:
+                if not seed.project_id:
                     last_error = f"createProject returned no id: {str(data)[:200]}"
                     step_results.append(
                         {"op": step_op, "status": "FAIL", "error": last_error, "cid": cid}
                     )
                     _log(f"  ✖ {step_op} {last_error}")
                     continue
-                seed.project_id = pid
-                created_projects.append(pid)
-                _log(f"  ✓ createProject project={pid[:8]}…")
+                created_projects.append(seed.project_id)
+                _log(f"  ✓ createProject project={seed.project_id[:8]}…")
+            elif step_op == "createPrivateTags":
+                _log(f"  ✓ createPrivateTags tag={seed.tag_id or '?'}")
+            elif step_op == "createUploadSession":
+                _log(
+                    f"  ✓ createUploadSession session={(seed.session_id or '')[:8]}…"
+                )
             else:
                 _log(
                     f"  ✓ {step_op} cid={(cid or '')[:8]} "
