@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MultiSelect from "../components/MultiSelect";
+import VerifyInUiModal, { type VerifyInUiContext } from "../components/VerifyInUiModal";
 import {
   fetchCategories,
   fetchComparableOperations,
@@ -7,6 +8,7 @@ import {
   fetchJob,
   fetchJobs,
   fetchLatestResults,
+  deleteLatestResult,
   type CategoryReport,
   type ComparableOperation,
   type ComparisonRow,
@@ -207,6 +209,7 @@ export default function ResultsPage({ initialJobId }: Props) {
   const [activeId, setActiveId] = useState<string | null>(initialJobId);
   const [job, setJob] = useState<Job | null>(null);
   const [filterOp, setFilterOp] = useState("");
+  const [verifyCtx, setVerifyCtx] = useState<VerifyInUiContext | null>(null);
   const [filterStatus, setFilterStatus] = useState("all");
   /** Coverage table: fully pass / has fails / skips only (partial). */
   const [coverageOutcome, setCoverageOutcome] = useState<"all" | "pass" | "failed" | "partial">("all");
@@ -249,6 +252,26 @@ export default function ResultsPage({ initialJobId }: Props) {
       .then(setLatest)
       .catch(() => setLatest(null));
   }, []);
+
+  const [deletingOp, setDeletingOp] = useState<string | null>(null);
+
+  const onDeleteResult = useCallback(
+    async (operation: string) => {
+      if (!window.confirm(`Delete stored result for "${operation}"?`)) return;
+      setDeletingOp(operation);
+      try {
+        await deleteLatestResult(operation);
+        if (filterOp === operation) clearFilters();
+        loadLatest();
+      } catch {
+        /* surfaced via reload */
+      } finally {
+        setDeletingOp(null);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filterOp, loadLatest],
+  );
 
   useEffect(() => {
     fetchCategories().then(setCategories).catch(() => {});
@@ -327,6 +350,20 @@ export default function ResultsPage({ initialJobId }: Props) {
     return m;
   }, [opMeta]);
 
+  function metaForOperation(operation: string): ComparableOperation | undefined {
+    const direct = metaByOp.get(operation);
+    if (direct) return direct;
+    const base = operation.includes("(") ? operation.split("(", 1)[0] : operation;
+    return metaByOp.get(base);
+  }
+
+  function categoryForOperation(operation: string): string {
+    if (byOperation[operation]) return byOperation[operation];
+    const base = operation.includes("(") ? operation.split("(", 1)[0] : operation;
+    if (byOperation[base]) return byOperation[base];
+    return metaForOperation(operation)?.category || "—";
+  }
+
   const environmentOptions = useMemo(
     () => [...new Set(opMeta.map((i) => i.environment).filter(Boolean))].sort(),
     [opMeta],
@@ -339,9 +376,9 @@ export default function ResultsPage({ initialJobId }: Props) {
   const scopedRows = useMemo(() => {
     return rows.filter((r) => {
       if (filterOp && !r.operation.toLowerCase().includes(filterOp.toLowerCase())) return false;
-      if (filterCategory !== "all" && byOperation[r.operation] !== filterCategory) return false;
+      if (filterCategory !== "all" && categoryForOperation(r.operation) !== filterCategory) return false;
       if (filterEnv.length || filterService.length) {
-        const meta = metaByOp.get(r.operation);
+        const meta = metaForOperation(r.operation);
         if (filterEnv.length && (!meta || !filterEnv.includes(meta.environment))) return false;
         if (filterService.length && (!meta || !filterService.includes(meta.service))) return false;
       }
@@ -376,11 +413,11 @@ export default function ResultsPage({ initialJobId }: Props) {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([operation, opRows]) => {
         const summary = summarizeOp(opRows);
-        const meta = metaByOp.get(operation);
+        const meta = metaForOperation(operation);
         const status: TrackStatus = track[operation] || "unreviewed";
         return {
           operation,
-          category: byOperation[operation] || meta?.category || "—",
+          category: categoryForOperation(operation),
           environment: meta?.environment || "—",
           service: meta?.service || "—",
           comparedAt: comparedAtByOp.get(operation) || "",
@@ -891,6 +928,14 @@ export default function ResultsPage({ initialJobId }: Props) {
                               Reset
                             </button>
                           )}
+                          <button
+                            type="button"
+                            className="danger"
+                            disabled={deletingOp === r.operation}
+                            onClick={() => onDeleteResult(r.operation)}
+                          >
+                            {deletingOp === r.operation ? "Deleting…" : "Delete result"}
+                          </button>
                         </div>
                       </details>
                     </td>
@@ -910,6 +955,13 @@ export default function ResultsPage({ initialJobId }: Props) {
                 Field details for <strong>{filterOp}</strong>
               </span>
               <div className="result-detail-bar-actions">
+                <button
+                  type="button"
+                  className="primary outline"
+                  onClick={() => setVerifyCtx({ operation: filterOp })}
+                >
+                  Verify in UI
+                </button>
                 <div className="result-view-toggle" role="group" aria-label="Field detail view">
                   <button
                     type="button"
@@ -931,6 +983,9 @@ export default function ResultsPage({ initialJobId }: Props) {
                 </button>
               </div>
             </div>
+            {verifyCtx && (
+              <VerifyInUiModal context={verifyCtx} onClose={() => setVerifyCtx(null)} />
+            )}
             <div className="result-groups">
               {grouped.map(([operation, opRows]) => {
                 const open = expanded.has(operation);

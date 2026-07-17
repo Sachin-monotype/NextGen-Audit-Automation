@@ -68,6 +68,10 @@ def _run_path(project_root: Path | None = None) -> Path:
 def save_generate_run(report: dict[str, Any], *, project_root: Path | None = None) -> Path:
     path = _run_path(project_root)
     path.parent.mkdir(parents=True, exist_ok=True)
+    # Prefer scenario-level PASS/FAIL when multi-touchpoint scenarios were run
+    scenarios = report.get("scenarios")
+    if isinstance(scenarios, list) and scenarios:
+        report = {**report, "summary": summary_from_scenarios(scenarios)}
     payload = _json_safe({**report, "saved_at": _now()})
     with _LOCK:
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -76,6 +80,44 @@ def save_generate_run(report: dict[str, Any], *, project_root: Path | None = Non
         archive = path.parent / f"generate-run-{stamp}-{job_id}.json"
         archive.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
     return path
+
+
+def summary_from_scenarios(scenarios: list[dict[str, Any]]) -> dict[str, Any]:
+    """PASS/FAIL/N/A counts from touchpoint scenario rows (not bare operation rollup)."""
+    pass_n = 0
+    fail_n = 0
+    na_n = 0
+    for s in scenarios:
+        st = str(s.get("status") or "").upper()
+        if st == "PASS":
+            pass_n += 1
+        elif st in {"FAIL", "ERROR"}:
+            fail_n += 1
+        elif st in {"SKIP", "N/A"}:
+            na_n += 1
+        elif s.get("error"):
+            fail_n += 1
+        else:
+            na_n += 1
+    return {
+        "total": len(scenarios),
+        "success": pass_n,
+        "pass": pass_n,
+        "fail": fail_n,
+        "na": na_n,
+        "needs_work": fail_n,
+        "trigger_failed": fail_n,
+        "no_correlation": 0,
+        "raw_only": sum(1 for s in scenarios if s.get("raw") and not s.get("enriched")),
+        "enrich_only": sum(1 for s in scenarios if s.get("enriched") and not s.get("raw")),
+        "missing": sum(
+            1
+            for s in scenarios
+            if str(s.get("status") or "").upper() == "PASS"
+            and not s.get("raw")
+            and not s.get("enriched")
+        ),
+    }
 
 
 def load_last_generate_run(*, project_root: Path | None = None) -> dict[str, Any] | None:

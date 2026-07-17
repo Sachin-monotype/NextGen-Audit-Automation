@@ -1386,9 +1386,6 @@ FLOW_DEFS.update(
     }
 )
 
-# Sheet alias: Search/ Family / Discovery ≡ Discovery/Browse (global)
-for _op, _touches in list(FLOW_DEFS.items()):
-    if "Discovery/Browse (global)" in _touches and "Search/ Family / Discovery" not in _touches:
-        FLOW_DEFS[_op]["Search/ Family / Discovery"] = list(
-            _touches["Discovery/Browse (global)"]
-        )
+# "Search/ Family / Discovery" is the same path as Discovery/Browse (global).
+# Do NOT add it as a second FLOW_DEFS key — that duplicated generate runs.
+# Selection aliases are resolved in scenarios.expand_selection_to_scenarios.

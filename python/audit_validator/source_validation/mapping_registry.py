@@ -71,8 +71,8 @@ def _parse_source(data_mapping: str) -> tuple[str, str]:
         return "Auth0", "GET /api/v2/users/{id}"
     if "resolver" in lower:
         return "Resolver", "enricher constant"
-    if "raw" in lower or "mtconnect-api" in lower or "graphql" in lower:
-        return "Raw", "raw envelope / GraphQL"
+    if "raw" in lower or "mtconnect-api" in lower or "graphql" in lower or "trigger" in lower or "curl" in lower:
+        return "Trigger", "GraphQL curl / event trigger"
     return "Unknown", dm[:80] if dm else ""
 
 
@@ -426,6 +426,31 @@ _CUSTOMER_CATEGORIES = frozenset({"Customer"})
 def _actor_fields() -> list[MappingField]:
     return [
         MappingField(
+            "actor", "globalUserId", "", "",
+            "Source: UMS profile id via JWT email / idpUserId", "", "Y",
+            "actor.globalUserId", "Bearer token", "JWT + UMS", "actor",
+        ),
+        MappingField(
+            "actor", "globalCustomerId", "", "",
+            "Source: JWT claim https://api.monotype.com/gcid", "", "Y",
+            "actor.globalCustomerId", "Bearer token", "JWT claim", "actor",
+        ),
+        MappingField(
+            "actor", "orgId", "", "",
+            "Source: JWT claim org_id", "", "Y",
+            "actor.orgId", "Bearer token", "JWT claim", "actor",
+        ),
+        MappingField(
+            "actor", "parentCustomerId", "", "",
+            "Source: JWT claim parentCustomerId", "", "Y",
+            "actor.parentCustomerId", "Bearer token", "JWT claim", "actor",
+        ),
+        MappingField(
+            "actor", "inventories", "", "",
+            "Source: JWT claim https://api.monotype.com/inventories", "", "Y",
+            "actor.inventories", "Bearer token", "JWT claim", "actor",
+        ),
+        MappingField(
             "actor.enrichedSnapshot", "user", "source", "",
             "Source: Resolver → user-management-service", "", "N",
             "actor.enrichedSnapshot.user.source", "Resolver", "constant", "actor",
@@ -437,7 +462,7 @@ def _actor_fields() -> list[MappingField]:
         ),
         MappingField(
             "actor.enrichedSnapshot", "user", "profile.email", "",
-            "Source: UMS POST profiles", "", "Y",
+            "Source: UMS POST profiles (email from JWT)", "", "Y",
             "actor.enrichedSnapshot.user.profile.email", "UMS", "POST profiles", "actor",
         ),
         MappingField(
@@ -469,21 +494,78 @@ def _actor_fields() -> list[MappingField]:
 
 
 def _event_header_fields(operation: str) -> list[MappingField]:
+    """Envelope fields — source is the GraphQL/curl trigger we fired (not Raw Mongo).
+
+    Validation column mirrors the QA ActivateFamily sheet (N = informational /
+    compare when trigger capture exists; never fail solely because Raw is absent).
+    """
+    trigger = "Trigger"
+    api = "GraphQL curl / event trigger"
     return [
         MappingField(
             "xCorrelationId", "", "", "",
-            "Source: mtconnect-api → xCorrelationId", "", "N",
-            "xCorrelationId", "Raw", "envelope", "event",
+            "Source: x-correlation-id header we sent on the trigger", "", "Y",
+            "xCorrelationId", trigger, api, "event",
         ),
         MappingField(
             "eventId", "", "", "",
-            "Source: mtconnect-api → eventId", "", "N",
-            "eventId", "Raw", "envelope", "event",
+            "Source: eventId from trigger / service", "", "N",
+            "eventId", trigger, api, "event",
+        ),
+        MappingField(
+            "eventVersion", "", "", "",
+            "Source: eventVersion from trigger envelope", "", "N",
+            "eventVersion", trigger, api, "event",
+        ),
+        MappingField(
+            "occurredAt", "", "", "",
+            "Source: occurredAt from trigger envelope", "", "N",
+            "occurredAt", trigger, api, "event",
         ),
         MappingField(
             "source", "operation", "", "",
-            f"Source: raw envelope → {operation}", "", "N",
-            "source.operation", "Raw", "envelope", "event",
+            f"Source: GraphQL mutation → {operation}", "", "Y",
+            "source.operation", trigger, api, "event",
+        ),
+        MappingField(
+            "source", "service", "", "",
+            "Source: trigger service (mtconnect-api)", "", "Y",
+            "source.service", trigger, api, "event",
+        ),
+        MappingField(
+            "source", "operationState", "", "",
+            "Source: mutation success → operationState", "", "Y",
+            "source.operationState", trigger, api, "event",
+        ),
+        MappingField(
+            "source", "operationIndex", "", "",
+            "Source: trigger batch index (usually 0)", "", "N",
+            "source.operationIndex", trigger, api, "event",
+        ),
+        MappingField(
+            "source", "platform", "", "",
+            "Source: trigger platform (nextGen)", "", "Y",
+            "source.platform", trigger, api, "event",
+        ),
+        MappingField(
+            "source", "platformEnvironment", "", "",
+            "Source: trigger platformEnvironment (web)", "", "Y",
+            "source.platformEnvironment", trigger, api, "event",
+        ),
+        MappingField(
+            "source", "platformVersion", "", "",
+            "Source: trigger platformVersion", "", "N",
+            "source.platformVersion", trigger, api, "event",
+        ),
+        MappingField(
+            "source", "actorUserAgent", "", "",
+            "Source: User-Agent header on the GraphQL curl", "", "Y",
+            "source.actorUserAgent", trigger, api, "event",
+        ),
+        MappingField(
+            "source", "type", "", "",
+            "Source: trigger source.type[]", "", "N",
+            "source.type", trigger, api, "event",
         ),
     ]
 

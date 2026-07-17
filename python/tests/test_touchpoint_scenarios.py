@@ -54,10 +54,28 @@ def test_scenario_catalog_covers_activate_family_paths():
     ids = {s["id"] for s in list_scenarios() if s["operation"] == "activateFamily"}
     assert "activateFamily::List (FONTLIST)" in ids
     assert "activateFamily::Favourite" in ids
-    assert "activateFamily::Search/ Family / Discovery" in ids
+    assert "activateFamily::Discovery/Browse (global)" in ids
+    # Search is an alias of Discovery — must not appear as a second catalog entry
+    assert "activateFamily::Search/ Family / Discovery" not in ids
+    labels = {s["label"] for s in list_scenarios() if s["operation"] == "activateFamily"}
+    assert "activateFamily(global)" in labels
+    assert "activateFamily(favourite)" in labels
+    assert "activateFamily(list)" in labels
+
+
+def test_expand_search_alias_collapses_to_global():
+    chosen = expand_selection_to_scenarios(
+        ["activateFamily::Search/ Family / Discovery", "activateFamily::Discovery/Browse (global)"]
+    )
+    assert len(chosen) == 1
+    assert chosen[0]["touchpoint"] == "Discovery/Browse (global)"
+    assert chosen[0]["label"] == "activateFamily(global)"
 
 
 def test_expand_bare_op_expands_all_touchpoints():
     chosen = expand_selection_to_scenarios(["activateFamily"])
     assert len(chosen) >= 5
     assert all(c["operation"] == "activateFamily" for c in chosen)
+    # No duplicate globals
+    labels = [c["label"] for c in chosen]
+    assert labels.count("activateFamily(global)") == 1

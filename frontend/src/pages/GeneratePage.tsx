@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import JsonTree from "../components/JsonTree";
+import VerifyInUiModal, { type VerifyInUiContext } from "../components/VerifyInUiModal";
 import {
   fetchCategories,
   fetchCoverage,
@@ -13,13 +14,13 @@ import {
   fetchPipelineConfig,
   fetchTokenStatus,
   refreshToken,
+  applyTokenCredentials,
   setPipelineTarget,
   sendCustomPayload,
   startGenerate,
   type CategoryReport,
   type CoverageReport,
   type DefaultPayload,
-  type GenerateRunOpStatus,
   type GenerateRunReport,
   type GenerateScenarioStatus,
   type Job,
@@ -94,6 +95,45 @@ function EventJsonCell({
       )}
     </div>
   );
+}
+
+/** Compact touchpoint for status/CSV: activateFamily(global), activateFamily(list), … */
+function shortTouchpoint(touch?: string | null): string {
+  if (!touch) return "";
+  const t = touch.toLowerCase().replace(/\//g, " ").replace(/>/g, " ").replace(/\s+/g, " ").trim();
+  if ((t.includes("search") && t.includes("discover")) || t.includes("discover") || t.includes("browse") || t === "global") {
+    if (!t.includes("list") && !t.includes("project")) return "global";
+  }
+  if (t.includes("favourite") || t.includes("favorite")) return "favourite";
+  if (t.includes("project") && t.includes("list")) return "project_list";
+  if (t === "project" || t.startsWith("project ")) return "project";
+  if (t.includes("list") || t.includes("fontlist")) return "list";
+  return t.replace(/\s+/g, "_") || "global";
+}
+
+function scenarioDisplayName(operation: string, touchpoint?: string | null): string {
+  const short = shortTouchpoint(touchpoint);
+  return short ? `${operation}(${short})` : operation;
+}
+
+type ScenarioRow = GenerateScenarioStatus;
+
+/** Collapse Search/Family/Discovery + Discovery/Browse into one row per short label. */
+function dedupeScenarioRows(scenarios: ScenarioRow[]): ScenarioRow[] {
+  const byKey = new Map<string, ScenarioRow>();
+  for (const s of scenarios) {
+    const key = scenarioDisplayName(s.operation, s.touchpoint);
+    const prev = byKey.get(key);
+    if (!prev) {
+      byKey.set(key, s);
+      continue;
+    }
+    // Prefer the row that actually landed raw/enrich JSON
+    const prevScore = (prev.raw ? 2 : 0) + (prev.enriched ? 1 : 0) + (prev.status === "PASS" ? 1 : 0);
+    const nextScore = (s.raw ? 2 : 0) + (s.enriched ? 1 : 0) + (s.status === "PASS" ? 1 : 0);
+    if (nextScore > prevScore) byKey.set(key, s);
+  }
+  return [...byKey.values()];
 }
 
 function OpListModal({
@@ -313,7 +353,7 @@ function OperationDropdown({ options, selected, onToggle, onSelectAll, onClear }
                             checked={selected.has(o.id)}
                             onChange={() => onToggle(o.id)}
                           />
-                          <span>{o.touchpoint || o.label}</span>
+                          <span>{shortTouchpoint(o.touchpoint) || o.touchpoint || o.label}</span>
                           {(o.steps?.length ?? 0) > 1 && (
                             <span className="muted steps-hint" title={o.steps?.join(" → ")}>
                               {o.steps!.length} steps
@@ -553,6 +593,15 @@ export default function GeneratePage() {
   const [pipeline, setPipeline] = useState<PipelineConfig | null>(null);
   const [token, setToken] = useState<TokenStatus | null>(null);
   const [tokenBusy, setTokenBusy] = useState(false);
+  const [credOpen, setCredOpen] = useState(false);
+  const [credBusy, setCredBusy] = useState(false);
+  const [credError, setCredError] = useState("");
+  const [credForm, setCredForm] = useState({
+    username: "",
+    password: "",
+    org: "",
+    gcid: "",
+  });
   const [coverage, setCoverage] = useState<CoverageReport | null>(null);
   const [opStats, setOpStats] = useState<OperationStats | null>(null);
   const [categories, setCategories] = useState<CategoryReport | null>(null);
@@ -566,6 +615,7 @@ export default function GeneratePage() {
   const [lastRunBusy, setLastRunBusy] = useState(false);
   const [showLastRun, setShowLastRun] = useState(false);
   const [listModal, setListModal] = useState<ListModalState | null>(null);
+  const [verifyCtx, setVerifyCtx] = useState<VerifyInUiContext | null>(null);
   const [targetBusy, setTargetBusy] = useState(false);
   const logRef = useRef<HTMLPreElement>(null);
 
@@ -610,6 +660,17 @@ export default function GeneratePage() {
     return m;
   }, [sources]);
 
+  function chipLabel(id: string): string {
+    const known = labelById.get(id);
+    if (known) return known;
+    // Collapse Search/Family/Discovery → activateFamily(global) for stale selections
+    const sep = id.indexOf("::");
+    if (sep > 0) {
+      return scenarioDisplayName(id.slice(0, sep), id.slice(sep + 2));
+    }
+    return id;
+  }
+
   function toggleSourceKind(kind: string) {
     setSourceKinds((prev) => {
       const next = new Set(prev);
@@ -626,6 +687,38 @@ export default function GeneratePage() {
       setToken(await refreshToken());
     } finally {
       setTokenBusy(false);
+    }
+  }
+
+  function openCredentialsEditor() {
+    const c = token?.credentials;
+    setCredForm({
+      username: c?.username || token?.email || "",
+      password: "",
+      org: c?.org || token?.org || "",
+      gcid: c?.gcid || token?.gcid || "",
+    });
+    setCredError("");
+    setCredOpen(true);
+  }
+
+  async function onApplyCredentials(e: FormEvent) {
+    e.preventDefault();
+    setCredBusy(true);
+    setCredError("");
+    try {
+      const next = await applyTokenCredentials({
+        username: credForm.username.trim(),
+        password: credForm.password,
+        org: credForm.org.trim() || undefined,
+        gcid: credForm.gcid.trim() || undefined,
+      });
+      setToken(next);
+      setCredOpen(false);
+    } catch (err) {
+      setCredError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCredBusy(false);
     }
   }
 
@@ -741,54 +834,59 @@ export default function GeneratePage() {
   const isValidateMode = Boolean(
     runReport?.validate ?? (showLastRun ? lastRun?.validate : job?.params?.validate),
   );
+  const statusScenarios = useMemo(
+    () => dedupeScenarioRows(runReport?.scenarios || []),
+    [runReport?.scenarios],
+  );
+  const scenarioSummary = useMemo(() => {
+    if (!statusScenarios.length) return null;
+    const pass = statusScenarios.filter((s) => String(s.status).toUpperCase() === "PASS").length;
+    const fail = statusScenarios.filter((s) => String(s.status).toUpperCase() === "FAIL").length;
+    const na = statusScenarios.length - pass - fail;
+    return { pass, fail, na, total: statusScenarios.length };
+  }, [statusScenarios]);
+  const scenariosWithLanding = statusScenarios.filter((s) => s.raw || s.enriched).length;
+  const opsWithLanding = (runReport?.operations || []).filter((o) => o.raw || o.enriched).length;
+  const openOpsSummary =
+    !(runReport?.scenarios?.length) || scenariosWithLanding === 0;
+
+  function jsonCell(data: unknown): string {
+    if (!data) return "";
+    try {
+      return JSON.stringify(data);
+    } catch {
+      return "";
+    }
+  }
 
   function exportStatusCsv() {
     if (!runReport) return;
-    if (runReport.scenarios?.length) {
-      const headers = isValidateMode
-        ? ["operation", "touchpoint", "status", "raw", "enrich", "xCorrelationId", "steps", "error"]
-        : ["operation", "touchpoint", "raw", "enrich", "xCorrelationId", "steps"];
-      const rows = runReport.scenarios.map((s: GenerateScenarioStatus) =>
-        isValidateMode
-          ? [
-              s.operation,
-              s.touchpoint,
-              s.status,
-              s.raw ? "yes" : "no",
-              s.enriched ? "yes" : "no",
-              s.xCorrelationId || "",
-              (s.steps || []).join(" > "),
-              s.error || "",
-            ]
-          : [
-              s.operation,
-              s.touchpoint,
-              s.raw ? "yes" : "no",
-              s.enriched ? "yes" : "no",
-              s.xCorrelationId || "",
-              (s.steps || []).join(" > "),
-            ],
-      );
-      downloadCsv(`generate-status-${isValidateMode ? "validate" : "generate"}.csv`, headers, rows);
-      return;
-    }
+    const rows: string[][] = [];
     const headers = isValidateMode
-      ? ["operation", "status", "raw", "enrich", "match", "remark", "xCorrelationId"]
-      : ["operation", "raw", "enrich", "xCorrelationId"];
-    const rows = (runReport.operations || []).map((o: GenerateRunOpStatus) => {
-      const ui = o.ui_status || (o.status === "success" ? "PASS" : o.status === "no_correlation" ? "N/A" : "FAIL");
-      return isValidateMode
-        ? [
-            o.operation,
-            ui,
-            o.raw ? "yes" : "no",
-            o.enriched ? "yes" : "no",
-            o.pairing_method || "",
-            o.remark || o.status || "",
-            o.xCorrelationId || "",
-          ]
-        : [o.operation, o.raw ? "yes" : "no", o.enriched ? "yes" : "no", o.xCorrelationId || ""];
-    });
+      ? ["operation", "raw", "enrich", "status", "remark"]
+      : ["operation", "raw", "enrich"];
+    const scenarioRows = dedupeScenarioRows(runReport.scenarios || []);
+    if (scenarioRows.length > 0) {
+      for (const s of scenarioRows) {
+        const name = scenarioDisplayName(s.operation, s.touchpoint);
+        const base = [name, jsonCell(s.raw_event), jsonCell(s.enriched_event)];
+        rows.push(
+          isValidateMode ? [...base, s.status || "", s.error || ""] : base,
+        );
+      }
+    } else {
+      for (const o of runReport.operations || []) {
+        const ui =
+          o.ui_status ||
+          (o.status === "success" ? "PASS" : o.status === "no_correlation" ? "N/A" : o.status || "");
+        const base = [o.operation, jsonCell(o.raw_event), jsonCell(o.enriched_event)];
+        rows.push(
+          isValidateMode
+            ? [...base, ui, o.remark || o.trigger_error || ""]
+            : base,
+        );
+      }
+    }
     downloadCsv(`generate-status-${isValidateMode ? "validate" : "generate"}.csv`, headers, rows);
   }
 
@@ -904,12 +1002,86 @@ export default function GeneratePage() {
           <span className={`compact-token ${!token.present || token.expired ? "warn" : "ok"}`}>
             ● token {!token.present ? "missing" : token.expired ? "expired" : "valid"}
             {token.expires_in_hours != null && !token.expired ? ` ${token.expires_in_hours}h` : ""}
+            {token.email ? ` · ${token.email}` : ""}
             <button type="button" className="link-btn" disabled={tokenBusy} onClick={onRefreshToken}>
               {tokenBusy ? "…" : "refresh"}
+            </button>
+            <button type="button" className="link-btn" onClick={openCredentialsEditor}>
+              edit
             </button>
           </span>
         )}
       </div>
+
+      {credOpen && (
+        <div className="modal-backdrop" role="presentation" onClick={() => !credBusy && setCredOpen(false)}>
+          <div
+            className="modal-card token-cred-modal"
+            role="dialog"
+            aria-label="Edit OAuth credentials"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="modal-head">
+              <h3>Bearer credentials</h3>
+              <button type="button" className="link-btn" disabled={credBusy} onClick={() => setCredOpen(false)}>
+                close
+              </button>
+            </header>
+            <p className="muted small">
+              Generate a fresh Bearer via OAuth password grant. Just username + password is enough —
+              org &amp; gcid are read back from the token's JWT claims and drive actor validation and
+              x-correlation-id scoping. Only set org/gcid below to force a specific organisation.
+            </p>
+            <form className="token-cred-form" onSubmit={onApplyCredentials}>
+              <label>
+                Username / email
+                <input
+                  value={credForm.username}
+                  onChange={(e) => setCredForm((f) => ({ ...f, username: e.target.value }))}
+                  autoComplete="username"
+                  required
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  type="password"
+                  value={credForm.password}
+                  onChange={(e) => setCredForm((f) => ({ ...f, password: e.target.value }))}
+                  autoComplete="current-password"
+                  required
+                  placeholder={token?.credentials?.has_password === "1" ? "••••••••" : ""}
+                />
+              </label>
+              <label>
+                Org <span className="muted">(optional)</span>
+                <input
+                  value={credForm.org}
+                  onChange={(e) => setCredForm((f) => ({ ...f, org: e.target.value }))}
+                  placeholder="auto from token"
+                />
+              </label>
+              <label>
+                GCID <span className="muted">(optional)</span>
+                <input
+                  value={credForm.gcid}
+                  onChange={(e) => setCredForm((f) => ({ ...f, gcid: e.target.value }))}
+                  placeholder="auto from token"
+                />
+              </label>
+              {credError && <p className="error small">{credError}</p>}
+              <div className="modal-actions">
+                <button type="button" disabled={credBusy} onClick={() => setCredOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="primary" disabled={credBusy}>
+                  {credBusy ? "Generating…" : "Generate token"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <OpListModal state={listModal} onClose={() => setListModal(null)} />
 
@@ -968,7 +1140,7 @@ export default function GeneratePage() {
                 ✎
               </button>
               <button type="button" className="chip-remove" onClick={() => toggle(id)}>
-                {labelById.get(id) ?? id} ✕
+                {chipLabel(id)} ✕
               </button>
             </span>
           ))}
@@ -978,7 +1150,7 @@ export default function GeneratePage() {
       {editItem && (
         <PayloadEditor
           itemId={editItem}
-          label={labelById.get(editItem) ?? editItem}
+          label={chipLabel(editItem)}
           onClose={() => setEditItem(null)}
           onGenerateScenario={(id) => run(false, [id])}
         />
@@ -1019,94 +1191,116 @@ export default function GeneratePage() {
             <span className="routing-tag">{isValidateMode ? "generate + validate" : "generate only"}</span>
             {isValidateMode && (
               <>
-                <span className="ok">PASS: {runReport.summary?.pass ?? runReport.summary?.success ?? 0}</span>
-                <span className="warn">FAIL: {runReport.summary?.fail ?? runReport.summary?.needs_work ?? 0}</span>
-                <span className="muted">N/A: {runReport.summary?.na ?? 0}</span>
+                <span className="ok">
+                  PASS: {scenarioSummary?.pass ?? runReport.summary?.pass ?? runReport.summary?.success ?? 0}
+                </span>
+                <span className="warn">
+                  FAIL: {scenarioSummary?.fail ?? runReport.summary?.fail ?? runReport.summary?.needs_work ?? 0}
+                </span>
+                <span className="muted">
+                  N/A: {scenarioSummary?.na ?? runReport.summary?.na ?? 0}
+                </span>
               </>
             )}
             {!isValidateMode && (
               <span className="muted">
-                {runReport.scenarios?.length ?? runReport.operations?.length ?? 0} event(s) · raw/enrich landing only
+                scenarios {statusScenarios.length || runReport.scenarios?.length || 0} · landed {scenariosWithLanding} ·
+                ops with JSON {opsWithLanding}
               </span>
             )}
-            {runReport.summary?.total != null && isValidateMode && (
-              <span className="muted">/ {runReport.summary.total}</span>
+            {(scenarioSummary?.total ?? runReport.summary?.total) != null && isValidateMode && (
+              <span className="muted">/ {scenarioSummary?.total ?? runReport.summary?.total}</span>
             )}
             <button type="button" className="link-btn" onClick={exportStatusCsv}>
               Export CSV
             </button>
           </div>
-          {(runReport.scenarios?.length ?? 0) > 0 && (
+          {scenariosWithLanding === 0 && (runReport.scenarios?.length ?? 0) > 0 && (
+            <p className="warn small">
+              No scenario raw/enrich JSON yet — triggers likely failed.
+              Check Operation-level Mongo summary below for any landed events.
+            </p>
+          )}
+          {(statusScenarios.length > 0) && (
             <div className="result-table-wrap compact-table-wrap generate-status-table">
               <table className="result-table scenario-status-table">
                 <thead>
                   <tr>
-                    <th>Scenario / touchpoint</th>
-                    {isValidateMode && <th>Status</th>}
+                    <th>Operation</th>
                     <th>Raw</th>
                     <th>Enrich</th>
-                    <th>x-correlation-id</th>
-                    <th>Flow / input</th>
+                    {isValidateMode && (
+                      <>
+                        <th>Status</th>
+                        <th>Remark</th>
+                      </>
+                    )}
+                    <th>UI</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {runReport.scenarios?.map((s) => (
+                  {statusScenarios.map((s) => (
                     <tr key={`${s.scenario_id}-${s.xCorrelationId || ""}`}>
-                      <td>
-                        <code>{s.operation}</code>
-                        <div className="muted">{s.touchpoint}</div>
-                        {(s.steps?.length ?? 0) > 0 && (
-                          <div className="muted small">{s.steps!.join(" → ")}</div>
-                        )}
-                      </td>
-                      {isValidateMode && (
-                        <td>
-                          <span className={`status-pill ${s.status === "PASS" ? "completed" : "failed"}`}>
-                            {s.status}
-                          </span>
-                          {s.error && <div className="error small">{s.error}</div>}
-                        </td>
-                      )}
+                      <td><code>{scenarioDisplayName(s.operation, s.touchpoint)}</code></td>
                       <td>
                         <EventJsonCell label="raw" present={s.raw} data={s.raw_event} />
                       </td>
                       <td>
                         <EventJsonCell label="enrich" present={s.enriched} data={s.enriched_event} />
                       </td>
-                      <td className="cid-cell">
-                        {s.xCorrelationId ? (
-                          <>
-                            <code>{s.xCorrelationId}</code>
-                            <button
-                              type="button"
-                              className="link-btn"
-                              onClick={() => navigator.clipboard.writeText(String(s.xCorrelationId))}
-                            >
-                              copy
-                            </button>
-                          </>
-                        ) : "—"}
+                      {isValidateMode && (
+                        <>
+                          <td>
+                            <span className={`status-pill ${s.status === "PASS" ? "completed" : "failed"}`}>
+                              {s.status}
+                            </span>
+                          </td>
+                          <td className="remark-cell">{s.error || "—"}</td>
+                        </>
+                      )}
+                      <td>
+                        <button
+                          type="button"
+                          className="link-btn"
+                          onClick={() =>
+                            setVerifyCtx({
+                              operation: s.operation,
+                              touchpoint: s.touchpoint,
+                              scenarioId: s.scenario_id,
+                              correlationId: s.xCorrelationId || undefined,
+                            })
+                          }
+                        >
+                          Verify in UI
+                        </button>
                       </td>
-                      <td><pre className="input-preview">{JSON.stringify(s.input || {}, null, 2)}</pre></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-          <details className="operation-summary-details" open={!runReport.scenarios?.length}>
-            <summary>Operation-level Mongo summary</summary>
+          {verifyCtx && (
+            <VerifyInUiModal context={verifyCtx} onClose={() => setVerifyCtx(null)} />
+          )}
+          <details className="operation-summary-details" open={openOpsSummary}>
+            <summary>
+              Operation-level Mongo summary
+              {opsWithLanding > 0 ? ` · ${opsWithLanding} with raw/enrich JSON` : ""}
+            </summary>
             <div className="result-table-wrap compact-table-wrap generate-status-table">
               <table className="result-table">
                 <thead>
                   <tr>
                     <th>Operation</th>
-                    {isValidateMode && <th>Status</th>}
                     <th>Raw</th>
                     <th>Enrich</th>
-                    {isValidateMode && <th>Match</th>}
-                    {isValidateMode && <th>Remark</th>}
-                    {!isValidateMode && <th>x-correlation-id</th>}
+                    {isValidateMode && (
+                      <>
+                        <th>Status</th>
+                        <th>Remark</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -1115,9 +1309,6 @@ export default function GeneratePage() {
                     return (
                       <tr key={`${o.operation}-${o.xCorrelationId || index}`}>
                         <td><code>{o.operation}</code></td>
-                        {isValidateMode && (
-                          <td><span className={`status-pill ${ui === "PASS" ? "completed" : ui === "N/A" ? "pending" : "failed"}`}>{ui}</span></td>
-                        )}
                         <td>
                           <EventJsonCell label="raw" present={o.raw} data={o.raw_event} />
                         </td>
@@ -1125,23 +1316,14 @@ export default function GeneratePage() {
                           <EventJsonCell label="enrich" present={o.enriched} data={o.enriched_event} />
                         </td>
                         {isValidateMode && (
-                          <td className="muted">{o.pairing_method || (o.xCorrelationId ? "owned_cid" : "—")}</td>
-                        )}
-                        {isValidateMode && (
-                          <td className="remark-cell">
-                            {o.remark || o.status}
-                            {o.xCorrelationId && (
-                              <>
-                                <div><code>{String(o.xCorrelationId)}</code></div>
-                                <button type="button" className="link-btn" onClick={() => navigator.clipboard.writeText(String(o.xCorrelationId))}>copy cid</button>
-                              </>
-                            )}
-                          </td>
-                        )}
-                        {!isValidateMode && (
-                          <td className="cid-cell">
-                            {o.xCorrelationId ? <code>{o.xCorrelationId}</code> : "—"}
-                          </td>
+                          <>
+                            <td>
+                              <span className={`status-pill ${ui === "PASS" ? "completed" : ui === "N/A" ? "pending" : "failed"}`}>
+                                {ui}
+                              </span>
+                            </td>
+                            <td className="remark-cell">{o.remark || o.trigger_error || o.status || "—"}</td>
+                          </>
                         )}
                       </tr>
                     );

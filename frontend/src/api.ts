@@ -71,6 +71,13 @@ export type TokenStatus = {
   can_regenerate?: boolean;
   message?: string;
   error?: string;
+  credentials?: {
+    username?: string;
+    org?: string;
+    gcid?: string;
+    email?: string;
+    has_password?: string;
+  };
 };
 
 export type CoverageRow = {
@@ -190,6 +197,7 @@ export type ComparableOperation = {
   environment: string;
   service: string;
   occurred_at?: string;
+  touchpoint?: boolean;
 };
 
 export async function fetchComparableOperations() {
@@ -216,6 +224,20 @@ export async function fetchLatestResults() {
   }>;
 }
 
+export async function deleteLatestResult(operation: string) {
+  const res = await fetch(`${API}/api/results/latest/${encodeURIComponent(operation)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{ deleted: string; ok: boolean }>;
+}
+
+export async function clearAllResults() {
+  const res = await fetch(`${API}/api/results/latest`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{ removed: number; ok: boolean }>;
+}
+
 export async function fetchOperations() {
   const res = await fetch(`${API}/api/meta/operations`);
   return res.json() as Promise<{ operations: string[] }>;
@@ -239,6 +261,24 @@ export async function fetchTokenStatus() {
 export async function refreshToken() {
   const res = await fetch(`${API}/api/token/refresh`, { method: "POST" });
   return res.json() as Promise<TokenStatus>;
+}
+
+export async function applyTokenCredentials(body: {
+  username: string;
+  password: string;
+  org?: string;
+  gcid?: string;
+}) {
+  const res = await fetch(`${API}/api/token/credentials`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json()) as TokenStatus;
+  if (!res.ok) {
+    throw new Error(data.message || data.error || "Failed to generate token");
+  }
+  return data;
 }
 
 export async function fetchCoverage() {
@@ -557,14 +597,46 @@ export async function fetchPayloadCurl(
   return res.json() as Promise<PayloadCurlResult>;
 }
 
-export async function startCompare(operations: string[]) {
+export async function startCompare(
+  operations: string[],
+  fieldPathsByOp?: Record<string, string[]>,
+) {
   const res = await fetch(`${API}/api/jobs/compare`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ operations, sample_source: "fresh" }),
+    body: JSON.stringify({
+      operations,
+      sample_source: "fresh",
+      field_paths_by_op: fieldPathsByOp && Object.keys(fieldPathsByOp).length
+        ? fieldPathsByOp
+        : undefined,
+    }),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<Job>;
+}
+
+export async function fetchEnrichedFields(operation: string) {
+  const res = await fetch(`${API}/api/meta/enriched-fields/${encodeURIComponent(operation)}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{
+    operation: string;
+    fields: string[];
+    count?: number;
+    detail?: string;
+  }>;
+}
+
+export async function fetchEnrichmentScope(operation: string) {
+  const res = await fetch(`${API}/api/meta/enrichment-scope/${encodeURIComponent(operation)}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{
+    operation: string;
+    implementation?: { subject?: boolean; actor?: boolean; scope?: string };
+    enforced?: { subject?: boolean; actor?: boolean; scope?: string };
+    gap?: boolean;
+    detail?: string;
+  }>;
 }
 
 export async function fetchJob(id: string) {

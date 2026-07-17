@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import json
 import os
 import sys
 import threading
@@ -289,11 +290,23 @@ class AuditBridge:
         thread.start()
         return job
 
-    def start_compare(self, operations: list[str], sample_source: str = "fresh") -> JobRecord:
-        job = self.store.create("compare", {"operations": operations, "sample_source": sample_source})
+    def start_compare(
+        self,
+        operations: list[str],
+        sample_source: str = "fresh",
+        field_paths_by_op: dict[str, list[str]] | None = None,
+    ) -> JobRecord:
+        job = self.store.create(
+            "compare",
+            {
+                "operations": operations,
+                "sample_source": sample_source,
+                "field_paths_by_op": field_paths_by_op or {},
+            },
+        )
         thread = threading.Thread(
             target=self._run_compare,
-            args=(job.id, operations, sample_source),
+            args=(job.id, operations, sample_source, field_paths_by_op),
             daemon=True,
         )
         thread.start()
@@ -509,11 +522,17 @@ class AuditBridge:
                     exit_code = max(exit_code, self._run_cron_cases(job_id, cron_cases))
                 if ingress_cases:
                     exit_code = max(exit_code, self._run_ingress_cases(job_id, ingress_cases))
-                self.store.append_log(job_id, "▸ Phase 2: Source validation (UMS / CMS / Discovery)…")
-                val_result = self._run_source_validation(job_id, resolved_ops)
+                self.store.append_log(job_id, "▸ Phase 2: Wait for scenario events in Mongo…")
+                self._verify_scenario_results(scenario_results, wait_sec=75)
+                self.store.append_log(job_id, "▸ Phase 2b: Source validation per touchpoint…")
+                # Per-touchpoint Results rows: activateFamily(global), activateFamily(list), …
+                if scenario_results:
+                    val_result = self._run_scenario_source_validation(job_id, scenario_results)
+                else:
+                    val_result = self._run_source_validation(job_id, resolved_ops)
                 ingest_status = self._ensure_ingestion(job_id)
                 mongo_status = self._verify_mongo(job_id, resolved_ops)
-                self._verify_scenario_results(scenario_results)
+                self._verify_scenario_results(scenario_results, wait_sec=0)
                 mongo_status["scenarios"] = scenario_results
                 mongo_status["validate"] = True
                 mongo_status["ingestion"] = ingest_status
@@ -523,9 +542,14 @@ class AuditBridge:
                     save_generate_run(mongo_status, project_root=self.project_root)
                 except Exception:  # noqa: BLE001
                     pass
+                sc_fail = sum(
+                    1 for s in scenario_results if str(s.get("status") or "").upper() == "FAIL"
+                )
                 self.store.update(
                     job_id,
-                    status=JobStatus.COMPLETED if exit_code == 0 and val_result.get("failed", 0) == 0 else JobStatus.FAILED,
+                    status=JobStatus.COMPLETED
+                    if exit_code == 0 and val_result.get("failed", 0) == 0 and sc_fail == 0
+                    else JobStatus.FAILED,
                     finished_at=_now(),
                     result={
                         "exit_code": exit_code,
@@ -533,7 +557,9 @@ class AuditBridge:
                         "mongo": mongo_status,
                         "token": token_status,
                     },
-                    error=None if exit_code == 0 and val_result.get("failed", 0) == 0 else "Pipeline or validation failed",
+                    error=None
+                    if exit_code == 0 and val_result.get("failed", 0) == 0 and sc_fail == 0
+                    else "Pipeline or validation failed",
                 )
                 return
             else:
@@ -582,32 +608,49 @@ class AuditBridge:
         finally:
             root_logger.removeHandler(handler)
 
-    def _verify_scenario_results(self, scenarios: list[dict[str, Any]]) -> None:
+    def _verify_scenario_results(
+        self, scenarios: list[dict[str, Any]], *, wait_sec: float = 0
+    ) -> None:
         """Attach raw/enriched landing state (+ JSON bodies) to each scenario correlation."""
         if not self.db:
             return
+        import time
+
         from audit_validator.generate_run_report import _event_for_report
 
+        deadline = time.monotonic() + max(wait_sec, 0)
+        pending = [s for s in scenarios if s.get("xCorrelationId") and s.get("operation")]
+        while pending:
+            still: list[dict[str, Any]] = []
+            for scenario in pending:
+                cid = str(scenario.get("xCorrelationId") or "")
+                op = str(scenario.get("operation") or "")
+                try:
+                    raw, enriched = self.db.latest_pair(
+                        op, require_pair=False, correlation_id=cid
+                    )
+                    scenario["raw"] = bool(raw)
+                    scenario["enriched"] = bool(enriched)
+                    scenario["raw_event"] = _event_for_report(raw)
+                    scenario["enriched_event"] = _event_for_report(enriched)
+                    if not (raw and enriched) and time.monotonic() < deadline:
+                        still.append(scenario)
+                except Exception:
+                    scenario["raw"] = False
+                    scenario["enriched"] = False
+                    scenario["raw_event"] = None
+                    scenario["enriched_event"] = None
+                    if time.monotonic() < deadline:
+                        still.append(scenario)
+            if not still or time.monotonic() >= deadline:
+                break
+            time.sleep(min(5.0, max(deadline - time.monotonic(), 0.5)))
+            pending = still
+
         for scenario in scenarios:
-            cid = str(scenario.get("xCorrelationId") or "")
-            op = str(scenario.get("operation") or "")
-            if not cid or not op:
+            if "raw" not in scenario:
                 scenario.setdefault("raw", False)
                 scenario.setdefault("enriched", False)
-                continue
-            try:
-                raw, enriched = self.db.latest_pair(
-                    op, require_pair=False, correlation_id=cid
-                )
-                scenario["raw"] = bool(raw)
-                scenario["enriched"] = bool(enriched)
-                scenario["raw_event"] = _event_for_report(raw)
-                scenario["enriched_event"] = _event_for_report(enriched)
-            except Exception:
-                scenario["raw"] = False
-                scenario["enriched"] = False
-                scenario["raw_event"] = None
-                scenario["enriched_event"] = None
 
     def _run_touchpoint_scenarios(
         self, job_id: str, selection: list[str]
@@ -619,6 +662,25 @@ class AuditBridge:
         from audit_validator.touchpoint.payloads import FLOW_DEFS
         from audit_validator.touchpoint.scenarios import expand_selection_to_scenarios
         from audit_validator.simulation.touchpoint_runner import run_scenario
+
+        # Re-read auth/context from .env each run (uvicorn does not reload .env on edit).
+        try:
+            from dotenv import dotenv_values
+
+            disk = dotenv_values(self.project_root / ".env") or {}
+            for key in (
+                "BEARER_TOKEN",
+                "NEXTGEN_BEARER_TOKEN",
+                "OAUTH_GCID",
+                "OAUTH_ORG",
+                "GRAPHQL_CONTEXT_CUSTOMER_ID",
+                "GRAPHQL_USE_CUSTOMER_CONTEXT",
+                "GRAPHQL_SEND_OWN_CONTEXT_HEADER",
+            ):
+                if key in disk:
+                    os.environ[key] = str(disk.get(key) or "")
+        except Exception:  # noqa: BLE001
+            pass
 
         scenarios = expand_selection_to_scenarios(selection)
         if not scenarios:
@@ -690,6 +752,7 @@ class AuditBridge:
                     "status": result.status,
                     "xCorrelationId": result.correlation_id,
                     "input": target_step.get("input") or {},
+                    "graphql_response": target_step.get("response") or {},
                     "error": result.error,
                     "raw": False,
                     "enriched": False,
@@ -697,6 +760,41 @@ class AuditBridge:
                     "enriched_event": None,
                 }
             )
+            # Persist mutation response + trigger context for source validation
+            resp = target_step.get("response")
+            try:
+                from audit_validator.auth import jwt_identity
+                from audit_validator.simulation.trigger_context import (
+                    build_trigger_context,
+                    save_trigger_context,
+                )
+                from audit_validator.touchpoint.scenarios import scenario_display_name as _sdn
+
+                display = _sdn(op, touch)
+                gql_dir = self.project_root / "payload" / "graphql"
+                gql_dir.mkdir(parents=True, exist_ok=True)
+                if isinstance(resp, dict) and resp:
+                    (gql_dir / f"{op}.json").write_text(
+                        json.dumps(resp, indent=2, default=str),
+                        encoding="utf-8",
+                    )
+                    (gql_dir / f"{display}.json").write_text(
+                        json.dumps(resp, indent=2, default=str),
+                        encoding="utf-8",
+                    )
+                ctx = build_trigger_context(
+                    operation=op,
+                    correlation_id=result.correlation_id,
+                    graphql_response=resp if isinstance(resp, dict) else {},
+                    graphql_input=target_step.get("input") if isinstance(target_step.get("input"), dict) else {},
+                    user_agent=getattr(cfg, "nextgen_user_agent", None),
+                    jwt_identity=jwt_identity(),
+                    success=result.status == "PASS",
+                )
+                save_trigger_context(self.project_root, op, ctx)
+                save_trigger_context(self.project_root, display, ctx)
+            except Exception as exc:  # noqa: BLE001
+                self.store.append_log(job_id, f"  ⚠ Could not save trigger context for {op}: {exc}")
             if result.correlation_id:
                 record_generation(
                     op,
@@ -885,10 +983,107 @@ class AuditBridge:
         )
         return 1 if run.fail_count else 0
 
-    def _run_source_validation(self, job_id: str, operations: list[str]) -> dict[str, Any]:
-        ops = self._stage_mongo_samples(job_id, operations)
-        if not ops:
-            raise RuntimeError("No enriched samples in Mongo for selected operations")
+    def _run_scenario_source_validation(
+        self, job_id: str, scenarios: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Validate each touchpoint scenario under activateFamily(global) etc. for Results."""
+        from audit_validator.touchpoint.scenarios import scenario_display_name
+        from bson import json_util
+
+        enrich_dir = self.project_root / "payload" / "enrich"
+        raw_dir = self.project_root / "payload" / "raw"
+        gql_dir = self.project_root / "payload" / "graphql"
+        enrich_dir.mkdir(parents=True, exist_ok=True)
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        gql_dir.mkdir(parents=True, exist_ok=True)
+
+        display_ops: list[str] = []
+        for sc in scenarios:
+            if str(sc.get("status") or "").upper() != "PASS":
+                continue
+            enriched = sc.get("enriched_event")
+            if not isinstance(enriched, dict) or not enriched:
+                continue
+            display = scenario_display_name(
+                str(sc.get("operation") or ""),
+                sc.get("touchpoint"),
+            )
+            # Safe filename (parentheses OK on macOS/linux)
+            (enrich_dir / f"{display}.json").write_text(
+                json_util.dumps(enriched, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            raw = sc.get("raw_event")
+            if isinstance(raw, dict) and raw:
+                (raw_dir / f"{display}.json").write_text(
+                    json_util.dumps(raw, indent=2, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+            resp = sc.get("graphql_response")
+            if isinstance(resp, dict) and resp:
+                (gql_dir / f"{display}.json").write_text(
+                    json.dumps(resp, indent=2, default=str),
+                    encoding="utf-8",
+                )
+            try:
+                from audit_validator.auth import jwt_identity
+                from audit_validator.simulation.trigger_context import (
+                    build_trigger_context,
+                    save_trigger_context,
+                )
+
+                cfg_ua = None
+                try:
+                    from audit_validator.simulation.config import load_simulation_config
+
+                    cfg_ua = load_simulation_config(self.project_root).nextgen_user_agent
+                except Exception:
+                    pass
+                ctx = build_trigger_context(
+                    operation=str(sc.get("operation") or ""),
+                    correlation_id=str(sc.get("xCorrelationId") or "") or None,
+                    graphql_response=resp if isinstance(resp, dict) else {},
+                    graphql_input=sc.get("input") if isinstance(sc.get("input"), dict) else {},
+                    user_agent=cfg_ua,
+                    jwt_identity=jwt_identity(),
+                    success=True,
+                )
+                save_trigger_context(self.project_root, display, ctx)
+            except Exception as exc:  # noqa: BLE001
+                self.store.append_log(job_id, f"  ⚠ Trigger context for {display}: {exc}")
+            display_ops.append(display)
+            self.store.append_log(job_id, f"  ✓ Staged scenario sample {display}")
+
+        if not display_ops:
+            self.store.append_log(
+                job_id,
+                "⚠ No PASS scenarios with enriched JSON — falling back to operation-level validate",
+            )
+            bare = sorted({str(s.get("operation") or "") for s in scenarios if s.get("operation")})
+            return self._run_source_validation(job_id, [o for o in bare if o])
+
+        return self._run_source_validation(job_id, display_ops, skip_stage=True)
+
+    def _run_source_validation(
+        self,
+        job_id: str,
+        operations: list[str],
+        field_paths_by_op: dict[str, list[str]] | None = None,
+        *,
+        skip_stage: bool = False,
+    ) -> dict[str, Any]:
+        if skip_stage:
+            ops = [o for o in operations if (self.project_root / "payload" / "enrich" / f"{o}.json").is_file()]
+            missing = [o for o in operations if o not in ops]
+            if missing:
+                self.store.append_log(job_id, f"  ⚠ Missing staged enrich for: {', '.join(missing[:8])}")
+            if not ops:
+                raise RuntimeError("No staged enriched samples for selected scenario operations")
+            self.store.append_log(job_id, f"▸ Validating {len(ops)} pre-staged scenario sample(s)…")
+        else:
+            ops = self._stage_mongo_samples(job_id, operations)
+            if not ops:
+                raise RuntimeError("No enriched samples in Mongo for selected operations")
 
         from audit_validator.source_validation.runner import run_source_validation
 
@@ -911,7 +1106,10 @@ class AuditBridge:
                 "value_in_enriched": r.value_in_enriched,
                 "match_status": r.match_status,
                 "notes": r.notes,
-                "routing_key": routing_keys.get(r.operation, ""),
+                "routing_key": routing_keys.get(
+                    str(r.operation).split("(", 1)[0] if "(" in str(r.operation) else r.operation,
+                    "",
+                ),
             }
 
         def _on_operation_rows(operation: str, op_rows: list[Any]) -> None:
@@ -942,6 +1140,7 @@ class AuditBridge:
             sample_source="fresh",
             progress=lambda msg: self.store.append_log(job_id, msg),
             on_operation_rows=_on_operation_rows,
+            field_paths_by_op=field_paths_by_op,
         )
         rows = [_row_dict(r) for r in report.comparison_rows]
         self.store.append_log(
@@ -1008,6 +1207,23 @@ class AuditBridge:
             our_profile = ""
 
         for op in ops:
+            # Touchpoint variants (e.g. activateFamily(global)) don't exist as a
+            # distinct source.operation in Mongo — reuse the enriched sample staged
+            # during the last Generate run so Compare can re-validate them.
+            if "(" in op and op.endswith(")"):
+                staged_file = enriched_dir / f"{op}.json"
+                if staged_file.is_file():
+                    staged.append(op)
+                    self.store.append_log(
+                        job_id, f"  ✓ Using staged touchpoint sample for {op}"
+                    )
+                    continue
+                self.store.append_log(
+                    job_id,
+                    f"  ⚠ Skip {op}: no staged sample — run Generate & validate for this touchpoint first",
+                )
+                missing_pair.append(op)
+                continue
             owned_cid = (
                 get_owned_correlation(op, project_root=self.project_root)
                 if get_owned_correlation
@@ -1106,16 +1322,24 @@ class AuditBridge:
         )
         return staged
 
-    def _run_compare(self, job_id: str, operations: list[str], sample_source: str) -> None:
+    def _run_compare(
+        self,
+        job_id: str,
+        operations: list[str],
+        sample_source: str,
+        field_paths_by_op: dict[str, list[str]] | None = None,
+    ) -> None:
         self.store.update(job_id, status=JobStatus.RUNNING, started_at=_now())
         self.store.append_log(job_id, f"▸ Source validation for {len(operations)} operation(s)…")
+        if field_paths_by_op:
+            n = sum(len(v) for v in field_paths_by_op.values())
+            self.store.append_log(job_id, f"  · Selective attributes: {n} field path(s) across ops")
         try:
-            # Refresh the Bearer BEFORE fetching sources. A stale Discovery/CMS/UMS
-            # token makes every source query return empty, which the comparison would
-            # otherwise report as false FAIL/SKIP ("Typesense response missing field").
             token_status = self._ensure_token(job_id)
             self._warn_on_stale_sources(job_id, token_status)
-            val_result = self._run_source_validation(job_id, operations)
+            val_result = self._run_source_validation(
+                job_id, operations, field_paths_by_op=field_paths_by_op
+            )
             val_result["token"] = token_status
             self.store.update(
                 job_id,

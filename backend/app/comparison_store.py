@@ -123,3 +123,28 @@ def list_latest(project_root: Path) -> dict[str, Any]:
 def get_latest_operation(project_root: Path, operation: str) -> dict[str, Any] | None:
     data = _load(_store_path(project_root))
     return data.get(operation)
+
+
+def delete_operation_result(project_root: Path, operation: str) -> bool:
+    """Remove one operation's stored comparison. Returns True if something was deleted."""
+    path = _store_path(project_root)
+    with _lock:
+        data = _load(path)
+        if operation not in data:
+            return False
+        del data[operation]
+        path.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n",
+            encoding="utf-8",
+        )
+    return True
+
+
+def clear_all_results(project_root: Path) -> int:
+    """Delete every stored comparison. Returns the number of operations removed."""
+    path = _store_path(project_root)
+    with _lock:
+        data = _load(path)
+        count = len(data)
+        path.write_text("{}\n", encoding="utf-8")
+    return count

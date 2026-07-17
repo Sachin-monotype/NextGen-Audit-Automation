@@ -143,10 +143,9 @@ def _row(
     sv = normalize_compare(source_val) if isinstance(source_val, (dict, list)) else _norm(source_val)
     ev = normalize_compare(enriched_val) if isinstance(enriched_val, (dict, list)) else _norm(enriched_val)
     # Enricher constants / non-probed upstreams: accept the enriched value (echo PASS).
-    # These are not CMS/UMS/AMS columns — e.g. customer.source = "customer-management-service".
+    # Do NOT include Raw/GraphQL here — those must compare to the mutation response.
     _ACCEPT_ECHO = {
         "Resolver",
-        "Raw",
         "Unknown",
         "Audit service",
         "BYOF-License",
@@ -577,12 +576,33 @@ def _resolve_source_value(
             return _ams_value(path, ams), live.get("ams_error") or ""
         return None, live.get("ams_error") or ""
 
-    if spec.source_system == "Raw":
-        # Prefer mutation input / subject.id for join-key lists (familyIds, styleIds…).
+    if spec.source_system in {"Raw", "GraphQL", "Trigger"}:
+        # Prefer captured trigger context (correlation + request we sent + mutation response).
+        trigger = live.get("trigger")
+        if isinstance(trigger, dict) and trigger:
+            from_trigger = _trigger_value(path, trigger, enriched)
+            if from_trigger is not None:
+                return from_trigger, "GraphQL curl / event trigger"
+        gql = live.get("graphql_response")
+        if isinstance(gql, dict) and gql:
+            from_gql = _graphql_response_value(path, gql, enriched)
+            if from_gql is not None:
+                return from_gql, "GraphQL mutation response"
+        # Fallback: mutation input / subject.id embedded on the enriched envelope
+        # (same values the curl sent — not a Raw Mongo echo).
         join = _raw_join_key_value(enriched, path)
         if join is not None:
-            return join, "Mutation/subject id (join key)"
-        return _dig(enriched, path), ""
+            return join, "GraphQL mutation input (join key)"
+        if path.startswith("subject.id") or path == "subject.type":
+            return _raw_subject_id(enriched, path) if path.startswith("subject.id") else (
+                (enriched.get("subject") or {}).get("type")
+            ), "enriched subject (mutation target)"
+        # Envelope fields with no trigger capture yet — do not fall back to Raw.
+        if path.startswith("source.") or path in {
+            "xCorrelationId", "eventId", "eventVersion", "occurredAt", "routingKey",
+        }:
+            return None, "Trigger context not captured for this run — re-run Generate"
+        return None, "GraphQL mutation response not captured for this run"
 
     if spec.source_system == "Resolver":
         return _dig(enriched, path), ""
@@ -596,17 +616,163 @@ def _resolve_source_value(
         return _dig(enriched, path), f"{spec.source_system} (accepted; not probed)"
 
     if spec.source_system in {"JWT", "Bearer token"}:
-        # Actor identity comes from the Bearer token (JWT) that triggered the event.
-        # We echo the value so the Result view shows the id (not "-") and labels the
-        # origin; it is asserted by the caller's token, not fetched externally.
-        actor = enriched.get("actor") or {}
-        key = path.split(".")[-1]
-        val = actor.get(key)
-        if val is None:
-            val = _dig(enriched, path)
-        return val, "Actor identity carried by the Bearer token (JWT sub / gcid / org_id)"
+        # Compare enriched actor identity to JWT claims (sheet: decrypt token).
+        return _jwt_actor_value(path, enriched, live)
 
     return None, ""
+
+
+def _jwt_actor_value(
+    path: str, enriched: JsonDict, live: dict[str, Any]
+) -> tuple[object, str]:
+    """Resolve actor.* from Bearer JWT claims (ActivateFamily sheet rules)."""
+    try:
+        from audit_validator.auth import jwt_identity
+
+        ident = live.get("jwt_identity") if isinstance(live.get("jwt_identity"), dict) else None
+        if not ident:
+            ident = jwt_identity()
+    except Exception:
+        ident = {}
+    key = path.split(".")[-1]
+    low = key.lower()
+    mapping = {
+        "globalcustomerid": "gcid",
+        "orgid": "org_id",
+        "parentcustomerid": "parent_customer_id",
+        "inventories": "inventories",
+    }
+    if low in mapping:
+        val = (ident or {}).get(mapping[low])
+        return val, "JWT claim (decrypt Bearer)"
+    if low == "globaluserid":
+        # Profile UUID is not in JWT — prefer UMS resolution via email/idp.
+        pid = live.get("our_profile_id") or live.get("actor_profile_id")
+        if pid:
+            return pid, "UMS profile id (resolved via JWT email / idpUserId)"
+        actor = enriched.get("actor") or {}
+        return actor.get("globalUserId"), "UMS profile id (not in JWT — use enriched until resolved)"
+    actor = enriched.get("actor") or {}
+    val = actor.get(key)
+    if val is None:
+        val = _dig(enriched, path)
+    return val, "Bearer token / actor envelope"
+
+
+def _trigger_value(path: str, trigger: dict, enriched: JsonDict) -> object:
+    """Pull comparable values from the GraphQL/curl trigger we fired."""
+    # Direct envelope keys we recorded when sending
+    if path == "xCorrelationId":
+        return trigger.get("xCorrelationId") or trigger.get("correlation_id")
+    if path == "eventId":
+        return trigger.get("eventId")
+    if path == "eventVersion":
+        return trigger.get("eventVersion")
+    if path == "occurredAt":
+        return trigger.get("occurredAt")
+    if path == "routingKey":
+        return trigger.get("routingKey")
+
+    if path.startswith("source."):
+        leaf = path.split(".", 1)[1]
+        req = trigger.get("request") if isinstance(trigger.get("request"), dict) else {}
+        source = trigger.get("source") if isinstance(trigger.get("source"), dict) else {}
+        # Prefer explicit source block, then request headers/config
+        if leaf in source and source.get(leaf) not in (None, "", [], {}):
+            return source.get(leaf)
+        aliases = {
+            "operation": ("operation",),
+            "service": ("service",),
+            "operationState": ("operationState",),
+            "operationIndex": ("operationIndex",),
+            "platform": ("platform",),
+            "platformEnvironment": ("platformEnvironment",),
+            "platformVersion": ("platformVersion",),
+            "actorUserAgent": ("actorUserAgent", "userAgent", "user-agent"),
+            "type": ("type",),
+        }
+        for key in aliases.get(leaf, (leaf,)):
+            if key in req and req.get(key) not in (None, "", [], {}):
+                return req.get(key)
+            if key in trigger and trigger.get(key) not in (None, "", [], {}):
+                return trigger.get(key)
+        if leaf == "operation":
+            return trigger.get("operation")
+        if leaf == "actorUserAgent":
+            return req.get("userAgent") or req.get("user-agent")
+        return None
+
+    # Subject join keys / mutation response body
+    gql = trigger.get("graphql_response")
+    if isinstance(gql, dict) and gql:
+        from_gql = _graphql_response_value(path, gql, enriched)
+        if from_gql is not None:
+            return from_gql
+    inp = trigger.get("graphql_input") or trigger.get("input")
+    if isinstance(inp, dict) and (
+        "familyids" in path.lower()
+        or "styleids" in path.lower()
+        or path.startswith("subject.id")
+    ):
+        # Reuse join-key helper by synthesizing a thin enriched subject.metadata.input
+        synthetic = {"subject": {"metadata": {"input": inp}, "id": inp.get("familyIds") or inp.get("ids")}}
+        join = _raw_join_key_value(synthetic, path)
+        if join is not None:
+            return join
+    return None
+
+
+def _graphql_response_value(
+    path: str,
+    gql_response: dict,
+    enriched: JsonDict,
+) -> object:
+    """Pull a comparable value from the GraphQL mutation response body.
+
+    ``gql_response`` is the ``data`` object from the curl we sent (e.g.
+    ``{ "activateFamily": { "success": true, ... } }``). Join keys often live
+    on the request; when the response echoes IDs we prefer those.
+    """
+    import re
+
+    # Flatten: try dig on each top-level mutation result node
+    for _mut, node in gql_response.items():
+        if not isinstance(node, dict):
+            continue
+        # Direct leaf
+        leaf = path.rsplit(".", 1)[-1].split("[")[0]
+        if leaf in node and node.get(leaf) not in (None, "", [], {}):
+            return node.get(leaf)
+        # Nested asset / team / profile ids commonly returned
+        for nest_key in ("asset", "team", "profile", "role", "customer", "batch", "contract"):
+            nest = node.get(nest_key)
+            if isinstance(nest, dict) and nest.get("id") and (
+                path.endswith(".id") or "subject.id" in path.lower()
+            ):
+                if nest_key in path.lower() or path.startswith("subject.id"):
+                    return nest.get("id")
+
+    # Indexed join keys: familyIds[0] etc. — response rarely has these; use input
+    # already handled by caller. Try batchId / styleIds on response.
+    m = re.search(r"\.(familyids|styleids|variationids|md5s|ids|listids)\[(\d+)\]$", path.lower())
+    if m:
+        key_map = {
+            "familyids": "familyIds",
+            "styleids": "styleIds",
+            "variationids": "variationIds",
+            "md5s": "md5s",
+            "ids": "ids",
+            "listids": "listIds",
+        }
+        key = key_map.get(m.group(1), m.group(1))
+        idx = int(m.group(2))
+        for node in gql_response.values():
+            if not isinstance(node, dict):
+                continue
+            arr = node.get(key)
+            if isinstance(arr, list) and 0 <= idx < len(arr):
+                return arr[idx]
+    return None
 
 
 def _raw_join_key_value(enriched: JsonDict, path: str) -> object:
@@ -690,6 +856,17 @@ def _spec_for_path(
         return mapping_by_path[norm]
     field, node, sub = display_node_subnode(norm)
     src_sys, src_api = infer_source_system(norm)
+    # Envelope fields on the QA sheet are Validation=N unless we have an explicit
+    # registry row — avoid false SKIP when trigger context is missing.
+    validate = "Y"
+    if src_sys == "Trigger" and (
+        norm.startswith("source.")
+        or norm in {"eventVersion", "occurredAt", "eventId", "routingKey"}
+    ):
+        validate = "N"
+    if norm == "xCorrelationId":
+        validate = "Y"
+        src_sys, src_api = "Trigger", "GraphQL curl / event trigger"
     return MappingField(
         field=field or norm.rsplit(".", 1)[-1],
         node=node,
@@ -697,7 +874,7 @@ def _spec_for_path(
         attribute="",
         data_mapping="",
         notes="Inferred from enriched JSON",
-        validate="Y",
+        validate=validate,
         enriched_path=norm,
         source_system=src_sys,
         source_api=src_api,
@@ -711,17 +888,17 @@ def build_comparison_rows(
     *,
     live: dict[str, Any] | None = None,
     mapped_only: bool | None = None,
+    field_paths: set[str] | list[str] | None = None,
 ) -> list[ComparisonRow]:
     """
     Enriched-first validation: only compare fields that exist in the enriched sample,
-    then fetch the matching UMS / CMS / Typesense / AMS value.
+    then fetch the matching UMS / CMS / Typesense / AMS / GraphQL value.
+
+    ``field_paths`` — when set, only compare these enriched JSON paths (selective
+    attribute validation from the Compare UI editor).
 
     ``mapped_only`` (default: env ``SOURCE_VALIDATION_MAPPED_ONLY``, else False)
-    would restrict output to registry-mapped fields only. Default is False: we
-    compare EVERY attribute present in the enriched snapshot against its source,
-    even when the field has no explicit QA mapping (source is inferred). Full
-    exhaustive field-level coverage is the goal — turning it on is only for
-    focused triage, never the default.
+    would restrict output to registry-mapped fields only.
     """
     import os
 
@@ -733,7 +910,8 @@ def build_comparison_rows(
     live = dict(live or {})
     if "imported_font" not in live:
         live["imported_font"] = _is_imported_font(enriched)
-    mapping_by_path = _mapping_lookup(operation)
+    base_op = _base_operation(operation)
+    mapping_by_path = _mapping_lookup(base_op)
     present = scan_enriched_fields(enriched)
 
     if mapped_only and mapping_by_path:
@@ -744,6 +922,15 @@ def build_comparison_rows(
             if normalize_enriched_path(p) in mapped_norms
         ]
 
+    allow: set[str] | None = None
+    if field_paths:
+        allow = {normalize_enriched_path(p) for p in field_paths if p}
+        present = [
+            (p, v)
+            for p, v in present
+            if normalize_enriched_path(p) in allow
+        ]
+
     # Registry paths we still want when snapshot exists but scanner missed a scalar
     for spec in mapping_by_path.values():
         if spec.validate != "Y":
@@ -751,6 +938,8 @@ def build_comparison_rows(
         if spec.source_system not in {"UMS", "CMS", "Typesense", "AMS", "UMS/Search"}:
             continue
         norm = normalize_enriched_path(spec.enriched_path)
+        if allow is not None and norm not in allow:
+            continue
         if any(normalize_enriched_path(p) == norm for p, _ in present):
             continue
         val = _dig(enriched, spec.enriched_path)
@@ -775,6 +964,8 @@ def build_comparison_rows(
             "Enrichment timestamp — generated by audit service; accepted.",
         ),
     ):
+        if allow is not None and normalize_enriched_path(gen_path) not in allow:
+            continue
         gen_val = enriched.get(gen_path)
         if gen_val is None or str(gen_val).strip() == "":
             continue
@@ -882,4 +1073,71 @@ def build_comparison_rows(
                 sub_node=row.sub_node,
             )
         )
+
+    # Enrichment-scope contract (produce + require from audit-resolver manifest)
+    try:
+        from .enrichment_scope import validate_enrichment_scope
+
+        for sc in validate_enrichment_scope(base_op, enriched):
+            rows.append(
+                ComparisonRow(
+                    operation=operation,
+                    layer="event",
+                    field_path=sc.field_path,
+                    field=sc.field_path.rsplit(".", 1)[-1],
+                    node="enrichmentScope",
+                    sub_node="",
+                    source_system=sc.source_system,
+                    source_api=sc.source_api,
+                    value_in_source=sc.notes[:200],
+                    value_in_enriched=(
+                        "snapshot present"
+                        if (
+                            (sc.field_path.startswith("subject.enrichedSnapshot") and _has_snap(enriched, "subject"))
+                            or (sc.field_path.startswith("actor.enrichedSnapshot") and _has_snap(enriched, "actor"))
+                        )
+                        else sc.match_status
+                    )[:200],
+                    match_status=sc.match_status,
+                    notes=sc.notes,
+                )
+            )
+    except Exception:
+        pass
+
+    # Stamp display operation on every row (touchpoint-qualified name for Results)
+    if rows and operation:
+        rows = [
+            ComparisonRow(
+                operation=operation,
+                layer=r.layer,
+                field_path=r.field_path,
+                source_system=r.source_system,
+                source_api=r.source_api,
+                value_in_source=r.value_in_source,
+                value_in_enriched=r.value_in_enriched,
+                match_status=r.match_status,
+                notes=r.notes,
+                field=r.field,
+                node=r.node,
+                sub_node=r.sub_node,
+            )
+            for r in rows
+        ]
+
     return rows
+
+
+def _base_operation(operation: str) -> str:
+    """``activateFamily(global)`` → ``activateFamily`` for registry / scope lookups."""
+    if "(" in operation and operation.endswith(")"):
+        return operation.split("(", 1)[0].strip() or operation
+    return operation
+
+
+def _has_snap(enriched: JsonDict, layer: str) -> bool:
+    node = enriched.get(layer)
+    if not isinstance(node, dict):
+        return False
+    snap = node.get("enrichedSnapshot")
+    return isinstance(snap, dict) and bool(snap)

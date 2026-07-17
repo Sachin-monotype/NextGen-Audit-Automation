@@ -71,6 +71,8 @@ class GenerateRequest(BaseModel):
 class CompareRequest(BaseModel):
     operations: list[str]
     sample_source: str = "fresh"
+    # Optional: operation → list of enriched JSON paths to validate (Compare attribute editor)
+    field_paths_by_op: dict[str, list[str]] | None = None
 
 
 def _job_payload(job) -> dict[str, Any]:
@@ -112,6 +114,37 @@ def ui_config() -> dict[str, Any]:
 @app.get("/api/meta/comparable-operations")
 def comparable_operations() -> dict[str, Any]:
     items = db.comparable_operations_detail()
+    seen = {i["operation"] for i in items}
+
+    # Also surface touchpoint variants (activateFamily(global), (list), …) that were
+    # staged/validated in a Generate run so they can be re-compared individually.
+    try:
+        from .comparison_store import list_latest
+
+        from audit_validator.event_categories import resolve_category
+
+        stored = list_latest(settings.audit_project_root)
+        base_meta = {i["operation"]: i for i in items}
+        for op in stored.get("operations", []):
+            if op in seen or "(" not in op:
+                continue
+            base = op.split("(", 1)[0]
+            bm = base_meta.get(base, {})
+            items.append(
+                {
+                    "operation": op,
+                    "category": resolve_category(op) or bm.get("category", ""),
+                    "environment": bm.get("environment", ""),
+                    "service": bm.get("service", ""),
+                    "occurred_at": None,
+                    "touchpoint": True,
+                }
+            )
+            seen.add(op)
+    except Exception:
+        pass
+
+    items.sort(key=lambda x: str(x.get("operation") or ""))
     return {
         "operations": [i["operation"] for i in items],
         "items": items,
@@ -134,6 +167,26 @@ def latest_comparison_operation(operation: str) -> dict[str, Any]:
     if not item:
         raise HTTPException(404, f"No stored comparison for {operation}")
     return item
+
+
+@app.delete("/api/results/latest/{operation:path}")
+def delete_comparison_operation(operation: str) -> dict[str, Any]:
+    """Delete a single operation's stored comparison from the Result view."""
+    from .comparison_store import delete_operation_result
+
+    deleted = delete_operation_result(settings.audit_project_root, operation)
+    if not deleted:
+        raise HTTPException(404, f"No stored comparison for {operation}")
+    return {"deleted": operation, "ok": True}
+
+
+@app.delete("/api/results/latest")
+def clear_comparison_results() -> dict[str, Any]:
+    """Delete every stored comparison (clears the Result view)."""
+    from .comparison_store import clear_all_results
+
+    removed = clear_all_results(settings.audit_project_root)
+    return {"removed": removed, "ok": True}
 
 
 @app.get("/api/meta/filter-values")
@@ -571,9 +624,11 @@ def ui_navigation_mapping_xlsx():
 def token_status() -> dict[str, Any]:
     """Current Bearer-token health (expiry, derived org/gcid, can-regenerate)."""
     try:
-        from audit_validator.token_manager import bearer_status
+        from audit_validator.token_manager import bearer_status, current_oauth_form_defaults
 
-        return bearer_status(settings.audit_project_root).as_dict()
+        st = bearer_status(settings.audit_project_root).as_dict()
+        st["credentials"] = current_oauth_form_defaults(settings.audit_project_root)
+        return st
     except Exception as exc:
         return {"present": False, "error": str(exc)}
 
@@ -587,6 +642,36 @@ def token_refresh() -> dict[str, Any]:
         return ensure_fresh_bearer(settings.audit_project_root, min_ttl_hours=999).as_dict()
     except Exception as exc:
         return {"present": False, "error": str(exc)}
+
+
+class TokenCredentialsRequest(BaseModel):
+    username: str
+    password: str
+    org: str = ""
+    gcid: str = ""
+
+
+@app.post("/api/token/credentials")
+def token_credentials(body: TokenCredentialsRequest) -> dict[str, Any]:
+    """Generate a Bearer from username/password (+ optional org/gcid) and persist."""
+    try:
+        from audit_validator.token_manager import apply_credentials, current_oauth_form_defaults
+
+        st = apply_credentials(
+            settings.audit_project_root,
+            username=body.username,
+            password=body.password,
+            org=body.org,
+            gcid=body.gcid,
+            persist=True,
+        )
+        out = st.as_dict()
+        out["credentials"] = current_oauth_form_defaults(settings.audit_project_root)
+        if not st.present:
+            return JSONResponse(out, status_code=400)
+        return out
+    except Exception as exc:
+        return JSONResponse({"present": False, "error": str(exc)}, status_code=500)
 
 
 @app.post("/api/token/verify")
@@ -615,8 +700,46 @@ def start_generate(body: GenerateRequest) -> dict[str, Any]:
 def start_compare(body: CompareRequest) -> dict[str, Any]:
     if not body.operations:
         raise HTTPException(400, "Select at least one operation")
-    job = bridge.start_compare(body.operations, body.sample_source)
+    job = bridge.start_compare(
+        body.operations,
+        body.sample_source,
+        field_paths_by_op=body.field_paths_by_op,
+    )
     return _job_payload(job)
+
+
+@app.get("/api/meta/enriched-fields/{operation}")
+def enriched_fields_for_operation(operation: str) -> dict[str, Any]:
+    """List enriched JSON paths from the latest staged sample (Compare attribute editor)."""
+    root = settings.audit_project_root
+    try:
+        from audit_validator.source_validation.config import load_source_validation_config
+        from audit_validator.source_validation.enriched_field_scanner import scan_enriched_fields
+        from audit_validator.source_validation.runner import _load_enriched_sample
+
+        cfg = load_source_validation_config(root)
+        enriched = _load_enriched_sample(cfg, operation, sample_source="fresh")
+        if not enriched:
+            return {"operation": operation, "fields": [], "detail": "No enriched sample"}
+        fields = [p for p, _ in scan_enriched_fields(enriched)]
+        return {"operation": operation, "fields": fields, "count": len(fields)}
+    except Exception as exc:
+        return {"operation": operation, "fields": [], "detail": str(exc)}
+
+
+@app.get("/api/meta/enrichment-scope/{operation}")
+def enrichment_scope_for_operation(operation: str) -> dict[str, Any]:
+    """Produce + require enrichment scope from audit-resolver manifest."""
+    try:
+        from audit_validator.source_validation.enrichment_scope import (
+            load_enrichment_scope_manifest,
+        )
+
+        man = load_enrichment_scope_manifest()
+        spec = man.get(operation) or {}
+        return {"operation": operation, **spec}
+    except Exception as exc:
+        return {"operation": operation, "detail": str(exc)}
 
 
 @app.get("/api/jobs")

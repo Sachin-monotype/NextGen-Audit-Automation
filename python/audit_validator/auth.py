@@ -7,6 +7,7 @@ import re
 import time
 import urllib.parse
 from pathlib import Path
+from typing import Any
 
 import requests
 from dotenv import load_dotenv
@@ -42,33 +43,48 @@ def jwt_payload(token: str) -> dict:
         return {}
 
 
-def jwt_identity(token: str | None = None) -> dict[str, str]:
+def jwt_identity(token: str | None = None) -> dict[str, Any]:
     """Extract the identity claims we use for CMS/UMS/AMS and actor assertions.
 
-    Notes:
-    - ``xCorrelationId`` is **not** here — it is per-request, not per-user.
-    - ``gcid`` / ``org_id`` / ``email`` / ``idp_user_id`` (sub) stay stable for the Bearer.
-    - Profile UUID is usually NOT in the JWT; callers look it up via UMS using
-      ``idp_user_id`` when needed.
+    Mirrors the ActivateFamily QA sheet:
+    - ``gcid`` ← ``https://api.monotype.com/gcid``
+    - ``org_id`` ← ``org_id`` / namespaced claim
+    - ``email`` ← ``https://api.monotype.com/email`` (UMS lookups use this)
+    - ``parent_customer_id`` ← ``https://secure.monotype.com/info.parentCustomerId``
+    - ``inventories`` ← ``https://api.monotype.com/inventories``
+    - ``xCorrelationId`` is **not** here — minted per request from this user.
     """
     tok = token or resolve_nextgen_bearer_token() or resolve_bearer_token()
     if not tok:
         return {}
     p = jwt_payload(tok)
     gcid = str(p.get("https://api.monotype.com/gcid") or "").strip()
-    org = str(p.get("https://api.monotype.com/org_id") or "").strip()
-    email = str(p.get("https://api.monotype.com/email") or "").strip()
+    org = str(
+        p.get("https://api.monotype.com/org_id")
+        or p.get("org_id")
+        or p.get("https://api.monotype.com/t_organization")
+        or ""
+    ).strip()
+    email = str(
+        p.get("https://api.monotype.com/email")
+        or p.get("email")
+        or ""
+    ).strip()
     idp = str(p.get("sub") or "").strip()
     info = p.get("https://secure.monotype.com/info") or {}
     parent = ""
     if isinstance(info, dict):
         parent = str(info.get("parentCustomerId") or "").strip()
+    inventories = p.get("https://api.monotype.com/inventories")
+    if inventories is None and isinstance(info, dict):
+        inventories = info.get("inventories")
     return {
         "gcid": gcid or parent,
         "org_id": org,
         "email": email,
         "idp_user_id": idp,
         "parent_customer_id": parent or gcid,
+        "inventories": inventories if inventories is not None else [],
     }
 
 
@@ -326,9 +342,14 @@ def fetch_oauth_token(
         ("username", username),
         ("password", password),
         ("scope", "openid profile email offline_access"),
-        ("t_organization", org),
-        ("gcid", gcid),
     ]
+    # org / gcid are optional — when the caller supplies only username + password,
+    # Auth0 resolves the user's default org and the resulting JWT carries the real
+    # t_organization / gcid claims (which we then read back).
+    if org:
+        fields.append(("t_organization", org))
+    if gcid:
+        fields.append(("gcid", gcid))
     body = urllib.parse.urlencode(fields, encoding="utf-8")
     resp = requests.post(
         url,

@@ -174,6 +174,115 @@ def _ids_from_enriched(operation: str, project_root: Path) -> list[str]:
     return uniq
 
 
+def discover_font_seed(
+    operation: str = "",
+    *,
+    project_root: Path | None = None,
+    prefer_deactivated: bool = False,
+    prefer_activated: bool = False,
+    family_hint: str | None = None,
+) -> dict[str, str] | None:
+    """Resolve family_id / style_id / md5 via GetFamilyStatus GraphQL (no hardcodes).
+
+    Uses GET_FAMILIES with a known-good family hint (favorites / env / enrichment),
+    then picks style + desktop variation md5 from the response.
+    """
+    root = project_root or Path(".").resolve()
+    _ensure_env(root)
+    from .simulation.graphql_loader import load_graphql_documents
+
+    docs = load_graphql_documents()
+    doc = docs.get("GET_FAMILIES") or docs.get("GET_FAMILY_BY_ID") or ""
+    if not doc:
+        return None
+
+    # Candidate family ids
+    candidates: list[str] = []
+    if family_hint:
+        candidates.append(str(family_hint))
+    for row in _list_inventory_families(limit=20, project_root=root):
+        fid = row.get("id")
+        if fid and fid not in candidates:
+            candidates.append(str(fid))
+    for fid in _ids_from_enriched(operation or "activateFamily", root):
+        if fid not in candidates:
+            candidates.append(fid)
+    env_f = (os.getenv("TOUCHPOINT_FAMILY_ID") or os.getenv("SEED_FAMILY_ID") or "").strip()
+    if env_f and env_f not in candidates:
+        candidates.append(env_f)
+
+    if not candidates:
+        return None
+
+    # Prefer activation state for the op
+    if prefer_deactivated or prefer_activated or operation:
+        picked = pick_working_family_id(
+            operation or ("activateFamily" if prefer_deactivated else "deactivateFamilies"),
+            candidates=candidates,
+            project_root=root,
+        )
+        if picked:
+            candidates = [picked] + [c for c in candidates if c != picked]
+
+    for fid in candidates[:8]:
+        variables: dict[str, Any] = {
+            "input": {"ids": [fid], "returnAllVariations": True},
+            "styleFilterInput": {},
+            "variationPagination": {"limit": 100, "skip": 0},
+        }
+        # GET_FAMILY_BY_ID uses different vars
+        if "GetFamilyById" in doc or "GET_FAMILY_BY_ID" in (docs.get("GET_FAMILY_BY_ID") or "")[:80]:
+            if doc == docs.get("GET_FAMILY_BY_ID"):
+                variables = {"ids": [fid]}
+        data = _gql(doc if "getFamilies" in doc else (docs.get("GET_FAMILIES") or doc), variables, project_root=root)
+        if not data and docs.get("GET_FAMILIES"):
+            data = _gql(
+                docs["GET_FAMILIES"],
+                {
+                    "input": {"ids": [fid], "returnAllVariations": True},
+                    "styleFilterInput": {},
+                    "variationPagination": {"limit": 50, "skip": 0},
+                },
+                project_root=root,
+            )
+        nodes = ((data.get("getFamilies") or {}).get("nodes") or [])
+        if not nodes:
+            continue
+        fam = nodes[0]
+        family_id = str(fam.get("id") or fid)
+        styles = ((fam.get("styles") or {}).get("nodes") or [])
+        style_id = ""
+        md5 = ""
+        for st in styles:
+            if not isinstance(st, dict):
+                continue
+            sid = str(st.get("id") or "")
+            vars_nodes = ((st.get("variations") or {}).get("nodes") or [])
+            for var in vars_nodes:
+                if not isinstance(var, dict):
+                    continue
+                vmd5 = str(var.get("md5") or "")
+                if vmd5:
+                    style_id = sid
+                    md5 = vmd5
+                    break
+            if md5:
+                break
+            if sid and not style_id:
+                style_id = sid
+        if family_id and (style_id or md5):
+            log.info(
+                "discover_font_seed → family=%s style=%s md5=%s…",
+                family_id,
+                style_id,
+                (md5 or "")[:8],
+            )
+            return {"family_id": family_id, "style_id": style_id, "md5": md5}
+        if family_id:
+            return {"family_id": family_id, "style_id": style_id or "", "md5": md5 or ""}
+    return None
+
+
 def pick_working_family_id(
     operation: str,
     *,

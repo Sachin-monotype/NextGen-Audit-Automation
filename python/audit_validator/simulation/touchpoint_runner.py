@@ -11,6 +11,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable
 
 from audit_validator.touchpoint.payloads import SeedIds, variables_for
@@ -40,23 +41,65 @@ def _cleanup_enabled() -> bool:
     return raw not in {"0", "false", "no", "off"}
 
 
-def _make_seed(cfg: Any) -> SeedIds:
+def _make_seed(cfg: Any, *, project_root: Path | None = None, operation: str = "") -> SeedIds:
+    """Build seed IDs — prefer live GetFamilyStatus discovery over .env/hardcodes."""
     s = getattr(cfg, "seed", None)
-    family = getattr(s, "family_id", None) or os.getenv("TOUCHPOINT_FAMILY_ID") or "910130168"
-    # Prefer UI-proven family when SEED is the flaky Discovery one
-    if str(family) == "794981" and not os.getenv("TOUCHPOINT_USE_ENV_SEED"):
-        family = os.getenv("TOUCHPOINT_FAMILY_ID") or "910130168"
-    style = (
-        getattr(s, "style_id", None)
-        or os.getenv("TOUCHPOINT_STYLE_ID")
-        or os.getenv("SEED_STYLE_ID")
-        or "920374778"
-    )
-    md5 = (
-        getattr(s, "variation_md5", None)
-        or os.getenv("SEED_VARIATION_MD5")
-        or "b783215634650cf0a55e0d723123d5e0"
-    )
+    use_env = bool(os.getenv("TOUCHPOINT_USE_ENV_SEED"))
+    family = ""
+    style = ""
+    md5 = ""
+
+    # Dynamic discovery first (avoids stale SEED_FAMILY_ID=794981 from profile)
+    if not use_env:
+        try:
+            from audit_validator.live_seeds import discover_font_seed
+
+            discovered = discover_font_seed(
+                operation or "",
+                project_root=project_root,
+                prefer_deactivated=operation in {
+                    "activateFamily", "activateStyle", "activateVariation",
+                    "addFavoriteFamilies", "addFavoriteStyles",
+                },
+                prefer_activated=operation in {
+                    "deactivateFamilies", "deactivateStyle", "deactivateVariation",
+                },
+            )
+            if discovered:
+                family = str(discovered.get("family_id") or "")
+                style = str(discovered.get("style_id") or "")
+                md5 = str(discovered.get("md5") or "")
+        except Exception:
+            pass
+
+    if not family:
+        family = (
+            (os.getenv("TOUCHPOINT_FAMILY_ID") or "").strip()
+            or (getattr(s, "family_id", None) or "")
+            or ""
+        )
+    if not style:
+        style = (
+            (os.getenv("TOUCHPOINT_STYLE_ID") or "").strip()
+            or (os.getenv("SEED_STYLE_ID") or "").strip()
+            or (getattr(s, "style_id", None) or "")
+            or ""
+        )
+    if not md5:
+        md5 = (
+            (os.getenv("SEED_VARIATION_MD5") or "").strip()
+            or (getattr(s, "variation_md5", None) or "")
+            or ""
+        )
+
+    # Known-bad / inventory-missing Discovery demo id — never use unless forced
+    if str(family) == "794981" and not use_env:
+        family = (os.getenv("TOUCHPOINT_FAMILY_ID") or "").strip() or "910130168"
+
+    family = family or "910130168"
+    style = style or "920374778"
+    md5 = md5 or "b783215634650cf0a55e0d723123d5e0"
+
     fav = getattr(s, "favorite_family_id", None) or family
     ts = int(time.time())
     gcid = (
@@ -65,20 +108,17 @@ def _make_seed(cfg: Any) -> SeedIds:
         or os.getenv("GRAPHQL_CONTEXT_CUSTOMER_ID")
         or ""
     )
-    seed = SeedIds(
+    return SeedIds(
         family_id=str(fav or family),
         style_id=str(style),
         md5=str(md5),
         list_name=f"QA_Gen_List_{ts}",
         project_name=f"QA_Gen_Proj_{ts}",
         customer_id=str(gcid),
-        # Disposable delete target only — never auto-fill with actor profile.
         profile_id=(os.getenv("SEED_DELETE_PROFILE_ID") or "").strip(),
         notification_id=(os.getenv("SEED_NOTIFICATION_ID") or "").strip(),
         tag_id=(os.getenv("SEED_TAG_ID") or "").strip(),
     )
-    return seed
-
 
 def _request(client: Any, operation: str, variables: dict[str, Any]) -> dict[str, Any]:
     # Seed helpers that reuse createAsset GraphQL document
@@ -268,14 +308,19 @@ def run_scenario(
 ) -> ScenarioResult:
     """Run multi-step touchpoint flow; return correlation of the *target* operation."""
     _log = log_fn or (lambda m: None)
-    seed = _make_seed(cfg)
+    project_root = getattr(cfg, "project_root", None)
+    if project_root is not None:
+        project_root = Path(project_root)
+    seed = _make_seed(cfg, project_root=project_root, operation=operation)
     created_lists: list[str] = []
     created_projects: list[str] = []
     step_results: list[dict[str, Any]] = []
     target_cid: str | None = None
     last_error: str | None = None
-
-    _log(f"▸ Scenario {operation} · {touchpoint} ({len(steps)} steps)")
+    _log(
+        f"▸ Scenario {operation} · {touchpoint} ({len(steps)} steps) "
+        f"seed family={seed.family_id} style={seed.style_id}"
+    )
 
     try:
         for step_op in steps:
@@ -436,8 +481,11 @@ def run_scenario(
                     "cid": cid,
                     "success": _extract_success(data, step_op),
                     **(
-                        {"input": (vars_ or {}).get("input")}
-                        if step_op == operation and isinstance((vars_ or {}).get("input"), dict)
+                        {
+                            "input": (vars_ or {}).get("input"),
+                            "response": data,
+                        }
+                        if step_op == operation
                         else {}
                     ),
                 }

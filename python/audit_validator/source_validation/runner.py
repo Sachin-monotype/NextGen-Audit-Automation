@@ -1267,6 +1267,7 @@ def run_source_validation(
     sample_source: str | None = None,
     progress: Callable[[str], None] | None = None,
     on_operation_rows: Callable[[str, list[ComparisonRow]], None] | None = None,
+    field_paths_by_op: dict[str, list[str]] | None = None,
 ) -> SourceValidationReport:
     cfg = load_source_validation_config(project_root)
     src_mode = (sample_source or cfg.sample_source or "fresh").lower()
@@ -1352,7 +1353,36 @@ def run_source_validation(
 
     def _compare_one(op: str) -> tuple[str, list[ComparisonRow], OperationSourceResult]:
         enriched = samples[op]
-        rows = build_comparison_rows(op, enriched, live=live_by_op.get(op, {}))
+        live = dict(live_by_op.get(op, {}))
+        # GraphQL mutation response + trigger context captured at generate time
+        gql_path = cfg.project_root / "payload" / "graphql" / f"{op}.json"
+        if gql_path.is_file():
+            try:
+                live["graphql_response"] = json.loads(gql_path.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        try:
+            from audit_validator.simulation.trigger_context import load_trigger_context
+            from audit_validator.auth import jwt_identity, resolve_our_profile_id
+
+            trigger = load_trigger_context(cfg.project_root, op)
+            if trigger:
+                live["trigger"] = trigger
+                if not live.get("graphql_response") and isinstance(trigger.get("graphql_response"), dict):
+                    live["graphql_response"] = trigger["graphql_response"]
+                if isinstance(trigger.get("jwt_identity"), dict) and trigger["jwt_identity"]:
+                    live["jwt_identity"] = trigger["jwt_identity"]
+            if "jwt_identity" not in live:
+                live["jwt_identity"] = jwt_identity()
+            pid = resolve_our_profile_id(project_root=cfg.project_root)
+            if pid:
+                live["our_profile_id"] = pid
+        except Exception:
+            pass
+        paths = (field_paths_by_op or {}).get(op) if field_paths_by_op else None
+        rows = build_comparison_rows(
+            op, enriched, live=live, field_paths=paths
+        )
         op_result = validate_operation(
             op,
             enriched,

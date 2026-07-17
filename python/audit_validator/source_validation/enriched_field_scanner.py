@@ -105,11 +105,11 @@ def scan_enriched_fields(enriched: JsonDict) -> list[tuple[str, object]]:
 def infer_source_system(path: str) -> tuple[str, str]:
     """Best-effort source label when registry has no mapping row."""
     p = path.lower()
-    # Subject envelope — always present on the raw/enriched event (mutation subject).
+    # Subject envelope — validated against the GraphQL mutation response we sent.
     if p == "subject.type":
-        return "Raw", "raw/enriched subject.type"
+        return "GraphQL", "mutation response / subject.type"
     if p.startswith("subject.id"):
-        return "Raw", "raw/enriched subject.id (mutation target)"
+        return "GraphQL", "mutation response subject.id (mutation target)"
     # Actor identity (globalUserId / globalCustomerId / orgId) is carried by the
     # Bearer token (JWT) that triggered the event — it isn't fetched from an external
     # source. Label it as such so the Result view shows "Bearer token" instead of "-".
@@ -120,8 +120,7 @@ def infer_source_system(path: str) -> tuple[str, str]:
         "parentcustomerid",
     }:
         return "Bearer token", "JWT claim (actor identity)"
-    # Mutation input / subject join keys carried into the snapshot (NOT DB/Typesense
-    # columns). Comparing them to an external store produces false SKIP/FAIL.
+    # Mutation input / subject join keys — compare to GraphQL curl response, not Raw echo.
     leaf = p.split(".")[-1].split("[")[0]
     if leaf in {
         "familyids",
@@ -133,17 +132,21 @@ def infer_source_system(path: str) -> tuple[str, str]:
         "assetids",
         "ids",
     } or p.endswith(".familyids") or ".familyids[" in p or ".styleids[" in p or ".md5s[" in p:
-        return "Raw", "mutation/subject id list (join key)"
+        return "GraphQL", "mutation response id list (join key)"
 
     if "fontdetails" in p or ".family." in p or ".styles[" in p or "variations" in p:
-        # Entity id leaves (family/style/variation .id and .catalog.id) are the join
-        # keys echoed from the raw event — NOT Typesense-derived values. Comparing them
-        # to a Typesense document's opaque hit id produces false FAILs, so source them
-        # from the enriched/raw envelope itself.
-        if p.endswith(".id"):
-            return "Raw", "resolver/raw entity id (join key)"
-        if "variations" in p and ("md5" in p or "catalog" in p):
+        # fontDetails.* (family/styles/variations catalog objects) are enriched from
+        # Discovery/Typesense per the QA sheet — NOT the GraphQL mutation echo. Route
+        # every catalog leaf (including `.catalog.id`) to Typesense so we compare
+        # against a source we can actually fetch (avoids false "GraphQL not captured").
+        if "variation" in p and ("md5" in p or "catalog" in p):
             return "Typesense", "GET /v1/variations"
+        if ".catalog." in p or ".catalog" in p or "catalog" in p:
+            return "Typesense", "POST /v1/styles (catalog)"
+        # A bare mutation-target id (e.g. fontDetails[0].id with no catalog) is a join
+        # key from the GraphQL response.
+        if p.endswith(".id") and ".catalog." not in p and ".family." not in p and ".styles[" not in p:
+            return "GraphQL", "mutation response entity id (join key)"
         return "Typesense", "POST /v1/styles"
     # Asset / customer / user `.source` literals are enricher constants
     # (customer-management-service, user-management-service, …) — not CMS/UMS/AMS columns.
@@ -207,14 +210,22 @@ def infer_source_system(path: str) -> tuple[str, str]:
         return "Audit service", "enricher-added flag/default"
     if p in {"enrichedeventid", "enrichmentversion", "enrichedat"}:
         return "Audit service", "enricher-generated"
-    if p.startswith("source.") or p in {"xcorrelationid", "eventid", "eventversion", "routingkey"}:
-        return "Raw", "raw envelope"
+    # Envelope fields come from the GraphQL/curl trigger we sent (headers + response),
+    # not from a Raw Mongo echo.
+    if p.startswith("source.") or p in {
+        "xcorrelationid",
+        "eventid",
+        "eventversion",
+        "occurredat",
+        "routingkey",
+    }:
+        return "Trigger", "GraphQL curl / event trigger"
     # Remaining snapshot leaves with no mapped external API — accept as enricher output.
     # (Probed systems above already claimed their fields; do not FAIL these against DB.)
     if "enrichedsnapshot" in p:
         return "Audit service", "enricher snapshot (not independently sourced)"
-    # Never emit bare Unknown — fall back to raw envelope for anything left.
-    return "Raw", "enriched envelope leaf"
+    # Never emit bare Unknown — fall back to trigger envelope for anything left.
+    return "Trigger", "event trigger / mutation response"
 
 
 def display_node_subnode(path: str) -> tuple[str, str, str]:

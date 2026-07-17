@@ -68,9 +68,29 @@ class GraphQLClient:
         self._project_root = project_root
 
     def _mint_correlation(self) -> str:
+        """Mint x-correlation-id for this user (UUID shaped, user-scoped namespace).
+
+        Format matches product curls (UUID). We derive UUID v5 from the Bearer
+        identity + a fresh UUID4 so each request is unique but still tied to the
+        acting user (email / idp / gcid) — same idea as the QA sheet: one cid
+        per user-triggered GraphQL call that we can look up later.
+        """
         import uuid
 
-        cid = str(uuid.uuid4())
+        try:
+            from audit_validator.auth import jwt_identity
+
+            ident = jwt_identity(self._bearer_token)
+        except Exception:
+            ident = {}
+        user_key = (
+            str(ident.get("email") or "").strip()
+            or str(ident.get("idp_user_id") or "").strip()
+            or str(ident.get("gcid") or "").strip()
+            or "anonymous"
+        )
+        # UUID5 namespace from user + random → still a valid UUID for headers/Mongo.
+        cid = str(uuid.uuid5(uuid.NAMESPACE_URL, f"monotype-audit:{user_key}:{uuid.uuid4()}"))
         self.last_correlation_id = cid
         return cid
 

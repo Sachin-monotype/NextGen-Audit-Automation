@@ -238,6 +238,104 @@ def ensure_fresh_bearer(
     return st
 
 
+def apply_credentials(
+    project_root: Path | None = None,
+    *,
+    username: str,
+    password: str,
+    org: str = "",
+    gcid: str = "",
+    persist: bool = True,
+) -> TokenStatus:
+    """Generate a Bearer from user credentials and optionally persist to .env.
+
+    Used by the Generate UI "edit credentials" control so a teammate can paste
+    their own username/password (and optional org/gcid) without hand-editing
+    ``BEARER_TOKEN``.
+    """
+    root = project_root or find_project_root()
+    load_dotenv(root / ".env")
+    user = (username or "").strip()
+    pwd = (password or "").strip()
+    if not user or not pwd:
+        st = TokenStatus(present=False, can_regenerate=False)
+        st.message = "Username and password are required."
+        return st
+
+    # org / gcid are OPTIONAL — when omitted we let Auth0 resolve the user's default
+    # organisation and read the real t_organization / gcid from the returned JWT.
+    org_val = (org or "").strip()
+    gcid_val = (gcid or "").strip()
+
+    try:
+        fresh = fetch_oauth_token(
+            username=user,
+            password=pwd,
+            org=org_val,
+            gcid=gcid_val,
+            **_oauth_common(),
+        )
+    except Exception as exc:  # noqa: BLE001
+        st = TokenStatus(present=False, can_regenerate=True)
+        st.message = f"OAuth token request failed: {exc}"
+        return st
+
+    # Read the identity the token actually resolved to (source of truth).
+    fresh_claims = token_metadata(fresh)
+    org_val = org_val or fresh_claims.get("org", "")
+    gcid_val = gcid_val or fresh_claims.get("gcid", "")
+
+    if persist:
+        env_path = root / ".env"
+        text = env_path.read_text(encoding="utf-8") if env_path.is_file() else ""
+        text = _set_env_var(text, "OAUTH_USERNAME", user)
+        text = _set_env_var(text, "OAUTH_PASSWORD", pwd)
+        text = _set_env_var(text, "OAUTH_ORG", org_val)
+        text = _set_env_var(text, "OAUTH_GCID", gcid_val)
+        text = _set_env_var(text, "BEARER_TOKEN", fresh)
+        if "NEXTGEN_BEARER_TOKEN=" in text or os.getenv("NEXTGEN_BEARER_TOKEN"):
+            text = _set_env_var(text, "NEXTGEN_BEARER_TOKEN", fresh)
+        env_path.write_text(text, encoding="utf-8")
+        os.environ["OAUTH_USERNAME"] = user
+        os.environ["OAUTH_PASSWORD"] = pwd
+        os.environ["OAUTH_ORG"] = org_val
+        os.environ["OAUTH_GCID"] = gcid_val
+        os.environ["BEARER_TOKEN"] = fresh
+        os.environ["NEXTGEN_BEARER_TOKEN"] = fresh
+
+    fresh_meta = token_metadata(fresh)
+    return TokenStatus(
+        present=True,
+        expired=False,
+        expires_in_hours=jwt_expires_in_hours(fresh),
+        email=fresh_meta.get("email", ""),
+        org=fresh_meta.get("org", "") or org_val,
+        gcid=fresh_meta.get("gcid", "") or gcid_val,
+        regenerated=True,
+        can_regenerate=True,
+        message="Bearer token generated from credentials.",
+    )
+
+
+def current_oauth_form_defaults(project_root: Path | None = None) -> dict[str, str]:
+    """Non-secret defaults for the credentials editor (password never returned)."""
+    root = project_root or find_project_root()
+    load_dotenv(root / ".env")
+    raw = _strip_bearer(os.getenv("BEARER_TOKEN", ""))
+    meta = token_metadata(raw) if raw else {"email": "", "org": "", "gcid": ""}
+    return {
+        "username": os.getenv("OAUTH_USERNAME", "").strip() or meta.get("email", ""),
+        "org": os.getenv("OAUTH_ORG", "").strip() or meta.get("org", ""),
+        "gcid": (
+            os.getenv("OAUTH_GCID", "").strip()
+            or os.getenv("GRAPHQL_CONTEXT_CUSTOMER_ID", "").strip()
+            or meta.get("gcid", "")
+        ),
+        "email": meta.get("email", ""),
+        "has_password": "1" if os.getenv("OAUTH_PASSWORD", "").strip() else "0",
+    }
+
+
 def compare_provided_vs_generated(project_root: Path | None = None) -> dict[str, object]:
     """Explicitly regenerate a token and compare it to the pasted BEARER_TOKEN.
 
@@ -263,3 +361,4 @@ def compare_provided_vs_generated(project_root: Path | None = None) -> dict[str,
     if provided:
         result["same_subject"] = jwt_payload(provided).get("sub") == jwt_payload(fresh).get("sub")
     return result
+

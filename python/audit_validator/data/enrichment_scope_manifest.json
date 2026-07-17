@@ -1,0 +1,3211 @@
+{
+  "generated_from": "mt-audit-log-resolver-service",
+  "operations": {
+    "activateFamily": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": false,
+        "scope": "subject-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontActivation/activate-family.enricher.ts"
+    },
+    "activateFontProject": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontActivation/activate-font-project.enricher.ts"
+    },
+    "activateList": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/FontActivation/activate-list.enricher.ts"
+    },
+    "activateStyle": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": false,
+        "scope": "subject-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontActivation/activate-style.enricher.ts"
+    },
+    "activateVariation": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": false,
+        "scope": "subject-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontActivation/activate-variation.enricher.ts"
+    },
+    "addFavoriteFamilies": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Favorite/add-favorite-families.enricher.ts"
+    },
+    "addFavoritePair": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/FavoritePair/add-favorite-pair.enricher.ts"
+    },
+    "addFavoriteStyles": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Favorite/add-favorite-styles.enricher.ts"
+    },
+    "addFontListFamilies": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/FontList/add-font-list-families.enricher.ts"
+    },
+    "addFontListStyles": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/FontList/add-font-list-styles.enricher.ts"
+    },
+    "addFontProjectFamilies": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/ProjectManagement/add-font-project-families.enricher.ts"
+    },
+    "addFontProjectStyles": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/ProjectManagement/add-font-project-styles.enricher.ts"
+    },
+    "addStyleComment": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/StyleDocument/add-style-comment.enricher.ts"
+    },
+    "addStyleDocument": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/StyleDocument/add-style-document.enricher.ts"
+    },
+    "addStylesToWebProject": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/WebProject/add-styles-to-web-project.enricher.ts"
+    },
+    "appAutoupdateDisabled": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-auto-update-disabled.enricher.ts"
+    },
+    "appAutoupdateEnabled": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-auto-update-enabled.enricher.ts"
+    },
+    "appCacheClearCancelled": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-cache-clear-cancelled.enricher.ts"
+    },
+    "appCacheClearInitiated": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-cache-clear-initiated.enricher.ts"
+    },
+    "appCacheCleared": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-cache-cleared.enricher.ts"
+    },
+    "appClosed": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-closed.enricher.ts"
+    },
+    "appConnectivityLost": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-connectivity-lost.enricher.ts"
+    },
+    "appConnectivityRestored": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-connectivity-restored.enricher.ts"
+    },
+    "appCrashed": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-crashed.enricher.ts"
+    },
+    "appFeedbackSubmitted": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-feedback-submitted.enricher.ts"
+    },
+    "appHealthStatusRefreshed": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-health-status-refreshed.enricher.ts"
+    },
+    "appInstalled": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-installed.enricher.ts"
+    },
+    "appLanguageChanged": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-language-changed.enricher.ts"
+    },
+    "appLaunched": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-launched.enricher.ts"
+    },
+    "appLogsExported": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-logs-exported.enricher.ts"
+    },
+    "appNetworkRefreshed": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-network-refreshed.enricher.ts"
+    },
+    "appSettingsActivationModeChanged": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-settings-activation-mode-changed.enricher.ts"
+    },
+    "appSettingsAutoModePolicyUpdated": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-settings-auto-mode-policy-updated.enricher.ts"
+    },
+    "appSettingsAutoPerformanceDisabled": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-settings-auto-performance-disabled.enricher.ts"
+    },
+    "appSettingsAutoPerformanceEnabled": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-settings-auto-performance-enabled.enricher.ts"
+    },
+    "appSettingsPerformanceModeChanged": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-settings-performance-mode-changed.enricher.ts"
+    },
+    "appSettingsPluginAppEnabled": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-settings-plugin-app-enabled.enricher.ts"
+    },
+    "appSettingsPluginInstallAllDisabled": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-settings-plugin-install-all-disabled.enricher.ts"
+    },
+    "appSettingsPluginInstallAllEnabled": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-settings-plugin-install-all-enabled.enricher.ts"
+    },
+    "appUninstalled": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-uninstalled.enricher.ts"
+    },
+    "appUpdateCompleted": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-update-completed.enricher.ts"
+    },
+    "appUpdateFailed": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopApp/app-update-failed.enricher.ts"
+    },
+    "applyUnsubscribe": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Notification/apply-unsubscribe.enricher.ts"
+    },
+    "approveFontAccess": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontAccess/approve-font-access.enricher.ts"
+    },
+    "bulkActivateComplete": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontActivation/bulk-activate-completed.enricher.ts"
+    },
+    "bulkActivateLists": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontActivation/bulk-activate-lists.enricher.ts"
+    },
+    "bulkActivateStyles": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/FontActivation/bulk-activate-styles.enricher.ts"
+    },
+    "bulkAddPairsToFavorite": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FavoritePair/bulk-add-pairs-to-favorite.enricher.ts"
+    },
+    "bulkAddStylesToFavourites": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Favorite/bulk-add-styles-to-favourites.enricher.ts"
+    },
+    "bulkAddStylesToList": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/FontList/bulk-add-styles-to-list.enricher.ts"
+    },
+    "bulkCopyAssets": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Asset/bulk-copy-assets.enricher.ts"
+    },
+    "bulkDeactivateComplete": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontActivation/bulk-deactivate-completed.enricher.ts"
+    },
+    "bulkDeactivateLists": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontActivation/bulk-deactivate-lists.enricher.ts"
+    },
+    "bulkDeactivateStyles": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/FontActivation/bulk-deactivate-styles.enricher.ts"
+    },
+    "bulkMarkAsProductionFont": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/ProductionFont/bulk-mark-as-production-font.enricher.ts"
+    },
+    "bulkMarkAsProductionFontsRequest": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/ProductionFont/bulk-mark-as-production-fonts-request.enricher.ts"
+    },
+    "bulkMoveAssets": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Asset/bulk-move-assets.enricher.ts"
+    },
+    "bulkNotificationAction": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Notification/bulk-notification-action.enricher.ts"
+    },
+    "bulkRemovePairsFromFavorite": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FavoritePair/bulk-remove-pairs-from-favorite.enricher.ts"
+    },
+    "bulkRemoveStylesFromFavourites": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Favorite/bulk-remove-styles-from-favourites.enricher.ts"
+    },
+    "bulkRemoveStylesFromList": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/FontList/bulk-remove-styles-from-list.enricher.ts"
+    },
+    "bulkTagStyles": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/PrivateTag/bulk-tag-styles.enricher.ts"
+    },
+    "bulkUnmarkProductionFont": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/ProductionFont/bulk-unmark-production-font.enricher.ts"
+    },
+    "bulkUntagStyles": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/PrivateTag/bulk-untag-styles.enricher.ts"
+    },
+    "bulkUpdatePreferences": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Notification/bulk-update-preferences.enricher.ts"
+    },
+    "bulkUpdateProfiles": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/UserProfile/bulk-update-profiles.enricher.ts"
+    },
+    "byofFontDeleteComplete": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontImport/byof-font-delete-complete.enricher.ts"
+    },
+    "cancelBatch": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontImport/cancel-batch.enricher.ts"
+    },
+    "completeUploadSession": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/DocumentScanning/complete-upload-session.enricher.ts"
+    },
+    "createAsset": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Asset/create-asset.enricher.ts"
+    },
+    "createAssetAttachmentUpload": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Asset/create-asset-attachment-upload.enricher.ts"
+    },
+    "createBYOFBatchAndCheckDuplicates": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/FontImport/create-byof-batch-and-check-duplicates.enricher.ts"
+    },
+    "createCompanyLogoUploadUrl": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/CompanyLogo/create-company-logo-upload-url.enricher.ts"
+    },
+    "createContract": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/BYOF/create-contract.enricher.ts"
+    },
+    "createCustomer": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Customer/create-customer.enricher.ts"
+    },
+    "createPrivateTags": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/PrivateTag/create-private-tags.enricher.ts"
+    },
+    "createProject": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/ProjectManagement/create-project.enricher.ts"
+    },
+    "createRole": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/UserRole/create-role.enricher.ts"
+    },
+    "createServiceAccount": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/ServiceAccount/create-service-account.enricher.ts"
+    },
+    "createSsoMapping": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/SSO/create-sso-mapping.enricher.ts"
+    },
+    "createStyleDocumentsUploadUrl": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/StyleDocument/create-style-documents-upload-url.enricher.ts"
+    },
+    "createTeam": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Team/create-team.enricher.ts"
+    },
+    "createUploadSession": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/DocumentScanning/create-upload-session.enricher.ts"
+    },
+    "createUserInvitations": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Invitation/create-user-invitations.enricher.ts"
+    },
+    "createWebProject": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/WebProject/create-web-project.enricher.ts"
+    },
+    "deActivateFontProject": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontActivation/deactivate-font-project.enricher.ts"
+    },
+    "deActivateList": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/FontActivation/deactivate-list.enricher.ts"
+    },
+    "deactivateFamilies": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": false,
+        "scope": "subject-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontActivation/deactivate-families.enricher.ts"
+    },
+    "deactivateStyle": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": false,
+        "scope": "subject-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontActivation/deactivate-style.enricher.ts"
+    },
+    "deactivateVariation": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": false,
+        "scope": "subject-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontActivation/deactivate-variation.enricher.ts"
+    },
+    "deleteAllPrivateTags": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/PrivateTag/delete-all-private-tags.enricher.ts"
+    },
+    "deleteAssetAttachment": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Asset/delete-asset-attachment.enricher.ts"
+    },
+    "deleteAssets": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Asset/delete-assets.enricher.ts"
+    },
+    "deleteCompanyLogo": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/CompanyLogo/delete-company-logo.enricher.ts"
+    },
+    "deleteContracts": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/BYOF/delete-contracts.enricher.ts"
+    },
+    "deleteImportedFonts": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontImport/delete-imported-fonts.enricher.ts"
+    },
+    "deletePrivateTags": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/PrivateTag/delete-private-tags.enricher.ts"
+    },
+    "deleteProfiles": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/UserProfile/delete-profiles.enricher.ts"
+    },
+    "deleteProject": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/ProjectManagement/delete-project.enricher.ts"
+    },
+    "deleteRoles": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/UserRole/delete-roles.enricher.ts"
+    },
+    "deleteServiceAccount": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/ServiceAccount/delete-service-account.enricher.ts"
+    },
+    "deleteSsoMappings": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/SSO/delete-sso-mappings.enricher.ts"
+    },
+    "deleteStyleComment": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/StyleDocument/delete-style-comment.enricher.ts"
+    },
+    "deleteStyleDocument": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/StyleDocument/delete-style-document.enricher.ts"
+    },
+    "deleteTeams": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Team/delete-teams.enricher.ts"
+    },
+    "denyIntentForProduction": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/LicenseManagement/deny-intent-for-production.enricher.ts"
+    },
+    "dismissNotification": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Notification/dismiss-notification.enricher.ts"
+    },
+    "downloadAssetAttachmentSignedUrl": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/AssetAttachment/download-asset-attachment-signed-url.enricher.ts"
+    },
+    "downloadWebProject": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/WebProject/download-web-project.enricher.ts"
+    },
+    "duplicateProject": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/ProjectManagement/duplicate-project.enricher.ts"
+    },
+    "editWebProject": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/WebProject/edit-web-project.enricher.ts"
+    },
+    "exportCompleted": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Export/export-completed.enricher.ts"
+    },
+    "exportFailed": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Export/export-failed.enricher.ts"
+    },
+    "exportFontTemplate": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontTemplate/export-font-template.enricher.ts"
+    },
+    "exportUnassignedImportedFontsTemplate": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontTemplate/export-unassigned-imported-fonts-template.enricher.ts"
+    },
+    "finalizeAssetAttachments": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Asset/finalize-asset-attachments.enricher.ts"
+    },
+    "fontActivationTypeSwitched": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopAppFontActivation/font-activation-type-switched.enricher.ts"
+    },
+    "fontAutoActivated": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/DesktopAppFontActivation/font-auto-activated.enricher.ts"
+    },
+    "fontAutoDeactivated": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/DesktopAppFontActivation/font-auto-deactivated.enricher.ts"
+    },
+    "fontLocalfontActivated": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopAppFontActivation/font-localfont-activated.enricher.ts"
+    },
+    "fontLocalfontDeactivated": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopAppFontActivation/font-localfont-deactivated.enricher.ts"
+    },
+    "fontPairsViewed": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopAppFontActivation/font-pairs-viewed.enricher.ts"
+    },
+    "fontSimilarFontViewed": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopAppFontActivation/font-similar-font-viewed.enricher.ts"
+    },
+    "fontSimilarViewed": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontSimilar/font-similar-viewed.enricher.ts"
+    },
+    "fontTempActivated": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DesktopAppFontActivation/font-temp-activated.enricher.ts"
+    },
+    "getActiveBatches": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Batch/get-active-batches.enricher.ts"
+    },
+    "getAllAccessRequests": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontAccess/get-all-access-requests.enricher.ts"
+    },
+    "getAssetAttachments": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/AssetAttachment/get-asset-attachments.enricher.ts"
+    },
+    "getBatchProgress": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Batch/get-batch-progress.enricher.ts"
+    },
+    "getCategorizedGlyphs": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Glyph/get-categorized-glyphs.enricher.ts"
+    },
+    "getCustomerSettings": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Customer/get-customer-settings.enricher.ts"
+    },
+    "getDocumentMetadata": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DocumentMetadata/get-document-metadata.enricher.ts"
+    },
+    "getEligiblePrimaryContacts": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/UserProfile/get-eligible-primary-contacts.enricher.ts"
+    },
+    "getFamiliesOfAllFontLists": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Asset/get-families-of-all-font-lists.enricher.ts"
+    },
+    "getImportedFonts": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontImport/get-imported-fonts.enricher.ts"
+    },
+    "getPackageId": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontDownload/get-package-id.enricher.ts"
+    },
+    "getProjectByDocumentId": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Project/get-project-by-document-id.enricher.ts"
+    },
+    "getSsoMappings": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/SSO/get-sso-mappings.enricher.ts"
+    },
+    "getStyleComments": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/StyleComment/get-style-comments.enricher.ts"
+    },
+    "getStyleDocuments": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/StyleDocument/get-style-documents.enricher.ts"
+    },
+    "getStyleDocumentsDownloadUrls": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/StyleDocument/get-style-documents-download-urls.enricher.ts"
+    },
+    "getStylesOfAllFontLists": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Asset/get-styles-of-all-font-lists.enricher.ts"
+    },
+    "getUploadSessionFonts": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/UploadSession/get-upload-session-fonts.enricher.ts"
+    },
+    "globalEmailOptOut": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Notification/global-email-opt-out.enricher.ts"
+    },
+    "identityLinked": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Login/identity-linked.enricher.ts"
+    },
+    "importFontTemplate": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontTemplate/import-font-template.enricher.ts"
+    },
+    "keepInProduction": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/ProductionFont/keep-in-production.enricher.ts"
+    },
+    "licenseLinked": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Batch/license-linked.enricher.ts"
+    },
+    "linkContractToStyles": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/BYOF/link-contract-to-styles.enricher.ts"
+    },
+    "linkDocumentToProject": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/ProjectManagement/link-document-to-project.enricher.ts"
+    },
+    "linkDocumentsToContract": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/BYOF/link-documents-to-contract.enricher.ts"
+    },
+    "markAllNotificationsRead": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Notification/mark-all-notifications-read.enricher.ts"
+    },
+    "markCompanyLogoUploadSuccess": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/CompanyLogo/mark-company-logo-upload-success.enricher.ts"
+    },
+    "markNotificationRead": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Notification/mark-notification-read.enricher.ts"
+    },
+    "markOnboardingCompleted": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Customer/mark-onboarding-completed.enricher.ts"
+    },
+    "markProductionFonts": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/ProductionFont/mark-production-fonts.enricher.ts"
+    },
+    "markSessionFileUploaded": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/DocumentScanning/mark-session-file-uploaded.enricher.ts"
+    },
+    "notifyByofLicenceExpiry": {
+      "implementation": {
+        "subject": true,
+        "actor": false,
+        "scope": "subject-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Scheduled/notify-byof-licence-expiry.enricher.ts"
+    },
+    "parseAndCreateContract": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/BYOF/parse-and-create-contract.enricher.ts"
+    },
+    "pinAsset": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/PinnedAsset/pin-asset.enricher.ts"
+    },
+    "pluginDocumentOpened": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Plugin/plugin-document-opened.enricher.ts"
+    },
+    "pluginFontAutoActivated": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Plugin/plugin-font-auto-activated.enricher.ts"
+    },
+    "pluginFontAutoDeactivated": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Plugin/plugin-font-auto-deactivated.enricher.ts"
+    },
+    "pluginFontConflictDetected": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Plugin/plugin-font-conflict-detected.enricher.ts"
+    },
+    "pluginFontManuallyActivated": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Plugin/plugin-font-manually-activated.enricher.ts"
+    },
+    "pluginImportedFontRequested": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Plugin/plugin-imported-font-requested.enricher.ts"
+    },
+    "pluginMissingFontDetected": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Plugin/plugin-missing-font-detected.enricher.ts"
+    },
+    "pluginMissingFontResolved": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Plugin/plugin-missing-font-resolved.enricher.ts"
+    },
+    "pluginMissingFontUnresolved": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Plugin/plugin-missing-font-unresolved.enricher.ts"
+    },
+    "pluginPanelClosed": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Plugin/plugin-panel-closed.enricher.ts"
+    },
+    "pluginPanelOpened": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Plugin/plugin-panel-opened.enricher.ts"
+    },
+    "processUploadSessionFonts": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DocumentScanning/process-upload-session-fonts.enricher.ts"
+    },
+    "publishAddOn": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/AddOn/publish-add-on.enricher.ts"
+    },
+    "publishProject": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/ProjectManagement/publish-project.enricher.ts"
+    },
+    "regenerateToken": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/ServiceAccount/regenerate-token.enricher.ts"
+    },
+    "rejectFontAccess": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontAccess/reject-font-access.enricher.ts"
+    },
+    "removeFavoriteFamilies": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Favorite/remove-favorite-families.enricher.ts"
+    },
+    "removeFavoritePair": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/FavoritePair/remove-favorite-pair.enricher.ts"
+    },
+    "removeFavoriteStyles": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Favorite/remove-favorite-styles.enricher.ts"
+    },
+    "removeFontListFamilies": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/FontList/remove-font-list-families.enricher.ts"
+    },
+    "removeFontListStyles": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/FontList/remove-font-list-styles.enricher.ts"
+    },
+    "removeFontProjectFamilies": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/ProjectManagement/remove-font-project-families.enricher.ts"
+    },
+    "removeFontProjectStyles": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/ProjectManagement/remove-font-project-styles.enricher.ts"
+    },
+    "removeStylesFromWebProject": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/WebProject/remove-styles-from-web-project.enricher.ts"
+    },
+    "reorderSsoMappings": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/SSO/reorder-sso-mappings.enricher.ts"
+    },
+    "requestFontAccess": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/FontAccess/request-font-access.enricher.ts"
+    },
+    "resetPassword": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/UserProfile/reset-password.enricher.ts"
+    },
+    "resetPreferences": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Notification/reset-preferences.enricher.ts"
+    },
+    "revokeToken": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/ServiceAccount/revoke-token.enricher.ts"
+    },
+    "saveDocumentMetadata": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/DocumentMetadata/save-document-metadata.enricher.ts"
+    },
+    "setLanguagePreference": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/UserProfile/set-language-preference.enricher.ts"
+    },
+    "sharingInfoForAssets": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Asset/sharing-info-for-assets.enricher.ts"
+    },
+    "submitFontUsageReport": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/LicenseManagement/submit-font-usage-report.enricher.ts"
+    },
+    "submitIntentForProduction": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/LicenseManagement/submit-intent-for-production.enricher.ts"
+    },
+    "suspendServiceAccount": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/ServiceAccount/suspend-service-account.enricher.ts"
+    },
+    "syncUnSyncVariations": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/FontActivation/sync-un-sync-variations.enricher.ts"
+    },
+    "unlinkDocumentFromProject": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/ProjectManagement/unlink-document-from-project.enricher.ts"
+    },
+    "unlinkDocumentsFromContract": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/BYOF/unlink-documents-from-contract.enricher.ts"
+    },
+    "unlinkStyleFromContract": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/BYOF/unlink-style-from-contract.enricher.ts"
+    },
+    "unpinAsset": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/PinnedAsset/unpin-asset.enricher.ts"
+    },
+    "updateAsset": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Asset/update-asset.enricher.ts"
+    },
+    "updateAssetSharing": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Asset/update-asset-sharing.enricher.ts"
+    },
+    "updateAssets": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Asset/update-assets.enricher.ts"
+    },
+    "updateAssetsSharingInfo": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Asset/update-assets-sharing-info.enricher.ts"
+    },
+    "updateCompanySsoStatus": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/SSO/update-company-sso-status.enricher.ts"
+    },
+    "updateContract": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/BYOF/update-contract.enricher.ts"
+    },
+    "updateCustomer": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Customer/update-customer.enricher.ts"
+    },
+    "updateCustomerSettings": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Customer/update-customer-settings.enricher.ts"
+    },
+    "updateFontProjectStyles": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/ProjectManagement/update-font-project-styles.enricher.ts"
+    },
+    "updateFontsForReview": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/LicenseManagement/update-fonts-for-review.enricher.ts"
+    },
+    "updatePreference": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Notification/update-preference.enricher.ts"
+    },
+    "updatePrivateTag": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/PrivateTag/update-private-tag.enricher.ts"
+    },
+    "updatePrivateTagAssociations": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/PrivateTag/update-private-tag-associations.enricher.ts"
+    },
+    "updateProductionFont": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/ProductionFont/update-production-font.enricher.ts"
+    },
+    "updateProfile": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/UserProfile/update-profile.enricher.ts"
+    },
+    "updateRole": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/UserRole/update-role.enricher.ts"
+    },
+    "updateServiceAccount": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/ServiceAccount/update-service-account.enricher.ts"
+    },
+    "updateSessionFiles": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/DocumentScanning/update-session-files.enricher.ts"
+    },
+    "updateSsoMapping": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/SSO/update-sso-mapping.enricher.ts"
+    },
+    "updateStyleComment": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/StyleDocument/update-style-comment.enricher.ts"
+    },
+    "updateSubToggle": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Notification/update-sub-toggle.enricher.ts"
+    },
+    "updateTeam": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Team/update-team.enricher.ts"
+    },
+    "updateUserInvitations": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/Invitation/update-user-invitations.enricher.ts"
+    },
+    "uploadImportedFonts": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Batch/upload-imported-fonts.enricher.ts"
+    },
+    "userLoginFailureApp": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Login/user-login-failure-app.enricher.ts"
+    },
+    "userLoginInitiatedApp": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Login/user-login-initiated-app.enricher.ts"
+    },
+    "userLogoutApp": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Login/user-logout-app.enricher.ts"
+    },
+    "userSwitchWorkspaceApp": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Login/user-switch-workspace-app.enricher.ts"
+    },
+    "userSwitchWorkspaceFailedApp": {
+      "implementation": {
+        "subject": false,
+        "actor": true,
+        "scope": "actor-only"
+      },
+      "enforced": {
+        "subject": false,
+        "actor": false,
+        "scope": "none"
+      },
+      "gap": true,
+      "source_file": "src/enrichment/enrichers/Login/user-switch-workspace-failed-app.enricher.ts"
+    }
+  }
+}

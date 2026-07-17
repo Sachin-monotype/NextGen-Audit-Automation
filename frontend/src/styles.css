@@ -1487,6 +1487,14 @@ button:disabled {
   text-align: left;
   padding: 4px 8px;
 }
+.coverage-track-menu-body button.danger {
+  color: #b42318;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+.coverage-track-menu-body button.danger:hover:not(:disabled) {
+  background: #fee4e2;
+}
 
 .result-detail-bar {
   display: flex;
@@ -2267,8 +2275,30 @@ button.primary.sm {
   gap: 10px;
   margin-bottom: 12px;
 }
-.modal-head .link-btn {
-  margin-left: auto;
+.token-cred-modal {
+  width: min(420px, 100%);
+}
+.token-cred-form {
+  display: grid;
+  gap: 10px;
+}
+.token-cred-form label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+.token-cred-form input {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--input-bg, #fff);
+  color: inherit;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
 }
 .generate-status-table {
   margin-top: 8px;
@@ -2495,3 +2525,64 @@ button.primary.sm {
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+/* Compare attribute editor + Verify in UI */
+.attribute-editor { display: inline-flex; align-items: center; }
+.attribute-editor-modal { width: min(720px, 100%); }
+.attribute-editor-ops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+.attribute-editor-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.attribute-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.attribute-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.attribute-list li:last-child { border-bottom: none; }
+.attribute-list code { flex: 1; word-break: break-all; }
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  justify-content: flex-end;
+}
+.verify-ui-modal { width: min(640px, 100%); }
+.verify-ui-modal textarea,
+.verify-ui-modal input {
+  width: 100%;
+  font: inherit;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.verify-ui-prompt {
+  background: var(--mono-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 11px;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.filter-field span { display: block; font-size: 12px; margin-bottom: 4px; color: var(--muted); }

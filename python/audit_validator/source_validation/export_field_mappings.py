@@ -127,9 +127,9 @@ def _source_shortcut(field_path: str, source_system: str, source_api: str = "") 
     if low.startswith("source."):
         return f"raw>source>{leaf}"
     if low == "subject.type":
-        return "raw>subject>type"
+        return "graphql>mutation>subject.type"
     if low.startswith("subject.id"):
-        return "raw>subject>id"
+        return "graphql>mutation>subject.id"
     if low.startswith("actor.") and leaf.lower() in {
         "globaluserid",
         "globalcustomerid",

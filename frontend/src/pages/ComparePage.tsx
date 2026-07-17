@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AttributeEditor from "../components/AttributeEditor";
 import MultiSelect from "../components/MultiSelect";
 import {
   fetchCategories,
@@ -32,6 +33,7 @@ export default function ComparePage({ onCompareCompleted }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [activeJob, setActiveJob] = useState<Job | null>(null);
+  const [fieldPathsByOp, setFieldPathsByOp] = useState<Record<string, string[]>>({});
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -155,7 +157,15 @@ export default function ComparePage({ onCompareCompleted }: Props) {
     setError("");
     setActiveJob(null);
     try {
-      const job = await startCompare([...selected]);
+      // Only send field filters for ops that were explicitly edited
+      const filtered: Record<string, string[]> = {};
+      for (const op of selected) {
+        if (fieldPathsByOp[op]?.length) filtered[op] = fieldPathsByOp[op];
+      }
+      const job = await startCompare(
+        [...selected],
+        Object.keys(filtered).length ? filtered : undefined,
+      );
       localStorage.setItem(JOB_KEY, job.id);
       setActiveJob(job);
       pollJob(job.id);
@@ -245,6 +255,11 @@ export default function ComparePage({ onCompareCompleted }: Props) {
         >
           {jobRunning ? "Comparing…" : `Compare ${selected.size} selected`}
         </button>
+        <AttributeEditor
+          operations={[...selected]}
+          value={fieldPathsByOp}
+          onChange={setFieldPathsByOp}
+        />
         <button type="button" onClick={selectAllVisible} disabled={jobRunning}>
           Select all
         </button>

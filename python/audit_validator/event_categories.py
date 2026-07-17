@@ -131,11 +131,15 @@ def _category_for_routing_key(rk: str) -> str | None:
 
 def resolve_category(operation: str) -> str:
     """Best-effort category for an operation (falls back to name heuristics)."""
-    cat = _category_for_routing_key(routing_key_for(operation))
+    # Touchpoint display names: activateFamily(global) → activateFamily
+    base = operation.split("(", 1)[0].strip() if "(" in operation else operation
+    cat = _category_for_routing_key(routing_key_for(base)) or _category_for_routing_key(
+        routing_key_for(operation)
+    )
     if cat:
         return cat
 
-    op = operation.lower()
+    op = base.lower()
     if "byof" in op or "importedfont" in op or "contract" in op or "licence" in op or "license" in op:
         return "Imported font Compliance"
     if "project" in op:
