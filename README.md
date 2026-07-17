@@ -16,9 +16,17 @@ End-to-end UI for audit log generation, display, source comparison, and results 
 cp .env.example .env
 # Edit MONGO_DB_URL and AUDIT_PROJECT_ROOT if needed
 
+python3 -m venv backend/.venv
+backend/.venv/bin/pip install -r backend/requirements.txt
+backend/.venv/bin/pip install -r python/requirements.txt
+
 chmod +x backend/run.sh scripts/dev.sh
 ./scripts/dev.sh
 ```
+
+`backend/run.sh` also installs both requirement files automatically. Run the
+commands above explicitly when preparing a virtual environment without using
+the development script.
 
 - UI: http://localhost:5174
 - API: http://localhost:3200

@@ -586,6 +586,8 @@ class AuditBridge:
         """Attach raw/enriched landing state (+ JSON bodies) to each scenario correlation."""
         if not self.db:
             return
+        from audit_validator.generate_run_report import _event_for_report
+
         for scenario in scenarios:
             cid = str(scenario.get("xCorrelationId") or "")
             op = str(scenario.get("operation") or "")
@@ -599,10 +601,8 @@ class AuditBridge:
                 )
                 scenario["raw"] = bool(raw)
                 scenario["enriched"] = bool(enriched)
-                scenario["raw_event"] = raw if isinstance(raw, dict) else None
-                scenario["enriched_event"] = (
-                    enriched if isinstance(enriched, dict) else None
-                )
+                scenario["raw_event"] = _event_for_report(raw)
+                scenario["enriched_event"] = _event_for_report(enriched)
             except Exception:
                 scenario["raw"] = False
                 scenario["enriched"] = False

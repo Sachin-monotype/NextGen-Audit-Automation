@@ -45,6 +45,21 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _json_safe(value: Any) -> Any:
+    """Make Mongo docs (ObjectId, datetime, …) JSON-serializable for reports/UI."""
+    try:
+        return json.loads(json.dumps(value, default=str))
+    except Exception:
+        return str(value) if value is not None else None
+
+
+def _event_for_report(doc: Any) -> dict[str, Any] | None:
+    if not isinstance(doc, dict):
+        return None
+    safe = _json_safe(doc)
+    return safe if isinstance(safe, dict) else None
+
+
 def _run_path(project_root: Path | None = None) -> Path:
     root = project_root or Path.cwd()
     return root / _LAST_REL
@@ -53,7 +68,7 @@ def _run_path(project_root: Path | None = None) -> Path:
 def save_generate_run(report: dict[str, Any], *, project_root: Path | None = None) -> Path:
     path = _run_path(project_root)
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {**report, "saved_at": _now()}
+    payload = _json_safe({**report, "saved_at": _now()})
     with _LOCK:
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         job_id = str(report.get("job_id") or "anon")[:12]
@@ -240,8 +255,8 @@ def verify_owned_queue_landing(
             row["pairing_method"] = method if (raw or enriched) else row.get("pairing_method")
             row["raw"] = bool(raw)
             row["enriched"] = bool(enriched)
-            row["raw_event"] = raw if isinstance(raw, dict) else None
-            row["enriched_event"] = enriched if isinstance(enriched, dict) else None
+            row["raw_event"] = _event_for_report(raw)
+            row["enriched_event"] = _event_for_report(enriched)
             if raw:
                 row["occurred_at_raw"] = raw.get("occurredAt")
                 # Backfill cid if envelope finally has it
