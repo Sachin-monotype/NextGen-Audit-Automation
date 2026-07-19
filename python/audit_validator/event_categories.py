@@ -1,17 +1,20 @@
 """Event categorisation for the NextGen UI filters.
 
-Groups every tracked operation into one of the product notification categories
-(mirrors the in-app notification preferences: Imported font Compliance, User &
-Access, Project lifecycle, Font Sync & activation, etc.). Categorisation is
-driven by the resolver's canonical outbound routing-key taxonomy so it stays in
-lock-step with how events are actually published.
+Primary source: ``docs/UI Navigation of Event (2).xlsx`` (first sheet), loaded into
+``data/ui_navigation.json`` as ``section`` per operation. Falls back to resolver
+routing-key heuristics only when the sheet has no section for that op.
 """
 
 from __future__ import annotations
 
+import json
+from functools import lru_cache
+from pathlib import Path
+
 from .rabbitmq.resolver_routing_map import OPERATION_TO_ROUTING_KEY
 
-# Ordered category labels (matches the in-app notification preference groups).
+# Ordered category labels (matches the in-app notification preference groups /
+# UI Navigation sheet section headers).
 CATEGORIES: list[str] = [
     "Font Sync & activation",
     "Imported font Access Requests",
@@ -24,6 +27,8 @@ CATEGORIES: list[str] = [
     "Exports & maintenance",
     "Other",
 ]
+
+_PKG_DATA = Path(__file__).resolve().parent / "data" / "ui_navigation.json"
 
 # Cron / scheduler operations that are published by their origin services with
 # routing keys not present in the resolver's outbound map.
@@ -48,9 +53,57 @@ _CRON_ROUTING_KEYS: dict[str, str] = {
     "user_invitation_expired": "user.invitation.expired",
 }
 
+# Sheet section labels → canonical CATEGORIES entry (casing / aliases).
+_SECTION_ALIASES: dict[str, str] = {
+    "font sync & activation": "Font Sync & activation",
+    "font activations": "Font Sync & activation",
+    "imported font access requests": "Imported font Access Requests",
+    "imported font compliance": "Imported font Compliance",
+    "project compliance": "Project Compliance",
+    "project lifecycle & membership": "Project lifecycle & membership",
+    "library & font changes": "Library & font changes",
+    "user & access": "User & Access",
+    "account & workspace": "Account & workspace",
+    "exports & maintenance": "Exports & maintenance",
+    # Extra sheet sections not shown as top-level UI filters → nearest bucket
+    "desktop app preferences": "Exports & maintenance",
+    "plugin events": "Font Sync & activation",
+    "login & identity": "User & Access",
+}
+
 
 def routing_key_for(operation: str) -> str:
     return OPERATION_TO_ROUTING_KEY.get(operation) or _CRON_ROUTING_KEYS.get(operation, "")
+
+
+def _normalize_section(section: str) -> str | None:
+    raw = (section or "").strip()
+    if not raw:
+        return None
+    if raw in CATEGORIES:
+        return raw
+    return _SECTION_ALIASES.get(raw.lower())
+
+
+@lru_cache(maxsize=1)
+def _ui_navigation_sections() -> dict[str, str]:
+    """operation → canonical category from UI Navigation Excel export."""
+    if not _PKG_DATA.is_file():
+        return {}
+    try:
+        raw = json.loads(_PKG_DATA.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    out: dict[str, str] = {}
+    if not isinstance(raw, dict):
+        return out
+    for op, meta in raw.items():
+        if not isinstance(meta, dict):
+            continue
+        cat = _normalize_section(str(meta.get("section") or ""))
+        if cat:
+            out[str(op)] = cat
+    return out
 
 
 def _category_for_routing_key(rk: str) -> str | None:
@@ -130,9 +183,16 @@ def _category_for_routing_key(rk: str) -> str | None:
 
 
 def resolve_category(operation: str) -> str:
-    """Best-effort category for an operation (falls back to name heuristics)."""
+    """Best-effort category for an operation (Excel section first)."""
     # Touchpoint display names: activateFamily(global) → activateFamily
     base = operation.split("(", 1)[0].strip() if "(" in operation else operation
+
+    sections = _ui_navigation_sections()
+    if base in sections:
+        return sections[base]
+    if operation in sections:
+        return sections[operation]
+
     cat = _category_for_routing_key(routing_key_for(base)) or _category_for_routing_key(
         routing_key_for(operation)
     )
@@ -148,11 +208,36 @@ def resolve_category(operation: str) -> str:
         return "Font Sync & activation"
     if any(t in op for t in ("role", "team", "profile", "invitation", "sso", "password", "user")):
         return "User & Access"
-    if any(t in op for t in ("customer", "serviceaccount", "companylogo", "onboarding", "preference", "notification", "subscription", "token")):
+    if any(
+        t in op
+        for t in (
+            "customer",
+            "serviceaccount",
+            "companylogo",
+            "onboarding",
+            "preference",
+            "notification",
+            "subscription",
+            "token",
+        )
+    ):
         return "Account & workspace"
     if op.startswith("get") or "export" in op or "download" in op:
         return "Exports & maintenance"
-    if any(t in op for t in ("asset", "favorite", "tag", "font", "style", "list", "webproject", "glyph", "production")):
+    if any(
+        t in op
+        for t in (
+            "asset",
+            "favorite",
+            "tag",
+            "font",
+            "style",
+            "list",
+            "webproject",
+            "glyph",
+            "production",
+        )
+    ):
         return "Library & font changes"
     return "Other"
 

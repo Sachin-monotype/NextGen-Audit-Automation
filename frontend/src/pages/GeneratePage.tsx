@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import JsonTree from "../components/JsonTree";
+import EnrichDiffModal from "../components/EnrichDiffModal";
+import GenerateInUiModal from "../components/GenerateInUiModal";
 import VerifyInUiModal, { type VerifyInUiContext } from "../components/VerifyInUiModal";
 import {
   fetchCategories,
   fetchCoverage,
   fetchDefaultPayload,
+  fetchGenerateInUi,
   fetchJob,
   fetchLastGenerateRun,
   fetchOperations,
@@ -13,11 +16,15 @@ import {
   fetchPayloadCurl,
   fetchPipelineConfig,
   fetchTokenStatus,
+  refreshGenerateInUi,
   refreshToken,
   applyTokenCredentials,
+  recordGenerateInUiResults,
   setPipelineTarget,
+  setPipelineQueues,
   sendCustomPayload,
   startGenerate,
+  verifyGenerateInUi,
   type CategoryReport,
   type CoverageReport,
   type DefaultPayload,
@@ -29,6 +36,7 @@ import {
   type PipelineConfig,
   type SendCustomResult,
   type TokenStatus,
+  type UiTriggerJob,
 } from "../api";
 
 const SOURCE_KINDS = [
@@ -38,6 +46,7 @@ const SOURCE_KINDS = [
 ] as const;
 
 const JOB_KEY = "audit-generate-job";
+const UI_JOB_KEY = "audit-generate-ui-job";
 
 type DropdownItem = {
   id: string;
@@ -617,11 +626,32 @@ export default function GeneratePage() {
   const [listModal, setListModal] = useState<ListModalState | null>(null);
   const [verifyCtx, setVerifyCtx] = useState<VerifyInUiContext | null>(null);
   const [targetBusy, setTargetBusy] = useState(false);
+  const [queueDraft, setQueueDraft] = useState({ raw: "", enriched: "" });
+  const [queueBusy, setQueueBusy] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [enrichPick, setEnrichPick] = useState<string[]>([]);
+  const [enrichDiff, setEnrichDiff] = useState<{
+    labelA: string;
+    labelB: string;
+    dataA: unknown;
+    dataB: unknown;
+  } | null>(null);
+  const [uiTriggerOpen, setUiTriggerOpen] = useState(false);
+  const [uiJob, setUiJob] = useState<UiTriggerJob | null>(null);
+  const [uiManualCid, setUiManualCid] = useState("");
+  const [uiBusy, setUiBusy] = useState(false);
   const logRef = useRef<HTMLPreElement>(null);
+  const uiLogRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
     fetchOperations().then((r) => setAvailable(r.operations));
-    fetchPipelineConfig().then(setPipeline);
+    fetchPipelineConfig().then((p) => {
+      setPipeline(p);
+      setQueueDraft({
+        raw: p.raw_queue || "",
+        enriched: p.enriched_queue || "",
+      });
+    });
     fetchTokenStatus().then(setToken).catch(() => {});
     fetchCoverage().then(setCoverage).catch(() => {});
     fetchCategories().then(setCategories).catch(() => {});
@@ -632,6 +662,10 @@ export default function GeneratePage() {
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [job?.logs]);
+
+  useEffect(() => {
+    if (uiLogRef.current) uiLogRef.current.scrollTop = uiLogRef.current.scrollHeight;
+  }, [uiJob?.logs]);
 
   const visibleOperations = useMemo<DropdownItem[]>(() => {
     let items: DropdownItem[] =
@@ -726,12 +760,38 @@ export default function GeneratePage() {
     setTargetBusy(true);
     setError("");
     try {
-      setPipeline(await setPipelineTarget(target));
+      const next = await setPipelineTarget(target);
+      setPipeline(next);
+      setQueueDraft({
+        raw: next.raw_queue || "",
+        enriched: next.enriched_queue || "",
+      });
       setToken(await fetchTokenStatus());
     } catch (e) {
       setError(String(e));
     } finally {
       setTargetBusy(false);
+    }
+  }
+
+  async function onSaveQueues() {
+    setQueueBusy(true);
+    setError("");
+    try {
+      const next = await setPipelineQueues({
+        raw_queue: queueDraft.raw.trim(),
+        enriched_queue: queueDraft.enriched.trim(),
+      });
+      setPipeline(next);
+      setQueueDraft({
+        raw: next.raw_queue || "",
+        enriched: next.enriched_queue || "",
+      });
+      setQueueOpen(false);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setQueueBusy(false);
     }
   }
 
@@ -776,6 +836,131 @@ export default function GeneratePage() {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [pollJob]);
+
+  const uiPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const activateUiJob = useCallback((next: UiTriggerJob) => {
+    setUiJob(next);
+    localStorage.setItem(UI_JOB_KEY, next.id);
+  }, []);
+
+  const pollUiJob = useCallback((id: string) => {
+    if (uiPollRef.current) clearInterval(uiPollRef.current);
+    uiPollRef.current = setInterval(async () => {
+      try {
+        const res = await refreshGenerateInUi(id);
+        setUiJob(res.job);
+        if (res.job.verification?.generate_run_saved) {
+          if (uiPollRef.current) clearInterval(uiPollRef.current);
+          uiPollRef.current = null;
+          try {
+            const last = await fetchLastGenerateRun();
+            if (last.ok && last.report) {
+              setLastRun(last.report);
+              setShowLastRun(true);
+            }
+          } catch {
+            /* ignore */
+          }
+          return;
+        }
+        if (res.job.status === "completed" || res.job.status === "failed") {
+          // Keep polling briefly if completed but auto-verify still pending
+          if (res.job.verification?.generate_run_saved || res.job.status === "failed") {
+            if (uiPollRef.current) clearInterval(uiPollRef.current);
+            uiPollRef.current = null;
+          }
+        }
+      } catch {
+        /* keep polling through transient CasePilot blips */
+      }
+    }, 4000);
+  }, []);
+
+  useEffect(() => {
+    const savedId = localStorage.getItem(UI_JOB_KEY);
+    if (!savedId) return;
+    fetchGenerateInUi(savedId)
+      .then((j) => {
+        setUiJob(j);
+        if (j.status === "queued" || j.status === "running" || j.status === "pending_agent") {
+          pollUiJob(j.id);
+        }
+      })
+      .catch(() => localStorage.removeItem(UI_JOB_KEY));
+    return () => {
+      if (uiPollRef.current) clearInterval(uiPollRef.current);
+    };
+  }, [pollUiJob]);
+
+  useEffect(() => {
+    if (!uiJob) return;
+    if (uiJob.status === "queued" || uiJob.status === "running") {
+      pollUiJob(uiJob.id);
+    }
+  }, [uiJob?.id, uiJob?.status, pollUiJob]);
+
+  async function onUiManualCid() {
+    if (!uiJob?.id || !uiManualCid.trim()) return;
+    setUiBusy(true);
+    setError("");
+    try {
+      const op =
+        uiJob.selection?.[0]?.operation ||
+        uiJob.verification?.operations?.[0] ||
+        "";
+      const touch = uiJob.selection?.[0]?.touchpoint || "";
+      const res = await recordGenerateInUiResults(uiJob.id, [
+        {
+          correlation_id: uiManualCid.trim(),
+          operation: op,
+          touchpoint: touch || undefined,
+        },
+      ]);
+      activateUiJob(res.job);
+      setUiManualCid("");
+      // Auto-verify after paste (no extra click)
+      const verified = await verifyGenerateInUi(uiJob.id);
+      activateUiJob(verified.job);
+      if (verified.ok) {
+        const last = await fetchLastGenerateRun();
+        setLastRun(last.ok && last.report ? last.report : null);
+        setShowLastRun(true);
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setUiBusy(false);
+    }
+  }
+
+  async function onContinueUiVerify() {
+    if (!uiJob) return;
+    setUiBusy(true);
+    setError("");
+    try {
+      const res = await verifyGenerateInUi(uiJob.id);
+      activateUiJob(res.job);
+      if (!res.ok) {
+        const msg =
+          (res.job?.agent as { last_error?: string } | undefined)?.last_error ||
+          "Verification not ready — paste correlation_id first";
+        setError(msg);
+        return;
+      }
+      // Same Generation Status panel as API generate
+      const last = await fetchLastGenerateRun();
+      setLastRun(last.ok && last.report ? last.report : null);
+      setShowLastRun(true);
+      if (!last.ok) {
+        setError(last.detail || "Verification finished but Generation Status report missing");
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setUiBusy(false);
+    }
+  }
 
   function toggle(op: string) {
     setSelected((prev) => {
@@ -849,6 +1034,46 @@ export default function GeneratePage() {
   const opsWithLanding = (runReport?.operations || []).filter((o) => o.raw || o.enriched).length;
   const openOpsSummary =
     !(runReport?.scenarios?.length) || scenariosWithLanding === 0;
+
+  const enrichCandidates = useMemo(() => {
+    return statusScenarios
+      .filter((s) => s.enriched_event)
+      .map((s) => ({
+        key: scenarioDisplayName(s.operation, s.touchpoint),
+        label: scenarioDisplayName(s.operation, s.touchpoint),
+        data: s.enriched_event as Record<string, unknown>,
+      }));
+  }, [statusScenarios]);
+
+  function toggleEnrichPick(key: string) {
+    setEnrichPick((prev) => {
+      if (prev.includes(key)) return prev.filter((k) => k !== key);
+      if (prev.length >= 2) return [prev[1], key];
+      return [...prev, key];
+    });
+  }
+
+  function openEnrichDiff() {
+    if (enrichPick.length !== 2) return;
+    const a = enrichCandidates.find((c) => c.key === enrichPick[0]);
+    const b = enrichCandidates.find((c) => c.key === enrichPick[1]);
+    if (!a || !b) return;
+    setEnrichDiff({ labelA: a.label, labelB: b.label, dataA: a.data, dataB: b.data });
+  }
+
+  const uiSelection = useMemo(() => {
+    const ids = [...selected];
+    if (!ids.length) return [];
+    return ids.map((id) => {
+      const cat = sources?.catalog?.find((c) => c.id === id);
+      return {
+        id,
+        operation: cat?.operation || id.split("::")[0] || id,
+        touchpoint: cat?.touchpoint ?? null,
+        label: cat?.label || chipLabel(id),
+      };
+    });
+  }, [selected, sources, labelById]);
 
   function jsonCell(data: unknown): string {
     if (!data) return "";
@@ -955,24 +1180,47 @@ export default function GeneratePage() {
                 Open NextGen ↗
               </a>
             )}
-            <a
-              href={pipeline.raw_queue_url || "#"}
-              target="_blank"
-              rel="noreferrer"
-              className={`context-link${pipeline.raw_queue_url ? "" : " disabled"}`}
-              title={pipeline.raw_queue}
+            <details
+              className="queue-details"
+              open={queueOpen}
+              onToggle={(e) => setQueueOpen((e.target as HTMLDetailsElement).open)}
             >
-              Raw queue ↗
-            </a>
-            <a
-              href={pipeline.enriched_queue_url || "#"}
-              target="_blank"
-              rel="noreferrer"
-              className={`context-link${pipeline.enriched_queue_url ? "" : " disabled"}`}
-              title={pipeline.enriched_queue}
-            >
-              Enriched queue ↗
-            </a>
+              <summary>Queue details</summary>
+              <div className="queue-details-body">
+                <label className="inline-control">
+                  Raw
+                  <input
+                    value={queueDraft.raw}
+                    disabled={queueBusy || running}
+                    onChange={(e) => setQueueDraft((d) => ({ ...d, raw: e.target.value }))}
+                    spellCheck={false}
+                  />
+                </label>
+                <label className="inline-control">
+                  Enriched
+                  <input
+                    value={queueDraft.enriched}
+                    disabled={queueBusy || running}
+                    onChange={(e) => setQueueDraft((d) => ({ ...d, enriched: e.target.value }))}
+                    spellCheck={false}
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={
+                    queueBusy ||
+                    running ||
+                    !queueDraft.raw.trim() ||
+                    !queueDraft.enriched.trim() ||
+                    (queueDraft.raw === (pipeline.raw_queue || "") &&
+                      queueDraft.enriched === (pipeline.enriched_queue || ""))
+                  }
+                  onClick={onSaveQueues}
+                >
+                  {queueBusy ? "Saving…" : "Save queues"}
+                </button>
+              </div>
+            </details>
             <span className={pipeline.ingestion_running ? "ok" : "warn"}>
               ● ingestion {pipeline.ingestion_running ? "running" : "stopped"}
             </span>
@@ -991,13 +1239,6 @@ export default function GeneratePage() {
             Raw/enrich coverage ({opStats.true_pairs ?? 0} paired)…
           </button>
         )}
-        <a
-          className="context-link"
-          href="/api/meta/ui-navigation-mapping.xlsx"
-          download
-        >
-          UI Navigation mapping.xlsx ↗
-        </a>
         {token && (
           <span className={`compact-token ${!token.present || token.expired ? "warn" : "ok"}`}>
             ● token {!token.present ? "missing" : token.expired ? "expired" : "valid"}
@@ -1163,6 +1404,19 @@ export default function GeneratePage() {
         <button type="button" className="primary outline" disabled={running} onClick={() => run(true)}>
           {running ? "Running…" : "Generate & validate"}
         </button>
+        <button
+          type="button"
+          className="primary outline"
+          disabled={running || selected.size === 0}
+          title={
+            selected.size === 0
+              ? "Select at least one scenario"
+              : "Trigger via CasePilot UI — then verify here with correlation-id"
+          }
+          onClick={() => setUiTriggerOpen(true)}
+        >
+          Generate in UI
+        </button>
         <button type="button" className="primary outline" disabled={lastRunBusy} onClick={onShowLastRun}>
           {lastRunBusy ? "Loading…" : "Generation Status"}
         </button>
@@ -1171,117 +1425,261 @@ export default function GeneratePage() {
 
       {error && <p className="error">{error}</p>}
 
-      {job && (
-        <div className="log-box generation-log-box">
-          <div className="log-head">
-            <strong>Live generation log · Job {job.id.slice(0, 8)}</strong>
-            {!!job.params.validate && <span className="routing-tag">generate + validate</span>}
-            <span className={`status-pill ${job.status}`}>{job.status}</span>
-            {job.error && <span className="error">{job.error}</span>}
-            {job.result?.exit_code !== undefined && <span>exit {job.result.exit_code}</span>}
+      {uiTriggerOpen && (
+        <GenerateInUiModal
+          selection={uiSelection}
+          onClose={() => setUiTriggerOpen(false)}
+          onActive={(j) => {
+            activateUiJob(j);
+            if (j.status === "queued" || j.status === "running") pollUiJob(j.id);
+          }}
+        />
+      )}
+
+      {uiJob && (
+        <details className="operation-summary-details generation-log-details" open>
+          <summary>
+            UI trigger log · Job {uiJob.id.slice(0, 8)}
+            {" · "}
+            <span className={`status-pill ${uiJob.status}`}>{uiJob.status}</span>
+            {uiJob.verification?.ready ? " · correlation ready" : ""}
+            {uiJob.verification?.generate_run_saved ? " · Generation Status saved" : ""}
+            {" · stays open after browser closes"}
+          </summary>
+          {!!(uiJob.agent as { last_error?: string } | undefined)?.last_error && (
+            <p className="error small">
+              {(uiJob.agent as { last_error?: string }).last_error}
+            </p>
+          )}
+          <div className="log-box generation-log-box">
+            <pre ref={uiLogRef} className="job-logs">
+              {(uiJob.logs || []).join("\n") || "Waiting for CasePilot…"}
+            </pre>
           </div>
-          <pre ref={logRef} className="job-logs">{job.logs.join("\n") || "Waiting for logs…"}</pre>
-        </div>
+          {(uiJob.results || []).length > 0 && (
+            <div className="mongo-status generation-status-actions" style={{ marginTop: 8 }}>
+              <strong>Captured correlation_id(s)</strong>
+              <ul className="muted small">
+                {(uiJob.results || []).map((r, i) => (
+                  <li key={`${r.correlation_id}-${i}`}>
+                    <code>{r.correlation_id}</code>
+                    {r.operation ? ` · ${r.operation}` : ""}
+                    {r.touchpoint ? ` · ${r.touchpoint}` : ""}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="mongo-status generation-status-actions" style={{ marginTop: 8, gap: 8 }}>
+            <input
+              value={uiManualCid}
+              onChange={(e) => setUiManualCid(e.target.value)}
+              placeholder="Paste correlation-id from DevTools response header"
+              style={{ minWidth: 280 }}
+            />
+            <button type="button" disabled={uiBusy || !uiManualCid.trim()} onClick={onUiManualCid}>
+              Save correlation_id
+            </button>
+            <button
+              type="button"
+              className="primary"
+              disabled={
+                uiBusy ||
+                !(uiJob.verification?.ready || (uiJob.results || []).some((r) => r.correlation_id))
+              }
+              onClick={onContinueUiVerify}
+              title="Poll Mongo raw/enrich for this correlation_id and open Generation Status"
+            >
+              {uiBusy ? "Verifying…" : "Continue verification"}
+            </button>
+            <button
+              type="button"
+              disabled={uiBusy}
+              onClick={async () => {
+                setUiBusy(true);
+                try {
+                  const res = await refreshGenerateInUi(uiJob.id);
+                  activateUiJob(res.job);
+                } catch (e) {
+                  setError(String(e));
+                } finally {
+                  setUiBusy(false);
+                }
+              }}
+            >
+              Refresh CasePilot
+            </button>
+          </div>
+          <p className="muted small" style={{ marginTop: 8 }}>
+            Auto-mapped TestRail ids → Send. When CasePilot finishes we auto-capture all{" "}
+            <code>correlation-id</code>s (including createProject / list helpers) and open Generation
+            Status with raw + enrich. Paste below only if the agent omitted AUDIT_RESULT.
+          </p>
+        </details>
+      )}
+
+      {job && (
+        <details className="operation-summary-details generation-log-details" open>
+          <summary>
+            Live generation log · Job {job.id.slice(0, 8)}
+            {!!job.params.validate ? " · generate + validate" : ""}
+            {" · "}
+            <span className={`status-pill ${job.status}`}>{job.status}</span>
+            {job.error ? ` · ${job.error}` : ""}
+            {job.result?.exit_code !== undefined ? ` · exit ${job.result.exit_code}` : ""}
+          </summary>
+          <div className="log-box generation-log-box">
+            <pre ref={logRef} className="job-logs">{job.logs.join("\n") || "Waiting for logs…"}</pre>
+          </div>
+        </details>
       )}
 
       {runReport && (job?.status === "completed" || job?.status === "failed" || showLastRun) && (
         <div className="generate-run-status">
-          <div className="mongo-status">
-            <strong>Generation Status</strong>
-            <span className="routing-tag">{isValidateMode ? "generate + validate" : "generate only"}</span>
-            {isValidateMode && (
-              <>
-                <span className="ok">
+          <details className="operation-summary-details" open>
+            <summary>
+              Generation Status
+              {isValidateMode ? " · generate + validate" : " · generate only"}
+              {isValidateMode && (
+                <>
+                  {" · "}
                   PASS: {scenarioSummary?.pass ?? runReport.summary?.pass ?? runReport.summary?.success ?? 0}
-                </span>
-                <span className="warn">
+                  {" · "}
                   FAIL: {scenarioSummary?.fail ?? runReport.summary?.fail ?? runReport.summary?.needs_work ?? 0}
-                </span>
-                <span className="muted">
+                  {" · "}
                   N/A: {scenarioSummary?.na ?? runReport.summary?.na ?? 0}
-                </span>
-              </>
+                  {(scenarioSummary?.total ?? runReport.summary?.total) != null &&
+                    ` / ${scenarioSummary?.total ?? runReport.summary?.total}`}
+                </>
+              )}
+              {!isValidateMode && (
+                <>
+                  {" · "}
+                  scenarios {statusScenarios.length || runReport.scenarios?.length || 0}
+                  {" · "}
+                  landed {scenariosWithLanding}
+                </>
+              )}
+            </summary>
+            <div className="mongo-status generation-status-actions">
+              <button type="button" className="link-btn" onClick={exportStatusCsv}>
+                Export CSV
+              </button>
+              {enrichCandidates.length >= 2 && (
+                <>
+                  <span className="muted small">
+                    Pick 2 enrich rows to diff metadata (activationType, platformEnvironment, …)
+                  </span>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    disabled={enrichPick.length !== 2}
+                    onClick={openEnrichDiff}
+                  >
+                    Compare enrich ({enrichPick.length}/2)
+                  </button>
+                  {enrichPick.length > 0 && (
+                    <button type="button" className="link-btn" onClick={() => setEnrichPick([])}>
+                      clear pick
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+            {scenariosWithLanding === 0 && (runReport.scenarios?.length ?? 0) > 0 && (
+              <p className="warn small">
+                No scenario raw/enrich JSON yet — triggers likely failed.
+                Check Operation-level Mongo summary below for any landed events.
+              </p>
             )}
-            {!isValidateMode && (
-              <span className="muted">
-                scenarios {statusScenarios.length || runReport.scenarios?.length || 0} · landed {scenariosWithLanding} ·
-                ops with JSON {opsWithLanding}
-              </span>
-            )}
-            {(scenarioSummary?.total ?? runReport.summary?.total) != null && isValidateMode && (
-              <span className="muted">/ {scenarioSummary?.total ?? runReport.summary?.total}</span>
-            )}
-            <button type="button" className="link-btn" onClick={exportStatusCsv}>
-              Export CSV
-            </button>
-          </div>
-          {scenariosWithLanding === 0 && (runReport.scenarios?.length ?? 0) > 0 && (
-            <p className="warn small">
-              No scenario raw/enrich JSON yet — triggers likely failed.
-              Check Operation-level Mongo summary below for any landed events.
-            </p>
-          )}
-          {(statusScenarios.length > 0) && (
-            <div className="result-table-wrap compact-table-wrap generate-status-table">
-              <table className="result-table scenario-status-table">
-                <thead>
-                  <tr>
-                    <th>Operation</th>
-                    <th>Raw</th>
-                    <th>Enrich</th>
-                    {isValidateMode && (
-                      <>
-                        <th>Status</th>
-                        <th>Remark</th>
-                      </>
-                    )}
-                    <th>UI</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {statusScenarios.map((s) => (
-                    <tr key={`${s.scenario_id}-${s.xCorrelationId || ""}`}>
-                      <td><code>{scenarioDisplayName(s.operation, s.touchpoint)}</code></td>
-                      <td>
-                        <EventJsonCell label="raw" present={s.raw} data={s.raw_event} />
-                      </td>
-                      <td>
-                        <EventJsonCell label="enrich" present={s.enriched} data={s.enriched_event} />
-                      </td>
+            {(statusScenarios.length > 0) && (
+              <div className="result-table-wrap compact-table-wrap generate-status-table">
+                <table className="result-table scenario-status-table">
+                  <thead>
+                    <tr>
+                      <th title="Select for enrich diff">Diff</th>
+                      <th>Operation</th>
+                      <th>Raw</th>
+                      <th>Enrich</th>
                       {isValidateMode && (
                         <>
-                          <td>
-                            <span className={`status-pill ${s.status === "PASS" ? "completed" : "failed"}`}>
-                              {s.status}
-                            </span>
-                          </td>
-                          <td className="remark-cell">{s.error || "—"}</td>
+                          <th>Status</th>
+                          <th>Remark</th>
                         </>
                       )}
-                      <td>
-                        <button
-                          type="button"
-                          className="link-btn"
-                          onClick={() =>
-                            setVerifyCtx({
-                              operation: s.operation,
-                              touchpoint: s.touchpoint,
-                              scenarioId: s.scenario_id,
-                              correlationId: s.xCorrelationId || undefined,
-                            })
-                          }
-                        >
-                          Verify in UI
-                        </button>
-                      </td>
+                      <th>UI</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody>
+                    {statusScenarios.map((s) => {
+                      const name = scenarioDisplayName(s.operation, s.touchpoint);
+                      const canDiff = Boolean(s.enriched_event);
+                      return (
+                        <tr key={`${s.scenario_id}-${s.xCorrelationId || ""}`}>
+                          <td>
+                            {canDiff ? (
+                              <input
+                                type="checkbox"
+                                checked={enrichPick.includes(name)}
+                                onChange={() => toggleEnrichPick(name)}
+                                aria-label={`Select ${name} for enrich diff`}
+                              />
+                            ) : (
+                              <span className="muted">—</span>
+                            )}
+                          </td>
+                          <td><code>{name}</code></td>
+                          <td>
+                            <EventJsonCell label="raw" present={s.raw} data={s.raw_event} />
+                          </td>
+                          <td>
+                            <EventJsonCell label="enrich" present={s.enriched} data={s.enriched_event} />
+                          </td>
+                          {isValidateMode && (
+                            <>
+                              <td>
+                                <span className={`status-pill ${s.status === "PASS" ? "completed" : "failed"}`}>
+                                  {s.status}
+                                </span>
+                              </td>
+                              <td className="remark-cell">{s.error || "—"}</td>
+                            </>
+                          )}
+                          <td>
+                            <button
+                              type="button"
+                              className="link-btn"
+                              onClick={() =>
+                                setVerifyCtx({
+                                  operation: s.operation,
+                                  touchpoint: s.touchpoint,
+                                  scenarioId: s.scenario_id,
+                                  correlationId: s.xCorrelationId || undefined,
+                                })
+                              }
+                            >
+                              Verify in UI
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </details>
           {verifyCtx && (
             <VerifyInUiModal context={verifyCtx} onClose={() => setVerifyCtx(null)} />
+          )}
+          {enrichDiff && (
+            <EnrichDiffModal
+              labelA={enrichDiff.labelA}
+              labelB={enrichDiff.labelB}
+              dataA={enrichDiff.dataA}
+              dataB={enrichDiff.dataB}
+              onClose={() => setEnrichDiff(null)}
+            />
           )}
           <details className="operation-summary-details" open={openOpsSummary}>
             <summary>

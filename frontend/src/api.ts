@@ -4,6 +4,7 @@ export type Tab = "raw" | "enriched" | "dlq";
 
 export type LogRow = {
   xCorrelationId: string;
+  correlationId?: string;
   "source.operation": string;
   "source.operationState": string;
   "source.platformEnvironment": string;
@@ -54,6 +55,20 @@ export async function setPipelineTarget(target: string) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ target }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<PipelineConfig>;
+}
+
+export async function setPipelineQueues(body: {
+  raw_queue?: string;
+  enriched_queue?: string;
+  dlq?: string;
+}) {
+  const res = await fetch(`${API}/api/meta/pipeline-queues`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<PipelineConfig>;
@@ -279,6 +294,138 @@ export async function applyTokenCredentials(body: {
     throw new Error(data.message || data.error || "Failed to generate token");
   }
   return data;
+}
+
+export type UiTriggerSelectionItem = {
+  id: string;
+  operation: string;
+  touchpoint?: string | null;
+  label?: string;
+};
+
+export type UiTriggerJob = {
+  id: string;
+  kind: string;
+  status: string;
+  created_at: string;
+  selection: UiTriggerSelectionItem[];
+  testrail: { testcase_id: string; case_ids?: Array<number | string> };
+  cta_text?: string;
+  notes?: string;
+  correlation_strategy?: Record<string, unknown>;
+  agent?: Record<string, unknown>;
+  results?: Array<{
+    operation?: string;
+    touchpoint?: string;
+    correlation_id?: string;
+    status?: string;
+    source?: string;
+  }>;
+  logs?: string[];
+  verification?: {
+    ready?: boolean;
+    correlation_ids?: string[];
+    operations?: string[];
+    note?: string;
+    generate_run_saved?: boolean;
+    completed?: boolean;
+  };
+};
+
+export async function startGenerateInUi(body: {
+  selection: UiTriggerSelectionItem[];
+  test_case_id?: string;
+  cta_text?: string;
+  notes?: string;
+  extra?: Record<string, unknown>;
+  dispatch?: boolean;
+}) {
+  const res = await fetch(`${API}/api/jobs/generate-ui`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || "Failed to create UI trigger job");
+  }
+  return data as {
+    ok: boolean;
+    job: UiTriggerJob;
+    mcp_ready: boolean;
+    ui_config_ready?: boolean;
+  };
+}
+
+export async function sendGenerateInUi(jobId: string) {
+  const res = await fetch(`${API}/api/jobs/generate-ui/${encodeURIComponent(jobId)}/send`, {
+    method: "POST",
+  });
+  const data = await res.json();
+  if (!res.ok && !data.job) {
+    throw new Error(data.error || "CasePilot send failed");
+  }
+  return data as { ok: boolean; job: UiTriggerJob; error?: string };
+}
+
+export async function refreshGenerateInUi(jobId: string) {
+  const res = await fetch(`${API}/api/jobs/generate-ui/${encodeURIComponent(jobId)}/refresh`, {
+    method: "POST",
+  });
+  const data = await res.json();
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || "Failed to refresh CasePilot status");
+  }
+  return data as { ok: boolean; job: UiTriggerJob };
+}
+
+export async function fetchGenerateInUi(jobId: string) {
+  const res = await fetch(`${API}/api/jobs/generate-ui/${encodeURIComponent(jobId)}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<UiTriggerJob>;
+}
+
+export async function recordGenerateInUiResults(
+  jobId: string,
+  results: Array<{ operation?: string; touchpoint?: string; correlation_id: string }>,
+) {
+  const res = await fetch(`${API}/api/jobs/generate-ui/${encodeURIComponent(jobId)}/results`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ results }),
+  });
+  const data = await res.json();
+  if (!res.ok && !data.job) {
+    throw new Error(data.error || "Failed to record correlation_id");
+  }
+  return data as { ok: boolean; job: UiTriggerJob };
+}
+
+export async function verifyGenerateInUi(jobId: string) {
+  const res = await fetch(`${API}/api/jobs/generate-ui/${encodeURIComponent(jobId)}/verify`, {
+    method: "POST",
+  });
+  const data = await res.json();
+  if (!res.ok && !data.job) {
+    throw new Error(data.error || "UI verification failed");
+  }
+  return data as { ok: boolean; job: UiTriggerJob };
+}
+
+export type CasepilotStatus = {
+  ok: boolean;
+  configured?: boolean;
+  mcp_url?: string;
+  ui_config_ready?: boolean;
+  error?: string;
+  preflight?: Record<string, unknown>;
+  connectors?: { registered?: number; online?: number; runners?: unknown[] };
+  connection_info?: { mcp_url?: string; dashboard_url?: string; email?: string };
+};
+
+export async function fetchCasepilotStatus() {
+  const res = await fetch(`${API}/api/meta/casepilot`);
+  return res.json() as Promise<CasepilotStatus>;
 }
 
 export async function fetchCoverage() {

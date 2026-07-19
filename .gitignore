@@ -12,6 +12,8 @@ __pycache__/
 # Runtime artifacts (validator output)
 payload/raw/*.json
 payload/enrich/*.json
+payload/trigger/*.json
+payload/graphql/*.json
 payload/ingress/**/*.json
 temp/*
 result/*
@@ -19,6 +21,8 @@ reports/
 .token_cache.json
 !payload/raw/.gitkeep
 !payload/enrich/.gitkeep
+!payload/trigger/.gitkeep
+!payload/graphql/.gitkeep
 !temp/.gitkeep
 !result/.gitkeep
 
@@ -30,3 +34,6 @@ docs/touchpoint/
 docs/postman/
 docs/mappings/*.xlsx
 docs/mappings/*.postman_collection.json
+
+# Local MCP secrets
+.cursor/mcp.json

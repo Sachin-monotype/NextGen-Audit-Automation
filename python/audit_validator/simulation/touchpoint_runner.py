@@ -94,9 +94,22 @@ def _make_seed(cfg: Any, *, project_root: Path | None = None, operation: str = "
 
     # Known-bad / inventory-missing Discovery demo id — never use unless forced
     if str(family) == "794981" and not use_env:
-        family = (os.getenv("TOUCHPOINT_FAMILY_ID") or "").strip() or "910130168"
+        family = (os.getenv("TOUCHPOINT_FAMILY_ID") or "").strip()
+        if not family:
+            try:
+                from audit_validator.live_seeds import KNOWN_FAMILY_POOL
 
-    family = family or "910130168"
+                family = KNOWN_FAMILY_POOL[0]
+            except Exception:
+                family = "910042901"
+
+    if not family:
+        try:
+            from audit_validator.live_seeds import KNOWN_FAMILY_POOL
+
+            family = KNOWN_FAMILY_POOL[4]  # Helvetica® Now
+        except Exception:
+            family = "910042901"
     style = style or "920374778"
     md5 = md5 or "b783215634650cf0a55e0d723123d5e0"
 
@@ -118,6 +131,18 @@ def _make_seed(cfg: Any, *, project_root: Path | None = None, operation: str = "
         profile_id=(os.getenv("SEED_DELETE_PROFILE_ID") or "").strip(),
         notification_id=(os.getenv("SEED_NOTIFICATION_ID") or "").strip(),
         tag_id=(os.getenv("SEED_TAG_ID") or "").strip(),
+        headline_style_id=(
+            (os.getenv("SEED_HEADLINE_STYLE_ID") or "").strip()
+            or str(getattr(s, "headline_style_id", None) or "")
+            or "920142132"
+        ),
+        body_style_id=(
+            (os.getenv("SEED_BODY_STYLE_ID") or "").strip()
+            or str(getattr(s, "body_style_id", None) or "")
+            or "920233774"
+        ),
+        role_id=(os.getenv("SEED_ROLE_ID") or "").strip(),
+        team_id=(os.getenv("SEED_TEAM_ID") or "").strip(),
     )
 
 def _request(client: Any, operation: str, variables: dict[str, Any]) -> dict[str, Any]:
@@ -177,30 +202,134 @@ def _capture_seed_ids(seed: SeedIds, step_op: str, data: dict[str, Any]) -> None
         if isinstance(c, dict) and c.get("contractId"):
             seed.contract_id = str(c["contractId"])
         return
+    if step_op == "getNotifications":
+        nid = _extract_notification_id(data)
+        if nid:
+            seed.notification_id = nid
+        return
+    if step_op == "getCustomerSettings":
+        _capture_customer_settings(seed, data)
+        return
+    if step_op == "createRole":
+        role = ((data.get("createRole") or {}).get("role") or {})
+        rid = role.get("id") or ""
+        if rid:
+            seed.role_id = str(rid)
+        return
+    if step_op == "createTeam":
+        team = data.get("createTeam") or {}
+        tid = team.get("id") if isinstance(team, dict) else ""
+        if tid:
+            seed.team_id = str(tid)
+        return
+    if step_op == "getRoles":
+        nodes = ((data.get("getRoles") or {}).get("nodes") or [])
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            # Prefer a non-system role when possible
+            rid = node.get("id")
+            if rid:
+                seed.role_id = str(rid)
+                break
+        return
+    if step_op == "getTeams":
+        nodes = ((data.get("getTeams") or {}).get("nodes") or [])
+        for node in nodes:
+            if isinstance(node, dict) and node.get("id"):
+                seed.team_id = str(node["id"])
+                break
+        return
+    if step_op == "getProfiles":
+        nodes = ((data.get("getProfiles") or {}).get("nodes") or [])
+        self_email = (os.getenv("OAUTH_USERNAME") or os.getenv("TOKEN_EMAIL") or "").strip().lower()
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            user = node.get("user") or {}
+            email = str((user.get("email") if isinstance(user, dict) else "") or "").lower()
+            pid = node.get("id")
+            if not pid:
+                continue
+            # Prefer another active user (not the actor) for bulk updates
+            if self_email and email == self_email:
+                continue
+            if node.get("isActive") is False:
+                continue
+            seed.profile_id = str(pid)
+            break
+        # Fallback: first profile if none other found
+        if not seed.profile_id and nodes and isinstance(nodes[0], dict) and nodes[0].get("id"):
+            seed.profile_id = str(nodes[0]["id"])
+        return
+    if step_op == "duplicateProject":
+        root = data.get("bulkCopyAssets") or data.get("duplicateProject") or {}
+        results = root.get("results") if isinstance(root, dict) else None
+        if isinstance(results, list):
+            for row in results:
+                if not isinstance(row, dict):
+                    continue
+                copied = row.get("copiedAsset") or {}
+                cid = copied.get("id") if isinstance(copied, dict) else ""
+                if cid:
+                    # Stash duplicate project id for cleanup (document_id reused as temp)
+                    seed.document_id = str(cid)
+                    break
+        return
     # Bulk ops return BatchProgress with batchId
     node = data.get(step_op)
     if isinstance(node, dict) and node.get("batchId"):
         seed.batch_id = str(node["batchId"])
 
 
-def _extract_success(data: dict[str, Any], operation: str) -> bool | None:
-    """True/False when payload has ``success``; None when absent (check errors)."""
-    node = data.get(operation)
-    if isinstance(node, dict) and "success" in node:
-        return bool(node.get("success"))
-    return None
+# Preconditions that may already be satisfied (already favourite / already deactivated).
+_SOFT_FAIL_PRECONDITIONS = frozenset(
+    {
+        "removeFavoriteFamilies",
+        "removeFavoriteStyles",
+        "removeFavoritePair",
+        "deactivateFamilies",
+        "deactivateStyle",
+        "deactivateVariation",
+        "deActivateList",
+        "deActivateFontProject",
+        "getNotifications",
+        "activateFamily",
+        "activateStyle",
+        "activateVariation",
+        "activateList",
+        "activateFontProject",
+    }
+)
+
+# Target op name → response root field when GraphQL document uses a different field
+_STEP_RESPONSE_ROOT = {
+    "createFolder": "createAsset",
+    "duplicateProject": "bulkCopyAssets",
+}
 
 
 def _mutation_errors(data: dict[str, Any], operation: str) -> list[Any]:
-    node = data.get(operation)
+    root = _STEP_RESPONSE_ROOT.get(operation, operation)
+    node = data.get(root) if root in data else data.get(operation)
     if isinstance(node, dict):
         return list(node.get("errors") or [])
     return []
 
 
+def _extract_success(data: dict[str, Any], operation: str) -> bool | None:
+    """True/False when payload has ``success``; None when absent (check errors)."""
+    root = _STEP_RESPONSE_ROOT.get(operation, operation)
+    node = data.get(root) if root in data else data.get(operation)
+    if isinstance(node, dict) and "success" in node:
+        return bool(node.get("success"))
+    return None
+
+
 def _step_ok(data: dict[str, Any], operation: str) -> tuple[bool, str | None]:
     """Decide if a mutation step succeeded (schema payloads vary)."""
-    node = data.get(operation)
+    root = _STEP_RESPONSE_ROOT.get(operation, operation)
+    node = data.get(root) if root in data else data.get(operation)
     if node is None and data.get("errors"):
         return False, str(data["errors"])[:300]
     errs = _mutation_errors(data, operation)
@@ -215,6 +344,74 @@ def _step_ok(data: dict[str, Any], operation: str) -> tuple[bool, str | None]:
     if node is False:
         return False, f"{operation} returned false"
     return True, None
+
+
+def _extract_notification_id(data: dict[str, Any]) -> str:
+    """Pick a dismissable notification id from getNotifications response shapes."""
+    root = data.get("getNotifications") or data.get("notifications") or {}
+    if not isinstance(root, dict):
+        return ""
+    nodes = root.get("nodes") or root.get("items") or root.get("edges") or []
+    if not isinstance(nodes, list):
+        return ""
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        # Nested children (UI notification groups)
+        children = node.get("children") or []
+        if isinstance(children, list):
+            for child in children:
+                if not isinstance(child, dict):
+                    continue
+                if child.get("isExpired"):
+                    continue
+                cid = child.get("id")
+                if cid:
+                    return str(cid)
+        nid = node.get("id") or (
+            (node.get("node") or {}).get("id") if isinstance(node.get("node"), dict) else None
+        )
+        if nid:
+            return str(nid)
+    return ""
+
+
+def _capture_customer_settings(seed: SeedIds, data: dict[str, Any]) -> None:
+    settings = data.get("getCustomerSettings") or {}
+    if not isinstance(settings, dict):
+        return
+    seed.customer_display_name = str(settings.get("displayName") or settings.get("name") or "")
+    seed.customer_supported_language = str(settings.get("supportedLanguage") or "EN")
+    primary = settings.get("primaryContact") or {}
+    email = ""
+    if isinstance(primary, dict):
+        user = primary.get("user") or {}
+        if isinstance(user, dict):
+            email = str(user.get("email") or "")
+        if not email:
+            email = str(primary.get("id") or "")
+    seed.customer_primary_contact = email
+    overrides = settings.get("companySettingsOverrides") or {}
+    app_settings = settings.get("settings") or {}
+    flags: dict[str, Any] = {}
+    if isinstance(overrides, dict):
+        flags["enableDownload"] = overrides.get("enableDownload", True)
+        flags["enableImportedFonts"] = overrides.get("enableImportedFonts", False)
+        flags["enableFontFormatSelection"] = overrides.get(
+            "enableFontFormatSelection", True
+        )
+        flags["enableWebFontAccess"] = overrides.get("enableWebFontAccess", False)
+        flags["enableSelfHostingKit"] = overrides.get("enableSelfHostingKits", True)
+    if isinstance(app_settings, dict):
+        flags["shareIntentForProduction"] = app_settings.get(
+            "shareIntentForProduction", False
+        )
+        flags["markUnmarkFontsAsProduction"] = app_settings.get(
+            "markUnmarkFontsAsProduction", False
+        )
+    seed.customer_settings_flags = flags
+    if settings.get("id"):
+        seed.customer_id = str(settings["id"])
 
 
 def _cleanup(
@@ -401,6 +598,32 @@ def run_scenario(
 
             check_op = "createAsset" if step_op == "createFolder" else step_op
             ok, err_msg = _step_ok(data, check_op)
+            # Queries: treat presence of data as success
+            if step_op in {
+                "getNotifications",
+                "getCustomerSettings",
+                "getProfiles",
+                "getTeams",
+                "getRoles",
+            } and (data.get(step_op) is not None or ok):
+                ok = True
+                err_msg = None
+            if (
+                not ok
+                and step_op != operation
+                and step_op in _SOFT_FAIL_PRECONDITIONS
+            ):
+                _log(f"  ↷ {step_op} precondition soft-fail (continuing): {err_msg}")
+                step_results.append(
+                    {
+                        "op": step_op,
+                        "status": "SOFT",
+                        "error": err_msg,
+                        "cid": cid,
+                    }
+                )
+                _capture_seed_ids(seed, step_op, data)
+                continue
             if not ok and step_op not in {"createAsset", "createProject", "createFolder"}:
                 last_error = err_msg or str(data)[:300]
                 step_results.append(
@@ -417,6 +640,74 @@ def run_scenario(
                         touchpoint=touchpoint,
                         reverse_activation=_REVERSE_ACTIVATION.get(operation),
                     )
+                    return ScenarioResult(
+                        operation=operation,
+                        touchpoint=touchpoint,
+                        scenario_id=scenario_id,
+                        status="FAIL",
+                        correlation_id=cid,
+                        error=last_error,
+                        created_list_ids=created_lists,
+                        created_project_ids=created_projects,
+                        step_results=step_results,
+                    )
+                continue
+
+            # Fail dismiss/mark when getNotifications yielded no id
+            if step_op in {"dismissNotification", "markNotificationRead"} and not (
+                seed.notification_id or ""
+            ).strip():
+                last_error = "no notification id from getNotifications"
+                step_results.append(
+                    {"op": step_op, "status": "FAIL", "error": last_error, "cid": cid}
+                )
+                _log(f"  ✖ {step_op} {last_error}")
+                if step_op == operation:
+                    return ScenarioResult(
+                        operation=operation,
+                        touchpoint=touchpoint,
+                        scenario_id=scenario_id,
+                        status="FAIL",
+                        correlation_id=cid,
+                        error=last_error,
+                        created_list_ids=created_lists,
+                        created_project_ids=created_projects,
+                        step_results=step_results,
+                    )
+                continue
+
+            if step_op == "bulkUpdateProfiles" and (
+                not (seed.profile_id or "").strip() or not (seed.team_id or "").strip()
+            ):
+                last_error = (
+                    f"bulkUpdateProfiles needs profile+team "
+                    f"(profile={seed.profile_id or '?'}, team={seed.team_id or '?'})"
+                )
+                step_results.append(
+                    {"op": step_op, "status": "FAIL", "error": last_error, "cid": cid}
+                )
+                _log(f"  ✖ {step_op} {last_error}")
+                if step_op == operation:
+                    return ScenarioResult(
+                        operation=operation,
+                        touchpoint=touchpoint,
+                        scenario_id=scenario_id,
+                        status="FAIL",
+                        correlation_id=cid,
+                        error=last_error,
+                        created_list_ids=created_lists,
+                        created_project_ids=created_projects,
+                        step_results=step_results,
+                    )
+                continue
+
+            if step_op == "createUserInvitations" and not (seed.role_id or "").strip():
+                last_error = "createUserInvitations needs roleId from getRoles"
+                step_results.append(
+                    {"op": step_op, "status": "FAIL", "error": last_error, "cid": cid}
+                )
+                _log(f"  ✖ {step_op} {last_error}")
+                if step_op == operation:
                     return ScenarioResult(
                         operation=operation,
                         touchpoint=touchpoint,
@@ -462,11 +753,36 @@ def run_scenario(
                     continue
                 created_projects.append(seed.project_id)
                 _log(f"  ✓ createProject project={seed.project_id[:8]}…")
+            elif step_op == "duplicateProject":
+                dup_id = (seed.document_id or "").strip()
+                if dup_id and dup_id not in created_projects:
+                    created_projects.append(dup_id)
+                _log(
+                    f"  ✓ duplicateProject source={(seed.project_id or '')[:8]}… "
+                    f"copy={(dup_id or '?')[:8]}…"
+                )
+            elif step_op == "createRole":
+                _log(f"  ✓ createRole id={seed.role_id or '?'}")
+            elif step_op == "createTeam":
+                _log(f"  ✓ createTeam id={seed.team_id or '?'}")
+            elif step_op == "getProfiles":
+                _log(f"  ✓ getProfiles profile={seed.profile_id or '?'}")
+            elif step_op == "getTeams":
+                _log(f"  ✓ getTeams team={seed.team_id or '?'}")
+            elif step_op == "getRoles":
+                _log(f"  ✓ getRoles role={seed.role_id or '?'}")
             elif step_op == "createPrivateTags":
                 _log(f"  ✓ createPrivateTags tag={seed.tag_id or '?'}")
             elif step_op == "createUploadSession":
                 _log(
                     f"  ✓ createUploadSession session={(seed.session_id or '')[:8]}…"
+                )
+            elif step_op == "getNotifications":
+                _log(f"  ✓ getNotifications id={seed.notification_id or '?'}")
+            elif step_op == "getCustomerSettings":
+                _log(
+                    f"  ✓ getCustomerSettings display={seed.customer_display_name or '?'} "
+                    f"lang={seed.customer_supported_language or '?'}"
                 )
             else:
                 _log(

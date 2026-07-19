@@ -1,20 +1,25 @@
 {
   "activateFamily": {
     "Discovery/Browse (global)": [
+      "deactivateFamilies",
       "activateFamily"
     ],
     "List (FONTLIST)": [
       "createAsset",
       "addFontListFamilies",
+      "deactivateFamilies",
       "activateFamily"
     ],
     "Favourite": [
+      "removeFavoriteFamilies",
       "addFavoriteFamilies",
+      "deactivateFamilies",
       "activateFamily"
     ],
     "Project": [
       "createProject",
       "addFontProjectFamilies",
+      "deactivateFamilies",
       "activateFamily"
     ],
     "Project > List": [
@@ -22,9 +27,11 @@
       "addFontProjectFamilies",
       "createAsset",
       "addFontListFamilies",
+      "deactivateFamilies",
       "activateFamily"
     ],
     "default": [
+      "deactivateFamilies",
       "activateFamily"
     ]
   },
@@ -32,11 +39,13 @@
     "Project": [
       "createProject",
       "addFontProjectFamilies",
+      "deActivateFontProject",
       "activateFontProject"
     ],
     "default": [
       "createProject",
       "addFontProjectFamilies",
+      "deActivateFontProject",
       "activateFontProject"
     ]
   },
@@ -44,101 +53,127 @@
     "List (FONTLIST)": [
       "createAsset",
       "addFontListFamilies",
-      "activateList"
-    ],
-    "Favourite": [
-      "addFavoriteFamilies",
+      "deActivateList",
       "activateList"
     ],
     "Project > List": [
       "createProject",
+      "addFontProjectFamilies",
       "createAsset",
       "addFontListFamilies",
+      "deActivateList",
       "activateList"
     ],
     "default": [
       "createAsset",
       "addFontListFamilies",
+      "deActivateList",
       "activateList"
     ]
   },
   "activateStyle": {
     "Discovery/Browse (global)": [
+      "deactivateStyle",
       "activateStyle"
     ],
     "List (FONTLIST)": [
       "createAsset",
       "addFontListStyles",
+      "deactivateStyle",
       "activateStyle"
     ],
     "Favourite": [
+      "removeFavoriteStyles",
       "addFavoriteStyles",
+      "deactivateStyle",
       "activateStyle"
     ],
     "Project": [
       "createProject",
       "addFontProjectStyles",
+      "deactivateStyle",
       "activateStyle"
     ],
     "Project > List": [
       "createProject",
+      "addFontProjectStyles",
       "createAsset",
       "addFontListStyles",
+      "deactivateStyle",
       "activateStyle"
     ],
     "default": [
+      "deactivateStyle",
       "activateStyle"
     ]
   },
   "activateVariation": {
     "Discovery/Browse (global)": [
+      "deactivateVariation",
       "activateVariation"
     ],
     "List (FONTLIST)": [
       "createAsset",
       "addFontListStyles",
+      "deactivateVariation",
       "activateVariation"
     ],
     "Favourite": [
+      "removeFavoriteStyles",
       "addFavoriteStyles",
+      "deactivateVariation",
       "activateVariation"
     ],
     "Project": [
       "createProject",
       "addFontProjectStyles",
+      "deactivateVariation",
       "activateVariation"
     ],
     "Project > List": [
       "createProject",
+      "addFontProjectStyles",
       "createAsset",
       "addFontListStyles",
+      "deactivateVariation",
       "activateVariation"
     ],
     "default": [
+      "deactivateVariation",
       "activateVariation"
     ]
   },
   "addFavoriteFamilies": {
-    "Discovery/Browse (global)": [
+    "Favourite": [
+      "removeFavoriteFamilies",
       "addFavoriteFamilies"
     ],
     "default": [
+      "removeFavoriteFamilies",
       "addFavoriteFamilies"
     ]
   },
   "addFavoritePair": {
+    "Favourite": [
+      "removeFavoritePair",
+      "addFavoritePair"
+    ],
     "Discovery/Browse (global)": [
+      "removeFavoritePair",
       "addFavoritePair"
     ],
     "default": [
+      "removeFavoritePair",
       "addFavoritePair"
     ]
   },
   "addFavoriteStyles": {
-    "Discovery/Browse (global)": [
+    "Favourite": [
+      "removeFavoriteStyles",
       "addFavoriteStyles"
     ],
     "default": [
+      "removeFavoriteStyles",
       "addFavoriteStyles"
     ]
   },
@@ -149,6 +184,7 @@
     ],
     "Project > List": [
       "createProject",
+      "addFontProjectFamilies",
       "createAsset",
       "addFontListFamilies"
     ],
@@ -164,6 +200,7 @@
     ],
     "Project > List": [
       "createProject",
+      "addFontProjectStyles",
       "createAsset",
       "addFontListStyles"
     ],
@@ -187,6 +224,10 @@
       "createProject",
       "addFontProjectStyles"
     ],
+    "Discovery/Browse (global)": [
+      "createProject",
+      "addFontProjectStyles"
+    ],
     "default": [
       "createProject",
       "addFontProjectStyles"
@@ -206,10 +247,6 @@
   },
   "addStyleDocument": {
     "Discovery/Browse (global)": [
-      "addStyleDocument"
-    ],
-    "Project": [
-      "createProject",
       "addStyleDocument"
     ],
     "default": [
@@ -286,7 +323,11 @@
     ]
   },
   "bulkAddStylesToList": {
-    "List (FONTLIST)": [
+    "Browse/Discovery": [
+      "createAsset",
+      "bulkAddStylesToList"
+    ],
+    "Discovery/Browse (global)": [
       "createAsset",
       "bulkAddStylesToList"
     ],
@@ -296,10 +337,19 @@
     ]
   },
   "bulkCopyAssets": {
+    "Mylibrary>Assets": [
+      "createAsset",
+      "createFolder",
+      "bulkCopyAssets"
+    ],
     "Discovery/Browse (global)": [
+      "createAsset",
+      "createFolder",
       "bulkCopyAssets"
     ],
     "default": [
+      "createAsset",
+      "createFolder",
       "bulkCopyAssets"
     ]
   },
@@ -339,10 +389,19 @@
     ]
   },
   "bulkMoveAssets": {
+    "Mylibrary>Assets": [
+      "createAsset",
+      "createFolder",
+      "bulkMoveAssets"
+    ],
     "Discovery/Browse (global)": [
+      "createAsset",
+      "createFolder",
       "bulkMoveAssets"
     ],
     "default": [
+      "createAsset",
+      "createFolder",
       "bulkMoveAssets"
     ]
   },
@@ -363,28 +422,47 @@
     ]
   },
   "bulkRemoveStylesFromFavourites": {
+    "Favourite": [
+      "bulkAddStylesToFavourites",
+      "bulkRemoveStylesFromFavourites"
+    ],
     "Discovery/Browse (global)": [
+      "bulkAddStylesToFavourites",
       "bulkRemoveStylesFromFavourites"
     ],
     "default": [
+      "bulkAddStylesToFavourites",
       "bulkRemoveStylesFromFavourites"
     ]
   },
   "bulkRemoveStylesFromList": {
-    "List (FONTLIST)": [
+    "Mylibrary>Assets": [
       "createAsset",
+      "bulkAddStylesToList",
+      "bulkRemoveStylesFromList"
+    ],
+    "Discovery/Browse (global)": [
+      "createAsset",
+      "bulkAddStylesToList",
       "bulkRemoveStylesFromList"
     ],
     "default": [
       "createAsset",
+      "bulkAddStylesToList",
       "bulkRemoveStylesFromList"
     ]
   },
   "bulkTagStyles": {
+    "Discovery/Browse": [
+      "createPrivateTags",
+      "bulkTagStyles"
+    ],
     "Discovery/Browse (global)": [
+      "createPrivateTags",
       "bulkTagStyles"
     ],
     "default": [
+      "createPrivateTags",
       "bulkTagStyles"
     ]
   },
@@ -397,10 +475,19 @@
     ]
   },
   "bulkUntagStyles": {
+    "Discovery/Browse": [
+      "createPrivateTags",
+      "bulkTagStyles",
+      "bulkUntagStyles"
+    ],
     "Discovery/Browse (global)": [
+      "createPrivateTags",
+      "bulkTagStyles",
       "bulkUntagStyles"
     ],
     "default": [
+      "createPrivateTags",
+      "bulkTagStyles",
       "bulkUntagStyles"
     ]
   },
@@ -414,17 +501,28 @@
   },
   "bulkUpdateProfiles": {
     "Discovery/Browse (global)": [
+      "getProfiles",
+      "createTeam",
+      "bulkUpdateProfiles"
+    ],
+    "User & Access": [
+      "getProfiles",
+      "createTeam",
       "bulkUpdateProfiles"
     ],
     "default": [
+      "getProfiles",
+      "createTeam",
       "bulkUpdateProfiles"
     ]
   },
   "cancelBatch": {
     "Discovery/Browse (global)": [
+      "bulkActivateStyles",
       "cancelBatch"
     ],
     "default": [
+      "bulkActivateStyles",
       "cancelBatch"
     ]
   },
@@ -438,6 +536,13 @@
   },
   "createAsset": {
     "Discovery/Browse (global)": [
+      "createAsset"
+    ],
+    "List (FONTLIST)": [
+      "createAsset"
+    ],
+    "Project > List": [
+      "createProject",
       "createAsset"
     ],
     "default": [
@@ -472,10 +577,6 @@
     "Discovery/Browse (global)": [
       "createContract"
     ],
-    "Project": [
-      "createProject",
-      "createContract"
-    ],
     "default": [
       "createContract"
     ]
@@ -497,12 +598,13 @@
     ]
   },
   "createProject": {
-    "Project": [
-      "createProject",
+    "Discovery/Browse (global)": [
+      "createProject"
+    ],
+    "Projects": [
       "createProject"
     ],
     "default": [
-      "createProject",
       "createProject"
     ]
   },
@@ -560,9 +662,15 @@
   },
   "createUserInvitations": {
     "Discovery/Browse (global)": [
+      "getRoles",
+      "createUserInvitations"
+    ],
+    "User & Access": [
+      "getRoles",
       "createUserInvitations"
     ],
     "default": [
+      "getRoles",
       "createUserInvitations"
     ]
   },
@@ -580,11 +688,13 @@
     "Project": [
       "createProject",
       "addFontProjectFamilies",
+      "activateFontProject",
       "deActivateFontProject"
     ],
     "default": [
       "createProject",
       "addFontProjectFamilies",
+      "activateFontProject",
       "deActivateFontProject"
     ]
   },
@@ -592,105 +702,129 @@
     "List (FONTLIST)": [
       "createAsset",
       "addFontListFamilies",
-      "deActivateList"
-    ],
-    "Favourite": [
-      "addFavoriteFamilies",
+      "activateList",
       "deActivateList"
     ],
     "Project > List": [
       "createProject",
+      "addFontProjectFamilies",
       "createAsset",
       "addFontListFamilies",
+      "activateList",
       "deActivateList"
     ],
     "default": [
       "createAsset",
       "addFontListFamilies",
+      "activateList",
       "deActivateList"
     ]
   },
   "deactivateFamilies": {
     "Discovery/Browse (global)": [
+      "activateFamily",
       "deactivateFamilies"
     ],
     "List (FONTLIST)": [
       "createAsset",
       "addFontListFamilies",
+      "activateFamily",
       "deactivateFamilies"
     ],
     "Favourite": [
+      "removeFavoriteFamilies",
       "addFavoriteFamilies",
+      "activateFamily",
       "deactivateFamilies"
     ],
     "Project": [
       "createProject",
       "addFontProjectFamilies",
+      "activateFamily",
       "deactivateFamilies"
     ],
     "Project > List": [
       "createProject",
+      "addFontProjectFamilies",
       "createAsset",
       "addFontListFamilies",
+      "activateFamily",
       "deactivateFamilies"
     ],
     "default": [
+      "activateFamily",
       "deactivateFamilies"
     ]
   },
   "deactivateStyle": {
     "Discovery/Browse (global)": [
+      "activateStyle",
       "deactivateStyle"
     ],
     "List (FONTLIST)": [
       "createAsset",
       "addFontListStyles",
+      "activateStyle",
       "deactivateStyle"
     ],
     "Favourite": [
+      "removeFavoriteStyles",
       "addFavoriteStyles",
+      "activateStyle",
       "deactivateStyle"
     ],
     "Project": [
       "createProject",
       "addFontProjectStyles",
+      "activateStyle",
       "deactivateStyle"
     ],
     "Project > List": [
       "createProject",
+      "addFontProjectStyles",
       "createAsset",
       "addFontListStyles",
+      "activateStyle",
       "deactivateStyle"
     ],
     "default": [
+      "activateStyle",
       "deactivateStyle"
     ]
   },
   "deactivateVariation": {
     "Discovery/Browse (global)": [
+      "activateVariation",
       "deactivateVariation"
     ],
     "List (FONTLIST)": [
       "createAsset",
       "addFontListStyles",
+      "activateVariation",
       "deactivateVariation"
     ],
     "Favourite": [
+      "removeFavoriteStyles",
       "addFavoriteStyles",
+      "activateVariation",
       "deactivateVariation"
     ],
     "Project": [
       "createProject",
       "addFontProjectStyles",
+      "activateVariation",
       "deactivateVariation"
     ],
     "Project > List": [
       "createProject",
+      "addFontProjectStyles",
       "createAsset",
       "addFontListStyles",
+      "activateVariation",
       "deactivateVariation"
     ],
     "default": [
+      "activateVariation",
       "deactivateVariation"
     ]
   },
@@ -770,9 +904,15 @@
   },
   "deleteRoles": {
     "Discovery/Browse (global)": [
+      "createRole",
+      "deleteRoles"
+    ],
+    "User & Access": [
+      "createRole",
       "deleteRoles"
     ],
     "default": [
+      "createRole",
       "deleteRoles"
     ]
   },
@@ -824,9 +964,15 @@
   },
   "deleteTeams": {
     "Discovery/Browse (global)": [
+      "createTeam",
+      "deleteTeams"
+    ],
+    "User & Access": [
+      "createTeam",
       "deleteTeams"
     ],
     "default": [
+      "createTeam",
       "deleteTeams"
     ]
   },
@@ -840,14 +986,24 @@
   },
   "dismissNotification": {
     "Discovery/Browse (global)": [
+      "getNotifications",
+      "dismissNotification"
+    ],
+    "Notifications": [
+      "getNotifications",
       "dismissNotification"
     ],
     "default": [
+      "getNotifications",
       "dismissNotification"
     ]
   },
   "duplicateProject": {
     "Project": [
+      "createProject",
+      "duplicateProject"
+    ],
+    "Discovery/Browse (global)": [
       "createProject",
       "duplicateProject"
     ],
@@ -964,9 +1120,15 @@
   },
   "markNotificationRead": {
     "Discovery/Browse (global)": [
+      "getNotifications",
+      "markNotificationRead"
+    ],
+    "Notifications": [
+      "getNotifications",
       "markNotificationRead"
     ],
     "default": [
+      "getNotifications",
       "markNotificationRead"
     ]
   },
@@ -996,37 +1158,33 @@
   },
   "parseAndCreateContract": {
     "Discovery/Browse (global)": [
-      "parseAndCreateContract"
-    ],
-    "Project": [
-      "createProject",
+      "createUploadSession",
       "parseAndCreateContract"
     ],
     "default": [
+      "createUploadSession",
       "parseAndCreateContract"
     ]
   },
   "pinAsset": {
     "Discovery/Browse (global)": [
+      "createAsset",
       "pinAsset"
     ],
     "default": [
+      "createAsset",
       "pinAsset"
     ]
   },
   "processUploadSessionFonts": {
-    "Project": [
-      "createProject",
-      "processUploadSessionFonts"
-    ],
-    "Document": [
-      "processUploadSessionFonts"
-    ],
-    "Document > Project": [
+    "Discovery/Browse (global)": [
+      "createUploadSession",
+      "updateSessionFiles",
       "processUploadSessionFonts"
     ],
     "default": [
-      "createProject",
+      "createUploadSession",
+      "updateSessionFiles",
       "processUploadSessionFonts"
     ]
   },
@@ -1065,26 +1223,36 @@
     ]
   },
   "removeFavoriteFamilies": {
-    "Discovery/Browse (global)": [
+    "Favourite": [
+      "addFavoriteFamilies",
       "removeFavoriteFamilies"
     ],
     "default": [
+      "addFavoriteFamilies",
       "removeFavoriteFamilies"
     ]
   },
   "removeFavoritePair": {
+    "Favourite": [
+      "addFavoritePair",
+      "removeFavoritePair"
+    ],
     "Discovery/Browse (global)": [
+      "addFavoritePair",
       "removeFavoritePair"
     ],
     "default": [
+      "addFavoritePair",
       "removeFavoritePair"
     ]
   },
   "removeFavoriteStyles": {
-    "Discovery/Browse (global)": [
+    "Favourite": [
+      "addFavoriteStyles",
       "removeFavoriteStyles"
     ],
     "default": [
+      "addFavoriteStyles",
       "removeFavoriteStyles"
     ]
   },
@@ -1121,10 +1289,17 @@
   "removeFontProjectStyles": {
     "Project": [
       "createProject",
+      "addFontProjectStyles",
+      "removeFontProjectStyles"
+    ],
+    "Discovery/Browse (global)": [
+      "createProject",
+      "addFontProjectStyles",
       "removeFontProjectStyles"
     ],
     "default": [
       "createProject",
+      "addFontProjectStyles",
       "removeFontProjectStyles"
     ]
   },
@@ -1190,6 +1365,9 @@
     "Discovery/Browse (global)": [
       "setLanguagePreference"
     ],
+    "Preferences": [
+      "setLanguagePreference"
+    ],
     "default": [
       "setLanguagePreference"
     ]
@@ -1227,6 +1405,9 @@
     ]
   },
   "syncUnSyncVariations": {
+    "Discovery/Browse (global)": [
+      "syncUnSyncVariations"
+    ],
     "default": [
       "syncUnSyncVariations"
     ]
@@ -1265,9 +1446,13 @@
   },
   "unpinAsset": {
     "Discovery/Browse (global)": [
+      "createAsset",
+      "pinAsset",
       "unpinAsset"
     ],
     "default": [
+      "createAsset",
+      "pinAsset",
       "unpinAsset"
     ]
   },
@@ -1289,9 +1474,11 @@
   },
   "updateAssets": {
     "Discovery/Browse (global)": [
+      "createAsset",
       "updateAssets"
     ],
     "default": [
+      "createAsset",
       "updateAssets"
     ]
   },
@@ -1329,9 +1516,15 @@
   },
   "updateCustomerSettings": {
     "Discovery/Browse (global)": [
+      "getCustomerSettings",
+      "updateCustomerSettings"
+    ],
+    "Account & workspace": [
+      "getCustomerSettings",
       "updateCustomerSettings"
     ],
     "default": [
+      "getCustomerSettings",
       "updateCustomerSettings"
     ]
   },
@@ -1362,18 +1555,30 @@
     ]
   },
   "updatePrivateTag": {
+    "Manage>Tags": [
+      "createPrivateTags",
+      "updatePrivateTag"
+    ],
     "Discovery/Browse (global)": [
+      "createPrivateTags",
       "updatePrivateTag"
     ],
     "default": [
+      "createPrivateTags",
       "updatePrivateTag"
     ]
   },
   "updatePrivateTagAssociations": {
+    "Browse/Discovery/List/TagsManage": [
+      "createPrivateTags",
+      "updatePrivateTagAssociations"
+    ],
     "Discovery/Browse (global)": [
+      "createPrivateTags",
       "updatePrivateTagAssociations"
     ],
     "default": [
+      "createPrivateTags",
       "updatePrivateTagAssociations"
     ]
   },
@@ -1410,10 +1615,12 @@
     ]
   },
   "updateSessionFiles": {
-    "Document": [
+    "Discovery/Browse (global)": [
+      "createUploadSession",
       "updateSessionFiles"
     ],
     "default": [
+      "createUploadSession",
       "updateSessionFiles"
     ]
   },
@@ -1467,6 +1674,17 @@
     ],
     "default": [
       "uploadImportedFonts"
+    ]
+  },
+  "getCustomerSettings": {
+    "Discovery/Browse (global)": [
+      "getCustomerSettings"
+    ],
+    "Account & workspace": [
+      "getCustomerSettings"
+    ],
+    "default": [
+      "getCustomerSettings"
     ]
   }
 }

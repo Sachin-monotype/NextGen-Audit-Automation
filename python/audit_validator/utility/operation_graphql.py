@@ -30,6 +30,8 @@ _OPERATION_EXPORT_OVERRIDES: dict[str, str] = {
     "syncUnSyncVariations": "SYNC_UNSYNC_VARIATIONS",
     "getCustomerById": "GET_CUSTOMER_BY_ID",
     "getAssetsFolderSummary": "GET_ASSETS_FOLDER_SUMMARY",
+    # UI Duplicate Project uses bulkCopyAssets; keep audit op name duplicateProject
+    "duplicateProject": "DUPLICATE_PROJECT",
 }
 
 

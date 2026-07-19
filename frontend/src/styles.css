@@ -247,6 +247,41 @@ button, input, select {
   pointer-events: none;
 }
 
+.queue-details {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 8px;
+  background: var(--bg);
+}
+
+.queue-details > summary {
+  cursor: pointer;
+  color: var(--accent);
+  list-style: none;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.queue-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.queue-details-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  min-width: min(520px, 80vw);
+}
+
+.queue-details-body input {
+  min-width: 220px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+}
+
 .compact-token {
   display: inline-flex;
   align-items: center;
@@ -706,6 +741,68 @@ button.primary.outline {
   cursor: pointer;
   font-weight: 600;
   padding: 7px 0;
+}
+
+.generation-log-details {
+  margin-top: 10px;
+}
+
+.generation-log-details .generation-log-box {
+  margin-top: 6px;
+}
+
+.generation-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 6px 0 8px;
+}
+
+.enrich-diff-modal {
+  width: min(960px, 100%);
+  max-height: 85vh;
+}
+
+.enrich-diff-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+}
+
+.enrich-diff-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.enrich-diff-toolbar input {
+  flex: 1;
+  min-width: 180px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--input-bg, #fff);
+  color: inherit;
+}
+
+.enrich-diff-table .diff-val {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  max-width: 280px;
+  word-break: break-word;
+}
+
+.log-card.is-picked {
+  outline: 2px solid color-mix(in srgb, var(--accent, #2563eb) 55%, transparent);
+}
+
+.generate-ui-modal {
+  width: min(560px, 100%);
 }
 
 .display-panel {

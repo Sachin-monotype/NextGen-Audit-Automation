@@ -479,7 +479,7 @@ def _revoke_asset_access(
 
 def font_activation_flow(ctx: FlowContext, cfg: GraphQLSimulationConfig) -> None:
     s = cfg.seed
-    activate_family = s.family_id or "794981"
+    activate_family = s.family_id or "910042901"
     deactivate_family = s.deactivate_family_id or "8kL8ZM64"
     activate_style = s.style_id or "920374778"
     deactivate_style = s.deactivate_style_id or s.style_id or "920374778"

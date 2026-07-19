@@ -119,6 +119,7 @@ class GraphQLClient:
             )
         headers = self._base_headers()
         headers["accept"] = "application/json"
+        minted = headers.get("x-correlation-id")
 
         resp = requests.post(
             self._endpoint,
@@ -127,10 +128,23 @@ class GraphQLClient:
             timeout=120,
         )
         resp.raise_for_status()
+        self._capture_correlation(resp, fallback=minted)
         body = resp.json()
         if body.get("errors"):
             raise RuntimeError(str(body["errors"]))
         return body.get("data") or body
+
+    def _capture_correlation(self, resp: Any, *, fallback: str | None = None) -> str | None:
+        """Prefer response ``correlation-id`` (Cloudflare-safe) over minted x-correlation-id."""
+        from audit_validator.correlation import extract_correlation
+
+        cid = extract_correlation(
+            response_headers=getattr(resp, "headers", None),
+            fallback=fallback,
+        )
+        if cid:
+            self.last_correlation_id = cid
+        return cid
 
     def request_apollo(
         self,
@@ -143,6 +157,7 @@ class GraphQLClient:
         """NextGen /graph expects Apollo Client payload shape."""
         headers = self._base_headers()
         headers["accept"] = "application/graphql-response+json,application/json;q=0.9"
+        minted = headers.get("x-correlation-id")
         if browser or self._uses_nextgen_bff():
             headers.update(
                 {
@@ -172,6 +187,7 @@ class GraphQLClient:
             timeout=120,
         )
         resp.raise_for_status()
+        self._capture_correlation(resp, fallback=minted)
         body = resp.json()
         if body.get("errors"):
             raise RuntimeError(str(body["errors"]))

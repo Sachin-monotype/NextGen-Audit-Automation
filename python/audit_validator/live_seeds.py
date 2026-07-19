@@ -20,11 +20,26 @@ log = logging.getLogger(__name__)
 
 _TIMEOUT = float(os.getenv("LIVE_SEEDS_TIMEOUT_SEC", "25"))
 
+# Known-good inventory family IDs for Everest Admin / PP (GetFamilyStatus).
+# Prefer these over stale Discovery demos (e.g. 794981 → style 794983).
+KNOWN_FAMILY_POOL: tuple[str, ...] = (
+    "910052505",  # Gotham®
+    "910102362",  # Neon
+    "910083563",  # Sato
+    "910110344",  # Robout
+    "910042901",  # Helvetica® Now
+    "910043139",  # Helvetica® Now Variable
+    "7098213",  # Linked Now
+)
+
 # Ops that need a family that is NOT already ACTIVATED (activate / add to fav).
 _WANT_DEACTIVATED_FAMILY = frozenset(
     {
         "activateFamily",
+        "activateStyle",
+        "activateVariation",
         "addFavoriteFamilies",
+        "addFavoriteStyles",
         "bulkActivateFamilies",
     }
 )
@@ -32,6 +47,8 @@ _WANT_DEACTIVATED_FAMILY = frozenset(
 _WANT_ACTIVATED_FAMILY = frozenset(
     {
         "deactivateFamilies",
+        "deactivateStyle",
+        "deactivateVariation",
         "bulkDeactivateFamilies",
     }
 )
@@ -196,10 +213,13 @@ def discover_font_seed(
     if not doc:
         return None
 
-    # Candidate family ids
+    # Candidate family ids — pool first so GetFamilyStatus hits real inventory
     candidates: list[str] = []
     if family_hint:
         candidates.append(str(family_hint))
+    for fid in KNOWN_FAMILY_POOL:
+        if fid not in candidates:
+            candidates.append(fid)
     for row in _list_inventory_families(limit=20, project_root=root):
         fid = row.get("id")
         if fid and fid not in candidates:
@@ -208,6 +228,9 @@ def discover_font_seed(
         if fid not in candidates:
             candidates.append(fid)
     env_f = (os.getenv("TOUCHPOINT_FAMILY_ID") or os.getenv("SEED_FAMILY_ID") or "").strip()
+    # Skip known-bad Discovery demo unless explicitly forced
+    if env_f == "794981" and not os.getenv("TOUCHPOINT_USE_ENV_SEED"):
+        env_f = ""
     if env_f and env_f not in candidates:
         candidates.append(env_f)
 
@@ -298,10 +321,15 @@ def pick_working_family_id(
     for c in candidates or []:
         if c and str(c) not in ordered:
             ordered.append(str(c))
+    for fid in KNOWN_FAMILY_POOL:
+        if fid not in ordered:
+            ordered.append(fid)
     for c in _ids_from_enriched(operation, root):
         if c not in ordered:
             ordered.append(c)
     env_seed = (os.getenv("SEED_FAMILY_ID") or "").strip()
+    if env_seed == "794981" and not os.getenv("TOUCHPOINT_USE_ENV_SEED"):
+        env_seed = ""
     if env_seed and env_seed not in ordered:
         ordered.append(env_seed)
 

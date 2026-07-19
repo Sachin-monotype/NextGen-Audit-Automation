@@ -395,6 +395,12 @@ class PipelineTargetRequest(BaseModel):
     target: str
 
 
+class PipelineQueuesRequest(BaseModel):
+    raw_queue: str | None = None
+    enriched_queue: str | None = None
+    dlq: str | None = None
+
+
 @app.post("/api/generate/send-custom")
 def generate_send_custom(req: SendCustomRequest) -> dict[str, Any]:
     """Send a (possibly edited) payload to the right transport and return the response."""
@@ -546,6 +552,39 @@ def set_pipeline_target(req: PipelineTargetRequest) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@app.post("/api/meta/pipeline-queues")
+def set_pipeline_queues(req: PipelineQueuesRequest) -> dict[str, Any]:
+    """Update raw / enriched / DLQ queue names used by ingestion + Generate."""
+    updates: dict[str, str] = {}
+    if req.raw_queue is not None:
+        q = req.raw_queue.strip()
+        if not q:
+            raise HTTPException(status_code=400, detail="raw_queue cannot be empty")
+        updates["RAW_EVENTS_QUEUE"] = q
+    if req.enriched_queue is not None:
+        q = req.enriched_queue.strip()
+        if not q:
+            raise HTTPException(status_code=400, detail="enriched_queue cannot be empty")
+        updates["ENRICHED_EVENTS_QUEUE"] = q
+    if req.dlq is not None:
+        q = req.dlq.strip()
+        updates["DEAD_LETTER_QUEUE"] = q
+    if not updates:
+        raise HTTPException(status_code=400, detail="provide raw_queue and/or enriched_queue")
+    try:
+        import os
+        from dotenv import set_key
+
+        env_path = str(settings.audit_project_root / ".env")
+        for key, value in updates.items():
+            os.environ[key] = value
+            set_key(env_path, key, value)
+        ingestion.reconfigure()
+        return pipeline_config()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @app.get("/api/meta/coverage")
 def coverage() -> dict[str, Any]:
     """Validation-mapping coverage across all tracked operations."""
@@ -683,6 +722,191 @@ def token_verify() -> dict[str, Any]:
         return compare_provided_vs_generated(settings.audit_project_root)
     except Exception as exc:
         return {"error": str(exc)}
+
+
+class UiTriggerSelectionItem(BaseModel):
+    id: str = ""
+    operation: str
+    touchpoint: str | None = None
+    label: str = ""
+
+
+class UiTriggerRequest(BaseModel):
+    selection: list[UiTriggerSelectionItem] = Field(default_factory=list)
+    test_case_id: str = ""
+    cta_text: str = ""
+    notes: str = ""
+    extra: dict[str, Any] = Field(default_factory=dict)
+    dispatch: bool = False
+
+
+@app.get("/api/meta/casepilot")
+def casepilot_status() -> dict[str, Any]:
+    """CasePilot MCP reachability (preflight + connector online)."""
+    try:
+        from audit_validator.ui_trigger import casepilot_health
+
+        return casepilot_health()
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@app.post("/api/jobs/generate-ui")
+def start_generate_ui(body: UiTriggerRequest) -> dict[str, Any]:
+    """Create a Generate-in-UI handoff job; optionally dispatch to CasePilot MCP.
+
+    Correlation for UI triggers must use response header ``correlation-id``
+    (Cloudflare rewrites ``x-correlation-id``).
+    """
+    if not body.selection:
+        raise HTTPException(400, "Select at least one scenario / operation")
+    try:
+        from audit_validator.casepilot_mcp import load_casepilot_config
+        from audit_validator.ui_trigger import create_ui_trigger_job
+
+        cfg = load_casepilot_config()
+        job = create_ui_trigger_job(
+            settings.audit_project_root,
+            selection=[s.model_dump() for s in body.selection],
+            test_case_id=body.test_case_id,
+            cta_text=body.cta_text,
+            notes=body.notes,
+            extra=body.extra,
+            dispatch=bool(body.dispatch),
+        )
+        return {
+            "ok": True,
+            "job": job,
+            "mcp_ready": cfg.configured,
+            "ui_config_ready": cfg.ui_config_ready(),
+        }
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+@app.get("/api/jobs/generate-ui")
+def list_generate_ui() -> dict[str, Any]:
+    try:
+        from audit_validator.ui_trigger import list_ui_trigger_jobs
+
+        jobs = list_ui_trigger_jobs(settings.audit_project_root)
+        return {"jobs": jobs, "count": len(jobs)}
+    except Exception as exc:
+        return {"jobs": [], "count": 0, "error": str(exc)}
+
+
+@app.get("/api/jobs/generate-ui/{job_id}")
+def get_generate_ui(job_id: str) -> dict[str, Any]:
+    try:
+        from audit_validator.ui_trigger import get_ui_trigger_job
+
+        job = get_ui_trigger_job(settings.audit_project_root, job_id)
+        if not job:
+            raise HTTPException(404, f"No UI trigger job {job_id}")
+        return job
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@app.post("/api/jobs/generate-ui/{job_id}/send")
+def send_generate_ui(job_id: str) -> dict[str, Any]:
+    """Dispatch a saved handoff to CasePilot ``run_testrail_ui_tests``."""
+    try:
+        from audit_validator.ui_trigger import dispatch_ui_trigger_job, get_ui_trigger_job
+
+        if not get_ui_trigger_job(settings.audit_project_root, job_id):
+            raise HTTPException(404, f"No UI trigger job {job_id}")
+        job = dispatch_ui_trigger_job(settings.audit_project_root, job_id)
+        ok = bool(job) and job.get("status") in {"queued", "running", "completed"}
+        return {"ok": ok, "job": job}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+@app.post("/api/jobs/generate-ui/{job_id}/refresh")
+def refresh_generate_ui(job_id: str) -> dict[str, Any]:
+    """Poll CasePilot run status; auto-verify raw/enrich when correlations are ready."""
+    try:
+        from audit_validator.ui_trigger import (
+            finalize_ui_trigger_verification,
+            get_ui_trigger_job,
+            refresh_casepilot_status,
+        )
+
+        if not get_ui_trigger_job(settings.audit_project_root, job_id):
+            raise HTTPException(404, f"No UI trigger job {job_id}")
+        job = refresh_casepilot_status(settings.audit_project_root, job_id)
+        ver = (job or {}).get("verification") or {}
+        has_cids = bool(ver.get("ready") or ver.get("auto_verify_pending") or (job or {}).get("results"))
+        already = bool(ver.get("generate_run_saved"))
+        if job and has_cids and not already and (job.get("results") or []):
+            job = finalize_ui_trigger_verification(
+                settings.audit_project_root,
+                job_id,
+                db=db,
+            )
+        return {"ok": True, "job": job}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+class UiTriggerResultsBody(BaseModel):
+    results: list[dict[str, Any]] = Field(default_factory=list)
+
+
+@app.post("/api/jobs/generate-ui/{job_id}/results")
+def record_generate_ui_results(job_id: str, body: UiTriggerResultsBody) -> dict[str, Any]:
+    """Manually record correlation_id(s); auto-runs raw/enrich verification."""
+    try:
+        from audit_validator.ui_trigger import (
+            finalize_ui_trigger_verification,
+            get_ui_trigger_job,
+            record_manual_ui_results,
+        )
+
+        if not get_ui_trigger_job(settings.audit_project_root, job_id):
+            raise HTTPException(404, f"No UI trigger job {job_id}")
+        if not body.results:
+            raise HTTPException(400, "Provide at least one result with correlation_id")
+        job = record_manual_ui_results(settings.audit_project_root, job_id, body.results)
+        job = finalize_ui_trigger_verification(
+            settings.audit_project_root,
+            job_id,
+            db=db,
+        )
+        ready = bool((job or {}).get("verification", {}).get("generate_run_saved"))
+        return {"ok": ready, "job": job}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+@app.post("/api/jobs/generate-ui/{job_id}/verify")
+def verify_generate_ui(job_id: str) -> dict[str, Any]:
+    """After UI trigger: poll Mongo raw/enrich by correlation_id and write Generation Status."""
+    try:
+        from audit_validator.ui_trigger import finalize_ui_trigger_verification, get_ui_trigger_job
+
+        if not get_ui_trigger_job(settings.audit_project_root, job_id):
+            raise HTTPException(404, f"No UI trigger job {job_id}")
+        job = finalize_ui_trigger_verification(
+            settings.audit_project_root,
+            job_id,
+            db=db,
+        )
+        ok = bool((job or {}).get("verification", {}).get("generate_run_saved"))
+        return {"ok": ok, "job": job}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
 @app.post("/api/jobs/generate")

@@ -50,6 +50,7 @@ export default function VerifyInUiModal({ context, onClose }: Props) {
       `- Locate the notification / toast / banner matching the CTA above`,
       `- Assert visibility and copy`,
       `- Follow any CTA action if present`,
+      `- After GraphQL/BFF calls, capture response header correlation-id (NOT x-correlation-id)`,
       `- Record pass/fail against TestRail ${testCaseId}`,
     ];
     return lines.filter((l) => l !== undefined).join("\n");
@@ -76,7 +77,8 @@ export default function VerifyInUiModal({ context, onClose }: Props) {
         </div>
         <p className="muted small">
           Build the handoff prompt for UI automation. Send/connection comes later —
-          copy the prompt for now.
+          copy the prompt for now. For UI-triggered events, pair raw/enrich with response
+          header <code>correlation-id</code> (Cloudflare rewrites <code>x-correlation-id</code>).
         </p>
         <label className="filter-field">
           <span>TestRail testcase id</span>

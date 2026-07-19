@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate ``ui_navigation.json`` from ``docs/UI Navigation of Event.xlsx``.
+"""Regenerate ``ui_navigation.json`` from ``docs/UI Navigation of Event (2).xlsx``.
 
 The workbook has section-header rows (only the first column filled) followed by
 operation rows with one or more ``UI_Navigation*`` columns and an optional
@@ -17,7 +17,12 @@ from pathlib import Path
 import openpyxl
 
 ROOT = Path(__file__).resolve().parent.parent
-XLSX = ROOT / "docs" / "UI Navigation of Event.xlsx"
+# Prefer the numbered workbook; fall back to the legacy filename.
+_CANDIDATES = (
+    ROOT / "docs" / "UI Navigation of Event (2).xlsx",
+    ROOT / "docs" / "UI Navigation of Event.xlsx",
+)
+XLSX = next((p for p in _CANDIDATES if p.is_file()), _CANDIDATES[0])
 OUT = ROOT / "python" / "audit_validator" / "data" / "ui_navigation.json"
 
 

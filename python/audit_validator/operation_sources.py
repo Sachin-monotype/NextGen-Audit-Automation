@@ -29,6 +29,13 @@ from .utility.operation_graphql import get_document_for_operation, is_mutation_o
 INGRESS_PREFIX = "ingress:"
 CRON_PREFIX = "cron:"
 
+# Ops that must not appear in Generate (broken / unsupported product APIs).
+EXCLUDED_GENERATE_OPS = frozenset(
+    {
+        "deleteAssets",
+    }
+)
+
 
 @lru_cache(maxsize=1)
 def _ingress_cases() -> list:
@@ -80,7 +87,8 @@ def operation_source_report() -> dict:
     gql_ops = sorted(
         op
         for op in tracked_operations()
-        if get_document_for_operation(op)
+        if op not in EXCLUDED_GENERATE_OPS
+        and get_document_for_operation(op)
         and should_simulate(op)
         and enrichment_expected(op)
         and is_mutation_operation(op)

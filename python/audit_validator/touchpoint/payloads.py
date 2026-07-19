@@ -38,6 +38,11 @@ class SeedIds:
     body_style_id: str = ""
     access_request_id: str = ""
     folder_id: str = ""
+    # Populated by getCustomerSettings precondition for updateCustomerSettings
+    customer_display_name: str = ""
+    customer_supported_language: str = ""
+    customer_primary_contact: str = ""
+    customer_settings_flags: dict[str, Any] | None = None
 
 
 def style_filter() -> dict[str, Any]:
@@ -288,6 +293,41 @@ def bulk_deactivate_lists(seed: SeedIds, *, with_project: bool) -> dict[str, Any
 STYLE_FILTER_OPS = frozenset({"addFontListFamilies", "removeFontListFamilies"})
 
 
+def _update_customer_settings_vars(seed: SeedIds) -> dict[str, Any]:
+    """Build UpdateCustomerSettings from getCustomerSettings snapshot (small delta)."""
+    flags = seed.customer_settings_flags or {}
+    display = (seed.customer_display_name or "Everest Company").strip()
+    # Tiny rename so the mutation actually changes something
+    if display.endswith(" QA"):
+        display = display[: -3].rstrip() or "Everest Company"
+    else:
+        display = f"{display} QA"[:80]
+    lang = (seed.customer_supported_language or "EN").strip() or "EN"
+    # Flip EN ↔ DE when we have a current value so locale changes are visible
+    if lang.upper() == "EN":
+        next_lang = "DE"
+    else:
+        next_lang = "EN"
+    primary = (seed.customer_primary_contact or "").strip()
+    customer_settings = {
+        "enableDownload": bool(flags.get("enableDownload", True)),
+        "enableImportedFonts": bool(flags.get("enableImportedFonts", False)),
+        "enableFontFormatSelection": bool(flags.get("enableFontFormatSelection", True)),
+        "enableWebFontAccess": bool(flags.get("enableWebFontAccess", False)),
+        "enableSelfHostingKit": bool(flags.get("enableSelfHostingKit", True)),
+        "shareIntentForProduction": bool(flags.get("shareIntentForProduction", False)),
+        "markUnmarkFontsAsProduction": bool(flags.get("markUnmarkFontsAsProduction", False)),
+    }
+    inp: dict[str, Any] = {
+        "displayName": display,
+        "supportedLanguage": next_lang,
+        "customerSettings": customer_settings,
+    }
+    if primary:
+        inp["primaryContact"] = primary
+    return {"input": inp}
+
+
 def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str, Any]:
     """Full GraphQL ``variables`` object for ``operation`` at ``touch``."""
     op = operation
@@ -343,27 +383,35 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
                 "styles": {"styleIds": [seed.style_id]},
             }
         },
-        # Favourites extended
+        # Favourites extended — CreateFavoritePairsInput uses pairs[].headline/body.id
         "removeFavoriteFamilies": lambda: {"input": {"familyIds": [seed.family_id]}},
         "removeFavoriteStyles": lambda: {"input": {"styleIds": [seed.style_id]}},
         "addFavoritePair": lambda: {
             "input": {
-                "headlineStyleId": seed.headline_style_id or seed.style_id,
-                "bodyStyleId": seed.body_style_id or seed.style_id,
+                "pairs": [
+                    {
+                        "headline": {"id": seed.headline_style_id or seed.style_id},
+                        "body": {"id": seed.body_style_id or seed.style_id},
+                    }
+                ]
             }
         },
         "removeFavoritePair": lambda: {
             "input": {
-                "headlineStyleId": seed.headline_style_id or seed.style_id,
-                "bodyStyleId": seed.body_style_id or seed.style_id,
+                "pairs": [
+                    {
+                        "headline": {"id": seed.headline_style_id or seed.style_id},
+                        "body": {"id": seed.body_style_id or seed.style_id},
+                    }
+                ]
             }
         },
         "bulkAddPairsToFavorite": lambda: {
             "input": {
                 "pairs": [
                     {
-                        "headlineStyleId": seed.headline_style_id or seed.style_id,
-                        "bodyStyleId": seed.body_style_id or seed.style_id,
+                        "headline": {"id": seed.headline_style_id or seed.style_id},
+                        "body": {"id": seed.body_style_id or seed.style_id},
                     }
                 ]
             }
@@ -372,8 +420,8 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
             "input": {
                 "pairs": [
                     {
-                        "headlineStyleId": seed.headline_style_id or seed.style_id,
-                        "bodyStyleId": seed.body_style_id or seed.style_id,
+                        "headline": {"id": seed.headline_style_id or seed.style_id},
+                        "body": {"id": seed.body_style_id or seed.style_id},
                     }
                 ]
             }
@@ -553,14 +601,35 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
                 "name": f"QA_Team_Updated"[:64],
             }
         },
-        "deleteTeams": lambda: {"input": {"ids": [seed.team_id]}},
+        "deleteTeams": lambda: {"input": {"ids": [seed.team_id] if seed.team_id else []}},
+        "getProfiles": lambda: {
+            "filter": {"status": ["ACTIVE"]},
+            "pagination": {"limit": 20, "skip": 0},
+            "sort": {"field": "fullName", "sortOrder": "DESC"},
+        },
+        "getTeams": lambda: {
+            "pagination": {"skip": 0, "limit": 20},
+            "filter": {"name": None, "profileCount": None},
+        },
+        "getRoles": lambda: {
+            "input": {
+                "customerId": seed.customer_id,
+                "pagination": {"skip": 0, "limit": 20},
+            }
+        },
         "createUserInvitations": lambda: {
             "input": {
                 "customerId": seed.customer_id,
                 "data": [
                     {
-                        "email": f"qa.touchpoint+{seed.style_id[-6:] or 'x'}@example.com",
+                        "emails": [
+                            f"qa.invite+{seed.style_id[-6:] or int(__import__('time').time())}@gmail.com"
+                        ],
+                        "status": 1,
                         "roleId": seed.role_id,
+                        "teamIds": [],
+                        "tempUserExpiryDate": None,
+                        "emailLocale": "EN",
                     }
                 ],
             }
@@ -568,18 +637,29 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
         "updateProfile": lambda: {
             "input": {"id": seed.profile_id, "isActive": True}
         },
-        "setLanguagePreference": lambda: {"input": {"language": "en"}},
+        # UI uses ISO-ish codes; product accepts EN/en — prefer EN (matches company settings)
+        "setLanguagePreference": lambda: {"input": {"language": "EN"}},
         "markOnboardingCompleted": lambda: {},
         "deleteCompanyLogo": lambda: {},
         "markCompanyLogoUploadSuccess": lambda: {},
         "resetPreferences": lambda: {},
         "globalEmailOptOut": lambda: {},
-        # Notifications
+        # Notifications — getNotifications fills seed.notification_id first
+        "getNotifications": lambda: {
+            "pagination": {"limit": 20, "skip": 0},
+            "filter": {},
+        },
         "dismissNotification": lambda: {
-            "input": {"id": seed.notification_id, "action": "DISMISS"}
+            "input": {
+                "id": seed.notification_id or "0",
+                "action": "DISMISS",
+            }
         },
         "markNotificationRead": lambda: {
-            "input": {"id": seed.notification_id, "action": "MARK_READ"}
+            "input": {
+                "id": seed.notification_id or "0",
+                "action": "MARK_READ",
+            }
         },
         "markAllNotificationsRead": lambda: {"input": {}},
         "updatePreference": lambda: {
@@ -747,10 +827,18 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
             }
         },
         # ── Project lifecycle ──
+        # UI "Duplicate project" uses bulkCopyAssets (BulkCopyAssetsInput), not DuplicateProjectInput
         "duplicateProject": lambda: {
             "input": {
-                "sourceProjectId": seed.project_id,
-                "name": "QA_TouchPoint_Project_Copy",
+                "items": [
+                    {
+                        "source": {
+                            "assetId": seed.project_id,
+                            "assetType": "FontProject",
+                        },
+                        "target": {"assetId": "root"},
+                    }
+                ]
             }
         },
         "publishProject": lambda: {
@@ -972,9 +1060,8 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
                 "name": "QA_TouchPoint_Customer_Updated",
             }
         },
-        "updateCustomerSettings": lambda: {
-            "input": {"displayName": "QA TouchPoint Company"}
-        },
+        "getCustomerSettings": lambda: {},
+        "updateCustomerSettings": lambda: _update_customer_settings_vars(seed),
         "updateCompanySsoStatus": lambda: {
             "input": {
                 "companyId": seed.customer_id,
@@ -1058,9 +1145,11 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
         # ── Profiles / roles / SSO / invitations (admin) ──
         "bulkUpdateProfiles": lambda: {
             "input": {
-                "targetProfileIds": [seed.profile_id],
+                "targetProfileIds": [seed.profile_id] if seed.profile_id else [],
                 "action": "CHANGE_TEAMS",
-                "operation": {"teamIds": []},
+                "operation": {
+                    "teamIds": [seed.team_id] if seed.team_id else [],
+                },
             }
         },
         "resetPassword": lambda: {"input": {"profileId": seed.profile_id}},
@@ -1071,7 +1160,7 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
         "createRole": lambda: {
             "input": {
                 "customerId": seed.customer_id,
-                "name": "QA_TouchPoint_Role",
+                "name": f"QA_Role_{seed.list_name[-8:] or 'tmp'}"[:64],
                 "description": "QA TouchPoint seed role",
                 "permissionGroups": [],
             }
@@ -1086,7 +1175,7 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
         "deleteRoles": lambda: {
             "input": {
                 "customerId": seed.customer_id,
-                "ids": [seed.role_id],
+                "ids": [seed.role_id] if seed.role_id else [],
             }
         },
         "createSsoMapping": lambda: {
@@ -1134,101 +1223,208 @@ def assert_add_font_list_families_shape(variables: dict[str, Any]) -> None:
 
 
 # Multi-step sequences: create asset/project → seed → trigger (sheet + Postman)
+# Project > List always: createProject → add*ToProject → createAsset(list) → add*ToList → trigger
 FLOW_DEFS: dict[str, dict[str, list[str]]] = {
     "activateFamily": {
-        "Discovery/Browse (global)": ["activateFamily"],
-        "List (FONTLIST)": ["createAsset", "addFontListFamilies", "activateFamily"],
-        "Favourite": ["addFavoriteFamilies", "activateFamily"],
-        "Project": ["createProject", "addFontProjectFamilies", "activateFamily"],
+        "Discovery/Browse (global)": ["deactivateFamilies", "activateFamily"],
+        "List (FONTLIST)": [
+            "createAsset",
+            "addFontListFamilies",
+            "deactivateFamilies",
+            "activateFamily",
+        ],
+        "Favourite": [
+            "removeFavoriteFamilies",
+            "addFavoriteFamilies",
+            "deactivateFamilies",
+            "activateFamily",
+        ],
+        "Project": [
+            "createProject",
+            "addFontProjectFamilies",
+            "deactivateFamilies",
+            "activateFamily",
+        ],
+        "Project > List": [
+            "createProject",
+            "addFontProjectFamilies",
+            "createAsset",
+            "addFontListFamilies",
+            "deactivateFamilies",
+            "activateFamily",
+        ],
+    },
+    "deactivateFamilies": {
+        "Discovery/Browse (global)": ["activateFamily", "deactivateFamilies"],
+        "List (FONTLIST)": [
+            "createAsset",
+            "addFontListFamilies",
+            "activateFamily",
+            "deactivateFamilies",
+        ],
+        "Favourite": [
+            "removeFavoriteFamilies",
+            "addFavoriteFamilies",
+            "activateFamily",
+            "deactivateFamilies",
+        ],
+        "Project": [
+            "createProject",
+            "addFontProjectFamilies",
+            "activateFamily",
+            "deactivateFamilies",
+        ],
         "Project > List": [
             "createProject",
             "addFontProjectFamilies",
             "createAsset",
             "addFontListFamilies",
             "activateFamily",
-        ],
-    },
-    "deactivateFamilies": {
-        "Discovery/Browse (global)": ["deactivateFamilies"],
-        "List (FONTLIST)": ["createAsset", "addFontListFamilies", "deactivateFamilies"],
-        "Favourite": ["addFavoriteFamilies", "deactivateFamilies"],
-        "Project": ["createProject", "addFontProjectFamilies", "deactivateFamilies"],
-        "Project > List": [
-            "createProject",
-            "createAsset",
-            "addFontListFamilies",
             "deactivateFamilies",
         ],
     },
     "activateStyle": {
-        "Discovery/Browse (global)": ["activateStyle"],
-        "List (FONTLIST)": ["createAsset", "addFontListStyles", "activateStyle"],
-        "Favourite": ["addFavoriteStyles", "activateStyle"],
-        "Project": ["createProject", "addFontProjectStyles", "activateStyle"],
-        "Project > List": [
-            "createProject",
+        "Discovery/Browse (global)": ["deactivateStyle", "activateStyle"],
+        "List (FONTLIST)": [
             "createAsset",
             "addFontListStyles",
+            "deactivateStyle",
+            "activateStyle",
+        ],
+        "Favourite": [
+            "removeFavoriteStyles",
+            "addFavoriteStyles",
+            "deactivateStyle",
+            "activateStyle",
+        ],
+        "Project": [
+            "createProject",
+            "addFontProjectStyles",
+            "deactivateStyle",
+            "activateStyle",
+        ],
+        "Project > List": [
+            "createProject",
+            "addFontProjectStyles",
+            "createAsset",
+            "addFontListStyles",
+            "deactivateStyle",
             "activateStyle",
         ],
     },
     "deactivateStyle": {
-        "Discovery/Browse (global)": ["deactivateStyle"],
-        "List (FONTLIST)": ["createAsset", "addFontListStyles", "deactivateStyle"],
-        "Favourite": ["addFavoriteStyles", "deactivateStyle"],
-        "Project": ["createProject", "addFontProjectStyles", "deactivateStyle"],
-        "Project > List": [
-            "createProject",
+        "Discovery/Browse (global)": ["activateStyle", "deactivateStyle"],
+        "List (FONTLIST)": [
             "createAsset",
             "addFontListStyles",
+            "activateStyle",
+            "deactivateStyle",
+        ],
+        "Favourite": [
+            "removeFavoriteStyles",
+            "addFavoriteStyles",
+            "activateStyle",
+            "deactivateStyle",
+        ],
+        "Project": [
+            "createProject",
+            "addFontProjectStyles",
+            "activateStyle",
+            "deactivateStyle",
+        ],
+        "Project > List": [
+            "createProject",
+            "addFontProjectStyles",
+            "createAsset",
+            "addFontListStyles",
+            "activateStyle",
             "deactivateStyle",
         ],
     },
     "activateVariation": {
-        "Discovery/Browse (global)": ["activateVariation"],
-        "List (FONTLIST)": ["createAsset", "addFontListStyles", "activateVariation"],
-        "Favourite": ["addFavoriteStyles", "activateVariation"],
-        "Project": ["createProject", "addFontProjectStyles", "activateVariation"],
-        "Project > List": [
-            "createProject",
+        "Discovery/Browse (global)": ["deactivateVariation", "activateVariation"],
+        "List (FONTLIST)": [
             "createAsset",
             "addFontListStyles",
+            "deactivateVariation",
+            "activateVariation",
+        ],
+        "Favourite": [
+            "removeFavoriteStyles",
+            "addFavoriteStyles",
+            "deactivateVariation",
+            "activateVariation",
+        ],
+        "Project": [
+            "createProject",
+            "addFontProjectStyles",
+            "deactivateVariation",
+            "activateVariation",
+        ],
+        "Project > List": [
+            "createProject",
+            "addFontProjectStyles",
+            "createAsset",
+            "addFontListStyles",
+            "deactivateVariation",
             "activateVariation",
         ],
     },
     "activateList": {
-        "List (FONTLIST)": ["createAsset", "addFontListFamilies", "activateList"],
-        "Favourite": ["addFavoriteFamilies", "activateList"],
+        "List (FONTLIST)": ["createAsset", "addFontListFamilies", "deActivateList", "activateList"],
         "Project > List": [
             "createProject",
+            "addFontProjectFamilies",
             "createAsset",
             "addFontListFamilies",
+            "deActivateList",
             "activateList",
         ],
     },
     "deActivateList": {
-        "List (FONTLIST)": ["createAsset", "addFontListFamilies", "deActivateList"],
-        "Favourite": ["addFavoriteFamilies", "deActivateList"],
+        "List (FONTLIST)": ["createAsset", "addFontListFamilies", "activateList", "deActivateList"],
         "Project > List": [
             "createProject",
+            "addFontProjectFamilies",
             "createAsset",
             "addFontListFamilies",
+            "activateList",
             "deActivateList",
         ],
     },
     "activateFontProject": {
-        "Project": ["createProject", "addFontProjectFamilies", "activateFontProject"],
+        "Project": [
+            "createProject",
+            "addFontProjectFamilies",
+            "deActivateFontProject",
+            "activateFontProject",
+        ],
     },
     "deActivateFontProject": {
-        "Project": ["createProject", "addFontProjectFamilies", "deActivateFontProject"],
+        "Project": [
+            "createProject",
+            "addFontProjectFamilies",
+            "activateFontProject",
+            "deActivateFontProject",
+        ],
     },
     "addFontListFamilies": {
         "List (FONTLIST)": ["createAsset", "addFontListFamilies"],
-        "Project > List": ["createProject", "createAsset", "addFontListFamilies"],
+        "Project > List": [
+            "createProject",
+            "addFontProjectFamilies",
+            "createAsset",
+            "addFontListFamilies",
+        ],
     },
     "addFontListStyles": {
         "List (FONTLIST)": ["createAsset", "addFontListStyles"],
-        "Project > List": ["createProject", "createAsset", "addFontListStyles"],
+        "Project > List": [
+            "createProject",
+            "addFontProjectStyles",
+            "createAsset",
+            "addFontListStyles",
+        ],
     },
     "addFontProjectFamilies": {
         "Project": ["createProject", "addFontProjectFamilies"],
@@ -1252,8 +1448,33 @@ FLOW_DEFS: dict[str, dict[str, list[str]]] = {
 }
 
 FLOW_DEFS["deactivateVariation"] = {
-    k: [x if x != "activateVariation" else "deactivateVariation" for x in v]
-    for k, v in FLOW_DEFS["activateVariation"].items()
+    "Discovery/Browse (global)": ["activateVariation", "deactivateVariation"],
+    "List (FONTLIST)": [
+        "createAsset",
+        "addFontListStyles",
+        "activateVariation",
+        "deactivateVariation",
+    ],
+    "Favourite": [
+        "removeFavoriteStyles",
+        "addFavoriteStyles",
+        "activateVariation",
+        "deactivateVariation",
+    ],
+    "Project": [
+        "createProject",
+        "addFontProjectStyles",
+        "activateVariation",
+        "deactivateVariation",
+    ],
+    "Project > List": [
+        "createProject",
+        "addFontProjectStyles",
+        "createAsset",
+        "addFontListStyles",
+        "activateVariation",
+        "deactivateVariation",
+    ],
 }
 
 # Single-step creates (UI Navigation Discovery/Browse) — cleanup via GENERATE_CLEANUP deletes
@@ -1273,10 +1494,68 @@ FLOW_DEFS.update(
             "Discovery/Browse (global)": ["createProject", "addFontProjectStyles"],
         },
         "addFavoriteFamilies": {
-            "Favourite": ["addFavoriteFamilies"],
+            "Favourite": ["removeFavoriteFamilies", "addFavoriteFamilies"],
         },
         "addFavoriteStyles": {
-            "Favourite": ["addFavoriteStyles"],
+            "Favourite": ["removeFavoriteStyles", "addFavoriteStyles"],
+        },
+        "removeFavoriteFamilies": {
+            "Favourite": ["addFavoriteFamilies", "removeFavoriteFamilies"],
+        },
+        "removeFavoriteStyles": {
+            "Favourite": ["addFavoriteStyles", "removeFavoriteStyles"],
+        },
+        "dismissNotification": {
+            "Discovery/Browse (global)": ["getNotifications", "dismissNotification"],
+            "Notifications": ["getNotifications", "dismissNotification"],
+        },
+        "markNotificationRead": {
+            "Discovery/Browse (global)": ["getNotifications", "markNotificationRead"],
+            "Notifications": ["getNotifications", "markNotificationRead"],
+        },
+        "updateCustomerSettings": {
+            "Discovery/Browse (global)": ["getCustomerSettings", "updateCustomerSettings"],
+            "Account & workspace": ["getCustomerSettings", "updateCustomerSettings"],
+        },
+        "getCustomerSettings": {
+            "Discovery/Browse (global)": ["getCustomerSettings"],
+            "Account & workspace": ["getCustomerSettings"],
+        },
+        "setLanguagePreference": {
+            "Discovery/Browse (global)": ["setLanguagePreference"],
+            "Preferences": ["setLanguagePreference"],
+        },
+        "addFavoritePair": {
+            "Favourite": ["removeFavoritePair", "addFavoritePair"],
+            "Discovery/Browse (global)": ["removeFavoritePair", "addFavoritePair"],
+        },
+        "removeFavoritePair": {
+            "Favourite": ["addFavoritePair", "removeFavoritePair"],
+            "Discovery/Browse (global)": ["addFavoritePair", "removeFavoritePair"],
+        },
+        "bulkUpdateProfiles": {
+            "Discovery/Browse (global)": [
+                "getProfiles",
+                "createTeam",
+                "bulkUpdateProfiles",
+            ],
+            "User & Access": ["getProfiles", "createTeam", "bulkUpdateProfiles"],
+        },
+        "createUserInvitations": {
+            "Discovery/Browse (global)": ["getRoles", "createUserInvitations"],
+            "User & Access": ["getRoles", "createUserInvitations"],
+        },
+        "deleteRoles": {
+            "Discovery/Browse (global)": ["createRole", "deleteRoles"],
+            "User & Access": ["createRole", "deleteRoles"],
+        },
+        "deleteTeams": {
+            "Discovery/Browse (global)": ["createTeam", "deleteTeams"],
+            "User & Access": ["createTeam", "deleteTeams"],
+        },
+        "duplicateProject": {
+            "Project": ["createProject", "duplicateProject"],
+            "Discovery/Browse (global)": ["createProject", "duplicateProject"],
         },
         # Sheet multi-step: create → seed → trigger
         "removeFontProjectStyles": {

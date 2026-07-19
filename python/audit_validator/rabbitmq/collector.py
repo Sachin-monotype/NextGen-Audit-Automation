@@ -20,18 +20,13 @@ log = logging.getLogger(__name__)
 
 
 def _correlation_id(payload: JsonDict, properties: BasicProperties | None = None) -> str | None:
-    cid = payload.get("xCorrelationId")
-    if isinstance(cid, str) and cid:
-        return cid
+    from audit_validator.correlation import extract_correlation
+
     headers = getattr(properties, "headers", None) if properties else None
-    if isinstance(headers, dict):
-        for key in ("x-correlation-id", "xCorrelationId", "x_correlation_id"):
-            val = headers.get(key)
-            if isinstance(val, str) and val:
-                return val
-            if isinstance(val, bytes):
-                return val.decode("utf-8", errors="replace")
-    return None
+    return extract_correlation(
+        payload=payload if isinstance(payload, dict) else None,
+        amqp_headers=headers if isinstance(headers, dict) else None,
+    )
 
 
 def _operation_from_payload(payload: JsonDict) -> tuple[str, str]:

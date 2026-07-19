@@ -205,11 +205,11 @@ def load_simulation_config(project_root: Path) -> GraphQLSimulationConfig:
         customer_context_id=os.getenv("GRAPHQL_CONTEXT_CUSTOMER_ID", "").strip(),
         accounts=accounts,
         seed=SeedConfig(
-            family_id=os.getenv("SEED_FAMILY_ID", "794981").strip(),
+            family_id=os.getenv("SEED_FAMILY_ID", "910042901").strip(),
             deactivate_family_id=os.getenv("SEED_DEACTIVATE_FAMILY_ID", "8kL8ZM64").strip(),
             favorite_family_id=os.getenv(
                 "SEED_FAVORITE_FAMILY_ID",
-                os.getenv("SEED_FAMILY_ID", "794981"),
+                os.getenv("SEED_FAMILY_ID", "910042901"),
             ).strip(),
             family_ids=family_ids,
             style_id=os.getenv("SEED_STYLE_ID", "920374778").strip(),
@@ -218,8 +218,8 @@ def load_simulation_config(project_root: Path) -> GraphQLSimulationConfig:
                 "SEED_FAVORITE_STYLE_ID",
                 os.getenv("SEED_STYLE_ID", "920374778"),
             ).strip(),
-            headline_style_id=os.getenv("SEED_HEADLINE_STYLE_ID", "696261").strip(),
-            body_style_id=os.getenv("SEED_BODY_STYLE_ID", "920515442").strip(),
+            headline_style_id=os.getenv("SEED_HEADLINE_STYLE_ID", "920142132").strip(),
+            body_style_id=os.getenv("SEED_BODY_STYLE_ID", "920233774").strip(),
             variation_style_id=os.getenv(
                 "SEED_VARIATION_STYLE_ID", "e7z4R6sG"
             ).strip(),

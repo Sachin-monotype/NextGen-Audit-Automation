@@ -78,6 +78,13 @@ class AuditDatabase:
                     query[key] = {"$in": values}
                 else:
                     query[key] = {"$regex": re.escape(values[0]), "$options": "i"}
+            elif key == "xCorrelationId":
+                # UI generate uses Cloudflare-safe correlationId; API generate uses xCorrelationId.
+                # One filter box should match either envelope field.
+                query["$or"] = [
+                    {"xCorrelationId": value},
+                    {"correlationId": value},
+                ]
             elif key in AuditDatabase.ENUM_FIELDS:
                 # Comma-separated → match any (multi-select dropdown)
                 values = [v.strip() for v in value.split(",") if v.strip()]
@@ -113,7 +120,8 @@ class AuditDatabase:
         source = doc.get("source") or {}
         actor = doc.get("actor") or {}
         return {
-            "xCorrelationId": doc.get("xCorrelationId", ""),
+            "xCorrelationId": doc.get("xCorrelationId") or doc.get("correlationId") or "",
+            "correlationId": doc.get("correlationId") or "",
             "source.operation": source.get("operation", ""),
             "source.operationState": source.get("operationState", ""),
             "source.platformEnvironment": source.get("platformEnvironment", ""),
@@ -306,7 +314,9 @@ class AuditDatabase:
         actor_uid = (actor_global_user_id or "").strip()
 
         if cid_owned:
-            cid_filt = {"xCorrelationId": cid_owned, **filt}
+            from audit_validator.correlation import mongo_correlation_filter
+
+            cid_filt = mongo_correlation_filter(cid_owned, extra=filt)
             raw = raw_col.find_one(cid_filt, projection={"_id": 0}, sort=[("occurredAt", DESCENDING)])
             enriched = enr_col.find_one(
                 cid_filt, projection={"_id": 0}, sort=[("occurredAt", DESCENDING)]
@@ -332,17 +342,22 @@ class AuditDatabase:
             enr_query["actor.globalUserId"] = actor_uid
 
         def _scan(query: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+            from audit_validator.correlation import mongo_correlation_filter
+
             cursor = (
                 enr_col.find(query, projection={"_id": 0})
                 .sort([("occurredAt", DESCENDING), ("_id", DESCENDING)])
                 .limit(max(scan_limit, 1))
             )
             for enriched in cursor:
-                cid = enriched.get("xCorrelationId")
+                cid = (
+                    str(enriched.get("xCorrelationId") or "").strip()
+                    or str(enriched.get("correlationId") or "").strip()
+                )
                 if not cid:
                     continue
                 raw = raw_col.find_one(
-                    {"xCorrelationId": cid, **filt},
+                    mongo_correlation_filter(cid, extra=filt),
                     projection={"_id": 0},
                     sort=[("occurredAt", DESCENDING)],
                 )

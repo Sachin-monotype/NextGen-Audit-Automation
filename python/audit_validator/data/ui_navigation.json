@@ -1,7 +1,79 @@
 {
+  "Browse/Discovery": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "Browse/Discovery/List/TagsManage": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "Discovery/Browse": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "Discovery/Browse (global)": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "Favourite": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "List": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "List (FONTLIST)": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "Manage>Tags": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "Mylibrary>Assets": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "Project": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "Project > List": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "Project > list": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "Projects": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "Search/ Family / Discovery": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
   "UserLogIntiated": {
     "section": "Login & identity",
-    "navigation": [],
+    "navigation": [
+      "Desktop app > click on login"
+    ],
     "remarks": ""
   },
   "activateAllFontsInList": {
@@ -10,17 +82,6 @@
       "Project Library > open font list > kebab > Activate all fonts (context-menu-item-activate-all-fonts) > \"All fonts from the list are activated successfully\" snackbar"
     ],
     "remarks": "QA-automated: test_activate_deactivate_all_fonts_from_fontlist"
-  },
-  "activateFamily": {
-    "section": "Font sync & activation",
-    "navigation": [
-      "Discover Fonts >Family > Activate",
-      "Discover Fonts >Family>family details > Activate",
-      "Discover Fonts >List> click on list >family> Activate",
-      "Discover Fonts >project> click on project >family> Activate",
-      "Discover Fonts > Select font family > open family details > Activate"
-    ],
-    "remarks": ""
   },
   "activateFamilyInProject": {
     "section": "Project compliance",
@@ -201,12 +262,16 @@
   },
   "appConnectivityLost": {
     "section": "Desktop app preferences",
-    "navigation": [],
+    "navigation": [
+      "Desktop App > Dashboard > Turn off Wifi [keep it for 5min like that]"
+    ],
     "remarks": ""
   },
   "appConnectivityRestored": {
     "section": "Desktop app preferences",
-    "navigation": [],
+    "navigation": [
+      "Desktop App > Dashboard > Turn on wifi"
+    ],
     "remarks": ""
   },
   "appFeedbackSubmitted": {
@@ -230,7 +295,9 @@
   },
   "appLaunched": {
     "section": "Desktop app preferences",
-    "navigation": [],
+    "navigation": [
+      "Quit and relaunch the App"
+    ],
     "remarks": ""
   },
   "appLogsExported": {
@@ -298,16 +365,75 @@
   },
   "appUpdateCompleted": {
     "section": "Desktop app preferences",
-    "navigation": [],
+    "navigation": [
+      "Desktop app > Preferences > Updates > install update > password prompt [confirm it to update]"
+    ],
     "remarks": ""
   },
   "appUpdateFailed": {
     "section": "Desktop app preferences",
+    "navigation": [
+      "Desktop app > Preferences > Updates > install update > password prompt [cancel it]"
+    ],
+    "remarks": ""
+  },
+  "app_cache_cleared": {
+    "section": "",
     "navigation": [],
     "remarks": ""
   },
-  "applyUnsubscribe": {
-    "section": "Account & workspace",
+  "app_feedback_submitted": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "app_language_changed": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "app_logs_exported": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "app_settings_activation_mode_changed": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "app_settings_auto_performance_disabled": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "app_settings_auto_performance_enabled": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "app_settings_performance_mode_changed": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "app_settings_plugin_app_app_name_enabled": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "app_settings_plugin_app_enabled": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "app_settings_plugin_install_all_disabled": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "app_settings_plugin_install_all_enabled": {
+    "section": "",
     "navigation": [],
     "remarks": ""
   },
@@ -472,11 +598,6 @@
     ],
     "remarks": ""
   },
-  "bulkSubmitIntentForProduction": {
-    "section": "Library & font changes",
-    "navigation": [],
-    "remarks": ""
-  },
   "bulkTagStyles": {
     "section": "Library & font changes",
     "navigation": [
@@ -529,11 +650,6 @@
     "navigation": [
       "Settings > Manage > Users >select multiple users > Bulk update (change role/team)"
     ],
-    "remarks": ""
-  },
-  "cancelBatch": {
-    "section": "Imported font compliance",
-    "navigation": [],
     "remarks": ""
   },
   "completeUploadSession": {
@@ -601,18 +717,24 @@
   },
   "createBYOFBatchAndCheckDuplicates": {
     "section": "Imported font compliance",
-    "navigation": [],
+    "navigation": [
+      "Manage > Imported fonts > Import fonts > Upload font file",
+      "Projects > Project fonts > Import fonts > Upload font file",
+      "Projects > Project settings > Fonts > Import Fonts > Upload font file"
+    ],
     "remarks": ""
   },
   "createCompanyLogoUploadUrl": {
     "section": "Account & workspace",
-    "navigation": [],
+    "navigation": [
+      "Admin > Manage->Company setting"
+    ],
     "remarks": ""
   },
   "createContract": {
     "section": "Imported font compliance",
     "navigation": [
-      "Imported Fonts > Contracts > Create License"
+      "Imported Fonts > License > Create License->Add Manually-> Create"
     ],
     "remarks": ""
   },
@@ -680,14 +802,11 @@
     "navigation": [],
     "remarks": ""
   },
-  "createSso": {
-    "section": "Library & font changes",
-    "navigation": [],
-    "remarks": ""
-  },
   "createSsoMapping": {
     "section": "User & access",
-    "navigation": [],
+    "navigation": [
+      "Manage->Users&Team->sso->create mapping"
+    ],
     "remarks": ""
   },
   "createStyleDocumentsUploadUrl": {
@@ -817,13 +936,15 @@
   },
   "deleteCompanyLogo": {
     "section": "Account & workspace",
-    "navigation": [],
+    "navigation": [
+      "Admin > Manage->Company setting"
+    ],
     "remarks": ""
   },
   "deleteContracts": {
     "section": "Imported font compliance",
     "navigation": [
-      "Imported Fonts > Contracts > Delete License"
+      "Imported Fonts > Licnese > Delete License"
     ],
     "remarks": ""
   },
@@ -845,14 +966,11 @@
     ],
     "remarks": ""
   },
-  "deleteProfile": {
-    "section": "Library & font changes",
-    "navigation": [],
-    "remarks": ""
-  },
   "deleteProfiles": {
     "section": "User & access",
-    "navigation": [],
+    "navigation": [
+      "Manage->Users&Team->Deactivate user->Delete user"
+    ],
     "remarks": ""
   },
   "deleteProject": {
@@ -878,27 +996,14 @@
     ],
     "remarks": ""
   },
-  "deleteServiceAccount": {
-    "section": "User & access",
-    "navigation": [],
-    "remarks": ""
-  },
   "deleteSsoMappings": {
     "section": "User & access",
-    "navigation": [],
-    "remarks": ""
-  },
-  "deleteStyleComment": {
-    "section": "Library & font changes",
-    "navigation": [],
+    "navigation": [
+      "Manage->Users&Team->sso->delete sso mapping"
+    ],
     "remarks": ""
   },
   "deleteStyleDocument": {
-    "section": "Library & font changes",
-    "navigation": [],
-    "remarks": ""
-  },
-  "deleteTeam": {
     "section": "Library & font changes",
     "navigation": [],
     "remarks": ""
@@ -1017,6 +1122,21 @@
     ],
     "remarks": ""
   },
+  "font_activation_type_switched": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "font_localfont_activated": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "font_localfont_deactivated": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
   "getActiveBatches": {
     "section": "Exports & maintenance",
     "navigation": [],
@@ -1025,7 +1145,7 @@
   "getAllAccessRequests": {
     "section": "Imported font access requests",
     "navigation": [
-      "Imported Fonts > Request access"
+      "Manage->Imported Fonts > Request access"
     ],
     "remarks": ""
   },
@@ -1046,7 +1166,9 @@
   },
   "getCustomerSettings": {
     "section": "Account & workspace",
-    "navigation": [],
+    "navigation": [
+      "Admin > Manage->Company setting"
+    ],
     "remarks": ""
   },
   "getDocumentMetadata": {
@@ -1056,7 +1178,9 @@
   },
   "getEligiblePrimaryContacts": {
     "section": "User & access",
-    "navigation": [],
+    "navigation": [
+      "Manage->Company setting-> get all primary contact"
+    ],
     "remarks": ""
   },
   "getFamiliesOfAllFontLists": {
@@ -1083,7 +1207,9 @@
   },
   "getSsoMappings": {
     "section": "User & access",
-    "navigation": [],
+    "navigation": [
+      "Manage->Users&Team->sso->list of sso"
+    ],
     "remarks": ""
   },
   "getStyleComments": {
@@ -1123,8 +1249,8 @@
     ],
     "remarks": ""
   },
-  "importFontTemplate": {
-    "section": "Exports & maintenance",
+  "identitylinked": {
+    "section": "",
     "navigation": [],
     "remarks": ""
   },
@@ -1147,7 +1273,8 @@
   "linkContractToStyles": {
     "section": "Imported font compliance",
     "navigation": [
-      "Document scan > DocumentScanFlow"
+      "Manage > Impoted font > License ->License(Click on license)-> Associate font -> Add Font",
+      "Manage > Impoted font > Font ->Configure-> Select license in dropdown->update"
     ],
     "remarks": ""
   },
@@ -1161,7 +1288,9 @@
   },
   "linkDocumentsToContract": {
     "section": "Imported font compliance",
-    "navigation": [],
+    "navigation": [
+      "Manage > Impoted font > License ->License(Click on license)-> Upload Document"
+    ],
     "remarks": ""
   },
   "manageProjectMembers": {
@@ -1183,7 +1312,9 @@
   },
   "markCompanyLogoUploadSuccess": {
     "section": "Account & workspace",
-    "navigation": [],
+    "navigation": [
+      "Admin > Manage->Company setting"
+    ],
     "remarks": ""
   },
   "markNotificationRead": {
@@ -1199,7 +1330,9 @@
   },
   "markOnboardingCompleted": {
     "section": "Account & workspace",
-    "navigation": [],
+    "navigation": [
+      "Admin > Manage->Company setting"
+    ],
     "remarks": ""
   },
   "markProductionFonts (single)": {
@@ -1258,7 +1391,10 @@
   },
   "parseAndCreateContract": {
     "section": "Imported font compliance",
-    "navigation": [],
+    "navigation": [
+      "Manage > Impoted font > License ->Add License->Upload License",
+      "Manage > Impoted font > Font ->Upload"
+    ],
     "remarks": ""
   },
   "pinAsset": {
@@ -1358,6 +1494,56 @@
     ],
     "remarks": ""
   },
+  "plugin_document_opened": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "plugin_font_auto_activated": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "plugin_font_conflict_detected": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "plugin_font_manually_activated": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "plugin_imported_font_requested": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "plugin_missing_font_detected": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "plugin_missing_font_resolved": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "plugin_missing_font_unresolved": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "plugin_panel_closed": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "plugin_panel_opened": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
   "processUploadSessionFonts": {
     "section": "Library & font changes",
     "navigation": [
@@ -1369,8 +1555,8 @@
     ],
     "remarks": ""
   },
-  "publishAddOn": {
-    "section": "Library & font changes",
+  "project > list": {
+    "section": "",
     "navigation": [],
     "remarks": ""
   },
@@ -1501,7 +1687,9 @@
   },
   "reorderSsoMappings": {
     "section": "User & access",
-    "navigation": [],
+    "navigation": [
+      "Manage->Users&Team->sso->Update the order"
+    ],
     "remarks": ""
   },
   "requestFontAccess": {
@@ -1532,11 +1720,6 @@
       "All Projects > Archived projects tab (archived-projects-tab) > select archived project row > Restore (project-restore-{id}) > confirm Yes, restore > success snackbar > project returns to My Projects"
     ],
     "remarks": "QA-automated: test_all_projects.py (test_archive_pinned_project_and_restore)"
-  },
-  "revokeToken": {
-    "section": "User & access",
-    "navigation": [],
-    "remarks": ""
   },
   "roleBasedProjectAccess (Collaborator)": {
     "section": "Project compliance",
@@ -1599,18 +1782,15 @@
     ],
     "remarks": ""
   },
-  "submitFontVariationRequest": {
+  "submitFontVariation": {
     "section": "Library & font changes",
-    "navigation": [],
+    "navigation": [
+      "Discover Fonts > Leaving Soon Page > Request for Production -> Request for Production (Non admin user)"
+    ],
     "remarks": ""
   },
   "submitIntentForProduction": {
     "section": "Exports & maintenance",
-    "navigation": [],
-    "remarks": ""
-  },
-  "suspendServiceAccount": {
-    "section": "User & access",
     "navigation": [],
     "remarks": ""
   },
@@ -1620,11 +1800,6 @@
       "Sync-only project member > Project Library > font list > kebab > copy webkit/embed code (read-only embed access)"
     ],
     "remarks": "QA-automated: test_c73229350_sync_only_copy_webkit_embed_code"
-  },
-  "syncUnSyncVariations": {
-    "section": "Font sync & activation",
-    "navigation": [],
-    "remarks": ""
   },
   "unlinkDocumentFromProject": {
     "section": "Project lifecycle & membership",
@@ -1636,13 +1811,16 @@
   },
   "unlinkDocumentsFromContract": {
     "section": "Imported font compliance",
-    "navigation": [],
+    "navigation": [
+      "Manage > Impoted font > License ->License(Click on license)-> Remove document"
+    ],
     "remarks": ""
   },
   "unlinkStyleFromContract": {
     "section": "Imported font compliance",
     "navigation": [
-      "Document scan > DocumentScanFlow"
+      "Manage > Impoted font > License ->License(Click on license)-> Associate font -> remove Font",
+      "Manage > Impoted font > Font ->Configure-> unselect license in dropdown->update"
     ],
     "remarks": ""
   },
@@ -1718,13 +1896,15 @@
   },
   "updateCompanySsoStatus": {
     "section": "User & access",
-    "navigation": [],
+    "navigation": [
+      "Manage->Users&Team->sso->Update the order"
+    ],
     "remarks": ""
   },
   "updateContract": {
     "section": "Imported font compliance",
     "navigation": [
-      "Imported Fonts > Contracts > Edit contract"
+      "Manage > Impoted font > License ->Configure->update"
     ],
     "remarks": ""
   },
@@ -1737,7 +1917,9 @@
   },
   "updateCustomerSettings": {
     "section": "Account & workspace",
-    "navigation": [],
+    "navigation": [
+      "Admin > Manage->Company setting"
+    ],
     "remarks": ""
   },
   "updateFontProjectStyles": {
@@ -1763,7 +1945,9 @@
   },
   "updatePreference": {
     "section": "Account & workspace",
-    "navigation": [],
+    "navigation": [
+      "Notification>preference>updatepreferences"
+    ],
     "remarks": ""
   },
   "updatePrivateTag": {
@@ -1811,11 +1995,6 @@
     ],
     "remarks": ""
   },
-  "updateServiceAccount": {
-    "section": "User & access",
-    "navigation": [],
-    "remarks": ""
-  },
   "updateSessionFiles": {
     "section": "Exports & maintenance",
     "navigation": [
@@ -1827,7 +2006,9 @@
   },
   "updateSsoMapping": {
     "section": "User & access",
-    "navigation": [],
+    "navigation": [
+      "Manage->Users&Team->sso->Update sso mapping"
+    ],
     "remarks": ""
   },
   "updateStyleComment": {
@@ -1837,7 +2018,9 @@
   },
   "updateSubToggle": {
     "section": "Account & workspace",
-    "navigation": [],
+    "navigation": [
+      "Notification>preference>updatepreferences"
+    ],
     "remarks": ""
   },
   "updateTeam": {
@@ -1885,11 +2068,37 @@
     ],
     "remarks": ""
   },
+  "userloginfailureapp": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "userlogoutapp": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
+  "userswitchworkspaceapp": {
+    "section": "",
+    "navigation": [],
+    "remarks": ""
+  },
   "viewProjectBrief": {
     "section": "Project compliance",
     "navigation": [
       "Open project (any status) > title kebab > View Project brief (project-library-kebab-view-brief) > drawer shows project-brief-content > close drawer"
     ],
     "remarks": "May be disabled on some Published projects. QA-automated across draft/ready/published tests"
+  },
+  "x": {
+    "section": "Font sync & activation",
+    "navigation": [
+      "Discover Fonts >Family > Activate",
+      "Discover Fonts >Family>family details > Activate",
+      "Discover Fonts >List> click on list >family> Activate",
+      "Discover Fonts >project> click on project >family> Activate",
+      "Discover Fonts > Select font family > open family details > Activate"
+    ],
+    "remarks": ""
   }
 }

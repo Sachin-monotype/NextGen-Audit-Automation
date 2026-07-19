@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import JsonTree from "../components/JsonTree";
+import EnrichDiffModal from "../components/EnrichDiffModal";
 import MultiSelect from "../components/MultiSelect";
 import {
   fetchFilterValues,
@@ -29,7 +30,7 @@ const EMPTY: FilterState = {
 };
 
 const TEXT_FILTERS: { key: keyof FilterState; label: string; placeholder?: string }[] = [
-  { key: "xCorrelationId", label: "xCorrelationId" },
+  { key: "xCorrelationId", label: "correlation id", placeholder: "xCorrelationId or correlationId" },
   { key: "actor.globalUserId", label: "globalUserId" },
 ];
 
@@ -344,6 +345,13 @@ export default function DisplayPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [diffPick, setDiffPick] = useState<string[]>([]);
+  const [enrichDiff, setEnrichDiff] = useState<{
+    labelA: string;
+    labelB: string;
+    dataA: unknown;
+    dataB: unknown;
+  } | null>(null);
 
   useEffect(() => {
     fetchUiConfig().then((cfg) => {
@@ -351,6 +359,11 @@ export default function DisplayPage() {
       if (cfg.defaultPageSize) setPageSize(cfg.defaultPageSize);
     });
   }, []);
+
+  useEffect(() => {
+    setDiffPick([]);
+    setEnrichDiff(null);
+  }, [tab]);
 
   useEffect(() => {
     fetchFilterValues(tab).then(setFilterValues).catch(() => {});
@@ -407,6 +420,34 @@ export default function DisplayPage() {
   }
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
+
+  function rowKey(row: LogRow, i: number): string {
+    const op = row["source.operation"] || "(unknown)";
+    return unique
+      ? `${tab}:${op}`
+      : `${tab}:${op}:${row.xCorrelationId || row.correlationId || row.occurredAt || i}`;
+  }
+
+  function toggleDiffPick(key: string) {
+    setDiffPick((prev) => {
+      if (prev.includes(key)) return prev.filter((k) => k !== key);
+      if (prev.length >= 2) return [prev[1], key];
+      return [...prev, key];
+    });
+  }
+
+  function openEnrichDiff() {
+    if (diffPick.length !== 2) return;
+    const a = rows.find((r, i) => rowKey(r, i) === diffPick[0]);
+    const b = rows.find((r, i) => rowKey(r, i) === diffPick[1]);
+    if (!a?.message || !b?.message) return;
+    setEnrichDiff({
+      labelA: `${a["source.operation"]} · ${(a.xCorrelationId || a.correlationId || "").slice(0, 8)}`,
+      labelB: `${b["source.operation"]} · ${(b.xCorrelationId || b.correlationId || "").slice(0, 8)}`,
+      dataA: a.message,
+      dataB: b.message,
+    });
+  }
 
   return (
     <section className="panel display-panel">
@@ -496,6 +537,24 @@ export default function DisplayPage() {
               ))}
             </select>
           </label>
+          {tab === "enriched" && (
+            <>
+              <button
+                type="button"
+                className="link-btn"
+                disabled={diffPick.length !== 2}
+                onClick={openEnrichDiff}
+                title="Pick two enriched cards, then compare leaf-level JSON"
+              >
+                Compare enrich ({diffPick.length}/2)
+              </button>
+              {diffPick.length > 0 && (
+                <button type="button" className="link-btn" onClick={() => setDiffPick([])}>
+                  clear pick
+                </button>
+              )}
+            </>
+          )}
           {loading && <span className="muted">Loading…</span>}
         </div>
       </div>
@@ -503,25 +562,34 @@ export default function DisplayPage() {
       <div className="display-table">
         {rows.length === 0 && !loading && <p className="muted">No entries match.</p>}
         {rows.map((row, i) => {
-          const op = row["source.operation"] || "(unknown)";
-          const rowId = unique
-            ? `${tab}:${op}`
-            : `${tab}:${op}:${row.xCorrelationId || row.occurredAt || i}`;
+          const key = rowKey(row, i);
           return (
             <LogCard
-              key={rowId}
+              key={key}
               row={row}
-              open={expandedRows.has(rowId)}
+              open={expandedRows.has(key)}
+              selectable={tab === "enriched"}
+              selected={diffPick.includes(key)}
+              onSelect={() => toggleDiffPick(key)}
               onToggle={() => setExpandedRows((current) => {
                 const next = new Set(current);
-                if (next.has(rowId)) next.delete(rowId);
-                else next.add(rowId);
+                if (next.has(key)) next.delete(key);
+                else next.add(key);
                 return next;
               })}
             />
           );
         })}
       </div>
+      {enrichDiff && (
+        <EnrichDiffModal
+          labelA={enrichDiff.labelA}
+          labelB={enrichDiff.labelB}
+          dataA={enrichDiff.dataA}
+          dataB={enrichDiff.dataB}
+          onClose={() => setEnrichDiff(null)}
+        />
+      )}
     </section>
   );
 }
@@ -531,20 +599,37 @@ function LogCard({
   row,
   open,
   onToggle,
+  selectable,
+  selected,
+  onSelect,
 }: {
   row: LogRow;
   open: boolean;
   onToggle: () => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelect?: () => void;
 }) {
   const op = row["source.operation"] || "(unknown)";
+  const cid = row.xCorrelationId || row.correlationId || "";
   return (
-    <article className={`log-card${open ? " is-open" : " is-collapsed"}`}>
+    <article className={`log-card${open ? " is-open" : " is-collapsed"}${selected ? " is-picked" : ""}`}>
       <button
         type="button"
         className="log-card-head"
         onClick={onToggle}
         aria-expanded={open}
       >
+        {selectable && (
+          <input
+            type="checkbox"
+            checked={!!selected}
+            onClick={(e) => e.stopPropagation()}
+            onChange={() => onSelect?.()}
+            title="Select for enrich diff"
+            aria-label={`Select ${op} for enrich diff`}
+          />
+        )}
         <span className="chevron">{open ? "▾" : "▸"}</span>
         <div className="log-meta">
           <span className="meta-chip"><strong>operation</strong> {op}</span>
@@ -556,7 +641,10 @@ function LogCard({
         <span className="log-card-hint muted">{open ? "collapse" : "expand payload"}</span>
       </button>
       <div className="log-correlation">
-        <strong>xCorrelationId</strong> {row.xCorrelationId}
+        <strong>xCorrelationId</strong> {cid || "—"}
+        {row.correlationId && row.correlationId !== row.xCorrelationId ? (
+          <> · <strong>correlationId</strong> {row.correlationId}</>
+        ) : null}
       </div>
       <div className="log-card-body" hidden={!open}>
         <TriggerInfo operation={op} />
