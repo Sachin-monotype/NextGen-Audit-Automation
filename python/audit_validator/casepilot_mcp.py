@@ -99,6 +99,25 @@ class CasePilotMcpClient:
         self._req_id += 1
         return self._req_id
 
+    def _reset_session(self) -> None:
+        self._session_id = None
+
+    @staticmethod
+    def _is_session_missing(exc: CasePilotMcpError | str | dict[str, Any] | None) -> bool:
+        text = ""
+        if isinstance(exc, CasePilotMcpError):
+            text = str(exc)
+            if isinstance(exc.payload, dict):
+                text += " " + json.dumps(exc.payload)
+            elif exc.payload is not None:
+                text += " " + str(exc.payload)
+        elif isinstance(exc, dict):
+            text = json.dumps(exc)
+        else:
+            text = str(exc or "")
+        low = text.lower()
+        return "session not found" in low or "mcp-session" in low and "not found" in low
+
     def _headers(self, *, with_session: bool = True) -> dict[str, str]:
         if not self.config.configured:
             raise CasePilotMcpError("CASEPILOT_API_KEY is not set")
@@ -127,7 +146,7 @@ class CasePilotMcpClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=90) as resp:
+            with urllib.request.urlopen(req, timeout=120) as resp:
                 hdrs = {k.lower(): v for k, v in resp.headers.items()}
                 text = resp.read().decode("utf-8", errors="replace")
                 return hdrs, text
@@ -168,9 +187,16 @@ class CasePilotMcpClient:
                     continue
         return payloads[-1] if payloads else None
 
-    def ensure_session(self) -> str:
-        if self._session_id:
+    def ensure_session(self, *, force: bool = False) -> str:
+        """Open a CasePilot MCP session (initialize only).
+
+        CasePilot's streamable MCP returns ``Session not found`` for
+        ``notifications/initialized``; skipping that notification and calling
+        tools directly is the working handshake (verified against PP).
+        """
+        if self._session_id and not force:
             return self._session_id
+        self._reset_session()
         hdrs, text = self._post(
             {
                 "jsonrpc": "2.0",
@@ -188,66 +214,72 @@ class CasePilotMcpClient:
         if not sid:
             raise CasePilotMcpError("CasePilot MCP did not return mcp-session-id", payload=text)
         self._session_id = sid
-        # Required by streamable HTTP MCP
-        self._post({"jsonrpc": "2.0", "method": "notifications/initialized"})
-        _ = text  # initialize result discarded; tools/call will fail if session bad
+        # Do NOT send notifications/initialized — CasePilot responds 404 Session not found
+        # and subsequent tool calls fail. tools/call works immediately after initialize.
         return sid
 
     def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
-        self.ensure_session()
-        hdrs, text = self._post(
-            {
-                "jsonrpc": "2.0",
-                "id": self._next_id(),
-                "method": "tools/call",
-                "params": {"name": name, "arguments": arguments or {}},
-            }
-        )
-        # Refresh session id if server rotates it
-        if hdrs.get("mcp-session-id"):
-            self._session_id = hdrs["mcp-session-id"]
-        msg = self._parse_sse_json(text)
-        if not isinstance(msg, dict):
-            raise CasePilotMcpError("Invalid CasePilot MCP response", payload=text[:2000])
-        if "error" in msg:
-            err = msg["error"]
-            raise CasePilotMcpError(
-                str(err.get("message") or err),
-                payload=msg,
-            )
-        result = msg.get("result") or {}
-        if result.get("isError"):
-            raise CasePilotMcpError(f"CasePilot tool error: {name}", payload=result)
-
-        merged: dict[str, Any] = {}
-        structured = result.get("structuredContent")
-        if isinstance(structured, dict):
-            merged.update(structured)
-        # Prefer richer text JSON when structuredContent is a thin stub (e.g. only ok=true)
-        for block in result.get("content") or []:
-            if not isinstance(block, dict) or block.get("type") != "text":
-                continue
-            raw = block.get("text") or ""
+        last_err: CasePilotMcpError | None = None
+        for attempt in range(3):
             try:
-                parsed = json.loads(raw)
-            except json.JSONDecodeError:
-                if "text" not in merged and raw.strip():
-                    merged["text"] = raw
-                continue
-            if isinstance(parsed, dict):
-                # Text wins for missing keys; keep structured ok flags
-                for k, v in parsed.items():
-                    if k not in merged or merged.get(k) in (None, "", [], {}):
-                        merged[k] = v
-                    elif k in {"job_ids", "jobs", "results", "runs"} and not merged.get(k):
-                        merged[k] = v
-        if not merged:
-            return result if isinstance(result, dict) else {"ok": True, "result": result}
-        # Always attach deep-extracted job ids for callers
-        ids = extract_casepilot_job_ids(merged)
-        if ids and not merged.get("job_ids"):
-            merged["job_ids"] = ids
-        return merged
+                self.ensure_session(force=attempt > 0)
+                hdrs, text = self._post(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": self._next_id(),
+                        "method": "tools/call",
+                        "params": {"name": name, "arguments": arguments or {}},
+                    }
+                )
+                if hdrs.get("mcp-session-id"):
+                    self._session_id = hdrs["mcp-session-id"]
+                msg = self._parse_sse_json(text)
+                if not isinstance(msg, dict):
+                    raise CasePilotMcpError("Invalid CasePilot MCP response", payload=text[:2000])
+                if "error" in msg:
+                    err = msg["error"]
+                    raise CasePilotMcpError(
+                        str(err.get("message") or err),
+                        payload=msg,
+                    )
+                result = msg.get("result") or {}
+                if result.get("isError"):
+                    raise CasePilotMcpError(f"CasePilot tool error: {name}", payload=result)
+
+                merged: dict[str, Any] = {}
+                structured = result.get("structuredContent")
+                if isinstance(structured, dict):
+                    merged.update(structured)
+                for block in result.get("content") or []:
+                    if not isinstance(block, dict) or block.get("type") != "text":
+                        continue
+                    raw = block.get("text") or ""
+                    try:
+                        parsed = json.loads(raw)
+                    except json.JSONDecodeError:
+                        if "text" not in merged and raw.strip():
+                            merged["text"] = raw
+                        continue
+                    if isinstance(parsed, dict):
+                        for k, v in parsed.items():
+                            if k not in merged or merged.get(k) in (None, "", [], {}):
+                                merged[k] = v
+                            elif k in {"job_ids", "jobs", "results", "runs"} and not merged.get(k):
+                                merged[k] = v
+                if not merged:
+                    return result if isinstance(result, dict) else {"ok": True, "result": result}
+                ids = extract_casepilot_job_ids(merged)
+                if ids and not merged.get("job_ids"):
+                    merged["job_ids"] = ids
+                return merged
+            except CasePilotMcpError as exc:
+                last_err = exc
+                if attempt < 2 and self._is_session_missing(exc):
+                    self._reset_session()
+                    continue
+                raise
+        assert last_err is not None
+        raise last_err
 
     def preflight(self) -> dict[str, Any]:
         return self.call_tool("casepilot_preflight")
