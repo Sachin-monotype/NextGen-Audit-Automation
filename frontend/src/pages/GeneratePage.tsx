@@ -46,6 +46,12 @@ const SOURCE_KINDS = [
   { id: "cron", label: "Cron" },
 ] as const;
 
+const DEFAULT_TARGETS = [
+  { id: "pp", label: "PP", url: "https://nextgen.monotype-pp.com" },
+  { id: "qa", label: "QA", url: "https://nextgen-qa.monotype-pp.com" },
+  { id: "uat", label: "UAT", url: "https://nextgen.monotype-uat.com" },
+];
+
 const JOB_KEY = "audit-generate-job";
 const UI_JOB_KEY = "audit-generate-ui-job";
 
@@ -1302,30 +1308,44 @@ export default function GeneratePage({
       </header>
 
       <div className="generate-context-bar">
+        <label className="inline-control">
+          Environment
+          <select
+            value={pipeline?.target || "pp"}
+            disabled={targetBusy || running}
+            onChange={(e) => onTargetChange(e.target.value)}
+          >
+            {(pipeline?.available_targets?.length
+              ? pipeline.available_targets
+              : DEFAULT_TARGETS
+            ).map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {(pipeline?.nextgen_url ||
+          DEFAULT_TARGETS.find((t) => t.id === (pipeline?.target || "pp"))?.url) && (
+          <a
+            href={
+              pipeline?.nextgen_url ||
+              DEFAULT_TARGETS.find((t) => t.id === (pipeline?.target || "pp"))?.url
+            }
+            target="_blank"
+            rel="noreferrer"
+            className="context-link"
+          >
+            Open NextGen ↗
+          </a>
+        )}
+        {pipeline?.mongo_db && (
+          <span className="muted" title={pipeline.mongo_url_host || ""}>
+            Mongo · {pipeline.mongo_db}
+          </span>
+        )}
         {pipeline && !pipeline.error && (
           <>
-            <label className="inline-control">
-              Environment
-              <select
-                value={pipeline.target || "pp"}
-                disabled={targetBusy || running}
-                onChange={(e) => onTargetChange(e.target.value)}
-              >
-                {(pipeline.available_targets ?? []).map((t) => (
-                  <option key={t.id} value={t.id}>{t.label}</option>
-                ))}
-              </select>
-            </label>
-            {pipeline.nextgen_url && (
-              <a href={pipeline.nextgen_url} target="_blank" rel="noreferrer" className="context-link">
-                Open NextGen ↗
-              </a>
-            )}
-            {pipeline.mongo_db && (
-              <span className="muted" title={pipeline.mongo_url_host || ""}>
-                Mongo · {pipeline.mongo_db}
-              </span>
-            )}
             <details
               className="queue-details"
               open={queueOpen}
@@ -1371,9 +1391,16 @@ export default function GeneratePage({
               ● ingestion {pipeline.ingestion_running ? "running" : "stopped"}
             </span>
             {pipeline.queue_warning && (
-              <span className="warn" title={pipeline.queue_warning}>⚠ queues: {pipeline.queue_environment?.toUpperCase()}</span>
+              <span className="warn" title={pipeline.queue_warning}>
+                ⚠ queues: {pipeline.queue_environment?.toUpperCase()}
+              </span>
             )}
           </>
+        )}
+        {pipeline?.error && (
+          <span className="error small" title={pipeline.error}>
+            Pipeline config error — env switch still available
+          </span>
         )}
         {coverage && !coverage.error && (
           <button type="button" onClick={openAllCoverage}>

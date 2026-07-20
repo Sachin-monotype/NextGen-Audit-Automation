@@ -11,6 +11,7 @@ Flow:
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 import uuid
@@ -948,6 +949,31 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
 
     summary, description, hints = _build_context(job)
     try:
+        from audit_validator.env_profiles import get_audit_profile
+
+        profile = get_audit_profile()
+        # Always drive CasePilot at the currently selected AUDIT_TARGET NextGen URL
+        # (not a stale CASEPILOT_UI_BASE_URL pinned to PP).
+        ui_cfg = cfg.ui_config()
+        ui_cfg["base_url"] = (
+            (os.getenv("NEXTGEN_UI_URL") or "").strip()
+            or profile.nextgen_ui_url
+            or ui_cfg.get("base_url")
+            or ""
+        )
+        hints = {
+            **hints,
+            "audit_target": profile.name,
+            "nextgen_ui_url": ui_cfg["base_url"],
+            "mongo_db": (os.getenv("MONGO_DB_NAME") or "").strip(),
+        }
+        description = (
+            description
+            + f"\n\n## Environment\n- AUDIT_TARGET={profile.name}\n"
+            + f"- NextGen UI: {ui_cfg['base_url']}\n"
+            + "Use this URL only — do not switch environments mid-run.\n"
+        )
+
         client = CasePilotMcpClient(cfg)
         # Preview cases first (surface not_found early)
         preview = client.fetch_testrail_cases(case_ids)
@@ -958,6 +984,7 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
             )
         run = client.run_testrail_ui_tests(
             case_ids,
+            ui_config=ui_cfg,
             context_summary=summary,
             context_description=description,
             context_hints=hints,

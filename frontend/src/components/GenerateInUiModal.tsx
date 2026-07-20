@@ -201,6 +201,8 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
         </div>
         <p className="muted small">
           One row per event (FDC-14091 TestRail map). Edit case id or details, then Send.
+          CasePilot opens the <strong>currently selected Environment</strong> NextGen URL
+          (PP / QA / UAT) — change Environment on Generate before sending.
         </p>
         <p className={`small ${mcpOk ? "ok" : mcpOk === false ? "error" : "muted"}`}>
           {mcpDetail || "Checking CasePilot…"}

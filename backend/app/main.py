@@ -516,9 +516,7 @@ def pipeline_config() -> dict[str, Any]:
             ],
             "graphql_endpoint": __import__("os").getenv("NEXTGEN_GRAPHQL_ENDPOINT", ""),
             "mongo_db": settings.mongo_db,
-            "mongo_url_host": (
-                __import__("urllib.parse").urlparse(settings.mongo_url).hostname or ""
-            ),
+            "mongo_url_host": (urlparse(settings.mongo_url).hostname or ""),
             "raw_queue": cfg.rabbitmq.raw_queue,
             "raw_queue_url": queue_url(cfg.rabbitmq.raw_queue),
             "enriched_queue": cfg.rabbitmq.enriched_queue,
@@ -553,6 +551,17 @@ def set_pipeline_target(req: PipelineTargetRequest) -> dict[str, Any]:
         mongo_name = mongo_db_for_profile(profile)
         os.environ["MONGO_DB_NAME"] = mongo_name
         set_key(str(settings.audit_project_root / ".env"), "MONGO_DB_NAME", mongo_name)
+        # Keep CasePilot UI base in sync with the selected NextGen host
+        os.environ["NEXTGEN_UI_URL"] = profile.nextgen_ui_url
+        set_key(str(settings.audit_project_root / ".env"), "NEXTGEN_UI_URL", profile.nextgen_ui_url)
+        # Clear sticky CASEPILOT_UI_BASE_URL override so Generate-in-UI follows AUDIT_TARGET
+        if (os.getenv("CASEPILOT_UI_BASE_URL") or "").strip():
+            os.environ["CASEPILOT_UI_BASE_URL"] = profile.nextgen_ui_url
+            set_key(
+                str(settings.audit_project_root / ".env"),
+                "CASEPILOT_UI_BASE_URL",
+                profile.nextgen_ui_url,
+            )
         settings.mongo_db = mongo_name
         db.use_database(mongo_name)
         ingestion.reconfigure()
