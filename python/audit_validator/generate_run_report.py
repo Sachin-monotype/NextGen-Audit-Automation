@@ -333,6 +333,23 @@ def verify_owned_queue_landing(
         ui, remark = _ui_status_and_remark(row)
         row["ui_status"] = ui
         row["remark"] = remark
+        # Annotate channel: activateFamily(project_list)(BE) / …(UI)
+        try:
+            from audit_validator.touchpoint.scenarios import scenario_display_name
+
+            bare = str(row.get("operation") or "")
+            entry = _owned_entry(bare, project_root=project_root)
+            touch = entry.get("touchpoint")
+            kind = str(entry.get("kind") or row.get("kind") or "graphql").lower()
+            row["channel"] = "UI" if kind == "ui" else "BE"
+            row["operation"] = scenario_display_name(
+                bare.split("(")[0] if "(" in bare else bare,
+                touch,
+                ui=kind == "ui",
+                be=kind != "ui",
+            )
+        except Exception:
+            pass
 
     rows = [by_op[op] for op in ops]
     success = [r for r in rows if r["status"] == "success"]

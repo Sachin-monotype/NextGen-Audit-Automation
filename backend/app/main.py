@@ -144,6 +144,47 @@ def comparable_operations() -> dict[str, Any]:
     except Exception:
         pass
 
+    # Owned generate runs with (UI)/(BE) display labels
+    try:
+        from audit_validator.event_categories import resolve_category
+        from audit_validator.generation_tracker import list_owned
+        from audit_validator.touchpoint.scenarios import scenario_display_name
+
+        owned = list_owned(project_root=settings.audit_project_root)
+        base_meta = {i["operation"]: i for i in items}
+        for op, entry in (owned.get("by_operation") or {}).items():
+            if not isinstance(entry, dict):
+                continue
+            kind = str(entry.get("kind") or "graphql").lower()
+            touch = entry.get("touchpoint")
+            bare = str(op).split("(", 1)[0] if "(" in str(op) else str(op)
+            label = scenario_display_name(
+                bare,
+                touch,
+                ui=kind == "ui",
+                be=kind != "ui",
+            )
+            if not label or label in seen:
+                continue
+            # Only add if base op is comparable in Mongo
+            if bare not in seen and bare not in {i["operation"].split("(", 1)[0] for i in items}:
+                continue
+            bm = base_meta.get(bare, {})
+            items.append(
+                {
+                    "operation": label,
+                    "category": resolve_category(bare) or bm.get("category", ""),
+                    "environment": bm.get("environment", ""),
+                    "service": bm.get("service", ""),
+                    "occurred_at": entry.get("generated_at"),
+                    "touchpoint": True,
+                    "channel": "UI" if kind == "ui" else "BE",
+                }
+            )
+            seen.add(label)
+    except Exception:
+        pass
+
     items.sort(key=lambda x: str(x.get("operation") or ""))
     return {
         "operations": [i["operation"] for i in items],

@@ -155,10 +155,12 @@ function isPlaceholderScenario(operation?: string | null, touchpoint?: string | 
     if (!part) continue;
     const s = String(part).trim();
     if (!s) continue;
-    if (s.includes("<") || s.includes(">")) return true;
-    if (["op", "touch", "operation", "touchpoint", "uuid", "value"].includes(s.toLowerCase())) {
+    const low = s.toLowerCase();
+    if (["op", "touch", "operation", "touchpoint", "uuid", "value", "your-uuid"].includes(low)) {
       return true;
     }
+    // Only angle-bracket templates (<op>), not touchpoints like "Project > List"
+    if (/<[^>]+>/.test(s)) return true;
   }
   return false;
 }
@@ -166,11 +168,15 @@ function isPlaceholderScenario(operation?: string | null, touchpoint?: string | 
 function scenarioDisplayName(
   operation: string,
   touchpoint?: string | null,
-  opts?: { ui?: boolean },
+  opts?: { ui?: boolean; be?: boolean },
 ): string {
   const short = shortTouchpoint(touchpoint);
-  const base = short ? `${operation}(${short})` : operation;
-  if (opts?.ui && !base.endsWith("(ui)")) return `${base}(ui)`;
+  let base = short ? `${operation}(${short})` : operation;
+  for (const legacy of ["(ui)", "(be)", "(UI)", "(BE)"]) {
+    if (base.endsWith(legacy)) base = base.slice(0, -legacy.length);
+  }
+  if (opts?.ui) return `${base}(UI)`;
+  if (opts?.be) return `${base}(BE)`;
   return base;
 }
 
@@ -182,7 +188,7 @@ function dedupeScenarioRows(scenarios: ScenarioRow[]): ScenarioRow[] {
   for (const s of scenarios) {
     if (isPlaceholderScenario(s.operation, s.touchpoint)) continue;
     const ui = String(s.source || "").toLowerCase() === "ui" || String((s as { kind?: string }).kind || "").includes("ui");
-    const key = scenarioDisplayName(s.operation, s.touchpoint, { ui });
+    const key = scenarioDisplayName(s.operation, s.touchpoint, { ui, be: !ui });
     const prev = byKey.get(key);
     if (!prev) {
       byKey.set(key, { ...s, label: key });
@@ -907,9 +913,11 @@ export default function GeneratePage({
       try {
         const res = await refreshGenerateInUi(id);
         setUiJob(res.job);
+        // refresh endpoint already auto-finalizes when cids exist (no long poll)
         if (res.job.verification?.generate_run_saved) {
           if (uiPollRef.current) clearInterval(uiPollRef.current);
           uiPollRef.current = null;
+          setUiBusy(false);
           try {
             const last = await fetchLastGenerateRun();
             if (last.ok && last.report) {
@@ -921,12 +929,10 @@ export default function GeneratePage({
           }
           return;
         }
-        if (res.job.status === "completed" || res.job.status === "failed") {
-          // Keep polling briefly if completed but auto-verify still pending
-          if (res.job.verification?.generate_run_saved || res.job.status === "failed") {
-            if (uiPollRef.current) clearInterval(uiPollRef.current);
-            uiPollRef.current = null;
-          }
+        if (res.job.status === "failed") {
+          if (uiPollRef.current) clearInterval(uiPollRef.current);
+          uiPollRef.current = null;
+          setUiBusy(false);
         }
       } catch {
         /* keep polling through transient CasePilot blips */
@@ -940,7 +946,12 @@ export default function GeneratePage({
     fetchGenerateInUi(savedId)
       .then((j) => {
         setUiJob(j);
-        if (j.status === "queued" || j.status === "running" || j.status === "pending_agent") {
+        if (
+          j.status === "queued" ||
+          j.status === "running" ||
+          j.status === "pending_agent" ||
+          (j.verification?.ready && !j.verification?.generate_run_saved)
+        ) {
           pollUiJob(j.id);
         }
       })
@@ -952,10 +963,15 @@ export default function GeneratePage({
 
   useEffect(() => {
     if (!uiJob) return;
-    if (uiJob.status === "queued" || uiJob.status === "running") {
+    if (
+      uiJob.status === "queued" ||
+      uiJob.status === "running" ||
+      uiJob.status === "pending_agent" ||
+      (uiJob.verification?.ready && !uiJob.verification?.generate_run_saved)
+    ) {
       pollUiJob(uiJob.id);
     }
-  }, [uiJob?.id, uiJob?.status, pollUiJob]);
+  }, [uiJob?.id, uiJob?.status, uiJob?.verification?.ready, uiJob?.verification?.generate_run_saved, pollUiJob]);
 
   async function onUiManualCid() {
     if (!uiJob?.id || !uiManualCid.trim()) return;
@@ -1102,7 +1118,7 @@ export default function GeneratePage({
       const uiRun = Boolean(runReport?.source === "generate_in_ui");
       return statusScenarios.map((s) => {
         const ui = String(s.source || "").toLowerCase() === "ui" || uiRun;
-        const key = s.label || scenarioDisplayName(s.operation, s.touchpoint, { ui });
+        const key = s.label || scenarioDisplayName(s.operation, s.touchpoint, { ui, be: !ui });
         return {
           key,
           operation: s.operation,
@@ -1637,14 +1653,27 @@ export default function GeneratePage({
             <div className="mongo-status generation-status-actions" style={{ marginTop: 8 }}>
               <strong>Captured correlation_id(s)</strong>
               <ul className="muted small">
-                {(uiJob.results || []).map((r, i) => (
-                  <li key={`${r.correlation_id}-${i}`}>
-                    <code>{r.correlation_id}</code>
-                    {r.operation ? ` · ${r.operation}` : ""}
-                    {r.touchpoint ? ` · ${r.touchpoint}` : ""}
-                  </li>
-                ))}
+                {(uiJob.results || [])
+                  .filter((r) => {
+                    const c = String(r.correlation_id || "");
+                    return (
+                      /^[0-9a-fA-F-]{36}$/.test(c) &&
+                      !c.toLowerCase().includes("your-uuid")
+                    );
+                  })
+                  .map((r, i) => (
+                    <li key={`${r.correlation_id}-${i}`}>
+                      <code>{r.correlation_id}</code>
+                      {r.operation
+                        ? ` · ${scenarioDisplayName(r.operation, r.touchpoint, { ui: true })}`
+                        : ""}
+                    </li>
+                  ))}
               </ul>
+              <p className="muted small">
+                Verification runs automatically after CasePilot finishes — Generation Status opens
+                with raw/enrich. Use Continue only if auto-verify did not run.
+              </p>
             </div>
           )}
           <div className="mongo-status generation-status-actions" style={{ marginTop: 8, gap: 8 }}>
@@ -1665,7 +1694,7 @@ export default function GeneratePage({
                 !(uiJob.verification?.ready || (uiJob.results || []).some((r) => r.correlation_id))
               }
               onClick={onContinueUiVerify}
-              title="Poll Mongo raw/enrich for this correlation_id and open Generation Status"
+              title="Look up Mongo raw/enrich by correlation_id and open Generation Status"
             >
               {uiBusy ? "Verifying…" : "Continue verification"}
             </button>

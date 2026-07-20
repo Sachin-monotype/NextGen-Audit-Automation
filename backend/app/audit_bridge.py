@@ -746,6 +746,7 @@ class AuditBridge:
                     "scenario_id": sc["id"],
                     "operation": op,
                     "touchpoint": touch,
+                    "label": None,  # filled below after display name
                     "steps": steps,
                     "status": result.status,
                     "xCorrelationId": result.correlation_id,
@@ -756,6 +757,8 @@ class AuditBridge:
                     "enriched": False,
                     "raw_event": None,
                     "enriched_event": None,
+                    "source": "be",
+                    "channel": "BE",
                 }
             )
             # Persist mutation response + trigger context for source validation
@@ -768,7 +771,8 @@ class AuditBridge:
                 )
                 from audit_validator.touchpoint.scenarios import scenario_display_name as _sdn
 
-                display = _sdn(op, touch)
+                display = _sdn(op, touch, be=True)
+                scenario_rows[-1]["label"] = display
                 gql_dir = self.project_root / "payload" / "graphql"
                 gql_dir.mkdir(parents=True, exist_ok=True)
                 if isinstance(resp, dict) and resp:
@@ -794,13 +798,30 @@ class AuditBridge:
             except Exception as exc:  # noqa: BLE001
                 self.store.append_log(job_id, f"  ⚠ Could not save trigger context for {op}: {exc}")
             if result.correlation_id:
+                from audit_validator.touchpoint.scenarios import scenario_display_name as _sdn_be
+
+                be_label = _sdn_be(op, touch, be=True)
+                scenario_rows[-1]["label"] = be_label
                 record_generation(
                     op,
                     result.correlation_id,
                     project_root=self.project_root,
                     kind="graphql",
-                    meta={"touchpoint": touch, "scenario_id": sc["id"], "status": result.status},
+                    meta={
+                        "touchpoint": touch,
+                        "scenario_id": sc["id"],
+                        "status": result.status,
+                        "display": be_label,
+                    },
                 )
+                if be_label != op:
+                    record_generation(
+                        be_label,
+                        result.correlation_id,
+                        project_root=self.project_root,
+                        kind="graphql",
+                        meta={"touchpoint": touch, "scenario_id": sc["id"], "status": result.status},
+                    )
                 ops_for_verify.append(op)
             if result.status != "PASS":
                 fails += 1
@@ -1005,6 +1026,8 @@ class AuditBridge:
             display = scenario_display_name(
                 str(sc.get("operation") or ""),
                 sc.get("touchpoint"),
+                ui=str(sc.get("source") or "").lower() == "ui",
+                be=str(sc.get("source") or "").lower() != "ui",
             )
             # Safe filename (parentheses OK on macOS/linux)
             (enrich_dir / f"{display}.json").write_text(

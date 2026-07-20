@@ -12,6 +12,7 @@ Source of truth for step sequences: ``FLOW_DEFS`` in payloads.py
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from audit_validator.touchpoint.assertions import normalize_touchpoint
@@ -61,28 +62,61 @@ def scenario_display_name(
     touchpoint: str | None = None,
     *,
     ui: bool = False,
+    be: bool = False,
 ) -> str:
-    """e.g. ``activateFamily(global)`` or ``activateFamily(global)(ui)`` for UI triggers."""
+    """e.g. ``activateFamily(global)(UI)`` or ``activateFamily(global)(BE)``."""
     short = short_touchpoint(touchpoint)
     base = f"{operation}({short})" if short else operation
-    if ui and not base.endswith("(ui)"):
-        return f"{base}(ui)"
+    # Strip legacy lowercase suffixes before applying canonical tags
+    for legacy in ("(ui)", "(be)", "(UI)", "(BE)"):
+        if base.endswith(legacy):
+            base = base[: -len(legacy)]
+    if ui:
+        return f"{base}(UI)"
+    if be:
+        return f"{base}(BE)"
     return base
 
 
 def is_placeholder_scenario(operation: str | None, touchpoint: str | None = None) -> bool:
-    """True when CasePilot left angle-bracket template tokens (e.g. ``<op>``, ``<touch>``)."""
+    """True when CasePilot left angle-bracket template tokens (e.g. ``<op>``, ``<uuid>``).
+
+    Note: real touchpoints like ``Project > List`` contain ``>`` — only treat as
+    placeholder when both ``<`` and ``>`` wrap a token, or the whole value is a stub.
+    """
     for part in (operation, touchpoint):
         if not part:
             continue
         s = str(part).strip()
         if not s:
             continue
-        if "<" in s or ">" in s:
+        low = s.lower()
+        if low in {"op", "touch", "operation", "touchpoint", "uuid", "value", "your-uuid"}:
             return True
-        if s.lower() in {"op", "touch", "operation", "touchpoint", "uuid", "value"}:
+        # Angle-bracket templates: <op>, <touch>, <uuid>
+        if re.search(r"<[^>]+>", s):
             return True
     return False
+
+
+_UUID_STRICT = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+
+
+def is_valid_correlation_id(cid: str | None) -> bool:
+    """Reject template leftovers like YOUR-UUID / <uuid> / empty."""
+    s = (cid or "").strip()
+    if not s:
+        return False
+    low = s.lower()
+    if low in {"your-uuid", "uuid", "<uuid>", "<real-uuid>", "correlation_id", "n/a", "none"}:
+        return False
+    if "<" in s or ">" in s:
+        return False
+    if "your" in low and "uuid" in low:
+        return False
+    return bool(_UUID_STRICT.match(s))
 
 
 def canonicalize_touchpoint(touch: str | None) -> str | None:

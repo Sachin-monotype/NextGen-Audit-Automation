@@ -114,11 +114,25 @@ def extract_audit_details_from_casepilot_result(
         cid = (cid or "").strip()
         if not cid or cid in seen:
             return
-        # Reject leftover template tokens copied from instructions
-        if cid.startswith("<") or "uuid" in cid.lower() and "<" in cid:
-            return
+        try:
+            from audit_validator.touchpoint.scenarios import is_valid_correlation_id
+
+            if not is_valid_correlation_id(cid):
+                return
+        except Exception:  # noqa: BLE001
+            if cid.startswith("<") or "your-uuid" in cid.lower():
+                return
         op = str(extra.get("operation") or default_operation or "").strip()
         touch = str(extra.get("touchpoint") or default_touchpoint or "").strip()
+        # Prefer selection when agent mislabels project_list (etc.) as Discovery/global.
+        if (
+            default_touchpoint
+            and default_operation
+            and (not op or op == default_operation)
+            and _short_touch_label(touch) == "global"
+            and _short_touch_label(default_touchpoint) != "global"
+        ):
+            touch = default_touchpoint
         try:
             from audit_validator.touchpoint.scenarios import is_placeholder_scenario
 
@@ -211,11 +225,33 @@ def apply_extracted_results(
         cid = str(item.get("correlation_id") or "").strip()
         if not cid or cid in existing:
             continue
+        try:
+            from audit_validator.touchpoint.scenarios import is_valid_correlation_id
+
+            if not is_valid_correlation_id(cid):
+                _append_log(job, f"⚠ skipped invalid correlation_id={cid!r}")
+                continue
+        except Exception:  # noqa: BLE001
+            if "your-uuid" in cid.lower() or "<" in cid:
+                continue
         op = str(item.get("operation") or default_op or "").strip()
         touch = str(item.get("touchpoint") or default_touch or "").strip()
         # If agent omitted operation and we have multiple selection items, try label match later
         if not op and selection:
             op = str(selection[0].get("operation") or "")
+        # Prefer the user's selected touchpoint when CasePilot mis-labels (e.g. global
+        # instead of project_list) for the same primary operation.
+        if len(selection) == 1 and default_touch and op == default_op:
+            sel_short = _short_touch_label(default_touch)
+            got_short = _short_touch_label(touch) if touch else ""
+            if sel_short and got_short != sel_short:
+                if got_short in {"", "global"} or sel_short == "project_list":
+                    _append_log(
+                        job,
+                        f"⚠ remapping touchpoint {got_short or '∅'} → {sel_short} "
+                        f"(selection={default_touch})",
+                    )
+                    touch = default_touch
         try:
             from audit_validator.touchpoint.scenarios import is_placeholder_scenario
 
@@ -504,10 +540,11 @@ def _short_touch_label(touch: str) -> str:
 
 def _audit_emit_step(op: str, touch_short: str) -> str:
     return (
-        f"In DevTools Network, open the {op} GraphQL/BFF response and copy header "
-        f"correlation-id (NOT x-correlation-id). Emit exactly: "
-        f"AUDIT_RESULT|operation={op}|correlation_id=<uuid>|touchpoint={touch_short} "
-        f"— replace <uuid> with the real header value; never leave angle-bracket placeholders."
+        f"In DevTools Network, filter GraphQL/BFF for operationName={op} (or the request "
+        f"whose payload contains \"{op}\"). Open THAT response only — ignore other GraphQL "
+        f"calls on the page. Copy response header correlation-id (NOT x-correlation-id). "
+        f"Emit exactly one line with the real UUID (never YOUR-UUID or angle brackets): "
+        f"AUDIT_RESULT|operation={op}|correlation_id=PASTE-REAL-UUID|touchpoint={touch_short}"
     )
 
 
@@ -860,8 +897,10 @@ def _build_context(job: dict[str, Any]) -> tuple[str, str, dict[str, str]]:
             "- Intermediate helpers also count: createProject, createAsset, addFontProjectFamilies,",
             "  addFontListFamilies, addFavoriteFamilies, deactivateFamilies, activateFamily, etc.",
             "- Never use x-correlation-id.",
-            "- Emit one line per mutation (fill real values — never leave angle brackets):",
-            "  AUDIT_RESULT|operation=activateFamily|correlation_id=7a4f9f30-f35b-400c-89af-3cc21b15c51a|touchpoint=global",
+            "- Emit one line per mutation with REAL uuids (never YOUR-UUID or <uuid>):",
+            "  AUDIT_RESULT|operation=activateFamily|correlation_id=7a4f9f30-f35b-400c-89af-3cc21b15c51a|touchpoint=project_list",
+            "- Pick the GraphQL call whose operationName / body matches the mutation "
+            "(e.g. activateFamily), not browse/search/query traffic.",
             "- Example for Project > List flow:",
             "  AUDIT_RESULT|operation=createProject|correlation_id=...|touchpoint=project",
             "  AUDIT_RESULT|operation=addFontProjectFamilies|correlation_id=...|touchpoint=project",
@@ -869,7 +908,7 @@ def _build_context(job: dict[str, Any]) -> tuple[str, str, dict[str, str]]:
             "  AUDIT_RESULT|operation=addFontListFamilies|correlation_id=...|touchpoint=list",
             "  AUDIT_RESULT|operation=activateFamily|correlation_id=...|touchpoint=project_list",
             "- Then close the browser; the audit app auto-verifies raw↔enriched for ALL captured ops.",
-            "- NEVER emit literal tokens like <op>, <touch>, or <uuid>.",
+            "- NEVER emit literal tokens like <op>, <touch>, YOUR-UUID, or <uuid>.",
         ]
     )
     # Fold per-scenario notes into description when present
@@ -1257,6 +1296,23 @@ def finalize_ui_trigger_verification(
             progress(msg)
 
     _log(f"▸ Continue verification · ops={ops} · cids={len(results)}")
+    # Drop invalid template cids (YOUR-UUID) before Mongo lookup
+    try:
+        from audit_validator.touchpoint.scenarios import is_valid_correlation_id
+
+        valid_results = [
+            r for r in results if is_valid_correlation_id(str(r.get("correlation_id") or ""))
+        ]
+        skipped = len(results) - len(valid_results)
+        if skipped:
+            _log(f"⚠ dropped {skipped} invalid correlation_id placeholder(s)")
+        results = valid_results
+    except Exception:  # noqa: BLE001
+        pass
+    if not results:
+        _log("✖ No valid correlation_id left after filtering placeholders")
+        return _write_job(project_root, job)
+
     report: dict[str, Any] = {
         "job_id": job_id,
         "kind": "ui_trigger",
@@ -1271,26 +1327,11 @@ def finalize_ui_trigger_verification(
             _event_for_report,
             save_generate_run,
             summary_from_scenarios,
-            verify_owned_queue_landing,
         )
         from audit_validator.touchpoint.scenarios import scenario_display_name
 
-        if db is not None:
-            landing = verify_owned_queue_landing(
-                db,
-                ops,
-                project_root=project_root,
-                progress=_log,
-            )
-            report.update(landing if isinstance(landing, dict) else {})
-        else:
-            _log("⚠ Mongo unavailable — writing correlation-only Generation Status")
-
-        landing_by_op: dict[str, dict[str, Any]] = {}
-        for row in report.get("operations") or []:
-            if isinstance(row, dict) and row.get("operation"):
-                landing_by_op[str(row["operation"])] = row
-
+        # UI path: look up each cid directly — do NOT run the 90s owned-landing poll
+        # (that blocks Continue verification forever when one cid never lands).
         scenarios: list[dict[str, Any]] = []
         for r in results:
             op = str(r.get("operation") or "").strip()
@@ -1308,23 +1349,20 @@ def finalize_ui_trigger_verification(
                 if "<" in op or "<" in touch:
                     continue
             display = scenario_display_name(op, touch, ui=True)
-            landing_row = landing_by_op.get(op) or {}
-
-            raw_doc = landing_row.get("raw_event")
-            enr_doc = landing_row.get("enriched_event")
-            # Direct cid lookup if owned-landing missed the UI envelope field
-            if db is not None and cid and not (raw_doc and enr_doc):
+            raw_doc = None
+            enr_doc = None
+            if db is not None and cid:
                 try:
                     raw2, enr2 = db.latest_pair(op, require_pair=False, correlation_id=cid)
-                    if raw2 and not raw_doc:
+                    if raw2:
                         raw_doc = _event_for_report(raw2)
-                    if enr2 and not enr_doc:
+                    if enr2:
                         enr_doc = _event_for_report(enr2)
                 except Exception as exc:  # noqa: BLE001
                     _log(f"  ⚠ cid lookup for {op}: {exc}")
 
-            raw_ok = bool(raw_doc) or bool(landing_row.get("raw"))
-            enr_ok = bool(enr_doc) or bool(landing_row.get("enriched"))
+            raw_ok = bool(raw_doc)
+            enr_ok = bool(enr_doc)
             if raw_ok and enr_ok:
                 status = "PASS"
                 remark = "UI-triggered · raw + enriched landed in Mongo"
@@ -1355,9 +1393,10 @@ def finalize_ui_trigger_verification(
                     "raw_event": raw_doc,
                     "enriched_event": enr_doc,
                     "source": "ui",
+                    "channel": "UI",
                     "ui_status": status,
                     "remark": remark,
-                    "pairing_method": landing_row.get("pairing_method") or ("owned_cid" if cid else None),
+                    "pairing_method": "owned_cid" if cid else None,
                 }
             )
             _log(
@@ -1369,7 +1408,7 @@ def finalize_ui_trigger_verification(
         report["summary"] = summary_from_scenarios(scenarios)
         report["operations"] = [
             {
-                "operation": s["operation"],
+                "operation": s["label"] or s["operation"],
                 "xCorrelationId": s.get("xCorrelationId"),
                 "raw": s.get("raw"),
                 "enriched": s.get("enriched"),
@@ -1378,6 +1417,7 @@ def finalize_ui_trigger_verification(
                 "status": "success" if s.get("status") == "PASS" else "missing",
                 "ui_status": s.get("ui_status"),
                 "remark": s.get("remark"),
+                "channel": "UI",
             }
             for s in scenarios
         ]
