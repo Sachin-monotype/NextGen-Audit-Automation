@@ -1,7 +1,10 @@
 """FDC-14091 TestRail case map for Generate-in-UI scenarios.
 
 Source of truth: ``python/audit_validator/data/fdc14091_testrail_map.json``
-(synced from TestRail suite 22395 / section 4066542 — cases C73303503…C73303610).
+(synced from TestRail suite 22395 / section 4066542).
+
+GraphQL Generate scenarios are fully mapped (112). CasePilot UI steps are authored
+in ``ui_case_recipes.py`` and sent as context (``prefer_steps=context_over_testrail``).
 
 Legacy FDC-00001 ids (C73300131…) remain as aliases for older handoffs.
 """

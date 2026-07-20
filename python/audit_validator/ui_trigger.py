@@ -518,353 +518,34 @@ def record_ui_trigger_result(
         return data
 
 
-# Stable seed families used across audit automation (fast search path).
-_SEED_FAMILIES = ("910042901", "910011880")
-
-
 def _short_touch_label(touch: str) -> str:
-    t = (touch or "").lower().replace("/", " ").replace(">", " ").replace("_", " ")
-    t = " ".join(t.split())
-    if "project" in t and "list" in t:
-        return "project_list"
-    if "favourite" in t or "favorite" in t:
-        return "favourite"
-    if t == "project" or t.startswith("project "):
-        return "project"
-    if "list" in t or "fontlist" in t:
-        return "list"
-    if "discover" in t or "browse" in t or "search" in t or "global" in t or not t:
-        return "global"
-    return t.replace(" ", "_") or "global"
+    from audit_validator.ui_case_recipes import short_touch
+
+    return short_touch(touch)
 
 
 def _audit_emit_step(op: str, touch_short: str) -> str:
-    return (
-        f"In DevTools Network, filter GraphQL/BFF for operationName={op} (or the request "
-        f"whose payload contains \"{op}\"). Open THAT response only — ignore other GraphQL "
-        f"calls on the page. Copy response header correlation-id (NOT x-correlation-id). "
-        f"Emit exactly one line with the real UUID (never YOUR-UUID or angle brackets): "
-        f"AUDIT_RESULT|operation={op}|correlation_id=PASTE-REAL-UUID|touchpoint={touch_short}"
-    )
+    from audit_validator.ui_case_recipes import audit_emit
 
-
-def _fast_search_activate_steps(op: str, touch: str, touch_short: str) -> list[dict[str, str]]:
-    """Minimal path: search seed family → deactivate if needed → activate → emit."""
-    seeds = " or ".join(_SEED_FAMILIES)
-    return [
-        {
-            "op": op,
-            "touchpoint": touch,
-            "step": (
-                f"FAST PATH — do not wander the UI. Use global Search for family id {seeds} "
-                f"(prefer {_SEED_FAMILIES[0]}). Open that family card/detail."
-            ),
-        },
-        {
-            "op": op,
-            "touchpoint": touch,
-            "step": (
-                "If the family is already activated, Deactivate it once, wait for success, "
-                "then continue. Skip unrelated menus, projects, lists, or favourites."
-            ),
-        },
-        {
-            "op": op,
-            "touchpoint": touch,
-            "step": (
-                "Activate the family from the card toggle or family-detail Activate button "
-                f"(global / Discovery scope — touchpoint={touch_short})."
-            ),
-        },
-        {
-            "op": op,
-            "touchpoint": touch,
-            "step": _audit_emit_step(op, touch_short),
-        },
-        {
-            "op": op,
-            "touchpoint": touch,
-            "step": "Close the browser. Do not perform extra clicks after AUDIT_RESULT.",
-        },
-    ]
+    return audit_emit(op, touch_short)
 
 
 def ui_steps_for_selection(selection: list[dict[str, Any]]) -> list[dict[str, str]]:
-    """Concise UI steps for CasePilot (override verbose TestRail prose).
+    """Concise UI steps for CasePilot (override verbose TestRail prose)."""
+    from audit_validator.ui_case_recipes import steps_for_selection
 
-    Prefer search → deactivate-if-needed → act. Avoid random navigation.
-    """
-    steps: list[dict[str, str]] = []
-    for s in selection:
-        if not isinstance(s, dict):
-            continue
-        op = str(s.get("operation") or "").strip()
-        touch = str(s.get("touchpoint") or "").strip()
-        label = str(s.get("label") or op).strip()
-        extra = str(s.get("notes") or s.get("extra_details") or "").strip()
-        touch_short = _short_touch_label(touch)
-        touch_canon = touch or {
-            "global": "Discovery/Browse (global)",
-            "list": "List (FONTLIST)",
-            "favourite": "Favourite",
-            "project": "Project",
-            "project_list": "Project > List",
-        }.get(touch_short, touch)
-
-        if extra:
-            steps.append(
-                {
-                    "op": op,
-                    "touchpoint": touch_canon,
-                    "step": f"Operator hint for {label}: {extra}",
-                }
-            )
-
-        if op == "activateFamily" and touch_short == "global":
-            steps.extend(_fast_search_activate_steps(op, touch_canon, "global"))
-            continue
-
-        if op == "activateFamily" and touch_short == "favourite":
-            seeds = " or ".join(_SEED_FAMILIES)
-            steps.extend(
-                [
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": (
-                            f"Search family {seeds}. Add to Favourites if missing "
-                            "(skip if already favourited)."
-                        ),
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": (
-                            "Open Favourites. Deactivate the family if already activated, "
-                            "then Activate from the Favourites context (listType=FAVORITE)."
-                        ),
-                    },
-                    {"op": op, "touchpoint": touch_canon, "step": _audit_emit_step(op, "favourite")},
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": "Close the browser after AUDIT_RESULT.",
-                    },
-                ]
-            )
-            continue
-
-        if op == "activateFamily" and touch_short == "list":
-            seeds = " or ".join(_SEED_FAMILIES)
-            steps.extend(
-                [
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": (
-                            "Create a new font list (Assets) OR open an existing editable list. "
-                            "Keep this short — no unrelated browsing."
-                        ),
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": f"Add family {seeds} to that list (addFontListFamilies).",
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": (
-                            "From the LIST context, deactivate if needed, then Activate family "
-                            "(FONTLIST scope — must include listIds in the mutation)."
-                        ),
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": (
-                            "Also emit AUDIT_RESULT for createAsset / addFontListFamilies if those "
-                            "mutations ran, then: " + _audit_emit_step(op, "list")
-                        ),
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": "Close the browser after AUDIT_RESULT lines.",
-                    },
-                ]
-            )
-            continue
-
-        if op == "activateFamily" and touch_short == "project":
-            seeds = " or ".join(_SEED_FAMILIES)
-            steps.extend(
-                [
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": "Create a project (or open a recent editable project). Stay on project flow.",
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": f"Add family {seeds} to the project (addFontProjectFamilies).",
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": (
-                            "From the PROJECT family page, deactivate if needed, then Activate "
-                            "(FONTPROJECT — mutation must include projectId)."
-                        ),
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": (
-                            "Emit AUDIT_RESULT for createProject / addFontProjectFamilies if run, then: "
-                            + _audit_emit_step(op, "project")
-                        ),
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": "Close the browser after AUDIT_RESULT lines.",
-                    },
-                ]
-            )
-            continue
-
-        if op == "activateFamily" and touch_short == "project_list":
-            seeds = " or ".join(_SEED_FAMILIES)
-            steps.extend(
-                [
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": (
-                            "CRITICAL — Project > List is NOT the same as List alone. "
-                            "You must create/open a PROJECT, then create a LIST inside that project."
-                        ),
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": f"Create/open project → add family {seeds} to the project.",
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": (
-                            "Inside that project, create a font list (createAsset under project), "
-                            f"then add family {seeds} to that project list (addFontListFamilies)."
-                        ),
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": (
-                            "Activate the family FROM the project-list context so the mutation "
-                            "includes BOTH projectId AND listIds. Deactivate first if already on."
-                        ),
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": (
-                            "Emit AUDIT_RESULT for each helper mutation "
-                            "(createProject, addFontProjectFamilies, createAsset, addFontListFamilies), "
-                            "then: " + _audit_emit_step(op, "project_list")
-                        ),
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": "Close the browser. Do not activate from global/list-only screens.",
-                    },
-                ]
-            )
-            continue
-
-        if op == "deactivateFamilies" and touch_short == "global":
-            seeds = " or ".join(_SEED_FAMILIES)
-            steps.extend(
-                [
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": (
-                            f"Search family {seeds}. If not activated, Activate once first, "
-                            "then Deactivate from Discovery/card."
-                        ),
-                    },
-                    {"op": op, "touchpoint": touch_canon, "step": _audit_emit_step(op, "global")},
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": "Close the browser after AUDIT_RESULT.",
-                    },
-                ]
-            )
-            continue
-
-        if op == "activateStyle" and touch_short == "global":
-            seeds = " or ".join(_SEED_FAMILIES)
-            steps.extend(
-                [
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": (
-                            f"Search family {seeds}, open family detail, activate one style "
-                            "(not the whole family) from style row / right-click Activate Style."
-                        ),
-                    },
-                    {"op": op, "touchpoint": touch_canon, "step": _audit_emit_step(op, "global")},
-                    {
-                        "op": op,
-                        "touchpoint": touch_canon,
-                        "step": "Close the browser after AUDIT_RESULT.",
-                    },
-                ]
-            )
-            continue
-
-        # Generic compact path for other ops
-        steps.append(
-            {
-                "op": op,
-                "touchpoint": touch_canon,
-                "step": (
-                    f"Perform {label} in NextGen UI with the shortest path. "
-                    f"Prefer Search with seed families {_SEED_FAMILIES[0]}/{_SEED_FAMILIES[1]} when fonts are involved. "
-                    "Do not explore unrelated pages."
-                ),
-            }
-        )
-        steps.append(
-            {
-                "op": op,
-                "touchpoint": touch_canon,
-                "step": _audit_emit_step(op, touch_short or "global"),
-            }
-        )
-        steps.append(
-            {
-                "op": op,
-                "touchpoint": touch_canon,
-                "step": "Close the browser after AUDIT_RESULT.",
-            }
-        )
-    return steps
+    return steps_for_selection(selection)
 
 
-def _build_context(job: dict[str, Any]) -> tuple[str, str, dict[str, str]]:
-    selection = job.get("selection") or []
+def _build_context(
+    job: dict[str, Any],
+    *,
+    selection_override: list[dict[str, Any]] | None = None,
+) -> tuple[str, str, dict[str, str]]:
+    selection = selection_override if selection_override is not None else (job.get("selection") or [])
+    items = [s for s in selection if isinstance(s, dict)]
     lines = []
-    for i, s in enumerate(selection, 1):
-        if not isinstance(s, dict):
-            continue
+    for i, s in enumerate(items, 1):
         label = s.get("label") or s.get("operation") or "?"
         touch = s.get("touchpoint") or ""
         sid = s.get("id") or ""
@@ -873,17 +554,35 @@ def _build_context(job: dict[str, Any]) -> tuple[str, str, dict[str, str]]:
             + (f" · touchpoint={touch}" if touch else "")
             + (f" · id={sid}" if sid else "")
         )
-    ui_steps = ui_steps_for_selection([s for s in selection if isinstance(s, dict)])
+    ui_steps = ui_steps_for_selection(items)
     step_lines = [f"{i}. {st['step']}" for i, st in enumerate(ui_steps, 1)]
-    summary = (job.get("cta_text") or "").strip() or (
-        f"Execute {len(selection)} NextGen audit UI scenario(s) for raw/enrich verification"
-    )
+    primary = items[0] if items else {}
+    primary_op = str(primary.get("operation") or "activateFamily")
+    primary_touch = _short_touch_label(str(primary.get("touchpoint") or "global"))
+    summary = (job.get("cta_text") or "").strip()
+    if not summary:
+        if len(items) == 1:
+            summary = (
+                f"Perform {primary.get('label') or primary_op} "
+                f"(touchpoint={primary_touch}) in NextGen UI — then stop"
+            )
+        else:
+            summary = (
+                f"Execute {len(items)} NextGen audit UI scenario(s) ONE AT A TIME "
+                "(finish each before the next)"
+            )
     description = "\n".join(
         [
             "NextGen Audit Automation — Generate in UI handoff",
             "",
-            "## FOLLOW THESE STEPS EXACTLY (override TestRail prose if it conflicts)",
-            "Keep this path simple. Do not invent project/list/favourite setup unless listed below.",
+            "## RULES (non-negotiable)",
+            "- Follow the numbered steps EXACTLY. Override TestRail prose if it conflicts.",
+            "- One scenario at a time. Do not invent extra project/list/favourite setup unless listed.",
+            "- Do NOT open family detail (/family/…) unless the step says style/variation requires it.",
+            "- Do NOT use 'Open in new tab'. Do not wander Search after the target mutation fires.",
+            "- Prefer any visible deactivated family over hunting for a hardcoded name.",
+            "",
+            "## FOLLOW THESE STEPS",
             *step_lines,
             "",
             "## Selection",
@@ -898,42 +597,40 @@ def _build_context(job: dict[str, Any]) -> tuple[str, str, dict[str, str]]:
             "  addFontListFamilies, addFavoriteFamilies, deactivateFamilies, activateFamily, etc.",
             "- Never use x-correlation-id.",
             "- Emit one line per mutation with REAL uuids (never YOUR-UUID or <uuid>):",
-            "  AUDIT_RESULT|operation=activateFamily|correlation_id=7a4f9f30-f35b-400c-89af-3cc21b15c51a|touchpoint=project_list",
-            "- Pick the GraphQL call whose operationName / body matches the mutation "
-            "(e.g. activateFamily), not browse/search/query traffic.",
-            "- Example for Project > List flow:",
-            "  AUDIT_RESULT|operation=createProject|correlation_id=...|touchpoint=project",
-            "  AUDIT_RESULT|operation=addFontProjectFamilies|correlation_id=...|touchpoint=project",
-            "  AUDIT_RESULT|operation=createAsset|correlation_id=...|touchpoint=list",
-            "  AUDIT_RESULT|operation=addFontListFamilies|correlation_id=...|touchpoint=list",
-            "  AUDIT_RESULT|operation=activateFamily|correlation_id=...|touchpoint=project_list",
-            "- Then close the browser; the audit app auto-verifies raw↔enriched for ALL captured ops.",
+            f"  AUDIT_RESULT|operation={primary_op}|correlation_id=<real-uuid>|touchpoint={primary_touch}",
+            "- Pick the GraphQL call whose operationName / body matches the mutation, "
+            "not browse/search/query traffic.",
+            "- Then close the browser; the audit app auto-verifies raw↔enriched.",
             "- NEVER emit literal tokens like <op>, <touch>, YOUR-UUID, or <uuid>.",
         ]
     )
-    # Fold per-scenario notes into description when present
     per_notes = []
-    for s in selection:
-        if not isinstance(s, dict):
-            continue
+    for s in items:
         n = str(s.get("notes") or s.get("extra_details") or "").strip()
         if n:
             per_notes.append(f"- {s.get('label') or s.get('operation')}: {n}")
     if per_notes:
         description += "\n\n## Per-scenario hints\n" + "\n".join(per_notes)
 
+    seed_env = (
+        os.getenv("SEED_FAMILY_ID", "").strip()
+        or os.getenv("TOUCHPOINT_FAMILY_ID", "").strip()
+        or ""
+    )
     hints = {
         "correlation_header": "correlation-id",
         "avoid_header": "x-correlation-id",
         "audit_result_format": (
-            "AUDIT_RESULT|operation=activateFamily|correlation_id=<real-uuid>|touchpoint=global"
+            f"AUDIT_RESULT|operation={primary_op}|correlation_id=<real-uuid>|touchpoint={primary_touch}"
         ),
         "capture_intermediate_mutations": "true",
         "product": "NextGen",
         "source": "nextgen-audit-automation",
         "after_ui": "close_browser_auto_verify_in_audit_app",
         "prefer_steps": "context_over_testrail",
-        "seed_families": ",".join(_SEED_FAMILIES),
+        "avoid_family_detail_unless_required": "true",
+        "seed_family_id": seed_env or "dynamic",
+        "one_scenario_per_run": "true" if len(items) == 1 else "false",
     }
     return summary, description, hints
 
@@ -986,9 +683,9 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
         job["status"] = "failed"
         return _write_job(project_root, job)
 
-    summary, description, hints = _build_context(job)
     try:
         from audit_validator.env_profiles import get_audit_profile
+        from audit_validator.ui_testrail_map import case_id_for_selection_item
 
         profile = get_audit_profile()
         # Always drive CasePilot at the currently selected AUDIT_TARGET NextGen URL
@@ -1000,18 +697,6 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
             or ui_cfg.get("base_url")
             or ""
         )
-        hints = {
-            **hints,
-            "audit_target": profile.name,
-            "nextgen_ui_url": ui_cfg["base_url"],
-            "mongo_db": (os.getenv("MONGO_DB_NAME") or "").strip(),
-        }
-        description = (
-            description
-            + f"\n\n## Environment\n- AUDIT_TARGET={profile.name}\n"
-            + f"- NextGen UI: {ui_cfg['base_url']}\n"
-            + "Use this URL only — do not switch environments mid-run.\n"
-        )
 
         client = CasePilotMcpClient(cfg)
         # Preview cases first (surface not_found early)
@@ -1021,41 +706,82 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
                 f"TestRail case(s) not found: {preview.get('not_found')}",
                 payload=preview,
             )
-        run = client.run_testrail_ui_tests(
-            case_ids,
-            ui_config=ui_cfg,
-            context_summary=summary,
-            context_description=description,
-            context_hints=hints,
-            wait_for_completion=False,
-            stop_on_failure=True,
+
+        selection_items = [s for s in (job.get("selection") or []) if isinstance(s, dict)]
+        # One CasePilot run per scenario — focused context stops the agent from
+        # wandering across 7 unrelated recipes in a single hour-long session.
+        runs_out: list[dict[str, Any]] = []
+        cp_jobs: list[str] = []
+        env_block = (
+            f"\n\n## Environment\n- AUDIT_TARGET={profile.name}\n"
+            f"- NextGen UI: {ui_cfg['base_url']}\n"
+            "Use this URL only — do not switch environments mid-run.\n"
         )
-        cp_jobs = extract_casepilot_job_ids(run)
-        # Keep a compact but useful response snapshot for debugging freezes
-        run_snap = {
-            k: run.get(k)
-            for k in (
-                "ok",
-                "error",
-                "message",
-                "job_id",
-                "job_ids",
-                "jobs",
-                "runs",
-                "results",
-                "queued",
-                "status",
+
+        def _queue_one(item: dict[str, Any] | None, cid: int) -> None:
+            sel = [item] if item else selection_items
+            summary, description, hints = _build_context(job, selection_override=sel)
+            hints = {
+                **hints,
+                "audit_target": profile.name,
+                "nextgen_ui_url": ui_cfg["base_url"],
+                "mongo_db": (os.getenv("MONGO_DB_NAME") or "").strip(),
+            }
+            run = client.run_testrail_ui_tests(
+                [cid],
+                ui_config=ui_cfg,
+                context_summary=summary,
+                context_description=description + env_block,
+                context_hints=hints,
+                wait_for_completion=False,
+                stop_on_failure=True,
             )
-            if k in run
+            jobs = extract_casepilot_job_ids(run)
+            cp_jobs.extend(jobs)
+            runs_out.append(
+                {
+                    "case_id": cid,
+                    "selection": (item or {}).get("id") or (item or {}).get("label"),
+                    "job_ids": jobs,
+                    "ok": run.get("ok"),
+                    "error": run.get("error") or run.get("message"),
+                }
+            )
+            label = (item or {}).get("label") or (item or {}).get("operation") or cid
+            _append_log(
+                job,
+                f"▸ Queued CasePilot for {label} · case={cid} · jobs={jobs or '∅'}",
+            )
+
+        if selection_items:
+            for item in selection_items:
+                cid = case_id_for_selection_item(item)
+                if not cid:
+                    # Fall back to bulk list order if row has no map hit
+                    continue
+                _queue_one(item, int(cid))
+            # Any case_ids not covered by selection rows (manual paste)
+            covered = {
+                case_id_for_selection_item(s)
+                for s in selection_items
+                if case_id_for_selection_item(s)
+            }
+            for cid in case_ids:
+                if int(cid) not in covered:
+                    _queue_one(None, int(cid))
+        else:
+            for cid in case_ids:
+                _queue_one(None, int(cid))
+
+        run_snap = {
+            "ok": all(r.get("ok") is not False for r in runs_out) if runs_out else False,
+            "runs": runs_out,
+            "queued_count": len(cp_jobs),
+            "case_count": len(case_ids),
         }
-        if not run_snap:
-            run_snap = {"ok": run.get("ok"), "keys": sorted(str(k) for k in run.keys())[:40]}
 
         queued_ok = bool(cp_jobs)
-        partial = bool(cp_jobs) and (
-            run.get("ok") is False
-            or (isinstance(run.get("queued_count"), int) and run.get("queued_count") < len(case_ids))
-        )
+        partial = bool(cp_jobs) and len(cp_jobs) < len(case_ids)
         agent.update(
             {
                 "channel": "casepilot_mcp",
@@ -1065,7 +791,7 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
                 "last_error": None
                 if queued_ok
                 else (
-                    str(run.get("message") or run.get("error") or run.get("stop_reason") or "")
+                    str((runs_out[0] or {}).get("error") if runs_out else "")
                     or "CasePilot returned no job_id — cannot poll UI run status"
                 ),
                 "preview": {
@@ -1073,17 +799,16 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
                     "case_ids": preview.get("case_ids"),
                 },
                 "run_response": run_snap,
-                "planned_steps": ui_steps_for_selection(
-                    [s for s in (job.get("selection") or []) if isinstance(s, dict)]
-                ),
+                "planned_steps": ui_steps_for_selection(selection_items),
+                "dispatch_mode": "one_case_per_run",
                 "pending_case_ids": [
                     c
                     for c in case_ids
-                    if str(c)
+                    if int(c)
                     not in {
-                        str(r.get("case_id"))
-                        for r in (run.get("runs") or [])
-                        if isinstance(r, dict) and r.get("job_id")
+                        int(r["case_id"])
+                        for r in runs_out
+                        if r.get("job_ids") and r.get("case_id")
                     }
                 ]
                 if partial
@@ -1094,10 +819,7 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
         if not queued_ok:
             job["status"] = "failed"
             _append_log(job, f"✖ CasePilot queue failed: {agent.get('last_error')}")
-            _append_log(
-                job,
-                f"  response keys={sorted(str(k) for k in run.keys())[:30]} snap={json.dumps(run_snap)[:500]}",
-            )
+            _append_log(job, f"  snap={json.dumps(run_snap)[:500]}")
         else:
             job["status"] = "queued"
             _append_log(
@@ -1107,7 +829,7 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
             if partial:
                 _append_log(
                     job,
-                    f"⚠ Partial queue ({run.get('queued_count')}/{len(case_ids)}) — "
+                    f"⚠ Partial queue ({len(cp_jobs)}/{len(case_ids)}) — "
                     f"connector busy; remaining cases will retry on refresh: {agent.get('pending_case_ids')}",
                 )
             for i, st in enumerate(agent.get("planned_steps") or [], 1):

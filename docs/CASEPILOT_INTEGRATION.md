@@ -4,9 +4,19 @@ How **Generate in UI** drives NextGen UI via CasePilot MCP, captures `correlatio
 
 Jira: [FDC-14091](https://monotype.atlassian.net/browse/FDC-14091)
 
-## Purpose
+## How CasePilot gets its instructions
 
-API Generate fires GraphQL mutations from this repo. **Generate in UI** instead asks CasePilot to perform the same operations in the NextGen browser so we validate **UI touchpoints** (Discovery, List, Favourite, Project, Project > List, …) against the same Mongo raw/enrich pipeline.
+CasePilot loads TestRail case **ids**, but this app sends **authoritative step text** via MCP context:
+
+- Recipes: `python/audit_validator/ui_case_recipes.py` (mtconnect-ui routes + `data-qa-id`s)
+- Built into each job by `ui_trigger._build_context`
+- Hint `prefer_steps=context_over_testrail` — ignore conflicting TestRail prose
+- **One CasePilot run per selected scenario** (`dispatch_mode=one_case_per_run`) so multi-select does not mash 7 recipes into one wandering session
+
+Seeds are dynamic (`SEED_FAMILY_ID` / any visible deactivated family) — recipes avoid hard-requiring a single family name or always opening family detail (except style/variation).
+
+TestRail map: `data/fdc14091_testrail_map.json` (all GraphQL Generate scenarios mapped).
+
 
 ## Architecture
 
