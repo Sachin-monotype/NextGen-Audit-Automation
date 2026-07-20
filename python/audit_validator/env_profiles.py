@@ -29,6 +29,7 @@ class AuditTargetProfile:
     ingress_rabbitmq_vhost: str
     seed_family_id: str
     seed_deactivate_family_id: str
+    mongo_db_name: str = ""  # empty → derived as AuditLogs{NAME}
 
 
 PP_PREPROD = AuditTargetProfile(
@@ -55,6 +56,7 @@ PP_PREPROD = AuditTargetProfile(
     ingress_rabbitmq_vhost="mt-connect-preprod",
     seed_family_id="794981",
     seed_deactivate_family_id="8kL8ZM64",
+    mongo_db_name="AuditLogsPreprod",
 )
 
 UAT = AuditTargetProfile(
@@ -78,17 +80,31 @@ UAT = AuditTargetProfile(
     ingress_rabbitmq_vhost="mt-connect-preprod",
     seed_family_id="794981",
     seed_deactivate_family_id="8kL8ZM64",
+    mongo_db_name="AuditLogsUAT",
 )
 
-# QA currently uses the PP NextGen host supplied by the platform team. Keeping a
-# separate target makes the choice explicit and allows the endpoint to diverge
-# later without changing the Generate UI.
 QA = AuditTargetProfile(
-    **{
-        **PP_PREPROD.__dict__,
-        "name": "qa",
-        "label": "QA (PP host)",
-    }
+    name="qa",
+    label="Monotype QA",
+    nextgen_ui_url="https://nextgen-qa.monotype-pp.com",
+    graphql_endpoint="https://nextgen-qa.monotype-pp.com/graphql",
+    admin_graphql_endpoint="https://nextgen-qa.monotype-pp.com/graphql",
+    nextgen_graphql_endpoint="https://nextgen-qa.monotype-pp.com/graph",
+    nextgen_origin="https://nextgen-qa.monotype-pp.com",
+    nextgen_referer="https://nextgen-qa.monotype-pp.com/discover-fonts/all",
+    simulation_prefer_pp_bearer=True,
+    rabbitmq_vhost="mt-connect-preprod",
+    raw_events_queue="mt.platform,resolver.raw_events_test_queue",
+    enriched_events_queue="mt.platform,resolver.enriched_events_test_queue",
+    consume_dead_letter_queue=False,
+    purge_test_queues_on_e2e=True,
+    ingress_api_url="https://mt-audit-log-resolver-service-preprod.monotype-pp.com/v1/audit-events",
+    ingress_raw_queue="mt.platform,resolver.raw_events_test_queue",
+    ingress_enriched_queue="mt.platform,resolver.enriched_events_test_queue",
+    ingress_rabbitmq_vhost="mt-connect-preprod",
+    seed_family_id="794981",
+    seed_deactivate_family_id="8kL8ZM64",
+    mongo_db_name="AuditLogsQA",
 )
 
 EVEREST_DEV = AuditTargetProfile(
@@ -112,6 +128,7 @@ EVEREST_DEV = AuditTargetProfile(
     ingress_rabbitmq_vhost="mt-connect-preprod",
     seed_family_id="794981",
     seed_deactivate_family_id="8kL8ZM64",
+    mongo_db_name="AuditLogsEverest",
 )
 
 _PROFILES: dict[str, AuditTargetProfile] = {
@@ -144,8 +161,17 @@ _PROFILE_KEYS: frozenset[str] = frozenset(
         "INGRESS_ENRICHED_QUEUE",
         "SEED_FAMILY_ID",
         "SEED_DEACTIVATE_FAMILY_ID",
+        "MONGO_DB_NAME",
     }
 )
+
+
+def mongo_db_for_profile(profile: AuditTargetProfile | None = None) -> str:
+    """Mongo database name for the active audit target (created on first write)."""
+    p = profile or get_audit_profile()
+    if p.mongo_db_name:
+        return p.mongo_db_name
+    return f"AuditLogs{p.name.upper()}"
 
 
 def audit_target_name() -> str:
@@ -208,6 +234,7 @@ def apply_audit_profile(*, project_root=None) -> AuditTargetProfile:
         "INGRESS_ENRICHED_QUEUE": profile.ingress_enriched_queue,
         "SEED_FAMILY_ID": profile.seed_family_id,
         "SEED_DEACTIVATE_FAMILY_ID": profile.seed_deactivate_family_id,
+        "MONGO_DB_NAME": mongo_db_for_profile(profile),
     }
     for key, value in mapping.items():
         if key in _PROFILE_KEYS:

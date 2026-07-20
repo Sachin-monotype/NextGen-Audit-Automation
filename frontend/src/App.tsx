@@ -104,7 +104,7 @@ export default function App() {
       <main className="content">
         {/* Keep pages mounted so Compare/Generate job logs survive tab switches. */}
         <div className={section === "generate" ? "section-panel" : "section-panel hidden"}>
-          <GeneratePage />
+          <GeneratePage onCompareCompleted={onCompareCompleted} />
         </div>
         <div className={section === "display" ? "section-panel" : "section-panel hidden"}>
           <DisplayPage />

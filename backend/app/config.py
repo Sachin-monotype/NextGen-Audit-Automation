@@ -9,7 +9,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
-@dataclass(frozen=True)
+@dataclass
 class Settings:
     mongo_url: str
     mongo_db: str

@@ -35,6 +35,34 @@ class AuditDatabase:
         except Exception:
             return False
 
+    def use_database(self, name: str) -> str:
+        """Point at another Mongo database (creates on first insert)."""
+        db_name = (name or "").strip() or self._settings.mongo_db
+        self._settings.mongo_db = db_name
+        self._db = self._client[db_name]
+        self._sort_index_ready.clear()
+        # Ensure collections/indexes exist for raw/enrich/dlq
+        for tab in ("raw", "enriched", "dlq"):
+            col = self.collection(tab)
+            self._ensure_sort_index(col)
+            try:
+                col.create_index(
+                    [("source.operation", ASCENDING), ("occurredAt", DESCENDING)],
+                    name="idx_operation_occurredAt",
+                    background=True,
+                )
+            except Exception:
+                pass
+            try:
+                col.create_index(
+                    [("xCorrelationId", ASCENDING)],
+                    name="idx_xCorrelationId",
+                    background=True,
+                )
+            except Exception:
+                pass
+        return db_name
+
     def collection(self, tab: str) -> Collection:
         name = {
             "raw": self._settings.mongo_raw,

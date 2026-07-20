@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   fetchCasepilotStatus,
+  fetchUiTestrailMap,
   startGenerateInUi,
   type UiTriggerJob,
   type UiTriggerSelectionItem,
@@ -17,77 +18,65 @@ type ScenarioRow = UiTriggerSelectionItem & {
   notes: string;
 };
 
-/** FDC-00001 / FDC-14091 TestRail map — keep in sync with python/audit_validator/ui_testrail_map.py */
-const FDC_CASE_BY_ID: Record<string, number> = {
-  "activateFamily::Discovery/Browse (global)": 73300131,
-  "activateFamily::List (FONTLIST)": 73300132,
-  "activateFamily::Favourite": 73300133,
-  "activateFamily::Project": 73300134,
-  "activateFamily::Project > List": 73300135,
-  "deactivateFamilies::Discovery/Browse (global)": 73300136,
-  "activateStyle::Discovery/Browse (global)": 73300137,
-  createProject: 73300138,
-  "createProject::Discovery/Browse (global)": 73300138,
-  addFavoriteFamilies: 73300139,
-  "addFavoriteFamilies::Favourite": 73300139,
-  dismissNotification: 73300140,
-  "dismissNotification::Discovery/Browse (global)": 73300140,
-};
-
-const FDC_CASE_BY_LABEL: Record<string, number> = {
-  "activatefamily(global)": 73300131,
-  "activatefamily(list)": 73300132,
-  "activatefamily(favourite)": 73300133,
-  "activatefamily(project)": 73300134,
-  "activatefamily(project_list)": 73300135,
-  "deactivatefamilies(global)": 73300136,
-  "activatestyle(global)": 73300137,
-  createproject: 73300138,
-  "createproject(global)": 73300138,
-  addfavoritefamilies: 73300139,
-  "addfavoritefamilies(favourite)": 73300139,
-  dismissnotification: 73300140,
-  "dismissnotification(global)": 73300140,
-};
-
 const TESTRAIL_CASE_URL = "https://type.testrail.com/index.php?/cases/view/";
 
-function resolveCaseId(s: UiTriggerSelectionItem): number | undefined {
-  let cid =
-    (s.id && FDC_CASE_BY_ID[s.id]) ||
-    FDC_CASE_BY_LABEL[(s.label || "").toLowerCase()] ||
-    (s.operation && FDC_CASE_BY_ID[s.operation]) ||
-    undefined;
-  if (!cid && s.operation === "activateFamily") {
-    const t = (s.touchpoint || "").toLowerCase();
-    if (t.includes("project") && t.includes("list")) cid = 73300135;
-    else if (t.includes("favourite") || t.includes("favorite")) cid = 73300133;
-    else if (t.includes("project")) cid = 73300134;
-    else if (t.includes("list")) cid = 73300132;
-    else cid = 73300131;
+function shortTouch(touch?: string | null): string {
+  const t = (touch || "").toLowerCase().replace(/\//g, " ").replace(/>/g, " ").replace(/\s+/g, " ").trim();
+  if (t.includes("project") && t.includes("list")) return "project_list";
+  if (t.includes("favourite") || t.includes("favorite")) return "favourite";
+  if (t === "project" || t.startsWith("project ")) return "project";
+  if (t.includes("list") || t.includes("fontlist")) return "list";
+  if (t.includes("discover") || t.includes("browse") || t.includes("search") || t === "global" || !t) {
+    return "global";
   }
-  return cid;
+  return t.replace(/\s+/g, "_") || "global";
 }
 
 function scenarioTitle(s: UiTriggerSelectionItem): string {
-  return s.label || (s.touchpoint ? `${s.operation}(${s.touchpoint})` : s.operation);
+  return s.label || (s.touchpoint ? `${s.operation}(${shortTouch(s.touchpoint)})` : s.operation);
+}
+
+function resolveCaseId(
+  s: UiTriggerSelectionItem,
+  byKey: Record<string, number>,
+  byLabel: Record<string, number>,
+): number | undefined {
+  if (s.id && byKey[s.id]) return byKey[s.id];
+  const label = (s.label || "").toLowerCase().replace(/\s+/g, "");
+  if (label && byLabel[label]) return byLabel[label];
+  const soft = (s.label || "").toLowerCase();
+  if (soft && byLabel[soft]) return byLabel[soft];
+  if (s.operation && s.touchpoint) {
+    const key = `${s.operation}::${s.touchpoint}`;
+    if (byKey[key]) return byKey[key];
+  }
+  if (s.operation && byKey[s.operation]) return byKey[s.operation];
+  const short = shortTouch(s.touchpoint);
+  const alias = `${s.operation}(${short})`.toLowerCase();
+  if (byLabel[alias]) return byLabel[alias];
+  return undefined;
 }
 
 /**
  * One-to-one Generate in UI: each event has its own TestRail id (linked) + details box.
+ * Case ids come from FDC-14091 map (C73303503…).
  */
 export default function GenerateInUiModal({ selection, onClose, onActive }: Props) {
+  const [byKey, setByKey] = useState<Record<string, number>>({});
+  const [byLabel, setByLabel] = useState<Record<string, number>>({});
+  const [mapReady, setMapReady] = useState(false);
+
   const initialRows = useMemo<ScenarioRow[]>(
     () =>
       selection.map((s) => {
-        const cid = resolveCaseId(s);
+        const cid = mapReady ? resolveCaseId(s, byKey, byLabel) : undefined;
         return {
           ...s,
           test_case_id: cid ? String(cid) : "",
           notes: "",
         };
       }),
-    [selection],
+    [selection, byKey, byLabel, mapReady],
   );
 
   const [rows, setRows] = useState<ScenarioRow[]>(initialRows);
@@ -99,6 +88,23 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
   useEffect(() => {
     setRows(initialRows);
   }, [initialRows]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchUiTestrailMap()
+      .then((m) => {
+        if (cancelled) return;
+        setByKey(m.by_key || {});
+        setByLabel(m.by_label || {});
+        setMapReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setMapReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -194,8 +200,7 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
           </button>
         </div>
         <p className="muted small">
-          One row per event. Edit TestRail id or extra details per scenario, then Send. When the UI
-          browser closes we capture correlation ids and load raw + enrich into Generation Status.
+          One row per event (FDC-14091 TestRail map). Edit case id or details, then Send.
         </p>
         <p className={`small ${mcpOk ? "ok" : mcpOk === false ? "error" : "muted"}`}>
           {mcpDetail || "Checking CasePilot…"}
@@ -210,9 +215,7 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
                 <div key={r.id || `${r.operation}-${r.touchpoint}-${i}`} className="generate-ui-scenario-row">
                   <div className="generate-ui-scenario-head">
                     <code className="generate-ui-event-name">{scenarioTitle(r)}</code>
-                    {r.touchpoint ? (
-                      <span className="muted small">{r.touchpoint}</span>
-                    ) : null}
+                    {r.touchpoint ? <span className="muted small">{r.touchpoint}</span> : null}
                   </div>
                   <label>
                     TestRail case id
@@ -220,18 +223,12 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
                       <input
                         value={r.test_case_id}
                         onChange={(e) => updateRow(i, { test_case_id: e.target.value })}
-                        placeholder="e.g. 73300131"
+                        placeholder="e.g. 73303503"
                         required
                         autoFocus={i === 0}
                       />
                       {trUrl ? (
-                        <a
-                          href={trUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="link-btn"
-                          title={trUrl}
-                        >
+                        <a href={trUrl} target="_blank" rel="noreferrer" className="link-btn" title={trUrl}>
                           open C{digits}
                         </a>
                       ) : (
@@ -245,7 +242,7 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
                       rows={2}
                       value={r.notes}
                       onChange={(e) => updateRow(i, { notes: e.target.value })}
-                      placeholder="Hints for this event only (e.g. use family 910042901, prefer detail Activate)"
+                      placeholder="Hints for this event only"
                     />
                   </label>
                 </div>

@@ -334,11 +334,9 @@ class AuditBridge:
         gql = os.getenv("NEXTGEN_GRAPHQL_ENDPOINT", os.getenv("GRAPHQL_ENDPOINT", ""))
         rmq = cfg.rabbitmq
 
-        self.store.append_log(job_id, f"▸ Target environment: {target.upper()} preprod")
-        self.store.append_log(job_id, f"▸ GraphQL endpoint: {gql}")
-        self.store.append_log(job_id, "▸ Connecting to RabbitMQ…")
-        self.store.append_log(job_id, f"▸ Raw queue: {rmq.raw_queue}")
-        self.store.append_log(job_id, f"▸ Enriched queue: {rmq.enriched_queue}")
+        self.store.append_log(job_id, f"▸ Target environment: {target.upper()}")
+        self.store.append_log(job_id, f"▸ GraphQL: {gql}")
+        self.store.append_log(job_id, f"▸ Queues: raw={rmq.raw_queue} · enrich={rmq.enriched_queue}")
         if rmq.dead_letter_queue:
             self.store.append_log(job_id, f"▸ DLQ: {rmq.dead_letter_queue}")
 
@@ -1380,10 +1378,11 @@ class AuditBridge:
 
 
 _INFORMATIVE_KEYWORDS = (
-    "rabbit", "queue", "connect", "purge", "consumer", "captur", "raw", "enrich",
-    "simulation", "flow", "graphql", "trigger", "settle", "validat", "pass", "fail",
-    "ingress", "cron", "mongo", "correlation", "routing", "discovery", "ums", "cms",
-    "environment", "pp ", "preprod", "listening", "event", "pair", "drain", "backlog",
+    "pass", "fail", "error", "skip", "blocked",
+    "correlation", "raw", "enrich", "mongo",
+    "trigger", "validate", "compare", "phase",
+    "casepilot", "testrail", "token", "timeout",
+    "unreachable", "vpn", "selected", "scenario",
 )
 
 
@@ -1404,13 +1403,31 @@ _NOISE_MARKERS = (
     "blockingconnection",
     "channel number",
     "transport=",
+    "http request",
+    "debug:",
+    "deleted asset",
+    "cleanup",
+    "🗑",
+    "heartbeat",
+    "prefetch",
+    "source context",
+    "getprofile",
+    "context header",
+    "casepilot running",
+    "still running",
 )
 
 
 def _is_informative_log(msg: str) -> bool:
-    lower = msg.lower()
-    if msg.startswith("▸") or msg.startswith("  ✓") or msg.startswith("  ⚠") or msg.startswith("✖") or msg.startswith("✓"):
-        return True
+    """Keep only high-signal job log lines (phases, pass/fail, warnings)."""
+    text = (msg or "").strip()
+    if not text:
+        return False
+    lower = text.lower()
     if any(marker in lower for marker in _NOISE_MARKERS):
+        return False
+    if text.startswith(("▸", "✓", "✖", "⚠", "  ✓", "  ⚠", "  ✖")):
+        return True
+    if len(text) > 220:
         return False
     return any(kw in lower for kw in _INFORMATIVE_KEYWORDS)

@@ -1,0 +1,873 @@
+{
+  "suite_section": 4066542,
+  "suite": 22395,
+  "jira": "FDC-14091",
+  "cases": [
+    {
+      "case_id": 73303503,
+      "title": "Verify activateFamily \u2014 Discovery/Browse (global)",
+      "operation": "activateFamily",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "activateFamily::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303504,
+      "title": "Verify activateFamily \u2014 List (FONTLIST)",
+      "operation": "activateFamily",
+      "touchpoint": "List (FONTLIST)",
+      "key": "activateFamily::List (FONTLIST)"
+    },
+    {
+      "case_id": 73303505,
+      "title": "Verify activateFamily \u2014 Favourite",
+      "operation": "activateFamily",
+      "touchpoint": "Favourite",
+      "key": "activateFamily::Favourite"
+    },
+    {
+      "case_id": 73303506,
+      "title": "Verify activateFamily \u2014 Project",
+      "operation": "activateFamily",
+      "touchpoint": "Project",
+      "key": "activateFamily::Project"
+    },
+    {
+      "case_id": 73303507,
+      "title": "Verify activateFamily \u2014 Project > List",
+      "operation": "activateFamily",
+      "touchpoint": "Project > List",
+      "key": "activateFamily::Project > List"
+    },
+    {
+      "case_id": 73303508,
+      "title": "Verify deactivateFamilies \u2014 Discovery/Browse (global)",
+      "operation": "deactivateFamilies",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "deactivateFamilies::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303509,
+      "title": "Verify activateStyle \u2014 Discovery/Browse (global)",
+      "operation": "activateStyle",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "activateStyle::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303510,
+      "title": "Verify createProject \u2014 Discovery/Browse (global)",
+      "operation": "createProject",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "createProject::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303511,
+      "title": "Verify addFavoriteFamilies \u2014 Favourite",
+      "operation": "addFavoriteFamilies",
+      "touchpoint": "Favourite",
+      "key": "addFavoriteFamilies::Favourite"
+    },
+    {
+      "case_id": 73303512,
+      "title": "Verify dismissNotification \u2014 Discovery/Browse (global)",
+      "operation": "dismissNotification",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "dismissNotification::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303513,
+      "title": "Verify deactivateFamilies \u2014 Search/ Family / Discovery",
+      "operation": "deactivateFamilies",
+      "touchpoint": "Search/ Family / Discovery",
+      "key": "deactivateFamilies::Search/ Family / Discovery"
+    },
+    {
+      "case_id": 73303514,
+      "title": "Verify activateStyle \u2014 Search/ Family / Discovery",
+      "operation": "activateStyle",
+      "touchpoint": "Search/ Family / Discovery",
+      "key": "activateStyle::Search/ Family / Discovery"
+    },
+    {
+      "case_id": 73303515,
+      "title": "Verify deactivateStyle \u2014 Search/ Family / Discovery",
+      "operation": "deactivateStyle",
+      "touchpoint": "Search/ Family / Discovery",
+      "key": "deactivateStyle::Search/ Family / Discovery"
+    },
+    {
+      "case_id": 73303516,
+      "title": "Verify activateVariation \u2014 Search/ Family / Discovery",
+      "operation": "activateVariation",
+      "touchpoint": "Search/ Family / Discovery",
+      "key": "activateVariation::Search/ Family / Discovery"
+    },
+    {
+      "case_id": 73303517,
+      "title": "Verify deactivateVariation \u2014 Discovery/Browse (global)",
+      "operation": "deactivateVariation",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "deactivateVariation::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303518,
+      "title": "Verify activatelist \u2014 List",
+      "operation": "activatelist",
+      "touchpoint": "List",
+      "key": "activatelist::List"
+    },
+    {
+      "case_id": 73303519,
+      "title": "Verify deactivatelist \u2014 List",
+      "operation": "deactivatelist",
+      "touchpoint": "List",
+      "key": "deactivatelist::List"
+    },
+    {
+      "case_id": 73303520,
+      "title": "Verify activateFontProject \u2014 Project",
+      "operation": "activateFontProject",
+      "touchpoint": "Project",
+      "key": "activateFontProject::Project"
+    },
+    {
+      "case_id": 73303521,
+      "title": "Verify deActivateFontProject \u2014 Project",
+      "operation": "deActivateFontProject",
+      "touchpoint": "Project",
+      "key": "deActivateFontProject::Project"
+    },
+    {
+      "case_id": 73303522,
+      "title": "Verify bulkActivateStyles \u2014 Discovery/Browse (global)",
+      "operation": "bulkActivateStyles",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "bulkActivateStyles::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303523,
+      "title": "Verify bulkActivateStyles \u2014 Project",
+      "operation": "bulkActivateStyles",
+      "touchpoint": "Project",
+      "key": "bulkActivateStyles::Project"
+    },
+    {
+      "case_id": 73303524,
+      "title": "Verify bulkDeactivateStyles \u2014 Discovery/Browse (global)",
+      "operation": "bulkDeactivateStyles",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "bulkDeactivateStyles::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303525,
+      "title": "Verify bulkDeactivateStyles \u2014 Project",
+      "operation": "bulkDeactivateStyles",
+      "touchpoint": "Project",
+      "key": "bulkDeactivateStyles::Project"
+    },
+    {
+      "case_id": 73303526,
+      "title": "Verify bulkActivateLists \u2014 List (FONTLIST)",
+      "operation": "bulkActivateLists",
+      "touchpoint": "List (FONTLIST)",
+      "key": "bulkActivateLists::List (FONTLIST)"
+    },
+    {
+      "case_id": 73303527,
+      "title": "Verify bulkActivateLists \u2014 Project",
+      "operation": "bulkActivateLists",
+      "touchpoint": "Project",
+      "key": "bulkActivateLists::Project"
+    },
+    {
+      "case_id": 73303528,
+      "title": "Verify bulkDeactivateLists \u2014 List (FONTLIST)",
+      "operation": "bulkDeactivateLists",
+      "touchpoint": "List (FONTLIST)",
+      "key": "bulkDeactivateLists::List (FONTLIST)"
+    },
+    {
+      "case_id": 73303529,
+      "title": "Verify bulkDeactivateLists \u2014 Project",
+      "operation": "bulkDeactivateLists",
+      "touchpoint": "Project",
+      "key": "bulkDeactivateLists::Project"
+    },
+    {
+      "case_id": 73303530,
+      "title": "Verify syncUnSyncVariations \u2014 Discovery/Browse (global)",
+      "operation": "syncUnSyncVariations",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "syncUnSyncVariations::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303531,
+      "title": "Verify addFontListFamilies \u2014 List (FONTLIST)",
+      "operation": "addFontListFamilies",
+      "touchpoint": "List (FONTLIST)",
+      "key": "addFontListFamilies::List (FONTLIST)"
+    },
+    {
+      "case_id": 73303532,
+      "title": "Verify addFontListFamilies \u2014 Project > List",
+      "operation": "addFontListFamilies",
+      "touchpoint": "Project > List",
+      "key": "addFontListFamilies::Project > List"
+    },
+    {
+      "case_id": 73303533,
+      "title": "Verify addFontListStyles \u2014 List (FONTLIST)",
+      "operation": "addFontListStyles",
+      "touchpoint": "List (FONTLIST)",
+      "key": "addFontListStyles::List (FONTLIST)"
+    },
+    {
+      "case_id": 73303534,
+      "title": "Verify addFontListStyles \u2014 Project > List",
+      "operation": "addFontListStyles",
+      "touchpoint": "Project > List",
+      "key": "addFontListStyles::Project > List"
+    },
+    {
+      "case_id": 73303535,
+      "title": "Verify createAsset \u2014 Discovery/Browse (global)",
+      "operation": "createAsset",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "createAsset::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303536,
+      "title": "Verify addFontProjectFamilies \u2014 Project",
+      "operation": "addFontProjectFamilies",
+      "touchpoint": "Project",
+      "key": "addFontProjectFamilies::Project"
+    },
+    {
+      "case_id": 73303537,
+      "title": "Verify createWebProject \u2014 Discovery/Browse (global)",
+      "operation": "createWebProject",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "createWebProject::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303538,
+      "title": "Verify createPrivateTags \u2014 Discovery/Browse (global)",
+      "operation": "createPrivateTags",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "createPrivateTags::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303539,
+      "title": "Verify createRole \u2014 Discovery/Browse (global)",
+      "operation": "createRole",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "createRole::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303540,
+      "title": "Verify bulkUpdateProfiles \u2014 Discovery/Browse (global)",
+      "operation": "bulkUpdateProfiles",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "bulkUpdateProfiles::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303541,
+      "title": "Verify createCustomer \u2014 Discovery/Browse (global)",
+      "operation": "createCustomer",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "createCustomer::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303542,
+      "title": "Verify createServiceAccount \u2014 Discovery/Browse (global)",
+      "operation": "createServiceAccount",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "createServiceAccount::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303543,
+      "title": "Verify createTeam \u2014 Discovery/Browse (global)",
+      "operation": "createTeam",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "createTeam::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303544,
+      "title": "Verify deleteProfiles \u2014 Discovery/Browse (global)",
+      "operation": "deleteProfiles",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "deleteProfiles::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303545,
+      "title": "Verify deleteRoles \u2014 Discovery/Browse (global)",
+      "operation": "deleteRoles",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "deleteRoles::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303546,
+      "title": "Verify deleteServiceAccount \u2014 Discovery/Browse (global)",
+      "operation": "deleteServiceAccount",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "deleteServiceAccount::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303547,
+      "title": "Verify deleteTeams \u2014 Discovery/Browse (global)",
+      "operation": "deleteTeams",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "deleteTeams::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303548,
+      "title": "Verify markOnboardingCompleted \u2014 Discovery/Browse (global)",
+      "operation": "markOnboardingCompleted",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "markOnboardingCompleted::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303549,
+      "title": "Verify resetPassword \u2014 Discovery/Browse (global)",
+      "operation": "resetPassword",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "resetPassword::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303550,
+      "title": "Verify revokeToken \u2014 Discovery/Browse (global)",
+      "operation": "revokeToken",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "revokeToken::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303551,
+      "title": "Verify setLanguagePreference \u2014 Discovery/Browse (global)",
+      "operation": "setLanguagePreference",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "setLanguagePreference::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303552,
+      "title": "Verify suspendServiceAccount \u2014 Discovery/Browse (global)",
+      "operation": "suspendServiceAccount",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "suspendServiceAccount::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303553,
+      "title": "Verify updateCustomerSettings \u2014 Discovery/Browse (global)",
+      "operation": "updateCustomerSettings",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updateCustomerSettings::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303554,
+      "title": "Verify updateProfile \u2014 Discovery/Browse (global)",
+      "operation": "updateProfile",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updateProfile::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303555,
+      "title": "Verify updateRole \u2014 Discovery/Browse (global)",
+      "operation": "updateRole",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updateRole::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303556,
+      "title": "Verify updateServiceAccount \u2014 Discovery/Browse (global)",
+      "operation": "updateServiceAccount",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updateServiceAccount::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303557,
+      "title": "Verify updateTeam \u2014 Discovery/Browse (global)",
+      "operation": "updateTeam",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updateTeam::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303558,
+      "title": "Verify updateUserInvitations \u2014 Discovery/Browse (global)",
+      "operation": "updateUserInvitations",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updateUserInvitations::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303559,
+      "title": "Verify pinAsset \u2014 Discovery/Browse (global)",
+      "operation": "pinAsset",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "pinAsset::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303560,
+      "title": "Verify sharingInfoForAssets \u2014 Discovery/Browse (global)",
+      "operation": "sharingInfoForAssets",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "sharingInfoForAssets::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303561,
+      "title": "Verify unpinAsset \u2014 Discovery/Browse (global)",
+      "operation": "unpinAsset",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "unpinAsset::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303562,
+      "title": "Verify addFontProjectStyles \u2014 Discovery/Browse (global)",
+      "operation": "addFontProjectStyles",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "addFontProjectStyles::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303563,
+      "title": "Verify createProject \u2014 Projects",
+      "operation": "createProject",
+      "touchpoint": "Projects",
+      "key": "createProject::Projects"
+    },
+    {
+      "case_id": 73303564,
+      "title": "Verify deleteProject \u2014 Discovery/Browse (global)",
+      "operation": "deleteProject",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "deleteProject::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303565,
+      "title": "Verify UpdateAssets \u2014 Discovery/Browse (global)",
+      "operation": "UpdateAssets",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "UpdateAssets::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303566,
+      "title": "Verify updateFontProjectStyles \u2014 Discovery/Browse (global)",
+      "operation": "updateFontProjectStyles",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updateFontProjectStyles::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303567,
+      "title": "Verify pluginPanelOpened \u2014 plugin_panel_opened",
+      "operation": "pluginPanelOpened",
+      "touchpoint": "plugin_panel_opened",
+      "key": "pluginPanelOpened::plugin_panel_opened"
+    },
+    {
+      "case_id": 73303568,
+      "title": "Verify pluginPanelClosed \u2014 plugin_panel_closed",
+      "operation": "pluginPanelClosed",
+      "touchpoint": "plugin_panel_closed",
+      "key": "pluginPanelClosed::plugin_panel_closed"
+    },
+    {
+      "case_id": 73303569,
+      "title": "Verify pluginDocumentOpened \u2014 plugin_missing_font_unresolved",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "plugin_missing_font_unresolved",
+      "key": "pluginDocumentOpened::plugin_missing_font_unresolved"
+    },
+    {
+      "case_id": 73303570,
+      "title": "Verify pluginDocumentOpened \u2014 plugin_missing_font_resolved",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "plugin_missing_font_resolved",
+      "key": "pluginDocumentOpened::plugin_missing_font_resolved"
+    },
+    {
+      "case_id": 73303571,
+      "title": "Verify pluginDocumentOpened \u2014 plugin_missing_font_detected",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "plugin_missing_font_detected",
+      "key": "pluginDocumentOpened::plugin_missing_font_detected"
+    },
+    {
+      "case_id": 73303572,
+      "title": "Verify pluginDocumentOpened \u2014 plugin_imported_font_requested",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "plugin_imported_font_requested",
+      "key": "pluginDocumentOpened::plugin_imported_font_requested"
+    },
+    {
+      "case_id": 73303573,
+      "title": "Verify pluginFontManuallyActivated \u2014 plugin_font_manually_activated",
+      "operation": "pluginFontManuallyActivated",
+      "touchpoint": "plugin_font_manually_activated",
+      "key": "pluginFontManuallyActivated::plugin_font_manually_activated"
+    },
+    {
+      "case_id": 73303574,
+      "title": "Verify pluginDocumentOpened \u2014 plugin_font_auto_activated",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "plugin_font_auto_activated",
+      "key": "pluginDocumentOpened::plugin_font_auto_activated"
+    },
+    {
+      "case_id": 73303575,
+      "title": "Verify pluginDocumentOpened \u2014 plugin_font_conflict_detected",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "plugin_font_conflict_detected",
+      "key": "pluginDocumentOpened::plugin_font_conflict_detected"
+    },
+    {
+      "case_id": 73303576,
+      "title": "Verify pluginDocumentOpened \u2014 plugin_document_opened",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "plugin_document_opened",
+      "key": "pluginDocumentOpened::plugin_document_opened"
+    },
+    {
+      "case_id": 73303577,
+      "title": "Verify appSettingsPluginInstallAllEnabled \u2014 app_settings_plugin_install_all_enabled",
+      "operation": "appSettingsPluginInstallAllEnabled",
+      "touchpoint": "app_settings_plugin_install_all_enabled",
+      "key": "appSettingsPluginInstallAllEnabled::app_settings_plugin_install_all_enabled"
+    },
+    {
+      "case_id": 73303578,
+      "title": "Verify appSettingsPluginInstallAllDisabled \u2014 app_settings_plugin_install_all_disabled",
+      "operation": "appSettingsPluginInstallAllDisabled",
+      "touchpoint": "app_settings_plugin_install_all_disabled",
+      "key": "appSettingsPluginInstallAllDisabled::app_settings_plugin_install_all_disabled"
+    },
+    {
+      "case_id": 73303579,
+      "title": "Verify appSettingsPluginAppEnabled \u2014 app_settings_plugin_app_enabled",
+      "operation": "appSettingsPluginAppEnabled",
+      "touchpoint": "app_settings_plugin_app_enabled",
+      "key": "appSettingsPluginAppEnabled::app_settings_plugin_app_enabled"
+    },
+    {
+      "case_id": 73303580,
+      "title": "Verify appSettingsPluginInstallAllDisabled \u2014 app_settings_plugin_app_app_name_enabled",
+      "operation": "appSettingsPluginInstallAllDisabled",
+      "touchpoint": "app_settings_plugin_app_app_name_enabled",
+      "key": "appSettingsPluginInstallAllDisabled::app_settings_plugin_app_app_name_enabled"
+    },
+    {
+      "case_id": 73303581,
+      "title": "Verify appSettingsPerformanceModeChanged \u2014 app_settings_performance_mode_changed",
+      "operation": "appSettingsPerformanceModeChanged",
+      "touchpoint": "app_settings_performance_mode_changed",
+      "key": "appSettingsPerformanceModeChanged::app_settings_performance_mode_changed"
+    },
+    {
+      "case_id": 73303582,
+      "title": "Verify appSettingsAutoPerformanceEnabled \u2014 app_settings_auto_performance_enabled",
+      "operation": "appSettingsAutoPerformanceEnabled",
+      "touchpoint": "app_settings_auto_performance_enabled",
+      "key": "appSettingsAutoPerformanceEnabled::app_settings_auto_performance_enabled"
+    },
+    {
+      "case_id": 73303583,
+      "title": "Verify appSettingsAutoPerformanceDisabled \u2014 app_settings_auto_performance_disabled",
+      "operation": "appSettingsAutoPerformanceDisabled",
+      "touchpoint": "app_settings_auto_performance_disabled",
+      "key": "appSettingsAutoPerformanceDisabled::app_settings_auto_performance_disabled"
+    },
+    {
+      "case_id": 73303584,
+      "title": "Verify appSettingsActivationModeChanged \u2014 app_settings_activation_mode_changed",
+      "operation": "appSettingsActivationModeChanged",
+      "touchpoint": "app_settings_activation_mode_changed",
+      "key": "appSettingsActivationModeChanged::app_settings_activation_mode_changed"
+    },
+    {
+      "case_id": 73303585,
+      "title": "Verify appLogsExported \u2014 app_logs_exported",
+      "operation": "appLogsExported",
+      "touchpoint": "app_logs_exported",
+      "key": "appLogsExported::app_logs_exported"
+    },
+    {
+      "case_id": 73303586,
+      "title": "Verify appLanguageChanged \u2014 app_language_changed",
+      "operation": "appLanguageChanged",
+      "touchpoint": "app_language_changed",
+      "key": "appLanguageChanged::app_language_changed"
+    },
+    {
+      "case_id": 73303587,
+      "title": "Verify appFeedbackSubmitted \u2014 app_feedback_submitted",
+      "operation": "appFeedbackSubmitted",
+      "touchpoint": "app_feedback_submitted",
+      "key": "appFeedbackSubmitted::app_feedback_submitted"
+    },
+    {
+      "case_id": 73303588,
+      "title": "Verify appCacheCleared \u2014 app_cache_cleared",
+      "operation": "appCacheCleared",
+      "touchpoint": "app_cache_cleared",
+      "key": "appCacheCleared::app_cache_cleared"
+    },
+    {
+      "case_id": 73303589,
+      "title": "Verify fontActivationTypeSwitched \u2014 font_activation_type_switched",
+      "operation": "fontActivationTypeSwitched",
+      "touchpoint": "font_activation_type_switched",
+      "key": "fontActivationTypeSwitched::font_activation_type_switched"
+    },
+    {
+      "case_id": 73303590,
+      "title": "Verify fontLocalfontActivated \u2014 font_localfont_activated",
+      "operation": "fontLocalfontActivated",
+      "touchpoint": "font_localfont_activated",
+      "key": "fontLocalfontActivated::font_localfont_activated"
+    },
+    {
+      "case_id": 73303591,
+      "title": "Verify fontLocalfontDeactivated \u2014 font_localfont_deactivated",
+      "operation": "fontLocalfontDeactivated",
+      "touchpoint": "font_localfont_deactivated",
+      "key": "fontLocalfontDeactivated::font_localfont_deactivated"
+    },
+    {
+      "case_id": 73303592,
+      "title": "Verify userLoginFailureApp \u2014 userloginfailureapp",
+      "operation": "userLoginFailureApp",
+      "touchpoint": "userloginfailureapp",
+      "key": "userLoginFailureApp::userloginfailureapp"
+    },
+    {
+      "case_id": 73303593,
+      "title": "Verify userLogoutApp \u2014 userlogoutapp",
+      "operation": "userLogoutApp",
+      "touchpoint": "userlogoutapp",
+      "key": "userLogoutApp::userlogoutapp"
+    },
+    {
+      "case_id": 73303594,
+      "title": "Verify userSwitchWorkspaceApp \u2014 userswitchworkspaceapp",
+      "operation": "userSwitchWorkspaceApp",
+      "touchpoint": "userswitchworkspaceapp",
+      "key": "userSwitchWorkspaceApp::userswitchworkspaceapp"
+    },
+    {
+      "case_id": 73303595,
+      "title": "Verify identityLinked \u2014 identitylinked",
+      "operation": "identityLinked",
+      "touchpoint": "identitylinked",
+      "key": "identityLinked::identitylinked"
+    },
+    {
+      "case_id": 73303596,
+      "title": "Verify bulktagstyles \u2014 Discovery/Browse",
+      "operation": "bulktagstyles",
+      "touchpoint": "Discovery/Browse",
+      "key": "bulktagstyles::Discovery/Browse"
+    },
+    {
+      "case_id": 73303597,
+      "title": "Verify bulkuntagstyles \u2014 Discovery/Browse",
+      "operation": "bulkuntagstyles",
+      "touchpoint": "Discovery/Browse",
+      "key": "bulkuntagstyles::Discovery/Browse"
+    },
+    {
+      "case_id": 73303598,
+      "title": "Verify DeleteprivateTag \u2014 Manage>Tags",
+      "operation": "DeleteprivateTag",
+      "touchpoint": "Manage>Tags",
+      "key": "DeleteprivateTag::Manage>Tags"
+    },
+    {
+      "case_id": 73303599,
+      "title": "Verify deleteallprivatetags \u2014 Manage>Tags",
+      "operation": "deleteallprivatetags",
+      "touchpoint": "Manage>Tags",
+      "key": "deleteallprivatetags::Manage>Tags"
+    },
+    {
+      "case_id": 73303600,
+      "title": "Verify UpdatePrivateTag \u2014 Manage>Tags",
+      "operation": "UpdatePrivateTag",
+      "touchpoint": "Manage>Tags",
+      "key": "UpdatePrivateTag::Manage>Tags"
+    },
+    {
+      "case_id": 73303601,
+      "title": "Verify UpdatePrivateTagAssociations \u2014 Browse/Discovery/List/TagsManage",
+      "operation": "UpdatePrivateTagAssociations",
+      "touchpoint": "Browse/Discovery/List/TagsManage",
+      "key": "UpdatePrivateTagAssociations::Browse/Discovery/List/TagsManage"
+    },
+    {
+      "case_id": 73303602,
+      "title": "Verify bulkAddStylesToList \u2014 Browse/Discovery",
+      "operation": "bulkAddStylesToList",
+      "touchpoint": "Browse/Discovery",
+      "key": "bulkAddStylesToList::Browse/Discovery"
+    },
+    {
+      "case_id": 73303603,
+      "title": "Verify bulkCopyAssets \u2014 Mylibrary>Assets",
+      "operation": "bulkCopyAssets",
+      "touchpoint": "Mylibrary>Assets",
+      "key": "bulkCopyAssets::Mylibrary>Assets"
+    },
+    {
+      "case_id": 73303604,
+      "title": "Verify bulkmoveassets \u2014 Mylibrary>Assets",
+      "operation": "bulkmoveassets",
+      "touchpoint": "Mylibrary>Assets",
+      "key": "bulkmoveassets::Mylibrary>Assets"
+    },
+    {
+      "case_id": 73303605,
+      "title": "Verify bulkRemoveStylesFromList \u2014 Mylibrary>Assets",
+      "operation": "bulkRemoveStylesFromList",
+      "touchpoint": "Mylibrary>Assets",
+      "key": "bulkRemoveStylesFromList::Mylibrary>Assets"
+    },
+    {
+      "case_id": 73303606,
+      "title": "Verify Deleteassets \u2014 Mylibrary>Assets",
+      "operation": "Deleteassets",
+      "touchpoint": "Mylibrary>Assets",
+      "key": "Deleteassets::Mylibrary>Assets"
+    },
+    {
+      "case_id": 73303607,
+      "title": "Verify removeFontListFamilies \u2014 Mylibrary>Assets",
+      "operation": "removeFontListFamilies",
+      "touchpoint": "Mylibrary>Assets",
+      "key": "removeFontListFamilies::Mylibrary>Assets"
+    },
+    {
+      "case_id": 73303608,
+      "title": "Verify removeFontListStyles \u2014 Mylibrary>Assets",
+      "operation": "removeFontListStyles",
+      "touchpoint": "Mylibrary>Assets",
+      "key": "removeFontListStyles::Mylibrary>Assets"
+    },
+    {
+      "case_id": 73303609,
+      "title": "Verify updateAsset \u2014 Mylibrary>Assets",
+      "operation": "updateAsset",
+      "touchpoint": "Mylibrary>Assets",
+      "key": "updateAsset::Mylibrary>Assets"
+    },
+    {
+      "case_id": 73303610,
+      "title": "Verify addFontProjectStyles \u2014 Project",
+      "operation": "addFontProjectStyles",
+      "touchpoint": "Project",
+      "key": "addFontProjectStyles::Project"
+    }
+  ],
+  "by_key": {
+    "activateFamily::Discovery/Browse (global)": 73303503,
+    "activateFamily::List (FONTLIST)": 73303504,
+    "activateFamily::Favourite": 73303505,
+    "activateFamily::Project": 73303506,
+    "activateFamily::Project > List": 73303507,
+    "deactivateFamilies::Discovery/Browse (global)": 73303508,
+    "activateStyle::Discovery/Browse (global)": 73303509,
+    "createProject::Discovery/Browse (global)": 73303510,
+    "addFavoriteFamilies::Favourite": 73303511,
+    "dismissNotification::Discovery/Browse (global)": 73303512,
+    "deactivateFamilies::Search/ Family / Discovery": 73303513,
+    "activateStyle::Search/ Family / Discovery": 73303514,
+    "deactivateStyle::Search/ Family / Discovery": 73303515,
+    "activateVariation::Search/ Family / Discovery": 73303516,
+    "deactivateVariation::Discovery/Browse (global)": 73303517,
+    "activatelist::List": 73303518,
+    "deactivatelist::List": 73303519,
+    "activateFontProject::Project": 73303520,
+    "deActivateFontProject::Project": 73303521,
+    "bulkActivateStyles::Discovery/Browse (global)": 73303522,
+    "bulkActivateStyles::Project": 73303523,
+    "bulkDeactivateStyles::Discovery/Browse (global)": 73303524,
+    "bulkDeactivateStyles::Project": 73303525,
+    "bulkActivateLists::List (FONTLIST)": 73303526,
+    "bulkActivateLists::Project": 73303527,
+    "bulkDeactivateLists::List (FONTLIST)": 73303528,
+    "bulkDeactivateLists::Project": 73303529,
+    "syncUnSyncVariations::Discovery/Browse (global)": 73303530,
+    "addFontListFamilies::List (FONTLIST)": 73303531,
+    "addFontListFamilies::Project > List": 73303532,
+    "addFontListStyles::List (FONTLIST)": 73303533,
+    "addFontListStyles::Project > List": 73303534,
+    "createAsset::Discovery/Browse (global)": 73303535,
+    "addFontProjectFamilies::Project": 73303536,
+    "createWebProject::Discovery/Browse (global)": 73303537,
+    "createPrivateTags::Discovery/Browse (global)": 73303538,
+    "createRole::Discovery/Browse (global)": 73303539,
+    "bulkUpdateProfiles::Discovery/Browse (global)": 73303540,
+    "createCustomer::Discovery/Browse (global)": 73303541,
+    "createServiceAccount::Discovery/Browse (global)": 73303542,
+    "createTeam::Discovery/Browse (global)": 73303543,
+    "deleteProfiles::Discovery/Browse (global)": 73303544,
+    "deleteRoles::Discovery/Browse (global)": 73303545,
+    "deleteServiceAccount::Discovery/Browse (global)": 73303546,
+    "deleteTeams::Discovery/Browse (global)": 73303547,
+    "markOnboardingCompleted::Discovery/Browse (global)": 73303548,
+    "resetPassword::Discovery/Browse (global)": 73303549,
+    "revokeToken::Discovery/Browse (global)": 73303550,
+    "setLanguagePreference::Discovery/Browse (global)": 73303551,
+    "suspendServiceAccount::Discovery/Browse (global)": 73303552,
+    "updateCustomerSettings::Discovery/Browse (global)": 73303553,
+    "updateProfile::Discovery/Browse (global)": 73303554,
+    "updateRole::Discovery/Browse (global)": 73303555,
+    "updateServiceAccount::Discovery/Browse (global)": 73303556,
+    "updateTeam::Discovery/Browse (global)": 73303557,
+    "updateUserInvitations::Discovery/Browse (global)": 73303558,
+    "pinAsset::Discovery/Browse (global)": 73303559,
+    "sharingInfoForAssets::Discovery/Browse (global)": 73303560,
+    "unpinAsset::Discovery/Browse (global)": 73303561,
+    "addFontProjectStyles::Discovery/Browse (global)": 73303562,
+    "createProject::Projects": 73303563,
+    "deleteProject::Discovery/Browse (global)": 73303564,
+    "UpdateAssets::Discovery/Browse (global)": 73303565,
+    "updateFontProjectStyles::Discovery/Browse (global)": 73303566,
+    "pluginPanelOpened::plugin_panel_opened": 73303567,
+    "pluginPanelClosed::plugin_panel_closed": 73303568,
+    "pluginDocumentOpened::plugin_missing_font_unresolved": 73303569,
+    "pluginDocumentOpened::plugin_missing_font_resolved": 73303570,
+    "pluginDocumentOpened::plugin_missing_font_detected": 73303571,
+    "pluginDocumentOpened::plugin_imported_font_requested": 73303572,
+    "pluginFontManuallyActivated::plugin_font_manually_activated": 73303573,
+    "pluginDocumentOpened::plugin_font_auto_activated": 73303574,
+    "pluginDocumentOpened::plugin_font_conflict_detected": 73303575,
+    "pluginDocumentOpened::plugin_document_opened": 73303576,
+    "appSettingsPluginInstallAllEnabled::app_settings_plugin_install_all_enabled": 73303577,
+    "appSettingsPluginInstallAllDisabled::app_settings_plugin_install_all_disabled": 73303578,
+    "appSettingsPluginAppEnabled::app_settings_plugin_app_enabled": 73303579,
+    "appSettingsPluginInstallAllDisabled::app_settings_plugin_app_app_name_enabled": 73303580,
+    "appSettingsPerformanceModeChanged::app_settings_performance_mode_changed": 73303581,
+    "appSettingsAutoPerformanceEnabled::app_settings_auto_performance_enabled": 73303582,
+    "appSettingsAutoPerformanceDisabled::app_settings_auto_performance_disabled": 73303583,
+    "appSettingsActivationModeChanged::app_settings_activation_mode_changed": 73303584,
+    "appLogsExported::app_logs_exported": 73303585,
+    "appLanguageChanged::app_language_changed": 73303586,
+    "appFeedbackSubmitted::app_feedback_submitted": 73303587,
+    "appCacheCleared::app_cache_cleared": 73303588,
+    "fontActivationTypeSwitched::font_activation_type_switched": 73303589,
+    "fontLocalfontActivated::font_localfont_activated": 73303590,
+    "fontLocalfontDeactivated::font_localfont_deactivated": 73303591,
+    "userLoginFailureApp::userloginfailureapp": 73303592,
+    "userLogoutApp::userlogoutapp": 73303593,
+    "userSwitchWorkspaceApp::userswitchworkspaceapp": 73303594,
+    "identityLinked::identitylinked": 73303595,
+    "bulktagstyles::Discovery/Browse": 73303596,
+    "bulkuntagstyles::Discovery/Browse": 73303597,
+    "DeleteprivateTag::Manage>Tags": 73303598,
+    "deleteallprivatetags::Manage>Tags": 73303599,
+    "UpdatePrivateTag::Manage>Tags": 73303600,
+    "UpdatePrivateTagAssociations::Browse/Discovery/List/TagsManage": 73303601,
+    "bulkAddStylesToList::Browse/Discovery": 73303602,
+    "bulkCopyAssets::Mylibrary>Assets": 73303603,
+    "bulkmoveassets::Mylibrary>Assets": 73303604,
+    "bulkRemoveStylesFromList::Mylibrary>Assets": 73303605,
+    "Deleteassets::Mylibrary>Assets": 73303606,
+    "removeFontListFamilies::Mylibrary>Assets": 73303607,
+    "removeFontListStyles::Mylibrary>Assets": 73303608,
+    "updateAsset::Mylibrary>Assets": 73303609,
+    "addFontProjectStyles::Project": 73303610
+  }
+}

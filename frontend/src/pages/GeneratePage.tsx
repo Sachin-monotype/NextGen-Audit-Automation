@@ -23,6 +23,7 @@ import {
   setPipelineTarget,
   setPipelineQueues,
   sendCustomPayload,
+  startCompare,
   startGenerate,
   verifyGenerateInUi,
   type CategoryReport,
@@ -638,7 +639,11 @@ function PayloadEditor({ itemId, label, onClose, onGenerateScenario }: PayloadEd
   );
 }
 
-export default function GeneratePage() {
+export default function GeneratePage({
+  onCompareCompleted,
+}: {
+  onCompareCompleted?: (jobId: string) => void;
+} = {}) {
   const [available, setAvailable] = useState<string[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [skipPassed, setSkipPassed] = useState(false);
@@ -674,6 +679,8 @@ export default function GeneratePage() {
   const [queueBusy, setQueueBusy] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
   const [enrichPick, setEnrichPick] = useState<string[]>([]);
+  const [exportPick, setExportPick] = useState<string[]>([]);
+  const [compareBusy, setCompareBusy] = useState(false);
   const [enrichDiff, setEnrichDiff] = useState<{
     labelA: string;
     labelB: string;
@@ -1128,6 +1135,27 @@ export default function GeneratePage() {
     }
   }
 
+  function scenarioKey(s: GenerateScenarioStatus): string {
+    const ui =
+      String(s.source || "").toLowerCase() === "ui" ||
+      Boolean(runReport?.source === "generate_in_ui");
+    return s.label || scenarioDisplayName(s.operation, s.touchpoint, { ui });
+  }
+
+  function toggleExportPick(key: string) {
+    setExportPick((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
+  }
+
+  function selectExportByStatus(statuses: string[]) {
+    const want = new Set(statuses.map((s) => s.toUpperCase()));
+    const keys = statusScenarios
+      .filter((s) => want.has(String(s.status || "").toUpperCase()))
+      .map(scenarioKey);
+    setExportPick(keys);
+  }
+
   function exportStatusCsv() {
     if (!runReport) return;
     const rows: string[][] = [];
@@ -1135,16 +1163,20 @@ export default function GeneratePage() {
       ? ["operation", "raw", "enrich", "status", "remark"]
       : ["operation", "raw", "enrich"];
     const scenarioRows = dedupeScenarioRows(runReport.scenarios || []);
+    const picked = new Set(exportPick);
+    const onlyPicked = picked.size > 0;
     if (scenarioRows.length > 0) {
       for (const s of scenarioRows) {
-        const name = scenarioDisplayName(s.operation, s.touchpoint);
+        const name = scenarioKey(s);
+        if (onlyPicked && !picked.has(name)) continue;
         const base = [name, jsonCell(s.raw_event), jsonCell(s.enriched_event)];
         rows.push(
-          isValidateMode ? [...base, s.status || "", s.error || ""] : base,
+          isValidateMode ? [...base, s.status || "", s.remark || s.error || ""] : base,
         );
       }
     } else {
       for (const o of runReport.operations || []) {
+        if (onlyPicked && !picked.has(o.operation)) continue;
         const ui =
           o.ui_status ||
           (o.status === "success" ? "PASS" : o.status === "no_correlation" ? "N/A" : o.status || "");
@@ -1157,6 +1189,31 @@ export default function GeneratePage() {
       }
     }
     downloadCsv(`generate-status-${isValidateMode ? "validate" : "generate"}.csv`, headers, rows);
+  }
+
+  async function compareSelectedFromStatus() {
+    if (!statusScenarios.length) return;
+    const picked = new Set(exportPick);
+    const pool = statusScenarios.filter((s) => {
+      const key = scenarioKey(s);
+      if (picked.size && !picked.has(key)) return false;
+      return String(s.status || "").toUpperCase() === "PASS" && (s.raw || s.enriched);
+    });
+    const ops = [...new Set(pool.map((s) => s.operation).filter(Boolean))];
+    if (!ops.length) {
+      setError("Select PASS rows (checkbox) that have raw/enrich, then Compare selected.");
+      return;
+    }
+    setCompareBusy(true);
+    setError("");
+    try {
+      const job = await startCompare(ops);
+      onCompareCompleted?.(job.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCompareBusy(false);
+    }
   }
 
   function openAllCoverage() {
@@ -1224,12 +1281,17 @@ export default function GeneratePage() {
                 Open NextGen ↗
               </a>
             )}
+            {pipeline.mongo_db && (
+              <span className="muted" title={pipeline.mongo_url_host || ""}>
+                Mongo · {pipeline.mongo_db}
+              </span>
+            )}
             <details
               className="queue-details"
               open={queueOpen}
               onToggle={(e) => setQueueOpen((e.target as HTMLDetailsElement).open)}
             >
-              <summary>Queue details</summary>
+              <summary>User / queues</summary>
               <div className="queue-details-body">
                 <label className="inline-control">
                   Raw
@@ -1371,50 +1433,54 @@ export default function GeneratePage() {
       <OpListModal state={listModal} onClose={() => setListModal(null)} />
 
       <div className="generate-filter-row">
-        <div className="source-kind-filter">
-          <span className="muted">Type</span>
-          {SOURCE_KINDS.map((k) => {
-            const n = sources?.counts?.[k.id] ?? 0;
-            return (
-              <label key={k.id} className="checkbox source-kind">
-                <input
-                  type="checkbox"
-                  checked={sourceKinds.has(k.id)}
-                  onChange={() => toggleSourceKind(k.id)}
-                />
-                {k.label}{n ? ` (${n})` : ""}
-              </label>
-            );
-          })}
+        <div className="generate-filter-left">
+          <OperationDropdown
+            options={visibleOperations}
+            selected={selected}
+            onToggle={toggle}
+            onSelectAll={() => setSelected(new Set(visibleOperations.map((i) => i.id)))}
+            onClear={() => setSelected(new Set())}
+          />
         </div>
-        <label className="category-select inline-control">
-          Category
-          <select value={category} onChange={(e) => { setCategory(e.target.value); setSelected(new Set()); }}>
-            <option value="all">All categories ({visibleOperations.length})</option>
-            {(categories?.categories ?? []).map((c) => {
-              const n = categories?.counts?.[c] ?? 0;
-              return n > 0 ? (
-                <option key={c} value={c}>{c} ({n})</option>
-              ) : null;
+        <div className="generate-filter-right">
+          <div className="source-kind-filter">
+            <span className="muted">Type</span>
+            {SOURCE_KINDS.map((k) => {
+              const n = sources?.counts?.[k.id] ?? 0;
+              return (
+                <label key={k.id} className="checkbox source-kind">
+                  <input
+                    type="checkbox"
+                    checked={sourceKinds.has(k.id)}
+                    onChange={() => toggleSourceKind(k.id)}
+                  />
+                  {k.label}{n ? ` (${n})` : ""}
+                </label>
+              );
             })}
-          </select>
-        </label>
-        <OperationDropdown
-          options={visibleOperations}
-          selected={selected}
-          onToggle={toggle}
-          onSelectAll={() => setSelected(new Set(visibleOperations.map((i) => i.id)))}
-          onClear={() => setSelected(new Set())}
-        />
-        <label className="checkbox compact-checkbox">
-          <input type="checkbox" checked={skipPassed} onChange={(e) => setSkipPassed(e.target.checked)} />
-          Skip passed
-        </label>
-        {(sourceKinds.size > 0 || category !== "all") && (
-          <button type="button" onClick={() => { setSourceKinds(new Set()); setCategory("all"); setSelected(new Set()); }}>
-            Reset filters
-          </button>
-        )}
+          </div>
+          <label className="category-select inline-control">
+            Category
+            <select value={category} onChange={(e) => { setCategory(e.target.value); setSelected(new Set()); }}>
+              <option value="all">All categories ({visibleOperations.length})</option>
+              {(categories?.categories ?? []).map((c) => {
+                const n = categories?.counts?.[c] ?? 0;
+                return n > 0 ? (
+                  <option key={c} value={c}>{c} ({n})</option>
+                ) : null;
+              })}
+            </select>
+          </label>
+          <label className="checkbox compact-checkbox">
+            <input type="checkbox" checked={skipPassed} onChange={(e) => setSkipPassed(e.target.checked)} />
+            Skip passed
+          </label>
+          {(sourceKinds.size > 0 || category !== "all") && (
+            <button type="button" onClick={() => { setSourceKinds(new Set()); setCategory("all"); setSelected(new Set()); }}>
+              Reset filters
+            </button>
+          )}
+        </div>
       </div>
 
       {selected.size > 0 && (
@@ -1607,12 +1673,35 @@ export default function GeneratePage() {
             </summary>
             <div className="mongo-status generation-status-actions">
               <button type="button" className="link-btn" onClick={exportStatusCsv}>
-                Export CSV
+                Export CSV{exportPick.length ? ` (${exportPick.length})` : " (all)"}
+              </button>
+              <button type="button" className="link-btn" onClick={() => selectExportByStatus(["FAIL", "N/A"])}>
+                Select FAIL/N/A
+              </button>
+              <button type="button" className="link-btn" onClick={() => selectExportByStatus(["PASS"])}>
+                Select PASS
+              </button>
+              <button type="button" className="link-btn" onClick={() => setExportPick(statusScenarios.map(scenarioKey))}>
+                Select all
+              </button>
+              {exportPick.length > 0 && (
+                <button type="button" className="link-btn" onClick={() => setExportPick([])}>
+                  clear export
+                </button>
+              )}
+              <button
+                type="button"
+                className="link-btn"
+                disabled={compareBusy}
+                onClick={compareSelectedFromStatus}
+                title="Run source compare for selected PASS rows (or all PASS if none selected)"
+              >
+                {compareBusy ? "Comparing…" : "Compare selected PASS → Result"}
               </button>
               {enrichCandidates.length >= 2 && (
                 <>
                   <span className="muted small">
-                    Pick 2 enrich rows to diff metadata (activationType, platformEnvironment, …)
+                    Pick 2 enrich rows to diff metadata
                   </span>
                   <button
                     type="button"
@@ -1620,11 +1709,11 @@ export default function GeneratePage() {
                     disabled={enrichPick.length !== 2}
                     onClick={openEnrichDiff}
                   >
-                    Compare enrich ({enrichPick.length}/2)
+                    Diff enrich ({enrichPick.length}/2)
                   </button>
                   {enrichPick.length > 0 && (
                     <button type="button" className="link-btn" onClick={() => setEnrichPick([])}>
-                      clear pick
+                      clear diff
                     </button>
                   )}
                 </>
@@ -1641,7 +1730,8 @@ export default function GeneratePage() {
                 <table className="result-table scenario-status-table">
                   <thead>
                     <tr>
-                      <th title="Select for enrich diff">Diff</th>
+                      <th title="Select for CSV export / compare">Pick</th>
+                      <th title="Select for enrich JSON leaf diff">Diff</th>
                       <th>Operation</th>
                       <th>Raw</th>
                       <th>Enrich</th>
@@ -1665,6 +1755,14 @@ export default function GeneratePage() {
                       const canDiff = Boolean(s.enriched_event);
                       return (
                         <tr key={`${s.scenario_id}-${s.xCorrelationId || ""}`}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={exportPick.includes(name)}
+                              onChange={() => toggleExportPick(name)}
+                              aria-label={`Select ${name} for export/compare`}
+                            />
+                          </td>
                           <td>
                             {canDiff ? (
                               <input

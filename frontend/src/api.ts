@@ -39,6 +39,8 @@ export type PipelineConfig = {
   queue_warning?: string;
   available_targets?: Array<{ id: string; label: string; url: string }>;
   graphql_endpoint?: string;
+  mongo_db?: string;
+  mongo_url_host?: string;
   raw_queue?: string;
   raw_queue_url?: string;
   ingestion_running?: boolean;
@@ -430,6 +432,26 @@ export type CasepilotStatus = {
 export async function fetchCasepilotStatus() {
   const res = await fetch(`${API}/api/meta/casepilot`);
   return res.json() as Promise<CasepilotStatus>;
+}
+
+export async function fetchUiTestrailMap() {
+  const res = await fetch(`${API}/api/meta/ui-testrail-map`);
+  return res.json() as Promise<{
+    ok?: boolean;
+    jira?: string;
+    count?: number;
+    by_key: Record<string, number>;
+    by_label: Record<string, number>;
+    cases?: Array<{
+      case_id: number;
+      title: string;
+      operation: string;
+      touchpoint: string;
+      key: string;
+    }>;
+    testrail_case_url?: string;
+    error?: string;
+  }>;
 }
 
 export async function fetchCoverage() {

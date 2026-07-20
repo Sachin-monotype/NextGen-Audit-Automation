@@ -84,22 +84,15 @@ Selection items may include per-scenario `test_case_id` and `notes`.
 
 ## TestRail map
 
-Canonical smoke ids (FDC-00001 / FDC-14091 pack):
+Canonical smoke + touchpoint pack is **FDC-14091** ([suite section](https://type.testrail.com/index.php?/suites/view/22395&group_by=cases:section_id&group_order=asc&display_deleted_cases=0&group_id=4066542)):
 
-| Scenario | Case |
-|----------|------|
-| activateFamily(global) | [C73300131](https://type.testrail.com/index.php?/cases/view/73300131) |
-| activateFamily(list) | C73300132 |
-| activateFamily(favourite) | C73300133 |
-| activateFamily(project) | C73300134 |
-| activateFamily(project_list) | C73300135 |
-| deactivateFamilies(global) | C73300136 |
-| activateStyle(global) | C73300137 |
-| createProject | C73300138 |
-| addFavoriteFamilies | C73300139 |
-| dismissNotification | C73300140 |
+| Range | Count |
+|-------|-------|
+| C73303503 – C73303610 | 108 |
 
-Full touchpoint pack: `qa_agent/output/test_cases/FDC-14091.json` (sibling `qa_agent` repo), built from `docs/UI Navigation of Event (2).xlsx` (Touch Points + UI Navigation by Section).
+Stored in `python/audit_validator/data/fdc14091_testrail_map.json`. Generate-in-UI resolves selection → case id automatically.
+
+Jira: [FDC-14091](https://monotype.atlassian.net/browse/FDC-14091)
 
 ## Code map
 

@@ -478,40 +478,44 @@ export default function DisplayPage() {
         <IngestionPanel />
 
         <form
-          className="filter-row"
+          className="filter-row display-filter-row"
           onSubmit={(e) => {
             e.preventDefault();
             apply();
           }}
         >
-          {TEXT_FILTERS.map(({ key, label, placeholder }) => (
-            <label key={key} className="filter-field">
-              <span>{label}</span>
-              <input
-                value={filters[key]}
-                placeholder={placeholder}
-                onChange={(e) => setFilters({ ...filters, [key]: e.target.value })}
-                onKeyDown={onFilterKeyDown}
-              />
-            </label>
-          ))}
-          <OperationFilter
-            options={filterValues["source.operation"] ?? []}
-            selected={opSelected}
-            onSelectedChange={setOpSelected}
-          />
-          {ENUM_FILTERS.map(({ key, label }) => (
-            <MultiSelect
-              key={key}
-              label={label}
-              options={filterValues[key] ?? []}
-              selected={filters[key] ? filters[key].split(",").filter(Boolean) : []}
-              onChange={(values) => setEnum(key, values)}
+          <div className="display-filter-left">
+            <OperationFilter
+              options={filterValues["source.operation"] ?? []}
+              selected={opSelected}
+              onSelectedChange={setOpSelected}
             />
-          ))}
-          <div className="filter-actions">
-            <button type="submit" className="primary">Apply</button>
-            <button type="button" onClick={clear}>Clear</button>
+          </div>
+          <div className="display-filter-right">
+            {TEXT_FILTERS.map(({ key, label, placeholder }) => (
+              <label key={key} className="filter-field">
+                <span>{label}</span>
+                <input
+                  value={filters[key]}
+                  placeholder={placeholder}
+                  onChange={(e) => setFilters({ ...filters, [key]: e.target.value })}
+                  onKeyDown={onFilterKeyDown}
+                />
+              </label>
+            ))}
+            {ENUM_FILTERS.map(({ key, label }) => (
+              <MultiSelect
+                key={key}
+                label={label}
+                options={filterValues[key] ?? []}
+                selected={filters[key] ? filters[key].split(",").filter(Boolean) : []}
+                onChange={(values) => setEnum(key, values)}
+              />
+            ))}
+            <div className="filter-actions">
+              <button type="submit" className="primary">Apply</button>
+              <button type="button" onClick={clear}>Clear</button>
+            </div>
           </div>
         </form>
 

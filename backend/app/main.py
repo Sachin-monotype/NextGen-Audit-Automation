@@ -511,10 +511,14 @@ def pipeline_config() -> dict[str, Any]:
             ),
             "available_targets": [
                 {"id": "pp", "label": "PP", "url": "https://nextgen.monotype-pp.com"},
-                {"id": "qa", "label": "QA (PP host)", "url": "https://nextgen.monotype-pp.com"},
+                {"id": "qa", "label": "QA", "url": "https://nextgen-qa.monotype-pp.com"},
                 {"id": "uat", "label": "UAT", "url": "https://nextgen.monotype-uat.com"},
             ],
             "graphql_endpoint": __import__("os").getenv("NEXTGEN_GRAPHQL_ENDPOINT", ""),
+            "mongo_db": settings.mongo_db,
+            "mongo_url_host": (
+                __import__("urllib.parse").urlparse(settings.mongo_url).hostname or ""
+            ),
             "raw_queue": cfg.rabbitmq.raw_queue,
             "raw_queue_url": queue_url(cfg.rabbitmq.raw_queue),
             "enriched_queue": cfg.rabbitmq.enriched_queue,
@@ -534,18 +538,23 @@ def pipeline_config() -> dict[str, Any]:
 
 @app.post("/api/meta/pipeline-target")
 def set_pipeline_target(req: PipelineTargetRequest) -> dict[str, Any]:
-    """Switch the runtime Generate target and rebuild queue consumers."""
+    """Switch the runtime Generate target and rebuild queue consumers + Mongo DB."""
     target = req.target.strip().lower()
     if target not in {"pp", "qa", "uat"}:
         raise HTTPException(status_code=400, detail="target must be pp, qa, or uat")
     try:
         import os
         from dotenv import set_key
-        from audit_validator.env_profiles import apply_audit_profile
+        from audit_validator.env_profiles import apply_audit_profile, mongo_db_for_profile
 
         os.environ["AUDIT_TARGET"] = target
         set_key(str(settings.audit_project_root / ".env"), "AUDIT_TARGET", target)
-        apply_audit_profile(project_root=settings.audit_project_root)
+        profile = apply_audit_profile(project_root=settings.audit_project_root)
+        mongo_name = mongo_db_for_profile(profile)
+        os.environ["MONGO_DB_NAME"] = mongo_name
+        set_key(str(settings.audit_project_root / ".env"), "MONGO_DB_NAME", mongo_name)
+        settings.mongo_db = mongo_name
+        db.use_database(mongo_name)
         ingestion.reconfigure()
         return pipeline_config()
     except Exception as exc:  # noqa: BLE001
@@ -751,6 +760,17 @@ def casepilot_status() -> dict[str, Any]:
         return casepilot_health()
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
+
+
+@app.get("/api/meta/ui-testrail-map")
+def ui_testrail_map() -> dict[str, Any]:
+    """FDC-14091 TestRail case map for Generate-in-UI (C73303503…)."""
+    try:
+        from audit_validator.ui_testrail_map import public_testrail_map
+
+        return {"ok": True, **public_testrail_map()}
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc), "by_key": {}, "by_label": {}, "cases": []}
 
 
 @app.post("/api/jobs/generate-ui")

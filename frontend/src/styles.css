@@ -201,8 +201,7 @@ button, input, select {
   margin-bottom: 8px;
 }
 
-.generate-context-bar,
-.generate-filter-row {
+.generate-context-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -213,6 +212,34 @@ button, input, select {
   border: 1px solid var(--border);
   border-radius: 9px;
   font-size: 0.8rem;
+}
+
+.generate-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 9px;
+  margin-bottom: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font-size: 0.8rem;
+}
+
+.generate-filter-left {
+  flex: 0 1 auto;
+  min-width: min(360px, 100%);
+}
+
+.generate-filter-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 280px;
+  justify-content: flex-end;
 }
 
 .generate-context-bar .inline-control,
@@ -1088,6 +1115,25 @@ button.primary.outline {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
+}
+
+.display-filter-row {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.display-filter-left {
+  flex: 0 1 auto;
+  min-width: min(320px, 100%);
+}
+
+.display-filter-right {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+  flex: 1 1 360px;
+  justify-content: flex-end;
 }
 
 .filter-field {
