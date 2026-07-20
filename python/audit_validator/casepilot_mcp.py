@@ -1,7 +1,11 @@
 """CasePilot MCP HTTP/SSE client (streamable MCP at /mcp).
 
 Auth: ``Authorization: Bearer cp_api_…`` (CASEPILOT_API_KEY).
-Docs: CasePilot → Connections → CasePilot MCP API / Confluence CasePilot MCP page.
+
+CasePilot sits behind Cloudflare with **broken session affinity**: ``initialize``
+often lands on instance A while the next ``tools/call`` hits instance B → HTTP 404
+``Session not found``. Spec-compliant fix: on 404, start a **new** session and
+retry the same tool call (fresh initialize per attempt) until it succeeds.
 """
 
 from __future__ import annotations
@@ -9,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -16,6 +21,9 @@ from typing import Any
 
 
 DEFAULT_MCP_URL = "https://casepilot.monotype-pp.com/mcp"
+
+# LB flakiness: ~30–70% of init→call pairs miss affinity. 15 tries ≈ ~99.99% if p=0.3.
+_SESSION_RETRY_MAX = int(os.getenv("CASEPILOT_SESSION_RETRIES", "15") or "15")
 
 
 @dataclass
@@ -51,7 +59,6 @@ class CasePilotConfig:
 
 
 def load_casepilot_config() -> CasePilotConfig:
-    # Prefer CASEPILOT_API_KEY; accept CASEPILOT_API_TOKEN as alias.
     key = (
         os.getenv("CASEPILOT_API_KEY", "").strip()
         or os.getenv("CASEPILOT_API_TOKEN", "").strip()
@@ -88,7 +95,7 @@ class CasePilotMcpError(RuntimeError):
 
 
 class CasePilotMcpClient:
-    """Minimal streamable-HTTP MCP client for CasePilot tools."""
+    """Streamable-HTTP MCP client with LB-safe session retry."""
 
     def __init__(self, config: CasePilotConfig | None = None):
         self.config = config or load_casepilot_config()
@@ -116,17 +123,23 @@ class CasePilotMcpClient:
         else:
             text = str(exc or "")
         low = text.lower()
-        return "session not found" in low or ("mcp-session" in low and "not found" in low)
+        return (
+            "session not found" in low
+            or "session expired" in low
+            or ("mcp-session" in low and "not found" in low)
+        )
 
     @staticmethod
     def _is_ip_banned(exc: CasePilotMcpError | str | dict[str, Any] | None) -> bool:
         text = str(exc or "")
         if isinstance(exc, CasePilotMcpError) and exc.payload is not None:
-            text += " " + (json.dumps(exc.payload) if isinstance(exc.payload, dict) else str(exc.payload))
+            text += " " + (
+                json.dumps(exc.payload) if isinstance(exc.payload, dict) else str(exc.payload)
+            )
         low = text.lower()
         return (
             "ip_banned" in low
-            or "ip address" in low and "blocked" in low
+            or ("ip address" in low and "blocked" in low)
             or "error 1006" in low
             or ("cloudflare" in low and "403" in low and "access denied" in low)
         )
@@ -134,31 +147,22 @@ class CasePilotMcpClient:
     @staticmethod
     def _friendly_http_error(code: int, detail: str) -> str:
         low = (detail or "").lower()
-        if (
-            code == 403
-            and (
-                "ip_banned" in low
-                or "blocked your ip" in low
-                or "error 1006" in low
-            )
+        if code == 403 and (
+            "ip_banned" in low or "blocked your ip" in low or "error 1006" in low
         ):
             return (
                 "CasePilot Cloudflare blocked this machine's IP (Error 1006 / ip_banned). "
                 "Ask CasePilot/Cloudflare admins to unblock your IP, connect via corporate VPN, "
-                "and avoid hammering MCP retries. This is not a TestRail or recipe bug."
+                "and avoid hammering MCP. This is not a TestRail or recipe bug."
             )
         if code == 404 and "session not found" in low:
-            return (
-                "CasePilot MCP session expired — retry Generate in UI "
-                "(client will re-initialize automatically)."
-            )
+            # Internal signal for retry — not shown to users until retries exhaust.
+            return "Session not found"
         return f"CasePilot MCP HTTP {code}: {(detail or '')[:400]}"
-
 
     def _headers(self, *, with_session: bool = True) -> dict[str, str]:
         if not self.config.configured:
             raise CasePilotMcpError("CASEPILOT_API_KEY is not set")
-        # Cloudflare Error 1010 blocks Python-urllib's default User-Agent.
         headers = {
             "Accept": "application/json, text/event-stream",
             "Content-Type": "application/json",
@@ -198,7 +202,6 @@ class CasePilotMcpClient:
 
     @staticmethod
     def _parse_sse_json(text: str) -> Any:
-        """Return the last JSON-RPC payload from an SSE or plain JSON body."""
         text = (text or "").strip()
         if not text:
             return None
@@ -215,7 +218,6 @@ class CasePilotMcpClient:
                 except json.JSONDecodeError:
                     continue
         if not payloads:
-            # Some servers emit multiline data blocks
             m = re.findall(r"data:\s*(\{.*?\})(?=\n(?:event:|data:|$))", text, re.S)
             for chunk in m:
                 try:
@@ -225,11 +227,10 @@ class CasePilotMcpClient:
         return payloads[-1] if payloads else None
 
     def ensure_session(self, *, force: bool = False) -> str:
-        """Open a CasePilot MCP session (initialize only).
+        """Open a new MCP session via initialize (no notifications/initialized).
 
-        CasePilot's streamable MCP returns ``Session not found`` for
-        ``notifications/initialized``; skipping that notification and calling
-        tools directly is the working handshake (verified against PP).
+        CasePilot often 404s ``notifications/initialized``; tools/call works without it
+        when the request hits the same LB instance that handled initialize.
         """
         if self._session_id and not force:
             return self._session_id
@@ -242,25 +243,74 @@ class CasePilotMcpClient:
                 "params": {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {},
-                    "clientInfo": {"name": "nextgen-audit-automation", "version": "1.0"},
+                    "clientInfo": {"name": "nextgen-audit-automation", "version": "1.2"},
                 },
             },
             with_session=False,
         )
         sid = hdrs.get("mcp-session-id")
         if not sid:
-            raise CasePilotMcpError("CasePilot MCP did not return mcp-session-id", payload=text)
+            raise CasePilotMcpError(
+                "CasePilot MCP did not return mcp-session-id", payload=text
+            )
         self._session_id = sid
-        # Do NOT send notifications/initialized — CasePilot responds 404 Session not found
-        # and subsequent tool calls fail. tools/call works immediately after initialize.
         return sid
 
-    def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
-        last_err: CasePilotMcpError | None = None
-        # At most one session-reinit. Never retry IP bans or tool business errors.
-        for attempt in range(2):
+    def _decode_tool_result(self, text: str) -> dict[str, Any]:
+        msg = self._parse_sse_json(text)
+        if not isinstance(msg, dict):
+            raise CasePilotMcpError("Invalid CasePilot MCP response", payload=text[:2000])
+        if "error" in msg:
+            err = msg["error"]
+            raise CasePilotMcpError(
+                str(err.get("message") or err),
+                payload=msg,
+            )
+        result = msg.get("result") or {}
+        if result.get("isError"):
+            raise CasePilotMcpError("CasePilot tool error", payload=result)
+
+        merged: dict[str, Any] = {}
+        structured = result.get("structuredContent")
+        if isinstance(structured, dict):
+            merged.update(structured)
+        for block in result.get("content") or []:
+            if not isinstance(block, dict) or block.get("type") != "text":
+                continue
+            raw = block.get("text") or ""
             try:
-                self.ensure_session(force=attempt > 0)
+                parsed = json.loads(raw)
+            except json.JSONDecodeError:
+                if "text" not in merged and raw.strip():
+                    merged["text"] = raw
+                continue
+            if isinstance(parsed, dict):
+                for k, v in parsed.items():
+                    if k not in merged or merged.get(k) in (None, "", [], {}):
+                        merged[k] = v
+                    elif k in {"job_ids", "jobs", "results", "runs"} and not merged.get(k):
+                        merged[k] = v
+        if not merged:
+            return result if isinstance(result, dict) else {"ok": True, "result": result}
+        ids = extract_casepilot_job_ids(merged)
+        if ids and not merged.get("job_ids"):
+            merged["job_ids"] = ids
+        return merged
+
+    def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Call an MCP tool with LB-safe session retry.
+
+        Each attempt: fresh ``initialize`` → immediate ``tools/call``. On
+        ``Session not found``, discard session and retry (up to
+        ``CASEPILOT_SESSION_RETRIES``, default 15). Never retries IP bans.
+        """
+        last_err: CasePilotMcpError | None = None
+        max_tries = max(1, _SESSION_RETRY_MAX)
+        for attempt in range(max_tries):
+            try:
+                # Always mint a fresh session per attempt — reusing a "good" session
+                # still fails on the next LB hop ~half the time.
+                self.ensure_session(force=True)
                 hdrs, text = self._post(
                     {
                         "jsonrpc": "2.0",
@@ -271,57 +321,27 @@ class CasePilotMcpClient:
                 )
                 if hdrs.get("mcp-session-id"):
                     self._session_id = hdrs["mcp-session-id"]
-                msg = self._parse_sse_json(text)
-                if not isinstance(msg, dict):
-                    raise CasePilotMcpError("Invalid CasePilot MCP response", payload=text[:2000])
-                if "error" in msg:
-                    err = msg["error"]
-                    raise CasePilotMcpError(
-                        str(err.get("message") or err),
-                        payload=msg,
-                    )
-                result = msg.get("result") or {}
-                if result.get("isError"):
-                    raise CasePilotMcpError(f"CasePilot tool error: {name}", payload=result)
-
-                merged: dict[str, Any] = {}
-                structured = result.get("structuredContent")
-                if isinstance(structured, dict):
-                    merged.update(structured)
-                for block in result.get("content") or []:
-                    if not isinstance(block, dict) or block.get("type") != "text":
-                        continue
-                    raw = block.get("text") or ""
-                    try:
-                        parsed = json.loads(raw)
-                    except json.JSONDecodeError:
-                        if "text" not in merged and raw.strip():
-                            merged["text"] = raw
-                        continue
-                    if isinstance(parsed, dict):
-                        for k, v in parsed.items():
-                            if k not in merged or merged.get(k) in (None, "", [], {}):
-                                merged[k] = v
-                            elif k in {"job_ids", "jobs", "results", "runs"} and not merged.get(k):
-                                merged[k] = v
-                if not merged:
-                    return result if isinstance(result, dict) else {"ok": True, "result": result}
-                ids = extract_casepilot_job_ids(merged)
-                if ids and not merged.get("job_ids"):
-                    merged["job_ids"] = ids
-                return merged
+                return self._decode_tool_result(text)
             except CasePilotMcpError as exc:
                 last_err = exc
-                # Never retry Cloudflare IP bans — retries make the ban worse.
                 if self._is_ip_banned(exc):
                     raise
-                # Session not found: re-initialize once, then fail (no multi-retry loops).
-                if attempt == 0 and self._is_session_missing(exc):
+                if self._is_session_missing(exc):
                     self._reset_session()
+                    # Short backoff so we are less likely to hit the same cold shard.
+                    time.sleep(min(0.2 * (attempt + 1), 1.5))
                     continue
                 raise
         assert last_err is not None
-        raise last_err
+        raise CasePilotMcpError(
+            (
+                f"CasePilot MCP session affinity failed after {max_tries} attempts "
+                f"(tool={name}). Cloudflare is routing initialize and tools/call to "
+                f"different instances. Retry Send — this is a CasePilot infra issue, "
+                f"not your TestRail steps. Last error: {last_err}"
+            ),
+            payload=getattr(last_err, "payload", None),
+        ) from last_err
 
     def preflight(self) -> dict[str, Any]:
         return self.call_tool("casepilot_preflight")
@@ -461,9 +481,9 @@ def health_check() -> dict[str, Any]:
         return out
     try:
         client = CasePilotMcpClient(cfg)
+        # One resilient preflight is enough for the modal badge; avoid stacking
+        # three flaky calls that used to surface "session expired" to the UI.
         pre = client.preflight()
-        conn = client.list_connectors()
-        info = client.connection_info()
         out.update(
             {
                 "ok": bool(pre.get("ok")),
@@ -471,15 +491,31 @@ def health_check() -> dict[str, Any]:
                 "connectors": {
                     "registered": (pre.get("connector") or {}).get("registered"),
                     "online": (pre.get("connector") or {}).get("online"),
-                    "runners": conn.get("runners") or [],
+                    "runners": [],
                 },
                 "connection_info": {
-                    "mcp_url": info.get("mcp_url"),
-                    "dashboard_url": info.get("dashboard_url"),
-                    "email": info.get("email"),
+                    "mcp_url": cfg.mcp_url,
+                    "email": pre.get("email"),
                 },
             }
         )
+        # Best-effort extras — never fail health if these flake
+        try:
+            conn = client.list_connectors()
+            out["connectors"]["runners"] = conn.get("runners") or []
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            info = client.connection_info()
+            out["connection_info"].update(
+                {
+                    "mcp_url": info.get("mcp_url") or cfg.mcp_url,
+                    "dashboard_url": info.get("dashboard_url"),
+                    "email": info.get("email") or pre.get("email"),
+                }
+            )
+        except Exception:  # noqa: BLE001
+            pass
     except Exception as exc:
         out["ok"] = False
         out["error"] = str(exc)

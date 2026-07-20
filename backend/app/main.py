@@ -799,6 +799,8 @@ class UiTriggerRequest(BaseModel):
     notes: str = ""
     extra: dict[str, Any] = Field(default_factory=dict)
     dispatch: bool = False
+    # Browser mode for CasePilot connector (default headed / visible)
+    headless: bool = False
 
 
 @app.get("/api/meta/casepilot")
@@ -837,13 +839,15 @@ def start_generate_ui(body: UiTriggerRequest) -> dict[str, Any]:
         from audit_validator.ui_trigger import create_ui_trigger_job
 
         cfg = load_casepilot_config()
+        extra = dict(body.extra or {})
+        extra["headless"] = bool(body.headless)
         job = create_ui_trigger_job(
             settings.audit_project_root,
             selection=[s.model_dump() for s in body.selection],
             test_case_id=body.test_case_id,
             cta_text=body.cta_text,
             notes=body.notes,
-            extra=body.extra,
+            extra=extra,
             dispatch=bool(body.dispatch),
         )
         return {

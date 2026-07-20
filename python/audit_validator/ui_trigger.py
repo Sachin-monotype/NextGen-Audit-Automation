@@ -737,6 +737,14 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
             or ui_cfg.get("base_url")
             or ""
         )
+        # Modal / request override (headed default unless headless=true)
+        extra = job.get("extra") if isinstance(job.get("extra"), dict) else {}
+        if "headless" in extra:
+            ui_cfg["headless"] = bool(extra.get("headless"))
+        _append_log(
+            job,
+            f"▸ Browser mode: {'headless' if ui_cfg.get('headless') else 'headed (visible)'}",
+        )
 
         client = CasePilotMcpClient(cfg)
         # Preview cases first (surface not_found early)

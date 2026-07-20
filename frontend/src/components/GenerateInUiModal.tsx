@@ -71,6 +71,13 @@ function formatCasepilotError(raw: string): string {
       "This is not a TestRail/recipe issue."
     );
   }
+  if (low.includes("session not found") || low.includes("session affinity") || low.includes("session expired")) {
+    return (
+      "CasePilot MCP briefly lost session affinity (Cloudflare LB). " +
+      "The client auto-retries with a fresh session — click Send again if this still shows. " +
+      "Not a TestRail/step problem."
+    );
+  }
   return raw;
 }
 
@@ -101,6 +108,8 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
   const [error, setError] = useState("");
   const [mcpOk, setMcpOk] = useState<boolean | null>(null);
   const [mcpDetail, setMcpDetail] = useState("");
+  /** headed = visible browser (default); headless = no UI window */
+  const [browserMode, setBrowserMode] = useState<"headed" | "headless">("headed");
   const closedRef = useRef(false);
 
   function requestClose() {
@@ -193,6 +202,8 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
           .map((r) => `${scenarioTitle(r)}: ${r.notes.trim()}`)
           .join("\n"),
         dispatch: true,
+        headless: browserMode === "headless",
+        extra: { headless: browserMode === "headless", browser_mode: browserMode },
       });
       if (closedRef.current) return;
       onActive?.(res.job);
@@ -237,6 +248,19 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
         </p>
 
         <form onSubmit={onSubmit} className="token-cred-form">
+          <label style={{ display: "block", marginBottom: 12, maxWidth: 360 }}>
+            Browser mode
+            <select
+              value={browserMode}
+              onChange={(e) => setBrowserMode(e.target.value as "headed" | "headless")}
+              disabled={busy}
+              style={{ display: "block", width: "100%", marginTop: 4 }}
+            >
+              <option value="headed">Headed (visible browser) — default</option>
+              <option value="headless">Headless (no browser window)</option>
+            </select>
+          </label>
+
           <div className="generate-ui-scenario-list">
             {rows.map((r, i) => {
               const digits = r.test_case_id.replace(/\D/g, "");
@@ -288,7 +312,12 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
             <button
               type="submit"
               className="primary"
-              disabled={busy || missingCase || mcpOk === false}
+              disabled={busy || missingCase}
+              title={
+                mcpOk === false
+                  ? "CasePilot status check failed — Send still retries MCP sessions automatically"
+                  : undefined
+              }
             >
               {busy ? "Sending…" : `Send ${rows.length} to CasePilot`}
             </button>

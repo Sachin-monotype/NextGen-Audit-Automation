@@ -345,6 +345,8 @@ export async function startGenerateInUi(body: {
   notes?: string;
   extra?: Record<string, unknown>;
   dispatch?: boolean;
+  /** CasePilot browser mode — false = headed (default), true = headless */
+  headless?: boolean;
 }) {
   const res = await fetch(`${API}/api/jobs/generate-ui`, {
     method: "POST",
