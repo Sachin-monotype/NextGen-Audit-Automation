@@ -1,38 +1,16 @@
-"""Deterministic CasePilot UI recipes (mtconnect-ui routes + qa-ids).
+"""CasePilot UI recipes — short event triggers for an anonymous AI runner.
 
-CasePilot is driven primarily by these steps (``prefer_steps=context_over_testrail``),
-not by TestRail prose. Keep recipes short, scoped, and free of "wander the UI".
+Goal: fire the GraphQL mutation + emit AUDIT_RESULT. Prefer existing UI state.
+Do NOT invent long create-project → create-list → add-family journeys unless the
+scenario cannot fire without that scope.
+
+Selectors follow MTConnectAutomation pages (data-qa-id=toggle-btn, etc.).
 """
 
 from __future__ import annotations
 
 import os
 from typing import Any
-
-
-def _seed_hint() -> str:
-    """Dynamic seed guidance — prefer env, else any searchable family (no hard name)."""
-    env = (
-        os.getenv("SEED_FAMILY_ID", "").strip()
-        or os.getenv("TOUCHPOINT_FAMILY_ID", "").strip()
-        or os.getenv("CASEPILOT_SEED_FAMILY_ID", "").strip()
-    )
-    if env:
-        return (
-            f"In Search, look up family id {env}. If not found, pick any other "
-            "deactivated family from Search results."
-        )
-    try:
-        from audit_validator.live_seeds import KNOWN_FAMILY_POOL
-
-        examples = ", ".join(KNOWN_FAMILY_POOL[:4])
-    except Exception:  # noqa: BLE001
-        examples = "910042901, 910052505"
-    return (
-        "In Search (/search), pick ANY deactivated family visible in results "
-        f"(optional examples if search is empty: {examples}). "
-        "Do not require a specific family name — reuse whatever is already on screen when possible."
-    )
 
 
 def short_touch(touch: str) -> str:
@@ -65,409 +43,314 @@ def short_touch(touch: str) -> str:
 
 def audit_emit(op: str, touch_short: str) -> str:
     return (
-        f"DevTools → Network → filter operationName={op} (ignore search/browse queries). "
-        f"Copy response header correlation-id (NOT x-correlation-id). Emit exactly: "
-        f"AUDIT_RESULT|operation={op}|correlation_id=<real-uuid>|touchpoint={touch_short}"
+        f"Network → filter operationName={op} → copy response header correlation-id "
+        f"(NOT x-correlation-id) → emit "
+        f"AUDIT_RESULT|operation={op}|correlation_id=<uuid>|touchpoint={touch_short}"
     )
 
 
-def _close() -> str:
-    return (
-        "Stop. Close the browser. Do not open family detail, new tabs, or unrelated menus "
-        "after AUDIT_RESULT."
+def _seed() -> str:
+    env = (
+        os.getenv("SEED_FAMILY_ID", "").strip()
+        or os.getenv("TOUCHPOINT_FAMILY_ID", "").strip()
+        or ""
     )
+    if env:
+        return f"Search for family id {env} if needed."
+    return "Use any family already visible on screen (prefer deactivated)."
 
 
-def _nav_search() -> str:
-    return (
-        "Sidebar → Search → URL /search. Ensure sort is font families / fonts "
-        "(NOT lists & folders)."
-    )
-
-
-def _no_family_detail() -> str:
-    return (
-        "Stay on the search/grid card. Do NOT open family detail (/family/…). "
-        "Do NOT use 'Open in new tab'."
-    )
-
-
-def _steps(*texts: str, op: str, touch: str) -> list[dict[str, str]]:
-    return [{"op": op, "touchpoint": touch, "step": t} for t in texts if t]
+def _S(*lines: str, op: str, touch: str) -> list[dict[str, str]]:
+    return [{"op": op, "touchpoint": touch, "step": x} for x in lines if x]
 
 
 def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
-    """Return ordered UI steps for one Generate catalog scenario."""
+    """Minimal steps: get to the control → click → AUDIT_RESULT → next."""
     op = (op or "").strip()
     touch = (touch or "").strip()
-    touch_short = short_touch(touch)
+    ts = short_touch(touch)
     touch_canon = touch or {
         "global": "Discovery/Browse (global)",
         "list": "List (FONTLIST)",
         "favourite": "Favourite",
         "project": "Project",
         "project_list": "Project > List",
-        "user_access": "User & Access",
-        "account": "Account & workspace",
-        "preferences": "Preferences",
-        "notifications": "Notifications",
-        "manage_tags": "Manage>Tags",
-        "library_assets": "Mylibrary>Assets",
-    }.get(touch_short, touch)
-    seed = _seed_hint()
-    label = label or f"{op}({touch_short})"
+    }.get(ts, touch)
+    label = label or f"{op}({ts})"
+    seed = _seed()
 
-    # ── activateFamily ──────────────────────────────────────────────
-    if op == "activateFamily" and touch_short == "global":
-        return _steps(
-            f"{_nav_search()} {seed}",
-            f"{_no_family_detail()} If card toggle is ON, click data-qa-id=toggle-btn to deactivate; wait for success.",
-            "Click toggle-btn to Activate (global — mutation must omit listType/listIds/projectId).",
+    # ── Family activate / deactivate ────────────────────────────────
+    if op == "activateFamily" and ts == "global":
+        return _S(
+            f"GOAL: fire activateFamily (global). {seed}",
+            "Go to Search (/search). Stay on font-family cards. Do NOT open /family/… detail.",
+            "On first card: if toggle-btn is ON, click once to deactivate; wait snackbar.",
+            "Click data-qa-id=toggle-btn to Activate. Wait success snackbar.",
             audit_emit(op, "global"),
-            _close(),
             op=op,
             touch=touch_canon,
         )
-    if op == "activateFamily" and touch_short == "favourite":
-        return _steps(
-            f"{_nav_search()} {seed} Add to Favourites (heart) if missing.",
-            "Sidebar → MY LIBRARY → Favourites (/library/favourites/fonts). Stay on favourites grid.",
-            "Deactivate via toggle-btn if needed, then Activate (listType=Favorite, no listIds).",
-            audit_emit(op, "favourite")
-            + " Also emit AUDIT_RESULT for addFavoriteFamilies if it ran.",
-            _close(),
+    if op == "activateFamily" and ts == "favourite":
+        return _S(
+            f"GOAL: fire activateFamily with listType=Favorite. {seed}",
+            "On Search card heart (icon-favorite) if not favourited → open /library/favourites/fonts.",
+            "On Favourites grid click toggle-btn to Activate (do not open family detail).",
+            audit_emit(op, "favourite"),
             op=op,
             touch=touch_canon,
         )
-    if op == "activateFamily" and touch_short == "list":
-        return _steps(
-            "Create or open a My Library FontList only (/library or Search → lists & folders). Not inside a project.",
-            f"{seed} Add that family to the list (addFontListFamilies). Open /library/FontList/{{assetId}}.",
-            "From the LIST grid, deactivate if needed, then Activate family "
-            "(listType=Fontlist + listIds — no projectId).",
-            "Emit AUDIT_RESULT for createAsset/addFontListFamilies if run, then "
-            + audit_emit(op, "list"),
-            _close(),
+    if op == "activateFamily" and ts == "list":
+        return _S(
+            "GOAL: fire activateFamily with listType=Fontlist + listIds (no projectId).",
+            "Reuse an existing My Library FontList if present (/library). Else create one FontList and add any family once.",
+            "Open the list grid → click family toggle-btn to Activate.",
+            audit_emit(op, "list"),
             op=op,
             touch=touch_canon,
         )
-    if op == "activateFamily" and touch_short == "project":
-        return _steps(
-            "Go to /projects → create or open a project → /projects/library/{projectId}/fonts.",
-            f"{seed} Add family to the project (addFontProjectFamilies).",
-            "On Project fonts grid, deactivate if needed, then Activate "
-            "(listType=Fontproject + projectId). Do not use global Search toggle.",
-            "Emit helper AUDIT_RESULT lines if run, then " + audit_emit(op, "project"),
-            _close(),
+    if op == "activateFamily" and ts == "project":
+        return _S(
+            "GOAL: fire activateFamily with listType=Fontproject + projectId.",
+            "Reuse a recent project (/projects) if it already has fonts. Else create project and add one family.",
+            "On /projects/library/{id}/fonts click Activate fonts or family toggle-btn.",
+            audit_emit(op, "project"),
             op=op,
             touch=touch_canon,
         )
-    if op == "activateFamily" and touch_short == "project_list":
-        return _steps(
-            "CRITICAL: Project > List ≠ List alone. Create/open PROJECT first.",
-            f"Add family to project, then create a FontList INSIDE that project and add the same family.",
-            "Open /projects/library/FontList/{listAssetId}. Activate from THIS grid so mutation has BOTH projectId AND listIds.",
-            "Emit helpers (createProject, addFontProjectFamilies, createAsset, addFontListFamilies), then "
-            + audit_emit(op, "project_list"),
-            "Close browser. Never activate from global Search for this scenario.",
+    if op == "activateFamily" and ts == "project_list":
+        return _S(
+            "GOAL: fire activateFamily with BOTH projectId AND listIds.",
+            "Reuse existing project that already has a FontList with fonts. Only create project+list+add family if none exist.",
+            "Open that project list grid → Activate family via toggle-btn (not global Search).",
+            audit_emit(op, "project_list"),
             op=op,
             touch=touch_canon,
         )
-
-    # ── deactivateFamilies (mirror activateFamily scopes) ───────────
     if op == "deactivateFamilies":
-        if touch_short == "global":
-            return _steps(
-                f"{_nav_search()} {seed} {_no_family_detail()}",
-                "If deactivated, Activate once first, then Deactivate via toggle-btn.",
-                audit_emit(op, "global"),
-                _close(),
-                op=op,
-                touch=touch_canon,
-            )
-        return _steps(
-            f"Navigate to {touch_canon} surface (same path as activateFamily for this touchpoint). {seed}",
-            "Ensure family is activated in THIS scope, then Deactivate from that same scope.",
-            audit_emit(op, touch_short),
-            _close(),
+        where = {
+            "global": "Search card toggle-btn",
+            "favourite": "Favourites grid toggle-btn",
+            "list": "My Library list grid toggle-btn",
+            "project": "Project fonts grid",
+            "project_list": "Project list grid",
+        }.get(ts, "matching scope grid")
+        return _S(
+            f"GOAL: fire deactivateFamilies ({ts}). Ensure family is ON in this scope first, then turn OFF.",
+            f"Use {where}. Do not open family detail.",
+            audit_emit(op, ts),
             op=op,
             touch=touch_canon,
         )
 
-    # ── activateStyle / activateVariation ───────────────────────────
+    # ── Style / variation (family detail required) ──────────────────
     if op in {"activateStyle", "deactivateStyle"}:
-        return _steps(
-            f"{_nav_search()} {seed}",
-            "Open family detail (/family/{slug}) OR style row via card right-click — required for style ops.",
-            (
-                "Activate ONE style (not whole family) from Styles tab / Activate style menu."
-                if op == "activateStyle"
-                else "Deactivate ONE style that is currently active."
-            )
-            + f" Scope must match touchpoint={touch_short}.",
-            audit_emit(op, touch_short),
-            _close(),
+        act = "Activate" if op == "activateStyle" else "Deactivate"
+        return _S(
+            f"GOAL: fire {op} ({ts}) — ONE style, not whole family.",
+            f"{seed} Open family card kebab → Activate styles submenu OR open /family/{{slug}} Styles tab.",
+            f"{act} one style row. Scope must match {ts}.",
+            audit_emit(op, ts),
             op=op,
             touch=touch_canon,
         )
     if op in {"activateVariation", "deactivateVariation"}:
-        return _steps(
-            f"{_nav_search()} {seed}",
-            "Open family detail → select a style → More actions → Font versions drawer.",
-            (
-                "Activate a non-default variation row."
-                if op == "activateVariation"
-                else "Deactivate an active non-default variation."
-            )
-            + f" Scope touchpoint={touch_short}.",
-            audit_emit(op, touch_short),
-            _close(),
+        act = "Activate" if op == "activateVariation" else "Deactivate"
+        return _S(
+            f"GOAL: fire {op} ({ts}).",
+            "Open family → style → Font versions drawer → "
+            f"{act} a non-default variation.",
+            audit_emit(op, ts),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Lists / projects activation ─────────────────────────────────
+    # ── List / project activate ─────────────────────────────────────
     if op in {"activateList", "deActivateList"}:
-        if touch_short == "project_list":
-            return _steps(
-                "Create/open project → create FontList inside project → add ≥1 family.",
-                "Open project list. Kebab → context-menu-item-activate-all-fonts "
-                "(or deactivate-all for deActivateList). This is activateList, NOT activateFamily.",
-                audit_emit(op, "project_list"),
-                _close(),
-                op=op,
-                touch=touch_canon,
-            )
-        return _steps(
-            "Open My Library list (/library/FontList/{id}) or Search → lists & folders.",
-            "Kebab on list → Activate all fonts (context-menu-item-activate-all-fonts) "
-            "or Deactivate all fonts. Do not open family detail.",
-            audit_emit(op, "list"),
-            _close(),
+        kebab = (
+            "context-menu-item-activate-all-fonts"
+            if op == "activateList"
+            else "context-menu-item-deactivate-all-fonts"
+        )
+        where = (
+            "project FontList kebab"
+            if ts == "project_list"
+            else "My Library / Search lists&folders FontList kebab"
+        )
+        return _S(
+            f"GOAL: fire {op} ({ts}) — list-wide, NOT activateFamily.",
+            f"Open an existing FontList ({where}) → kebab → {kebab}.",
+            audit_emit(op, "project_list" if ts == "project_list" else "list"),
             op=op,
             touch=touch_canon,
         )
     if op in {"activateFontProject", "deActivateFontProject"}:
-        return _steps(
-            "NOTE: Project toolbar 'Activate fonts' usually fires activateFamily(Fontproject), "
-            "not activateFontProject. Prefer Project fonts page after adding fonts.",
-            "Create/open project → add families → use project Activate / Deactivate project fonts control "
-            "that maps to this mutation if available; otherwise trigger via UI path that posts activateFontProject.",
+        return _S(
+            f"GOAL: fire {op}. Prefer existing project with fonts.",
+            "Open project fonts page → use Activate/Deactivate project fonts control that posts this mutation.",
             audit_emit(op, "project"),
-            _close(),
             op=op,
             touch=touch_canon,
         )
 
-    # ── pin / unpin / updateAssets ───────────────────────────────────
+    # ── Pin / assets ────────────────────────────────────────────────
     if op == "pinAsset":
-        return _steps(
-            "Go to /library (Show all assets) OR /search → lists & folders.",
-            "Create a Folder or FontList if none exist (createAsset). Kebab → Pin folder/list "
-            "(context-menu-item-pin-folder / pin-list). Do not open family detail.",
-            "Emit createAsset AUDIT_RESULT if run, then " + audit_emit(op, "global"),
-            _close(),
+        return _S(
+            "GOAL: fire pinAsset.",
+            "Open /library or Search→lists&folders → kebab on Folder/FontList → pin-folder or pin-list.",
+            audit_emit(op, "global"),
             op=op,
             touch=touch_canon,
         )
     if op == "unpinAsset":
-        return _steps(
-            "Open /library. Find an already-pinned folder/list (pin one first if needed).",
-            "Kebab → Unpin. Do not open family detail.",
+        return _S(
+            "GOAL: fire unpinAsset.",
+            "On a pinned Folder/FontList → kebab → Unpin.",
             audit_emit(op, "global"),
-            _close(),
             op=op,
             touch=touch_canon,
         )
     if op == "updateAssets":
-        return _steps(
-            "Open /library or /projects/library/{id} → Webkits tab.",
-            "Take a webkit offline or online "
-            "(webkit-actions-take-offline-* / take-online-*). Avoid family Search.",
+        return _S(
+            "GOAL: fire updateAssets.",
+            "Library/Project → Webkits tab → Take offline or Take online on one webkit.",
             audit_emit(op, "global"),
-            _close(),
             op=op,
             touch=touch_canon,
         )
 
     # ── Favourites helpers ──────────────────────────────────────────
-    if op in {
-        "addFavoriteFamilies",
-        "removeFavoriteFamilies",
-        "addFavoriteStyles",
-        "removeFavoriteStyles",
-        "addFavoritePair",
-        "removeFavoritePair",
-        "bulkRemoveStylesFromFavourites",
-    }:
-        return _steps(
-            f"{_nav_search()} {seed}" if "add" in op.lower() or "remove" in op.lower() else "",
-            "Use Favourites heart / Favourites page (/library/favourites/fonts) for this mutation. "
-            "Do not wander into projects unless required.",
-            f"Perform {label} with the minimal clicks that fire {op}.",
-            audit_emit(op, touch_short),
-            _close(),
+    if op.startswith("addFavorite") or op.startswith("removeFavorite") or "Favourites" in op:
+        return _S(
+            f"GOAL: fire {op}.",
+            "Search card heart (icon-favorite) or /library/favourites/fonts — one click that posts this mutation.",
+            audit_emit(op, ts),
             op=op,
             touch=touch_canon,
         )
 
-    # ── createAsset / createProject / duplicate ─────────────────────
+    # ── Create / duplicate (single action) ───────────────────────────
     if op == "createAsset":
-        if touch_short == "project_list":
-            return _steps(
-                "Open a project → create FontList asset inside that project only.",
-                audit_emit(op, "project_list"),
-                _close(),
-                op=op,
-                touch=touch_canon,
-            )
-        if touch_short == "list":
-            return _steps(
-                "My Library → create FontList (not project-scoped).",
-                audit_emit(op, "list"),
-                _close(),
-                op=op,
-                touch=touch_canon,
-            )
-        return _steps(
-            "My Library or Search → create Folder/FontList asset.",
-            audit_emit(op, "global"),
-            _close(),
+        return _S(
+            f"GOAL: fire createAsset ({ts}).",
+            "Create one FontList/Folder in the correct place (My Library vs inside a project).",
+            audit_emit(op, ts),
             op=op,
             touch=touch_canon,
         )
     if op == "createProject":
-        return _steps(
-            "Go to /projects → Create project. Stay on projects flow.",
-            audit_emit(op, touch_short if touch_short != "global" else "global"),
-            _close(),
+        return _S(
+            "GOAL: fire createProject.",
+            "Go to /projects → Create project → save.",
+            audit_emit(op, ts if ts != "global" else "global"),
             op=op,
             touch=touch_canon,
         )
     if op == "duplicateProject":
-        return _steps(
-            "Open /projects → open an existing project → Duplicate.",
-            audit_emit(op, touch_short),
-            _close(),
+        return _S(
+            "GOAL: fire duplicateProject.",
+            "Open an existing project → Duplicate.",
+            audit_emit(op, ts),
             op=op,
             touch=touch_canon,
         )
 
     # ── Notifications / settings / admin ────────────────────────────
     if op in {"dismissNotification", "markNotificationRead"}:
-        return _steps(
-            "Open Notifications panel/page. Pick one notification.",
-            f"Perform {op} (dismiss or mark read).",
-            audit_emit(op, touch_short),
-            _close(),
-            op=op,
-            touch=touch_canon,
-        )
-    if op in {"setLanguagePreference", "updateCustomerSettings", "getCustomerSettings"}:
-        return _steps(
-            "Open Account / Preferences / workspace settings for this touchpoint.",
-            f"Perform {label} with minimal clicks.",
-            audit_emit(op, touch_short),
-            _close(),
+        return _S(
+            f"GOAL: fire {op}.",
+            "Open Notifications → dismiss or mark one item read.",
+            audit_emit(op, ts),
             op=op,
             touch=touch_canon,
         )
     if op in {
+        "setLanguagePreference",
+        "updateCustomerSettings",
+        "getCustomerSettings",
         "bulkUpdateProfiles",
         "createUserInvitations",
         "deleteRoles",
         "deleteTeams",
         "createServiceAccount",
     }:
-        return _steps(
-            "Open User & Access (or Admin) area matching the touchpoint.",
-            f"Perform {label}. Avoid font Search/family detail.",
-            audit_emit(op, touch_short),
-            _close(),
+        return _S(
+            f"GOAL: fire {op} at {touch_canon}.",
+            "Open the matching settings/admin page → perform the single action that posts this mutation.",
+            audit_emit(op, ts),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Library bulk / tags / documents (shortest path) ─────────────
-    if op.startswith("bulk") or op in {
-        "addFontListFamilies",
-        "addFontListStyles",
-        "addFontProjectFamilies",
-        "addFontProjectStyles",
-        "removeFontProjectStyles",
-        "bulkTagStyles",
-        "bulkUntagStyles",
-        "updatePrivateTag",
-        "updatePrivateTagAssociations",
-        "addStyleDocument",
-        "updateSessionFiles",
-        "processUploadSessionFonts",
-        "createContract",
-        "parseAndCreateContract",
-        "submitIntentForProduction",
-        "cancelBatch",
-        "syncUnSyncVariations",
-    }:
-        return _steps(
-            f"Use the shortest NextGen UI path for {label} at touchpoint={touch_canon}.",
-            "Reuse existing project/list/asset when possible — do not recreate setup if already present.",
-            "Do not open unrelated family detail tabs. Do not switch environments.",
-            audit_emit(op, touch_short),
-            _close(),
-            op=op,
-            touch=touch_canon,
-        )
-
-    # Generic fallback — still scoped
-    return _steps(
-        f"Perform ONLY {label} at touchpoint={touch_canon}. Shortest path. "
-        "Do not open family detail unless this mutation requires a style/variation.",
-        f"If fonts are needed: {seed}",
-        audit_emit(op, touch_short),
-        _close(),
+    # ── Everything else: one-liner trigger ──────────────────────────
+    return _S(
+        f"GOAL: fire {label} only. Reuse existing project/list/asset if present — do not rebuild setup.",
+        f"Navigate to the UI surface for touchpoint={touch_canon}, click the control that posts {op}.",
+        "Do not open unrelated family detail tabs. Do not explore.",
+        audit_emit(op, ts),
         op=op,
         touch=touch_canon,
     )
 
 
 def steps_for_selection(selection: list[dict[str, Any]]) -> list[dict[str, str]]:
-    """Build steps for one or more selection rows (multi = sequential blocks)."""
+    """Build steps. Multi-select → numbered checklist; finish each then continue."""
     out: list[dict[str, str]] = []
     items = [s for s in selection if isinstance(s, dict)]
+    n = len(items)
     for idx, s in enumerate(items, 1):
         op = str(s.get("operation") or "").strip()
         touch = str(s.get("touchpoint") or "").strip()
         label = str(s.get("label") or op).strip()
         extra = str(s.get("notes") or s.get("extra_details") or "").strip()
-        if len(items) > 1:
+        if n > 1:
             out.append(
                 {
                     "op": op,
                     "touchpoint": touch,
                     "step": (
-                        f"=== SCENARIO {idx}/{len(items)}: {label} — complete fully before the next. "
-                        "Do not start the next scenario early. ==="
+                        f"=== EVENT {idx}/{n}: {label} — fire mutation, emit AUDIT_RESULT, "
+                        f"then immediately continue to event {idx + 1 if idx < n else 'DONE'}. "
+                        "Do not close the browser until all events are done. ==="
                     ),
                 }
             )
         if extra:
-            out.append(
-                {
-                    "op": op,
-                    "touchpoint": touch,
-                    "step": f"Operator hint for {label}: {extra}",
-                }
-            )
+            out.append({"op": op, "touchpoint": touch, "step": f"Hint: {extra}"})
         out.extend(recipe_for(op, touch, label=label))
+    if n > 1:
+        out.append(
+            {
+                "op": "",
+                "touchpoint": "",
+                "step": (
+                    f"After all {n} AUDIT_RESULT lines are emitted, close the browser. "
+                    "You must produce one AUDIT_RESULT per selected event (helpers optional)."
+                ),
+            }
+        )
     return out
 
 
+def compact_checklist(selection: list[dict[str, Any]]) -> list[str]:
+    """Ultra-short checklist lines for multi-event CasePilot context."""
+    lines: list[str] = []
+    for i, s in enumerate([x for x in selection if isinstance(x, dict)], 1):
+        op = str(s.get("operation") or "").strip()
+        touch = str(s.get("touchpoint") or "").strip()
+        ts = short_touch(touch)
+        label = str(s.get("label") or f"{op}({ts})")
+        lines.append(
+            f"{i}. {label} → fire {op} → "
+            f"AUDIT_RESULT|operation={op}|correlation_id=<uuid>|touchpoint={ts}"
+        )
+    return lines
+
+
 def testrail_steps_text(op: str, touch: str, *, label: str = "") -> str:
-    """Plain-text steps for TestRail case body."""
     rows = recipe_for(op, touch, label=label)
     lines = [f"{i}. {r['step']}" for i, r in enumerate(rows, 1)]
     lines.append(
-        "Expected: GraphQL mutation fires; AUDIT_RESULT line with real correlation-id; "
-        "raw + enriched land in Generation Status."
+        "Expected: Mutation fires; AUDIT_RESULT with real correlation-id; "
+        "raw+enrich visible in Generation Status."
     )
     return "\n".join(lines)

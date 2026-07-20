@@ -544,6 +544,8 @@ def _build_context(
 ) -> tuple[str, str, dict[str, str]]:
     selection = selection_override if selection_override is not None else (job.get("selection") or [])
     items = [s for s in selection if isinstance(s, dict)]
+    from audit_validator.ui_case_recipes import compact_checklist, short_touch
+
     lines = []
     for i, s in enumerate(items, 1):
         label = s.get("label") or s.get("operation") or "?"
@@ -555,34 +557,41 @@ def _build_context(
             + (f" · id={sid}" if sid else "")
         )
     ui_steps = ui_steps_for_selection(items)
-    step_lines = [f"{i}. {st['step']}" for i, st in enumerate(ui_steps, 1)]
+    # Cap detailed steps for huge selections — checklist carries the contract
+    max_detail = 80 if len(items) <= 5 else 40
+    step_lines = [f"{i}. {st['step']}" for i, st in enumerate(ui_steps[:max_detail], 1)]
+    if len(ui_steps) > max_detail:
+        step_lines.append(
+            f"… ({len(ui_steps) - max_detail} more detail lines omitted — follow EVENT checklist below)"
+        )
     primary = items[0] if items else {}
     primary_op = str(primary.get("operation") or "activateFamily")
-    primary_touch = _short_touch_label(str(primary.get("touchpoint") or "global"))
+    primary_touch = short_touch(str(primary.get("touchpoint") or "global"))
+    checklist = compact_checklist(items)
     summary = (job.get("cta_text") or "").strip()
     if not summary:
         if len(items) == 1:
-            summary = (
-                f"Perform {primary.get('label') or primary_op} "
-                f"(touchpoint={primary_touch}) in NextGen UI — then stop"
-            )
+            summary = f"Trigger {primary.get('label') or primary_op} once, emit AUDIT_RESULT, stop"
         else:
             summary = (
-                f"Execute {len(items)} NextGen audit UI scenario(s) ONE AT A TIME "
-                "(finish each before the next)"
+                f"Trigger {len(items)} NextGen audit events in one browser session — "
+                "one AUDIT_RESULT each, reuse existing UI state, do not rebuild projects every time"
             )
     description = "\n".join(
         [
             "NextGen Audit Automation — Generate in UI handoff",
             "",
-            "## RULES (non-negotiable)",
-            "- Follow the numbered steps EXACTLY. Override TestRail prose if it conflicts.",
-            "- One scenario at a time. Do not invent extra project/list/favourite setup unless listed.",
-            "- Do NOT open family detail (/family/…) unless the step says style/variation requires it.",
-            "- Do NOT use 'Open in new tab'. Do not wander Search after the target mutation fires.",
-            "- Prefer any visible deactivated family over hunting for a hardcoded name.",
+            "## YOU ARE AN ANONYMOUS UI RUNNER",
+            "- Goal: TRIGGER GraphQL events and emit AUDIT_RESULT lines. Nothing else.",
+            "- Reuse whatever is already on screen (projects, lists, families). Do not recreate setup unless required for scope.",
+            "- Do NOT open family detail (/family/…) unless the event is style/variation.",
+            "- Do NOT open new tabs. Do NOT wander Search after a mutation fires.",
+            "- For multi-event runs: finish EVENT N (mutation + AUDIT_RESULT) then immediately start EVENT N+1. Keep the browser open until all events are done.",
             "",
-            "## FOLLOW THESE STEPS",
+            "## EVENT CHECKLIST (must emit one AUDIT_RESULT per line)",
+            *checklist,
+            "",
+            "## DETAILED STEPS (when checklist alone is unclear)",
             *step_lines,
             "",
             "## Selection",
@@ -591,17 +600,12 @@ def _build_context(
             "## Extra notes",
             (job.get("notes") or "").strip() or "(none)",
             "",
-            "## Correlation (CRITICAL)",
-            "- Capture response header correlation-id (Cloudflare-safe) for EVERY GraphQL mutation.",
-            "- Intermediate helpers also count: createProject, createAsset, addFontProjectFamilies,",
-            "  addFontListFamilies, addFavoriteFamilies, deactivateFamilies, activateFamily, etc.",
-            "- Never use x-correlation-id.",
-            "- Emit one line per mutation with REAL uuids (never YOUR-UUID or <uuid>):",
-            f"  AUDIT_RESULT|operation={primary_op}|correlation_id=<real-uuid>|touchpoint={primary_touch}",
-            "- Pick the GraphQL call whose operationName / body matches the mutation, "
-            "not browse/search/query traffic.",
-            "- Then close the browser; the audit app auto-verifies raw↔enriched.",
-            "- NEVER emit literal tokens like <op>, <touch>, YOUR-UUID, or <uuid>.",
+            "## Correlation",
+            "- Header: correlation-id (never x-correlation-id).",
+            "- Format: AUDIT_RESULT|operation=<op>|correlation_id=<real-uuid>|touchpoint=<short>",
+            "- Filter Network by operationName matching the mutation (ignore search/browse queries).",
+            "- Real UUIDs only — never YOUR-UUID or <uuid> literals.",
+            f"- Example: AUDIT_RESULT|operation={primary_op}|correlation_id=<uuid>|touchpoint={primary_touch}",
         ]
     )
     per_notes = []
@@ -623,14 +627,15 @@ def _build_context(
         "audit_result_format": (
             f"AUDIT_RESULT|operation={primary_op}|correlation_id=<real-uuid>|touchpoint={primary_touch}"
         ),
-        "capture_intermediate_mutations": "true",
+        "capture_intermediate_mutations": "false" if len(items) > 3 else "true",
         "product": "NextGen",
         "source": "nextgen-audit-automation",
         "after_ui": "close_browser_auto_verify_in_audit_app",
         "prefer_steps": "context_over_testrail",
         "avoid_family_detail_unless_required": "true",
         "seed_family_id": seed_env or "dynamic",
-        "one_scenario_per_run": "true" if len(items) == 1 else "false",
+        "event_count": str(len(items)),
+        "mode": "batch_event_trigger" if len(items) > 1 else "single_event",
     }
     return summary, description, hints
 
@@ -685,7 +690,6 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
 
     try:
         from audit_validator.env_profiles import get_audit_profile
-        from audit_validator.ui_testrail_map import case_id_for_selection_item
 
         profile = get_audit_profile()
         # Always drive CasePilot at the currently selected AUDIT_TARGET NextGen URL
@@ -708,80 +712,65 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
             )
 
         selection_items = [s for s in (job.get("selection") or []) if isinstance(s, dict)]
-        # One CasePilot run per scenario — focused context stops the agent from
-        # wandering across 7 unrelated recipes in a single hour-long session.
-        runs_out: list[dict[str, Any]] = []
-        cp_jobs: list[str] = []
+        # ONE CasePilot session for the whole selection (connector rejects 45 parallel queues).
+        # Context = compact EVENT checklist + short recipes so the AI fires mutations, not setup epics.
         env_block = (
             f"\n\n## Environment\n- AUDIT_TARGET={profile.name}\n"
             f"- NextGen UI: {ui_cfg['base_url']}\n"
             "Use this URL only — do not switch environments mid-run.\n"
         )
-
-        def _queue_one(item: dict[str, Any] | None, cid: int) -> None:
-            sel = [item] if item else selection_items
-            summary, description, hints = _build_context(job, selection_override=sel)
-            hints = {
-                **hints,
-                "audit_target": profile.name,
-                "nextgen_ui_url": ui_cfg["base_url"],
-                "mongo_db": (os.getenv("MONGO_DB_NAME") or "").strip(),
-            }
-            run = client.run_testrail_ui_tests(
-                [cid],
-                ui_config=ui_cfg,
-                context_summary=summary,
-                context_description=description + env_block,
-                context_hints=hints,
-                wait_for_completion=False,
-                stop_on_failure=True,
-            )
-            jobs = extract_casepilot_job_ids(run)
-            cp_jobs.extend(jobs)
-            runs_out.append(
-                {
-                    "case_id": cid,
-                    "selection": (item or {}).get("id") or (item or {}).get("label"),
-                    "job_ids": jobs,
-                    "ok": run.get("ok"),
-                    "error": run.get("error") or run.get("message"),
-                }
-            )
-            label = (item or {}).get("label") or (item or {}).get("operation") or cid
-            _append_log(
-                job,
-                f"▸ Queued CasePilot for {label} · case={cid} · jobs={jobs or '∅'}",
-            )
-
-        if selection_items:
-            for item in selection_items:
-                cid = case_id_for_selection_item(item)
-                if not cid:
-                    # Fall back to bulk list order if row has no map hit
-                    continue
-                _queue_one(item, int(cid))
-            # Any case_ids not covered by selection rows (manual paste)
-            covered = {
-                case_id_for_selection_item(s)
-                for s in selection_items
-                if case_id_for_selection_item(s)
-            }
-            for cid in case_ids:
-                if int(cid) not in covered:
-                    _queue_one(None, int(cid))
-        else:
-            for cid in case_ids:
-                _queue_one(None, int(cid))
-
-        run_snap = {
-            "ok": all(r.get("ok") is not False for r in runs_out) if runs_out else False,
-            "runs": runs_out,
-            "queued_count": len(cp_jobs),
-            "case_count": len(case_ids),
+        summary, description, hints = _build_context(job, selection_override=selection_items or None)
+        hints = {
+            **hints,
+            "audit_target": profile.name,
+            "nextgen_ui_url": ui_cfg["base_url"],
+            "mongo_db": (os.getenv("MONGO_DB_NAME") or "").strip(),
         }
+        run = client.run_testrail_ui_tests(
+            case_ids,
+            ui_config=ui_cfg,
+            context_summary=summary,
+            context_description=description + env_block,
+            context_hints=hints,
+            wait_for_completion=False,
+            stop_on_failure=False,
+        )
+        cp_jobs = extract_casepilot_job_ids(run)
+        run_snap = {
+            k: run.get(k)
+            for k in (
+                "ok",
+                "error",
+                "message",
+                "job_id",
+                "job_ids",
+                "jobs",
+                "runs",
+                "results",
+                "queued",
+                "status",
+                "queued_count",
+            )
+            if k in run
+        }
+        if not run_snap:
+            run_snap = {"ok": run.get("ok"), "keys": sorted(str(k) for k in run.keys())[:40]}
 
         queued_ok = bool(cp_jobs)
-        partial = bool(cp_jobs) and len(cp_jobs) < len(case_ids)
+        queued_case_ids: list[int] = []
+        for r in run.get("runs") or []:
+            if isinstance(r, dict) and r.get("job_id") and r.get("case_id"):
+                try:
+                    queued_case_ids.append(int(r["case_id"]))
+                except Exception:  # noqa: BLE001
+                    pass
+        pending = [c for c in case_ids if int(c) not in set(queued_case_ids)] if queued_case_ids else (
+            [] if queued_ok else list(case_ids)
+        )
+        # If CasePilot returns a single job for the whole batch, pending stays empty
+        if queued_ok and not queued_case_ids:
+            pending = []
+
         agent.update(
             {
                 "channel": "casepilot_mcp",
@@ -791,7 +780,7 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
                 "last_error": None
                 if queued_ok
                 else (
-                    str((runs_out[0] or {}).get("error") if runs_out else "")
+                    str(run.get("message") or run.get("error") or run.get("stop_reason") or "")
                     or "CasePilot returned no job_id — cannot poll UI run status"
                 ),
                 "preview": {
@@ -799,20 +788,9 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
                     "case_ids": preview.get("case_ids"),
                 },
                 "run_response": run_snap,
-                "planned_steps": ui_steps_for_selection(selection_items),
-                "dispatch_mode": "one_case_per_run",
-                "pending_case_ids": [
-                    c
-                    for c in case_ids
-                    if int(c)
-                    not in {
-                        int(r["case_id"])
-                        for r in runs_out
-                        if r.get("job_ids") and r.get("case_id")
-                    }
-                ]
-                if partial
-                else [],
+                "planned_steps": ui_steps_for_selection(selection_items)[:60],
+                "dispatch_mode": "batch_event_trigger",
+                "pending_case_ids": pending,
             }
         )
         job["agent"] = agent
@@ -824,19 +802,19 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
             job["status"] = "queued"
             _append_log(
                 job,
-                f"▸ CasePilot queued job_ids={cp_jobs} · UI browser will run on local connector",
+                f"▸ CasePilot queued job_ids={cp_jobs} · {len(case_ids)} case(s) · "
+                f"batch event trigger (one browser session)",
             )
-            if partial:
+            if pending:
                 _append_log(
                     job,
-                    f"⚠ Partial queue ({len(cp_jobs)}/{len(case_ids)}) — "
-                    f"connector busy; remaining cases will retry on refresh: {agent.get('pending_case_ids')}",
+                    f"⚠ {len(pending)} case(s) not yet on connector — will retry on Refresh: {pending[:12]}",
                 )
             for i, st in enumerate(agent.get("planned_steps") or [], 1):
                 _append_log(job, f"  plan {i}. {st.get('step')}")
             _append_log(
                 job,
-                "▸ Waiting for UI event(s)… correlations (incl. intermediate mutations) "
+                "▸ Waiting for UI event(s)… emit one AUDIT_RESULT per selected event; "
                 "auto-verify into Generation Status when browser closes",
             )
         return _write_job(project_root, job)
@@ -859,6 +837,67 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
     if not job:
         return None
     agent = dict(job.get("agent") or {})
+    # Retry cases that never got a connector job (common when batch is huge)
+    pending = [int(c) for c in (agent.get("pending_case_ids") or []) if str(c).isdigit() or isinstance(c, int)]
+    if pending and job.get("status") in {"queued", "running", "completed", "pending_agent"}:
+        try:
+            cfg = load_casepilot_config()
+            if cfg.configured and cfg.ui_config_ready():
+                from audit_validator.env_profiles import get_audit_profile
+
+                profile = get_audit_profile()
+                ui_cfg = cfg.ui_config()
+                ui_cfg["base_url"] = (
+                    (os.getenv("NEXTGEN_UI_URL") or "").strip()
+                    or profile.nextgen_ui_url
+                    or ui_cfg.get("base_url")
+                    or ""
+                )
+                # Only retry a small chunk so we don't flood the connector again
+                chunk = pending[:5]
+                sel = [s for s in (job.get("selection") or []) if isinstance(s, dict)]
+                # Prefer selection rows matching pending case ids
+                from audit_validator.ui_testrail_map import case_id_for_selection_item
+
+                chunk_sel = [
+                    s for s in sel if case_id_for_selection_item(s) in set(chunk)
+                ] or sel[: len(chunk)]
+                summary, description, hints = _build_context(
+                    job, selection_override=chunk_sel or None
+                )
+                hints = {
+                    **hints,
+                    "audit_target": profile.name,
+                    "nextgen_ui_url": ui_cfg["base_url"],
+                    "retry_pending": "true",
+                }
+                client = CasePilotMcpClient(cfg)
+                run = client.run_testrail_ui_tests(
+                    chunk,
+                    ui_config=ui_cfg,
+                    context_summary=summary + " (retry pending events)",
+                    context_description=description
+                    + "\n\n## RETRY\nThese events were not queued earlier — fire them now.\n",
+                    context_hints=hints,
+                    wait_for_completion=False,
+                    stop_on_failure=False,
+                )
+                new_jobs = extract_casepilot_job_ids(run)
+                if new_jobs:
+                    merged = list(dict.fromkeys([*(agent.get("casepilot_job_ids") or []), *new_jobs]))
+                    agent["casepilot_job_ids"] = merged
+                    still = [c for c in pending if c not in chunk]
+                    agent["pending_case_ids"] = still
+                    job["agent"] = agent
+                    _append_log(
+                        job,
+                        f"▸ Retried pending cases {chunk} → jobs={new_jobs}; remaining={still[:8]}",
+                    )
+                    job = _write_job(project_root, job)
+                    agent = dict(job.get("agent") or {})
+        except Exception as exc:  # noqa: BLE001
+            _append_log(job, f"⚠ pending retry skipped: {exc}")
+
     cp_ids = [
         int(x)
         for x in (agent.get("casepilot_job_ids") or [])
@@ -867,8 +906,13 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
     if not cp_ids:
         return job
     selection = [s for s in (job.get("selection") or []) if isinstance(s, dict)]
-    default_op = str(selection[0].get("operation") or "") if selection else ""
-    default_touch = str(selection[0].get("touchpoint") or "") if selection else ""
+    # Only default op/touch for single-scenario runs — multi-select must trust AUDIT_RESULT fields
+    if len(selection) == 1:
+        default_op = str(selection[0].get("operation") or "")
+        default_touch = str(selection[0].get("touchpoint") or "")
+    else:
+        default_op = ""
+        default_touch = ""
     try:
         client = CasePilotMcpClient()
         statuses = []

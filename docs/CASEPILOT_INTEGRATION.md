@@ -8,14 +8,15 @@ Jira: [FDC-14091](https://monotype.atlassian.net/browse/FDC-14091)
 
 CasePilot loads TestRail case **ids**, but this app sends **authoritative step text** via MCP context:
 
-- Recipes: `python/audit_validator/ui_case_recipes.py` (mtconnect-ui routes + `data-qa-id`s)
-- Built into each job by `ui_trigger._build_context`
+- Recipes: `python/audit_validator/ui_case_recipes.py` (MTConnectAutomation / mtconnect-ui qa-ids)
+- Built into each job by `ui_trigger._build_context` as an **EVENT CHECKLIST** (fire mutation → AUDIT_RESULT)
 - Hint `prefer_steps=context_over_testrail` — ignore conflicting TestRail prose
-- **One CasePilot run per selected scenario** (`dispatch_mode=one_case_per_run`) so multi-select does not mash 7 recipes into one wandering session
+- **One CasePilot browser session per job** (`dispatch_mode=batch_event_trigger`) — do not queue dozens of parallel connector jobs
+- Refresh retries `pending_case_ids` in small chunks if the connector dropped some
 
-Seeds are dynamic (`SEED_FAMILY_ID` / any visible deactivated family) — recipes avoid hard-requiring a single family name or always opening family detail (except style/variation).
+Seeds are dynamic. Recipes **reuse existing** projects/lists when possible — goal is trigger events, not rebuild setup every time.
 
-TestRail map: `data/fdc14091_testrail_map.json` (all GraphQL Generate scenarios mapped).
+TestRail map: `data/fdc14091_testrail_map.json`. Reference style: [C73303503](https://type.testrail.com/index.php?/cases/view/73303503).
 
 
 ## Architecture
