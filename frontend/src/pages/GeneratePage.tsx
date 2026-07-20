@@ -17,6 +17,7 @@ import {
   fetchPipelineConfig,
   fetchTokenStatus,
   refreshGenerateInUi,
+  cancelGenerateInUi,
   refreshToken,
   applyTokenCredentials,
   recordGenerateInUiResults,
@@ -907,6 +908,24 @@ export default function GeneratePage({
     localStorage.setItem(UI_JOB_KEY, next.id);
   }, []);
 
+  const closeUiSession = useCallback(async () => {
+    if (uiPollRef.current) {
+      clearInterval(uiPollRef.current);
+      uiPollRef.current = null;
+    }
+    const id = uiJob?.id;
+    setUiBusy(false);
+    setUiJob(null);
+    setUiManualCid("");
+    localStorage.removeItem(UI_JOB_KEY);
+    if (!id) return;
+    try {
+      await cancelGenerateInUi(id);
+    } catch {
+      /* panel already closed locally */
+    }
+  }, [uiJob?.id]);
+
   const pollUiJob = useCallback((id: string) => {
     if (uiPollRef.current) clearInterval(uiPollRef.current);
     uiPollRef.current = setInterval(async () => {
@@ -929,7 +948,7 @@ export default function GeneratePage({
           }
           return;
         }
-        if (res.job.status === "failed") {
+        if (res.job.status === "failed" || res.job.status === "cancelled") {
           if (uiPollRef.current) clearInterval(uiPollRef.current);
           uiPollRef.current = null;
           setUiBusy(false);
@@ -1631,13 +1650,29 @@ export default function GeneratePage({
 
       {uiJob && (
         <details className="operation-summary-details generation-log-details" open>
-          <summary>
-            UI trigger log · Job {uiJob.id.slice(0, 8)}
-            {" · "}
-            <span className={`status-pill ${uiJob.status}`}>{uiJob.status}</span>
-            {uiJob.verification?.ready ? " · correlation ready" : ""}
-            {uiJob.verification?.generate_run_saved ? " · Generation Status saved" : ""}
-            {" · stays open after browser closes"}
+          <summary style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span>
+              UI trigger log · Job {uiJob.id.slice(0, 8)}
+              {" · "}
+              <span className={`status-pill ${uiJob.status}`}>{uiJob.status}</span>
+              {uiJob.verification?.ready ? " · correlation ready" : ""}
+              {uiJob.verification?.generate_run_saved ? " · Generation Status saved" : ""}
+              {" · stays open after browser closes"}
+            </span>
+            <button
+              type="button"
+              className="link-btn"
+              style={{ marginLeft: "auto" }}
+              disabled={uiBusy}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                void closeUiSession();
+              }}
+              title="Stop polling and dismiss this Generate-in-UI session"
+            >
+              Close session ✕
+            </button>
           </summary>
           {!!(uiJob.agent as { last_error?: string } | undefined)?.last_error && (
             <p className="error small">
@@ -1714,6 +1749,9 @@ export default function GeneratePage({
               }}
             >
               Refresh CasePilot
+            </button>
+            <button type="button" disabled={uiBusy} onClick={() => void closeUiSession()}>
+              Close session
             </button>
           </div>
           <p className="muted small" style={{ marginTop: 8 }}>

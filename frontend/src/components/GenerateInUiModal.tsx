@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   fetchCasepilotStatus,
   fetchUiTestrailMap,
@@ -57,6 +57,23 @@ function resolveCaseId(
   return undefined;
 }
 
+function formatCasepilotError(raw: string): string {
+  const low = raw.toLowerCase();
+  if (
+    low.includes("ip_banned") ||
+    low.includes("blocked your ip") ||
+    low.includes("error 1006")
+  ) {
+    return (
+      "CasePilot Cloudflare blocked this machine's IP (Error 1006). " +
+      "Ask CasePilot/Cloudflare admins to unblock you, use corporate VPN, " +
+      "and do not keep retrying Send — retries worsen the ban. " +
+      "This is not a TestRail/recipe issue."
+    );
+  }
+  return raw;
+}
+
 /**
  * One-to-one Generate in UI: each event has its own TestRail id (linked) + details box.
  * Case ids come from FDC-14091 map (C73303503…).
@@ -84,6 +101,13 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
   const [error, setError] = useState("");
   const [mcpOk, setMcpOk] = useState<boolean | null>(null);
   const [mcpDetail, setMcpDetail] = useState("");
+  const closedRef = useRef(false);
+
+  function requestClose() {
+    closedRef.current = true;
+    setBusy(false);
+    onClose();
+  }
 
   useEffect(() => {
     setRows(initialRows);
@@ -114,16 +138,17 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
         setMcpOk(Boolean(s.ok && s.configured));
         const online = s.connectors?.online;
         const email = s.connection_info?.email || s.preflight?.email || "";
+        const err = s.error ? formatCasepilotError(String(s.error)) : "";
         setMcpDetail(
           s.ok
             ? `CasePilot connected${email ? ` (${email})` : ""}${online != null ? ` · connector online=${online}` : ""}`
-            : s.error || "CasePilot unreachable — check CASEPILOT_API_KEY",
+            : err || "CasePilot unreachable — check CASEPILOT_API_KEY",
         );
       })
       .catch((err) => {
         if (cancelled) return;
         setMcpOk(false);
-        setMcpDetail(err instanceof Error ? err.message : String(err));
+        setMcpDetail(formatCasepilotError(err instanceof Error ? err.message : String(err)));
       });
     return () => {
       cancelled = true;
@@ -142,6 +167,7 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
       setError("Each scenario needs a TestRail case id.");
       return;
     }
+    closedRef.current = false;
     setBusy(true);
     setError("");
     try {
@@ -168,25 +194,27 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
           .join("\n"),
         dispatch: true,
       });
+      if (closedRef.current) return;
       onActive?.(res.job);
       if (!["queued", "running", "completed"].includes(String(res.job.status))) {
-        const msg =
+        const msg = formatCasepilotError(
           (res.job?.agent as { last_error?: string } | undefined)?.last_error ||
-          "CasePilot send failed";
+            "CasePilot send failed",
+        );
         setError(msg);
-        onClose();
         return;
       }
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (closedRef.current) return;
+      setError(formatCasepilotError(err instanceof Error ? err.message : String(err)));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="modal-backdrop" onClick={() => !busy && onClose()} role="presentation">
+    <div className="modal-backdrop" onClick={requestClose} role="presentation">
       <div
         className="modal-card generate-ui-modal generate-ui-modal-wide"
         onClick={(e) => e.stopPropagation()}
@@ -195,7 +223,7 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
       >
         <div className="modal-head">
           <strong>Generate in UI</strong>
-          <button type="button" className="link-btn" disabled={busy} onClick={onClose}>
+          <button type="button" className="link-btn" onClick={requestClose}>
             close ✕
           </button>
         </div>
@@ -254,8 +282,8 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
 
           {error && <p className="error small">{error}</p>}
           <div className="modal-actions">
-            <button type="button" disabled={busy} onClick={onClose}>
-              Cancel
+            <button type="button" onClick={requestClose}>
+              {busy ? "Close / abort" : "Cancel"}
             </button>
             <button
               type="submit"

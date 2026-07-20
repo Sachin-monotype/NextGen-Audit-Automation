@@ -385,6 +385,17 @@ export async function refreshGenerateInUi(jobId: string) {
   return data as { ok: boolean; job: UiTriggerJob };
 }
 
+export async function cancelGenerateInUi(jobId: string) {
+  const res = await fetch(`${API}/api/jobs/generate-ui/${encodeURIComponent(jobId)}/cancel`, {
+    method: "POST",
+  });
+  const data = await res.json();
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || "Failed to close UI session");
+  }
+  return data as { ok: boolean; job: UiTriggerJob };
+}
+
 export async function fetchGenerateInUi(jobId: string) {
   const res = await fetch(`${API}/api/jobs/generate-ui/${encodeURIComponent(jobId)}`);
   if (!res.ok) throw new Error(await res.text());

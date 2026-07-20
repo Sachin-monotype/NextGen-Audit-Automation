@@ -882,6 +882,22 @@ def get_generate_ui(job_id: str) -> dict[str, Any]:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+@app.post("/api/jobs/generate-ui/{job_id}/cancel")
+def cancel_generate_ui(job_id: str) -> dict[str, Any]:
+    """Close/stop a Generate-in-UI session (stop polling + pending CasePilot retries)."""
+    try:
+        from audit_validator.ui_trigger import cancel_ui_trigger_job, get_ui_trigger_job
+
+        if not get_ui_trigger_job(settings.audit_project_root, job_id):
+            raise HTTPException(404, f"No UI trigger job {job_id}")
+        job = cancel_ui_trigger_job(settings.audit_project_root, job_id)
+        return {"ok": True, "job": job}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
 @app.post("/api/jobs/generate-ui/{job_id}/send")
 def send_generate_ui(job_id: str) -> dict[str, Any]:
     """Dispatch a saved handoff to CasePilot ``run_testrail_ui_tests``."""

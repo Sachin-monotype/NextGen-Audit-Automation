@@ -475,6 +475,31 @@ def get_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] | None
         return None
 
 
+def cancel_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] | None:
+    """Stop polling / pending retries for this Generate-in-UI job.
+
+    Marks the handoff cancelled so Refresh will no longer re-queue CasePilot runs.
+    (CasePilot connector browser may still finish an already-started run.)
+    """
+    job = get_ui_trigger_job(project_root, job_id)
+    if not job:
+        return None
+    agent = dict(job.get("agent") or {})
+    agent["pending_case_ids"] = []
+    agent["send_status"] = "cancelled"
+    agent["last_error"] = None
+    job["agent"] = agent
+    job["status"] = "cancelled"
+    job["verification"] = {
+        **(job.get("verification") or {}),
+        "auto_verify_pending": False,
+        "cancelled": True,
+        "note": "Session closed from audit UI — polling stopped.",
+    }
+    _append_log(job, "⏹ UI session closed by user — stopped polling / pending CasePilot retries")
+    return _write_job(project_root, job)
+
+
 def record_ui_trigger_result(
     project_root: Path,
     job_id: str,
@@ -557,8 +582,8 @@ def _build_context(
             + (f" · id={sid}" if sid else "")
         )
     ui_steps = ui_steps_for_selection(items)
-    # Cap detailed steps for huge selections — checklist carries the contract
-    max_detail = 80 if len(items) <= 5 else 40
+    # Prefer full recipes for small batches; checklist backs huge multi-selects
+    max_detail = 200 if len(items) <= 3 else (120 if len(items) <= 8 else 60)
     step_lines = [f"{i}. {st['step']}" for i, st in enumerate(ui_steps[:max_detail], 1)]
     if len(ui_steps) > max_detail:
         step_lines.append(
@@ -582,16 +607,18 @@ def _build_context(
             "NextGen Audit Automation — Generate in UI handoff",
             "",
             "## YOU ARE AN ANONYMOUS UI RUNNER",
-            "- Goal: TRIGGER GraphQL events and emit AUDIT_RESULT lines. Nothing else.",
-            "- Reuse whatever is already on screen (projects, lists, families). Do not recreate setup unless required for scope.",
-            "- Do NOT open family detail (/family/…) unless the event is style/variation.",
-            "- Do NOT open new tabs. Do NOT wander Search after a mutation fires.",
+            "- Goal: TRIGGER GraphQL events and emit AUDIT_RESULT lines. Minimal assertions.",
+            "- Follow DETAILED STEPS in order (login → navigate → prepare ON/OFF → click → AUDIT_RESULT).",
+            "- Reuse existing projects/lists/favourites when the recipe says so. Create only when required for scope.",
+            "- Pick ANY visible family/style matching ON/OFF state — never invent hardcoded family ids.",
+            "- Do NOT open family detail (/family/…) unless the event is style/variation/font-versions.",
+            "- Do NOT open new tabs. Do NOT wander after a mutation fires.",
             "- For multi-event runs: finish EVENT N (mutation + AUDIT_RESULT) then immediately start EVENT N+1. Keep the browser open until all events are done.",
             "",
             "## EVENT CHECKLIST (must emit one AUDIT_RESULT per line)",
             *checklist,
             "",
-            "## DETAILED STEPS (when checklist alone is unclear)",
+            "## DETAILED STEPS (primary path — follow these)",
             *step_lines,
             "",
             "## Selection",
@@ -837,6 +864,10 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
     if not job:
         return None
     agent = dict(job.get("agent") or {})
+    if str(job.get("status") or "").lower() == "cancelled" or (job.get("verification") or {}).get(
+        "cancelled"
+    ):
+        return job
     # Retry cases that never got a connector job (common when batch is huge)
     pending = [int(c) for c in (agent.get("pending_case_ids") or []) if str(c).isdigit() or isinstance(c, int)]
     if pending and job.get("status") in {"queued", "running", "completed", "pending_agent"}:

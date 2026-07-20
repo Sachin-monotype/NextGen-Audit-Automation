@@ -116,7 +116,44 @@ class CasePilotMcpClient:
         else:
             text = str(exc or "")
         low = text.lower()
-        return "session not found" in low or "mcp-session" in low and "not found" in low
+        return "session not found" in low or ("mcp-session" in low and "not found" in low)
+
+    @staticmethod
+    def _is_ip_banned(exc: CasePilotMcpError | str | dict[str, Any] | None) -> bool:
+        text = str(exc or "")
+        if isinstance(exc, CasePilotMcpError) and exc.payload is not None:
+            text += " " + (json.dumps(exc.payload) if isinstance(exc.payload, dict) else str(exc.payload))
+        low = text.lower()
+        return (
+            "ip_banned" in low
+            or "ip address" in low and "blocked" in low
+            or "error 1006" in low
+            or ("cloudflare" in low and "403" in low and "access denied" in low)
+        )
+
+    @staticmethod
+    def _friendly_http_error(code: int, detail: str) -> str:
+        low = (detail or "").lower()
+        if (
+            code == 403
+            and (
+                "ip_banned" in low
+                or "blocked your ip" in low
+                or "error 1006" in low
+            )
+        ):
+            return (
+                "CasePilot Cloudflare blocked this machine's IP (Error 1006 / ip_banned). "
+                "Ask CasePilot/Cloudflare admins to unblock your IP, connect via corporate VPN, "
+                "and avoid hammering MCP retries. This is not a TestRail or recipe bug."
+            )
+        if code == 404 and "session not found" in low:
+            return (
+                "CasePilot MCP session expired — retry Generate in UI "
+                "(client will re-initialize automatically)."
+            )
+        return f"CasePilot MCP HTTP {code}: {(detail or '')[:400]}"
+
 
     def _headers(self, *, with_session: bool = True) -> dict[str, str]:
         if not self.config.configured:
@@ -153,7 +190,7 @@ class CasePilotMcpClient:
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
             raise CasePilotMcpError(
-                f"CasePilot MCP HTTP {exc.code}: {detail[:500]}",
+                self._friendly_http_error(exc.code, detail),
                 payload={"status": exc.code, "body": detail},
             ) from exc
         except urllib.error.URLError as exc:
@@ -274,6 +311,9 @@ class CasePilotMcpClient:
                 return merged
             except CasePilotMcpError as exc:
                 last_err = exc
+                # Never retry Cloudflare IP bans — retries make the ban worse.
+                if self._is_ip_banned(exc):
+                    raise
                 if attempt < 2 and self._is_session_missing(exc):
                     self._reset_session()
                     continue
