@@ -694,6 +694,15 @@ export async function startGenerate(body: {
   return res.json() as Promise<Job>;
 }
 
+/** Abort a running Generate / Generate & validate / Compare job. */
+export async function cancelGenerateJob(jobId: string) {
+  const res = await fetch(`${API}/api/jobs/${encodeURIComponent(jobId)}/cancel`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{ ok: boolean; job: Job }>;
+}
+
 export type DefaultPayload = {
   id: string;
   kind?: string;

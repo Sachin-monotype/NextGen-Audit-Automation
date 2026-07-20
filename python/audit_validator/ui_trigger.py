@@ -607,18 +607,18 @@ def _build_context(
             "NextGen Audit Automation — Generate in UI handoff",
             "",
             "## YOU ARE AN ANONYMOUS UI RUNNER",
-            "- Goal: TRIGGER GraphQL events and emit AUDIT_RESULT lines. Minimal assertions.",
-            "- Follow DETAILED STEPS in order (login → navigate → prepare ON/OFF → click → AUDIT_RESULT).",
-            "- Reuse existing projects/lists/favourites when the recipe says so. Create only when required for scope.",
-            "- Pick ANY visible family/style matching ON/OFF state — never invent hardcoded family ids.",
-            "- Do NOT open family detail (/family/…) unless the event is style/variation/font-versions.",
-            "- Do NOT open new tabs. Do NOT wander after a mutation fires.",
-            "- For multi-event runs: finish EVENT N (mutation + AUDIT_RESULT) then immediately start EVENT N+1. Keep the browser open until all events are done.",
+            "- Goal: TRIGGER GraphQL events and emit AUDIT_RESULT. Minimal assertions.",
+            "- Follow DETAILED STEPS in order. Locators are exact — use [data-qa-id='…'] / [data-testid='…'] as written. Do not hunt for alternate controls.",
+            "- NO RETRIES: attempt each step once. If a step fails, emit what you have and move on / stop. Do not re-run the case or re-click the same control in a loop.",
+            "- Pick ANY visible family/style matching ON/OFF — never invent family ids.",
+            "- Do NOT open /family/… unless the step is style/variation/font-versions.",
+            "- Do NOT open new tabs. Do NOT wander after the mutation fires.",
+            "- Multi-event: finish EVENT N (mutation + AUDIT_RESULT) then EVENT N+1. Keep browser open until all done.",
             "",
-            "## EVENT CHECKLIST (must emit one AUDIT_RESULT per line)",
+            "## EVENT CHECKLIST (one AUDIT_RESULT each — no retries)",
             *checklist,
             "",
-            "## DETAILED STEPS (primary path — follow these)",
+            "## DETAILED STEPS (primary — follow locators)",
             *step_lines,
             "",
             "## Selection",
@@ -663,6 +663,15 @@ def _build_context(
         "seed_family_id": seed_env or "dynamic",
         "event_count": str(len(items)),
         "mode": "batch_event_trigger" if len(items) > 1 else "single_event",
+        # CasePilot agent: do not retry failed UI steps / re-queue cases
+        "max_retries": "0",
+        "agent_retries": "0",
+        "step_retries": "0",
+        "retry_on_failure": "false",
+        "no_retry": "true",
+        "do_not_retry": "true",
+        "disable_retries": "true",
+        "max_attempts": "1",
     }
     return summary, description, hints
 
@@ -835,7 +844,8 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
             if pending:
                 _append_log(
                     job,
-                    f"⚠ {len(pending)} case(s) not yet on connector — will retry on Refresh: {pending[:12]}",
+                    f"⚠ {len(pending)} case(s) not yet on connector — retries disabled "
+                    f"(start a new Generate-in-UI job for remaining): {pending[:12]}",
                 )
             for i, st in enumerate(agent.get("planned_steps") or [], 1):
                 _append_log(job, f"  plan {i}. {st.get('step')}")
@@ -868,66 +878,18 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
         "cancelled"
     ):
         return job
-    # Retry cases that never got a connector job (common when batch is huge)
+    # Pending cases are NOT re-queued on Refresh — retries disabled by design.
     pending = [int(c) for c in (agent.get("pending_case_ids") or []) if str(c).isdigit() or isinstance(c, int)]
-    if pending and job.get("status") in {"queued", "running", "completed", "pending_agent"}:
-        try:
-            cfg = load_casepilot_config()
-            if cfg.configured and cfg.ui_config_ready():
-                from audit_validator.env_profiles import get_audit_profile
-
-                profile = get_audit_profile()
-                ui_cfg = cfg.ui_config()
-                ui_cfg["base_url"] = (
-                    (os.getenv("NEXTGEN_UI_URL") or "").strip()
-                    or profile.nextgen_ui_url
-                    or ui_cfg.get("base_url")
-                    or ""
-                )
-                # Only retry a small chunk so we don't flood the connector again
-                chunk = pending[:5]
-                sel = [s for s in (job.get("selection") or []) if isinstance(s, dict)]
-                # Prefer selection rows matching pending case ids
-                from audit_validator.ui_testrail_map import case_id_for_selection_item
-
-                chunk_sel = [
-                    s for s in sel if case_id_for_selection_item(s) in set(chunk)
-                ] or sel[: len(chunk)]
-                summary, description, hints = _build_context(
-                    job, selection_override=chunk_sel or None
-                )
-                hints = {
-                    **hints,
-                    "audit_target": profile.name,
-                    "nextgen_ui_url": ui_cfg["base_url"],
-                    "retry_pending": "true",
-                }
-                client = CasePilotMcpClient(cfg)
-                run = client.run_testrail_ui_tests(
-                    chunk,
-                    ui_config=ui_cfg,
-                    context_summary=summary + " (retry pending events)",
-                    context_description=description
-                    + "\n\n## RETRY\nThese events were not queued earlier — fire them now.\n",
-                    context_hints=hints,
-                    wait_for_completion=False,
-                    stop_on_failure=False,
-                )
-                new_jobs = extract_casepilot_job_ids(run)
-                if new_jobs:
-                    merged = list(dict.fromkeys([*(agent.get("casepilot_job_ids") or []), *new_jobs]))
-                    agent["casepilot_job_ids"] = merged
-                    still = [c for c in pending if c not in chunk]
-                    agent["pending_case_ids"] = still
-                    job["agent"] = agent
-                    _append_log(
-                        job,
-                        f"▸ Retried pending cases {chunk} → jobs={new_jobs}; remaining={still[:8]}",
-                    )
-                    job = _write_job(project_root, job)
-                    agent = dict(job.get("agent") or {})
-        except Exception as exc:  # noqa: BLE001
-            _append_log(job, f"⚠ pending retry skipped: {exc}")
+    if pending:
+        _append_log(
+            job,
+            f"ℹ {len(pending)} case(s) were not queued earlier — retries disabled "
+            f"(re-Send a new Generate-in-UI job if needed): {pending[:12]}",
+        )
+        agent["pending_case_ids"] = []
+        job["agent"] = agent
+        job = _write_job(project_root, job)
+        agent = dict(job.get("agent") or {})
 
     cp_ids = [
         int(x)

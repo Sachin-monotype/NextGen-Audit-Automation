@@ -1,19 +1,14 @@
-"""CasePilot UI recipes — detailed, ordered click paths for an anonymous AI runner.
+"""CasePilot / TestRail UI steps — locator-first click paths.
 
-Sources of truth for selectors / navigation:
-  - MTConnectAutomation page objects + tests (data-qa-id, click order)
-  - mtconnect-ui routes and menus
+Pattern matches TestRail C73303503: login → try action → navigate with
+``[data-qa-id='…']`` / ``[data-testid='…']`` → click → AUDIT_RESULT.
 
-Goal: TRIGGER the GraphQL mutation and emit AUDIT_RESULT. Prefer reuse of existing
-projects/lists/favourites. Do NOT hardcode family IDs (no 910052505 etc.) — pick any
-visible card matching the needed ON/OFF state.
-
-``prefer_steps=context_over_testrail`` — these recipes are what CasePilot follows.
+No family-id hardcoding. No recipe/source fluff. Locators from
+MTConnectAutomation + mtconnect-ui.
 """
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 
@@ -47,116 +42,136 @@ def short_touch(touch: str) -> str:
 
 def audit_emit(op: str, touch_short: str) -> str:
     return (
-        f"CRITICAL — Network filter operationName={op} → copy response header "
-        f"**correlation-id** (NOT x-correlation-id) → emit exactly: "
+        f"Network filter operationName={op} → copy response header correlation-id "
+        f"(NOT x-correlation-id) → emit exactly: "
         f"AUDIT_RESULT|operation={op}|correlation_id=<real-uuid>|touchpoint={touch_short}"
     )
 
 
-def _seed_hint() -> str:
-    env = (
-        os.getenv("SEED_FAMILY_ID", "").strip()
-        or os.getenv("TOUCHPOINT_FAMILY_ID", "").strip()
-        or ""
+def audit_expected(op: str) -> str:
+    return (
+        f"GraphQL {op} fires; response has correlation-id; "
+        "AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
     )
-    if env:
-        return (
-            f"Optional seed: if SEED_FAMILY_ID is set ({env}), you may search that id; "
-            "otherwise pick ANY visible family card — never invent hardcoded ids."
+
+
+def _row(step: str, expected: str = "") -> dict[str, str]:
+    return {"step": step, "expected": expected}
+
+
+LOGIN = (
+    "LOGIN (skip if already signed in): open /search → click [data-qa-id='sign-in-button'] → "
+    "Auth0 #username → button[data-action-button-primary='true'] → #password → "
+    "button[data-action-button-primary='true'] → if /auth/workspace-switch pick company "
+    "button[aria-label] → wait [data-qa-id='expandable-searchbar__wrapper']. "
+    "Dismiss snackbars ([data-qa-id='snackbar-success'] close)."
+)
+
+SEARCH_NAV = (
+    "Click [data-testid='menu-item-Search'] (or [data-qa-id='menu-item-Search']) → URL /search → "
+    "type short query e.g. hel in [data-qa-id='expandable-searchbar_input'] → Enter "
+    "(or click [data-qa-id='expandable-searchbar__search-button']) → "
+    "wait [data-qa-id='font-name'] + [data-qa-id='toggle-btn'] on cards."
+)
+
+FAV_NAV = (
+    "Click [data-qa-id='sidebar-my-library-favourites'] "
+    "(fallback #menu-item-tooltip-favorites) → URL /library/favourites/fonts → "
+    "wait [data-qa-id='toggle-btn']."
+)
+
+LIB_NAV = (
+    "Open My Library Show all assets → URL /library "
+    "(sidebar [data-testid='sidebar-my-library-show-all'])."
+)
+
+
+def _S(*rows: dict[str, str], op: str, touch: str) -> list[dict[str, str]]:
+    out = []
+    for r in rows:
+        out.append(
+            {
+                "op": op,
+                "touchpoint": touch,
+                "step": r["step"],
+                "expected": r.get("expected") or "",
+            }
         )
+    return out
+
+
+def _ensure_off() -> str:
     return (
-        "Pick ANY visible family/style on screen that matches the needed ON/OFF state. "
-        "Do NOT hardcode family ids."
+        "On the target card: if [data-qa-id='toggle-btn'] looks ON, click once to deactivate; "
+        "wait [data-testid='deactivation-toast-wrapper'] or [data-qa-id='snackbar-info-grey']; "
+        "dismiss. Target must be OFF before activate."
     )
 
 
-def _S(*lines: str, op: str, touch: str) -> list[dict[str, str]]:
-    return [{"op": op, "touchpoint": touch, "step": x} for x in lines if x]
+def _ensure_on() -> str:
+    return (
+        "On the target card: if [data-qa-id='toggle-btn'] looks OFF, click once to activate; "
+        "wait [data-qa-id='snackbar-success']; dismiss. Target must be ON before deactivate."
+    )
 
 
-def _login_block() -> list[str]:
+def _open_list_steps() -> list[dict[str, str]]:
     return [
-        "LOGIN (skip if already signed in): open /search → click data-qa-id=sign-in-button → "
-        "Auth0 #username → Continue → #password → Continue → pick workspace if shown → "
-        "wait for data-qa-id=expandable-searchbar__wrapper. Dismiss snackbars/overlays.",
+        _row(LIB_NAV),
+        _row(
+            "If a FontList exists: click [data-qa-id^='asset-name-link-'] for that list "
+            "(URL /library/FontList/{id}). Else: click [data-qa-id='create-list-button'] → "
+            "[data-qa-id='asset-name-input'] → [data-qa-id='drawer-primary-button']."
+        ),
+        _row(
+            "If list empty: "
+            + SEARCH_NAV
+            + " Card kebab [data-qa-id='search-card-options-trigger'] → "
+            "[data-qa-id='context-menu-item-add-to-list-or-tag'] → "
+            "click [data-qa-id^='add-to-list-or-tag-drawer-add-'] → reopen list."
+        ),
     ]
 
 
-def _nav_search() -> str:
-    return (
-        "Sidebar Search (data-testid=menu-item-Search) → URL /search → "
-        "type a short query (e.g. hel) in data-qa-id=expandable-searchbar_input → Enter → "
-        "wait for family cards (font-name + toggle-btn)."
-    )
-
-
-def _nav_favourites() -> str:
-    return (
-        "Sidebar Favorites (data-testid=menu-item-Favorites or #menu-item-tooltip-favorites) → "
-        "URL /library/favourites (fonts tab). Wait for cards with toggle-btn."
-    )
-
-
-def _nav_my_library() -> str:
-    return (
-        "Sidebar My Library → Show all assets (data-testid=sidebar-my-library-show-all) → "
-        "URL /library. Prefer an existing FontList row; only create if none exist."
-    )
-
-
-def _open_or_create_list() -> list[str]:
+def _open_project_steps() -> list[dict[str, str]]:
     return [
-        _nav_my_library(),
-        "If a FontList already exists: open it (URL /library/FontList/{id}). "
-        "Else: click data-qa-id=create-list-button (or sidebar-add-library-button) → "
-        "fill data-qa-id=asset-name-input with a unique name → data-qa-id=drawer-primary-button.",
-        "If the list is empty: Discover fonts or Search → pick any deactivated family card → "
-        "kebab data-qa-id=search-card-options-trigger → "
-        "data-qa-id=context-menu-item-add-to-list-or-tag → "
-        "search list name → click data-qa-id^=add-to-list-or-tag-drawer-add- → reopen the list.",
+        _row(
+            "Open a recent project [data-qa-id^='sidebar-recent-project-'] OR "
+            "Show all projects → pick one with fonts. Prefer reuse."
+        ),
+        _row(
+            "If none: click [data-testid='sidebar-add-project-button'] → /projects/create → "
+            "name → [data-qa-id='project-creation-desktop-next'] through wizard → finish. "
+            "Land /projects/library/{projectId}/fonts."
+        ),
+        _row(
+            "On project fonts: wait [data-qa-id='toggle-btn'] "
+            "(nav [data-qa-id='project-nav-project-fonts'] if needed)."
+        ),
     ]
 
 
-def _open_or_create_project() -> list[str]:
+def _open_project_list_steps() -> list[dict[str, str]]:
     return [
-        "Sidebar Projects → Show all projects (or click a recent project "
-        "data-qa-id^=sidebar-recent-project-). Prefer a project that already has fonts.",
-        "If none: data-testid=sidebar-add-project-button → /projects/create → "
-        "enter name → data-qa-id=project-creation-desktop-next through wizard → "
-        "add at least one family on Add fonts if prompted → finish.",
-        "Land on /projects/library/{projectId}/fonts (project fonts grid).",
+        *_open_project_steps(),
+        _row(
+            "Open Project Library All assets → /projects/library/{projectId}. "
+            "If project FontList exists open it. Else [data-qa-id='create-list-button'] → "
+            "[data-qa-id='asset-name-input'] → [data-qa-id='drawer-primary-button']."
+        ),
+        _row(
+            "Add a family into that project list: on project fonts card kebab → "
+            "[data-qa-id='context-menu-item-add-to-list-or-tag'] → "
+            "[data-qa-id^='add-to-list-or-tag-drawer-add-']."
+        ),
+        _row(
+            "Open the project FontList grid (URL under /projects/library/{projectId}/… — "
+            "NOT global /library). Stay here for the click."
+        ),
     ]
-
-
-def _open_or_create_project_list() -> list[str]:
-    return [
-        *_open_or_create_project(),
-        "Open Project Library (Show all assets inside project) → /projects/library/{projectId}.",
-        "If a FontList already exists inside this project with fonts: open it. "
-        "Else: data-qa-id=create-list-button → name → drawer-primary-button.",
-        "On project Fonts tab, ensure at least one family is in the project; then add that "
-        "family to the project list (card kebab → Add to list or tag → pick the project list).",
-        "Open the project FontList grid (URL under /projects/library/{projectId}/… — "
-        "NOT global /library). Stay on this scoped grid for the activate/deactivate click.",
-    ]
-
-
-def _ensure_toggle(state: str) -> str:
-    """state is 'off' (need deactivated) or 'on' (need activated)."""
-    if state == "off":
-        return (
-            "On the target card: if data-qa-id=toggle-btn looks ON/activated, click once to "
-            "deactivate; wait grey deactivation snackbar (data-testid=deactivation-toast-wrapper) "
-            "and dismiss. Target must be OFF before the activate click."
-        )
-    return (
-        "On the target card: if data-qa-id=toggle-btn looks OFF, click once to activate; "
-        "wait success snackbar and dismiss. Target must be ON before the deactivate click."
-    )
 
 
 def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
-    """Detailed ordered steps: navigate → prepare → click → AUDIT_RESULT."""
     op = (op or "").strip()
     touch = (touch or "").strip()
     ts = short_touch(touch)
@@ -166,216 +181,238 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
         "favourite": "Favourite",
         "project": "Project",
         "project_list": "Project > List",
-        "notifications": "Notifications",
-        "preferences": "Preferences",
-        "account": "Account / Workspace",
-        "user_access": "User Access",
-        "manage_tags": "Manage Tags",
-        "library_assets": "My Library assets",
     }.get(ts, touch)
     label = label or f"{op}({ts})"
-    seed = _seed_hint()
 
-    # ── Family activate ─────────────────────────────────────────────
+    # ── activateFamily global (C73303503 pattern) ───────────────────
     if op == "activateFamily" and ts == "global":
         return _S(
-            f"GOAL: fire activateFamily with global scope (no projectId / listIds). {seed}",
-            *_login_block(),
-            _nav_search(),
-            "Stay on Search font-family cards. Do NOT open /family/… detail. Do NOT open Quick View.",
-            _ensure_toggle("off"),
-            "Click data-qa-id=toggle-btn on that card to Activate. Wait snackbar-success.",
-            audit_emit(op, "global"),
+            _row(LOGIN),
+            _row(
+                "Click the first [data-qa-id='toggle-btn'] on a Search card to Activate. "
+                "Wait [data-qa-id='snackbar-success'].",
+                "If done then go to AUDIT_RESULT step directly; if not follow next steps.",
+            ),
+            _row(SEARCH_NAV),
+            _row(
+                "Stay on Search font-family cards. Do NOT open /family/… detail. "
+                "Do NOT open Quick View ([data-qa-id='font preview text'])."
+            ),
+            _row(_ensure_off()),
+            _row(
+                "Click [data-qa-id='toggle-btn'] on that card to Activate. "
+                "Wait [data-qa-id='snackbar-success']."
+            ),
+            _row(audit_emit(op, "global"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
+
     if op == "activateFamily" and ts == "favourite":
         return _S(
-            f"GOAL: fire activateFamily with listType=Favorite. {seed}",
-            *_login_block(),
-            "If no favourites yet: " + _nav_search() + " Then click data-qa-id=icon-favorite "
-            "(outline heart) on a card OR kebab → context-menu-item-add-to-favourites.",
-            _nav_favourites(),
-            "Do NOT open family detail.",
-            _ensure_toggle("off"),
-            "Click data-qa-id=toggle-btn to Activate on the Favourites grid.",
-            audit_emit(op, "favourite"),
+            _row(LOGIN),
+            _row(
+                "On /library/favourites/fonts click first [data-qa-id='toggle-btn'] to Activate. "
+                "Wait [data-qa-id='snackbar-success'].",
+                "If done go to AUDIT_RESULT; else continue.",
+            ),
+            _row(
+                SEARCH_NAV
+                + " If needed click [data-qa-id='icon-favorite'] (outline) OR kebab → "
+                "[data-qa-id='context-menu-item-add-to-favourites']."
+            ),
+            _row(FAV_NAV),
+            _row("Do NOT open /family/… detail."),
+            _row(_ensure_off()),
+            _row("Click [data-qa-id='toggle-btn'] to Activate. Wait [data-qa-id='snackbar-success']."),
+            _row(audit_emit(op, "favourite"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
+
     if op == "activateFamily" and ts == "list":
         return _S(
-            f"GOAL: fire activateFamily with listType=Fontlist + listIds (no projectId). {seed}",
-            *_login_block(),
-            *_open_or_create_list(),
-            "On the list grid: do NOT open family detail.",
-            _ensure_toggle("off"),
-            "Click family data-qa-id=toggle-btn to Activate (card toggle — NOT kebab "
-            "Activate all fonts, which fires activateList).",
-            audit_emit(op, "list"),
+            _row(LOGIN),
+            *_open_list_steps(),
+            _row("Do NOT open /family/… detail. Do NOT use kebab Activate all fonts."),
+            _row(_ensure_off()),
+            _row(
+                "Click family [data-qa-id='toggle-btn'] to Activate. "
+                "Wait [data-qa-id='snackbar-success']."
+            ),
+            _row(audit_emit(op, "list"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
+
     if op == "activateFamily" and ts == "project":
         return _S(
-            f"GOAL: fire activateFamily with listType=Fontproject + projectId. {seed}",
-            *_login_block(),
-            *_open_or_create_project(),
-            "Stay on /projects/library/{id}/fonts. Do NOT navigate to global Search for this click.",
-            _ensure_toggle("off"),
-            "Click family data-qa-id=toggle-btn to Activate (or Activate fonts if only one family).",
-            audit_emit(op, "project"),
+            _row(LOGIN),
+            *_open_project_steps(),
+            _row("Stay on project fonts grid — do NOT use global Search for this click."),
+            _row(_ensure_off()),
+            _row(
+                "Click [data-qa-id='toggle-btn'] to Activate "
+                "(or [data-qa-id='activate-all-button'] if only one family). "
+                "Wait [data-qa-id='snackbar-success']."
+            ),
+            _row(audit_emit(op, "project"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
+
     if op == "activateFamily" and ts == "project_list":
         return _S(
-            f"GOAL: fire activateFamily with BOTH projectId AND listIds. {seed}",
-            *_login_block(),
-            *_open_or_create_project_list(),
-            "On the project list grid only — do NOT use global Search toggle.",
-            _ensure_toggle("off"),
-            "Click family data-qa-id=toggle-btn to Activate.",
-            audit_emit(op, "project_list"),
+            _row(LOGIN),
+            *_open_project_list_steps(),
+            _row("On project list grid only — do NOT use global Search toggle."),
+            _row(_ensure_off()),
+            _row("Click family [data-qa-id='toggle-btn'] to Activate. Wait [data-qa-id='snackbar-success']."),
+            _row(audit_emit(op, "project_list"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Family deactivate ───────────────────────────────────────────
     if op == "deactivateFamilies":
         prep = {
-            "global": [_nav_search(), "Stay on Search cards. Do NOT open /family/…."],
-            "favourite": [_nav_favourites()],
-            "list": _open_or_create_list(),
-            "project": _open_or_create_project(),
-            "project_list": _open_or_create_project_list(),
-        }.get(ts, [_nav_search()])
+            "global": [_row(SEARCH_NAV), _row("Stay on Search cards. Do NOT open /family/….")],
+            "favourite": [_row(FAV_NAV)],
+            "list": _open_list_steps(),
+            "project": _open_project_steps(),
+            "project_list": _open_project_list_steps(),
+        }.get(ts, [_row(SEARCH_NAV)])
         return _S(
-            f"GOAL: fire deactivateFamilies ({ts}). Family must be ON in this scope first. {seed}",
-            *_login_block(),
+            _row(LOGIN),
             *prep,
-            _ensure_toggle("on"),
-            "Click data-qa-id=toggle-btn to Deactivate. Wait grey deactivation snackbar.",
-            audit_emit(op, ts),
+            _row(_ensure_on()),
+            _row(
+                "Click [data-qa-id='toggle-btn'] to Deactivate. "
+                "Wait [data-testid='deactivation-toast-wrapper']."
+            ),
+            _row(audit_emit(op, ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Style activate / deactivate (detail / QV required) ──────────
     if op in {"activateStyle", "deactivateStyle"}:
         act = "Activate" if op == "activateStyle" else "Deactivate"
         need = "OFF" if op == "activateStyle" else "ON"
-        scope_nav = {
-            "global": [_nav_search()],
-            "favourite": [_nav_favourites()],
-            "list": _open_or_create_list(),
-            "project": _open_or_create_project(),
-            "project_list": _open_or_create_project_list(),
-        }.get(ts, [_nav_search()])
+        prep = {
+            "global": [_row(SEARCH_NAV)],
+            "favourite": [_row(FAV_NAV)],
+            "list": _open_list_steps(),
+            "project": _open_project_steps(),
+            "project_list": _open_project_list_steps(),
+        }.get(ts, [_row(SEARCH_NAV)])
         return _S(
-            f"GOAL: fire {op} ({ts}) — ONE style only (not whole family). {seed}",
-            *_login_block(),
-            *scope_nav,
-            "Open style controls via ONE of: (A) click font preview text to open Quick View "
-            "drawer → style rows with toggle-btn under drawer-body; "
-            "(B) card kebab data-qa-id=search-card-options-trigger → "
-            "context-menu-item-activate-styles → hover flyout panel-1 → pick one style; "
-            "(C) open family detail /family/… → Styles tab → family-style-card-* toggle.",
-            f"Ensure the chosen style is {need}, then {act} that ONE style toggle.",
-            audit_emit(op, ts),
+            _row(LOGIN),
+            *prep,
+            _row(
+                "Open ONE style control: (A) click [data-qa-id='font preview text'] → QV → "
+                "[data-qa-id='toggle-btn'] on a style row under [data-qa-id='fontFamilies Cards']; "
+                "OR (B) [data-qa-id='search-card-options-trigger'] → "
+                "[data-qa-id='context-menu-item-activate-styles'] → pick one style; "
+                "OR (C) /family/… Styles tab → [data-qa-id*='family-style-card-'] toggle."
+            ),
+            _row(f"Ensure chosen style is {need}, then {act} that ONE style."),
+            _row(audit_emit(op, ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Variation ───────────────────────────────────────────────────
     if op in {"activateVariation", "deactivateVariation"}:
         act = "Activate" if op == "activateVariation" else "Deactivate"
-        scope_nav = {
-            "global": [_nav_search()],
-            "favourite": [_nav_favourites()],
-            "list": _open_or_create_list(),
-            "project": _open_or_create_project(),
-            "project_list": _open_or_create_project_list(),
-        }.get(ts, [_nav_search()])
+        prep = {
+            "global": [_row(SEARCH_NAV)],
+            "favourite": [_row(FAV_NAV)],
+            "list": _open_list_steps(),
+            "project": _open_project_steps(),
+            "project_list": _open_project_list_steps(),
+        }.get(ts, [_row(SEARCH_NAV)])
         return _S(
-            f"GOAL: fire {op} ({ts}). Requires Font versions drawer. {seed}",
-            *_login_block(),
-            *scope_nav,
-            "Card kebab → data-qa-id=context-menu-item-more-actions → "
-            "data-qa-id=context-menu-item-font-versions.",
-            "In font-versions-drawer-list click first style row → "
-            "font-version-details-drawer-body → "
-            f"{act} a NON-default version via data-qa-id^=font-version-details-toggle-.",
-            audit_emit(op, ts),
+            _row(LOGIN),
+            *prep,
+            _row(
+                "Kebab [data-qa-id='search-card-options-trigger'] → "
+                "[data-qa-id='context-menu-item-more-actions'] → "
+                "[data-qa-id='context-menu-item-font-versions'] "
+                "(or [data-qa-id='more-actions-submenu-item-font-versions'])."
+            ),
+            _row(
+                "In [data-qa-id='font-versions-drawer-list'] click "
+                "[data-qa-id^='font-versions-drawer-item-'] → "
+                f"{act} non-default version via [data-qa-id^='font-version-details-toggle-']."
+            ),
+            _row(audit_emit(op, ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
-    # ── List-wide activate / deactivate ─────────────────────────────
     if op in {"activateList", "deActivateList"}:
         kebab = (
             "context-menu-item-activate-all-fonts"
             if op == "activateList"
             else "context-menu-item-deactivate-all-fonts"
         )
-        prep = (
-            _open_or_create_project_list()
-            if ts == "project_list"
-            else _open_or_create_list()
-        )
+        prep = _open_project_list_steps() if ts == "project_list" else _open_list_steps()
         emit_ts = "project_list" if ts == "project_list" else "list"
         return _S(
-            f"GOAL: fire {op} ({emit_ts}) — list-wide mutation, NOT activateFamily. {seed}",
-            *_login_block(),
+            _row(LOGIN),
             *prep,
-            "From All assets / Project Library table OR inside the open list: open FontList "
-            f"row kebab (md-button data-qa-id^=menu-icon-) → data-qa-id={kebab}.",
-            "Alternate inside list: bulk-select-all-button → activate-fonts-toolbar-button "
-            "(or deactivate equivalent).",
-            "Wait list activation/deactivation snackbar.",
-            audit_emit(op, emit_ts),
+            _row(
+                f"FontList row kebab → [data-qa-id='{kebab}']. "
+                "Alternate inside list: [data-qa-id='bulk-select-all-button'] → "
+                "[data-qa-id='activate-all-button'] / [data-qa-id='deactivate-all-button']."
+            ),
+            _row("Wait list snackbar success message."),
+            _row(audit_emit(op, emit_ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Project-wide ────────────────────────────────────────────────
     if op in {"activateFontProject", "deActivateFontProject"}:
+        btn = (
+            "[data-qa-id='activate-all-button']"
+            if op == "activateFontProject"
+            else "[data-qa-id='deactivate-all-button']"
+        )
         return _S(
-            f"GOAL: fire {op}. Verify Network operationName matches (UI may batch activateFamily). {seed}",
-            *_login_block(),
-            *_open_or_create_project(),
-            "Click data-qa-id=bulk-select-all-button (or select-all-checkbox).",
-            "Click activate-fonts-toolbar-button / activate-all-button "
-            "(or deactivate-all-button / deactivate-fonts-toolbar-button).",
-            f"If Network shows {op}, use that; if it shows activateFamily/deactivateFamilies "
-            "with project scope, still emit AUDIT_RESULT with the ACTUAL operationName.",
-            audit_emit(op, "project"),
+            _row(LOGIN),
+            *_open_project_steps(),
+            _row(
+                "Click [data-qa-id='bulk-select-all-button'] or "
+                "[data-qa-id='asset-list-select-all-checkbox'] or "
+                "[data-qa-id='select-all-checkbox']."
+            ),
+            _row(
+                f"Click {btn}. If Network shows activateFamily instead of {op}, "
+                "emit AUDIT_RESULT with the ACTUAL operationName."
+            ),
+            _row(audit_emit(op, "project"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Bulk activate / deactivate styles ───────────────────────────
     if op in {"bulkActivateStyles", "bulkDeactivateStyles"}:
-        btn = "activate-all-button" if op == "bulkActivateStyles" else "deactivate-all-button"
-        prep = (
-            _open_or_create_project()
-            if ts == "project"
-            else [_nav_search()]
+        btn = (
+            "[data-qa-id='activate-all-button']"
+            if op == "bulkActivateStyles"
+            else "[data-qa-id='deactivate-all-button']"
         )
+        prep = _open_project_steps() if ts == "project" else [_row(SEARCH_NAV)]
         return _S(
-            f"GOAL: fire {op} ({ts}). Multi-select 2+ cards. {seed}",
-            *_login_block(),
+            _row(LOGIN),
             *prep,
-            "Select 2+ family cards (checkboxes) OR data-qa-id=bulk-select-all-button (cap ~50).",
-            f"Click data-qa-id={btn} in action-buttons. Alternate: right-click selection → "
-            "context-menu-item-activate-all-families / deactivate-all-styles.",
-            "Wait bulk progress toast.",
-            audit_emit(op, ts if ts in {"global", "project"} else "global"),
+            _row(
+                "Select 2+ cards via checkboxes or [data-qa-id='bulk-select-all-button'] "
+                "/ [data-qa-id='select-all-checkbox']."
+            ),
+            _row(f"In [data-qa-id='action-buttons'] click {btn}."),
+            _row(audit_emit(op, ts if ts in {"global", "project"} else "global"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Bulk lists ──────────────────────────────────────────────────
     if op in {"bulkActivateLists", "bulkDeactivateLists"}:
         kebab = (
             "context-menu-item-activate-all-fonts"
@@ -385,535 +422,563 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
         where = (
             "Project Library assets table"
             if ts in {"project", "project_list"}
-            else "My Library /library assets table (assets-table-view)"
+            else "My Library /library [data-qa-id='assets-table-view']"
         )
         return _S(
-            f"GOAL: fire {op} ({ts}). Select TWO OR MORE FontList rows only. {seed}",
-            *_login_block(),
-            f"Open {where}.",
-            "Checkbox-select 2+ FontList rows (lists only — not folders/fonts).",
-            f"Right-click → data-qa-id={kebab}.",
-            audit_emit(op, "list" if ts == "list" else ts),
+            _row(LOGIN),
+            _row(f"Open {where}."),
+            _row("Checkbox-select 2+ FontList rows only."),
+            _row(f"Right-click → [data-qa-id='{kebab}']."),
+            _row(audit_emit(op, "list" if ts == "list" else ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Pin / unpin / updateAssets ──────────────────────────────────
     if op == "pinAsset":
         return _S(
-            f"GOAL: fire pinAsset. {seed}",
-            *_login_block(),
-            _nav_my_library() + " OR Search → data-qa-id=sorted-search-location-dropdown → Lists & folders.",
-            "Find an unpinned Folder or FontList row/card.",
-            "Kebab → data-qa-id=context-menu-item-pin-list OR context-menu-item-pin-folder.",
-            "Wait snackbar “pinned successfully”.",
-            audit_emit(op, "global"),
+            _row(LOGIN),
+            _row(
+                LIB_NAV
+                + " OR Search → [data-qa-id='sorted-search-location-dropdown'] → Lists & folders."
+            ),
+            _row(
+                "Unpinned Folder/FontList kebab → [data-qa-id='context-menu-item-pin-list'] "
+                "OR [data-qa-id='context-menu-item-pin-folder']."
+            ),
+            _row(audit_emit(op, "global"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "unpinAsset":
         return _S(
-            f"GOAL: fire unpinAsset. {seed}",
-            *_login_block(),
-            "Open /library or pinned sidebar entry for a pinned Folder/FontList.",
-            "Kebab → data-qa-id=context-menu-item-unpin-list OR context-menu-item-unpin-folder.",
-            audit_emit(op, "global"),
+            _row(LOGIN),
+            _row("Open a pinned Folder/FontList (sidebar pin or /library)."),
+            _row(
+                "Kebab → [data-qa-id='context-menu-item-unpin-list'] OR "
+                "[data-qa-id='context-menu-item-unpin-folder']."
+            ),
+            _row(audit_emit(op, "global"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "updateAssets":
         return _S(
-            f"GOAL: fire updateAssets (webkit online/offline). {seed}",
-            *_login_block(),
-            "Open My Library or Project Library → Webkits tab/section.",
-            "On a webkit row click data-qa-id^=webkit-actions-take-offline- OR "
-            "webkit-actions-take-online-.",
-            audit_emit(op, "global"),
+            _row(LOGIN),
+            _row("Open My Library or Project Library → Webkits tab."),
+            _row(
+                "Click [data-qa-id^='webkit-actions-take-offline-'] OR "
+                "[data-qa-id^='webkit-actions-take-online-']."
+            ),
+            _row(audit_emit(op, "global"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Favourites add / remove ─────────────────────────────────────
     if op == "addFavoriteFamilies":
         return _S(
-            f"GOAL: fire addFavoriteFamilies. {seed}",
-            *_login_block(),
-            _nav_search(),
-            "Pick a family card whose data-qa-id=icon-favorite is outline (not favourited).",
-            "Click icon-favorite OR kebab → context-menu-item-add-to-favourites.",
-            "Wait “added to Favourites” snackbar.",
-            audit_emit(op, "favourite" if ts == "favourite" else "global"),
+            _row(LOGIN),
+            _row(SEARCH_NAV),
+            _row(
+                "On card with outline heart click [data-qa-id='icon-favorite'] OR kebab → "
+                "[data-qa-id='context-menu-item-add-to-favourites']. "
+                "Wait [data-qa-id='snackbar-success']."
+            ),
+            _row(audit_emit(op, "favourite" if ts == "favourite" else "global"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "removeFavoriteFamilies":
         return _S(
-            f"GOAL: fire removeFavoriteFamilies. {seed}",
-            *_login_block(),
-            _nav_favourites(),
-            "Click filled data-qa-id=icon-favorite on a family card (solid → outline).",
-            audit_emit(op, "favourite"),
+            _row(LOGIN),
+            _row(FAV_NAV),
+            _row("Click filled [data-qa-id='icon-favorite'] (solid → outline)."),
+            _row(audit_emit(op, "favourite"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "addFavoriteStyles":
         return _S(
-            f"GOAL: fire addFavoriteStyles — style-level heart, not family. {seed}",
-            *_login_block(),
-            _nav_search(),
-            "Open QV (click font preview) or family detail Styles tab.",
-            "Click data-qa-id=icon-favorite on ONE style row.",
-            audit_emit(op, ts),
+            _row(LOGIN),
+            _row(SEARCH_NAV),
+            _row(
+                "Open QV ([data-qa-id='font preview text']) or family Styles → "
+                "click [data-qa-id='icon-favorite'] on ONE style row."
+            ),
+            _row(audit_emit(op, ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "removeFavoriteStyles":
         return _S(
-            f"GOAL: fire removeFavoriteStyles. {seed}",
-            *_login_block(),
-            _nav_favourites() + " Or open a favourited style in QV/family detail.",
-            "Click filled icon-favorite on the style row.",
-            audit_emit(op, "favourite"),
+            _row(LOGIN),
+            _row(FAV_NAV + " Or open favourited style in QV."),
+            _row("Click filled [data-qa-id='icon-favorite'] on the style row."),
+            _row(audit_emit(op, "favourite"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "addFavoritePair":
         return _S(
-            f"GOAL: fire addFavoritePair. {seed}",
-            *_login_block(),
-            _nav_search(),
-            "Card kebab → data-qa-id=context-menu-item-pairs-of-this-fonts.",
-            "On pairing grid click data-qa-id^=pairing-font-card-favorite- on a pair.",
-            audit_emit(op, ts),
+            _row(LOGIN),
+            _row(SEARCH_NAV),
+            _row(
+                "Kebab → [data-qa-id='context-menu-item-pairs-of-this-fonts'] → "
+                "click [data-qa-id^='pairing-font-card-favorite-']."
+            ),
+            _row(audit_emit(op, ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "removeFavoritePair":
         return _S(
-            f"GOAL: fire removeFavoritePair. {seed}",
-            *_login_block(),
-            "Open /library/favourites/pairs.",
-            "Click favourite control on an existing pair to toggle OFF.",
-            audit_emit(op, "favourite"),
+            _row(LOGIN),
+            _row("Open /library/favourites/pairs."),
+            _row("Click [data-qa-id^='pairing-font-card-favorite-'] to toggle OFF."),
+            _row(audit_emit(op, "favourite"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Add to list / project ───────────────────────────────────────
     if op == "addFontListFamilies":
         return _S(
-            f"GOAL: fire addFontListFamilies. {seed}",
-            *_login_block(),
-            _nav_search(),
-            "Family card kebab → context-menu-item-add-to-list-or-tag.",
-            "In drawer search an existing FontList (add-to-list-or-folder-drawer-search) → "
-            "click data-qa-id^=add-to-list-or-tag-drawer-add-.",
-            audit_emit(op, "list" if ts == "list" else ts),
+            _row(LOGIN),
+            _row(SEARCH_NAV),
+            _row(
+                "Family kebab [data-qa-id='search-card-options-trigger'] → "
+                "[data-qa-id='context-menu-item-add-to-list-or-tag'] → "
+                "optional search [data-qa-id='add-to-list-or-folder-drawer-search'] → "
+                "click [data-qa-id^='add-to-list-or-tag-drawer-add-']."
+            ),
+            _row(audit_emit(op, "list" if ts == "list" else ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "addFontListStyles":
         return _S(
-            f"GOAL: fire addFontListStyles (style-scoped). {seed}",
-            *_login_block(),
-            _nav_search(),
-            "Open QV or style row → kebab → context-menu-item-add-to-list-or-tag → "
-            "add to an existing FontList.",
-            audit_emit(op, "list" if ts == "list" else ts),
+            _row(LOGIN),
+            _row(SEARCH_NAV),
+            _row(
+                "Open style/QV → [data-qa-id='context-menu-item-add-to-list-or-tag'] → "
+                "[data-qa-id^='add-to-list-or-tag-drawer-add-']."
+            ),
+            _row(audit_emit(op, "list" if ts == "list" else ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "addFontProjectFamilies":
         return _S(
-            f"GOAL: fire addFontProjectFamilies. {seed}",
-            *_login_block(),
-            _nav_search(),
-            "Family card kebab → Add to project (or recent-projects-submenu-add-to-project-button).",
-            "In add-to-project-drawer select a project → data-qa-id=add-to-project-drawer-submit.",
-            audit_emit(op, "project"),
+            _row(LOGIN),
+            _row(SEARCH_NAV),
+            _row(
+                "Family kebab → Add to project → [data-qa-id='add-to-project-drawer-body'] → "
+                "select project → [data-qa-id='add-to-project-drawer-submit']."
+            ),
+            _row(audit_emit(op, "project"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "addFontProjectStyles":
         return _S(
-            f"GOAL: fire addFontProjectStyles. {seed}",
-            *_login_block(),
-            *_open_or_create_project(),
-            "Use project-fonts-browse-inventory-btn or Search Add-to-project for a STYLE → submit drawer.",
-            audit_emit(op, "project"),
+            _row(LOGIN),
+            *_open_project_steps(),
+            _row(
+                "Use [data-qa-id='project-fonts-browse-inventory-btn'] or Search add-to-project "
+                "for a STYLE → [data-qa-id='add-to-project-drawer-submit']."
+            ),
+            _row(audit_emit(op, "project"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "removeFontProjectStyles":
         return _S(
-            f"GOAL: fire removeFontProjectStyles. {seed}",
-            *_login_block(),
-            *_open_or_create_project(),
-            "On project fonts grid: remove one style from project "
-            "(manage fonts / Remove from project / drawer deselect → submit).",
-            audit_emit(op, "project"),
+            _row(LOGIN),
+            *_open_project_steps(),
+            _row("Remove one style from project (manage fonts / Remove from project → apply)."),
+            _row(audit_emit(op, "project"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Bulk list / favourites / tag / assets ───────────────────────
     if op == "bulkAddStylesToList":
         return _S(
-            f"GOAL: fire bulkAddStylesToList. {seed}",
-            *_login_block(),
-            _nav_search(),
-            "Multi-select 2+ cards (select-all-checkbox or individual checks).",
-            "Bulk Add to → list OR right-click → Create list with selection / "
-            "context-menu-item-add-to-list-or-tag → add to existing list.",
-            "Wait batch toast.",
-            audit_emit(op, "list"),
+            _row(LOGIN),
+            _row(SEARCH_NAV),
+            _row(
+                "Multi-select 2+ → [data-qa-id='action-buttons-options-trigger'] Add to list "
+                "OR [data-qa-id='context-menu-item-add-to-list-or-tag'] → "
+                "[data-qa-id^='add-to-list-or-tag-drawer-add-']."
+            ),
+            _row(audit_emit(op, "list"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "bulkRemoveStylesFromList":
         return _S(
-            f"GOAL: fire bulkRemoveStylesFromList. {seed}",
-            *_login_block(),
-            *_open_or_create_list(),
-            "Multi-select styles in the list → open Add to list drawer → "
-            "click data-qa-id^=add-to-list-or-tag-drawer-remove- for that list.",
-            audit_emit(op, "list"),
+            _row(LOGIN),
+            *_open_list_steps(),
+            _row(
+                "Multi-select → Add to list drawer → "
+                "[data-qa-id^='add-to-list-or-tag-drawer-remove-']."
+            ),
+            _row(audit_emit(op, "list"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "bulkRemoveStylesFromFavourites":
         return _S(
-            f"GOAL: fire bulkRemoveStylesFromFavourites. {seed}",
-            *_login_block(),
-            _nav_favourites(),
-            "Multi-select cards → bulk more → favourites-bulk-remove-from-favorites-item "
-            "OR right-click → context-menu-item-remove-from-favourites.",
-            audit_emit(op, "favourite"),
+            _row(LOGIN),
+            _row(FAV_NAV),
+            _row(
+                "Multi-select → [data-qa-id='favourites-bulk-remove-from-favorites-item'] OR "
+                "[data-qa-id='context-menu-item-remove-from-favourites']."
+            ),
+            _row(audit_emit(op, "favourite"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "bulkCopyAssets":
         return _S(
-            f"GOAL: fire bulkCopyAssets. {seed}",
-            *_login_block(),
-            _nav_my_library(),
-            "Select one or more asset rows → kebab context-menu-item-copy-to "
-            "(or toolbar Copy) → pick destination → data-qa-id=copy-assets-drawer-copy.",
-            audit_emit(op, ts),
+            _row(LOGIN),
+            _row(LIB_NAV),
+            _row(
+                "Select row(s) → [data-qa-id='context-menu-item-copy-to'] → destination → "
+                "[data-qa-id='copy-assets-drawer-copy']."
+            ),
+            _row(audit_emit(op, ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "bulkMoveAssets":
         return _S(
-            f"GOAL: fire bulkMoveAssets. {seed}",
-            *_login_block(),
-            _nav_my_library(),
-            "Select asset row(s) → kebab context-menu-item-move-to → "
-            "pick destination → data-qa-id=move-assets-drawer-move.",
-            audit_emit(op, ts),
+            _row(LOGIN),
+            _row(LIB_NAV),
+            _row(
+                "Select row(s) → [data-qa-id='context-menu-item-move-to'] → destination → "
+                "[data-qa-id='move-assets-drawer-move']."
+            ),
+            _row(audit_emit(op, ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "bulkTagStyles":
         return _S(
-            f"GOAL: fire bulkTagStyles. {seed}",
-            *_login_block(),
-            _nav_search(),
-            "Multi-select 2+ styles → right-click → Add to list or tag → pick existing tag "
-            "OR Create tag with selection → confirm.",
-            audit_emit(op, ts),
+            _row(LOGIN),
+            _row(SEARCH_NAV),
+            _row(
+                "Multi-select 2+ → [data-qa-id='context-menu-item-add-to-list-or-tag'] → "
+                "pick tag / Create tag with selection."
+            ),
+            _row(audit_emit(op, ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "bulkUntagStyles":
         return _S(
-            f"GOAL: fire bulkUntagStyles. {seed}",
-            *_login_block(),
-            "Manage → Tags → /manage/tags/list → open a tag (configure-button-*).",
-            "Fonts tagged tab → select fonts → data-qa-id=Untag-fonts-btn "
-            "(or row untag fonts-tagged-untag-*).",
-            audit_emit(op, "manage_tags"),
+            _row(LOGIN),
+            _row("Open /manage/tags/list → [data-qa-id^='configure-button-']."),
+            _row(
+                "Fonts tagged → select → [data-qa-id='Untag-fonts-btn'] "
+                "or [data-qa-id^='fonts-tagged-untag-']."
+            ),
+            _row(audit_emit(op, "manage_tags"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "updatePrivateTag":
         return _S(
-            f"GOAL: fire updatePrivateTag. {seed}",
-            *_login_block(),
-            "Open /manage/tags/list → configure-button-* on a tag.",
-            "Edit configure-tag-name-input → configure-tag-update-button.",
-            audit_emit(op, "manage_tags"),
+            _row(LOGIN),
+            _row("Open /manage/tags/list → [data-qa-id^='configure-button-']."),
+            _row(
+                "Edit [data-qa-id='configure-tag-name-input'] → "
+                "[data-qa-id='configure-tag-update-button']."
+            ),
+            _row(audit_emit(op, "manage_tags"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "updatePrivateTagAssociations":
         return _S(
-            f"GOAL: fire updatePrivateTagAssociations. {seed}",
-            *_login_block(),
-            "Open /manage/tags/list → configure tag → assign-fonts-button-* → "
-            "search/toggle fonts → apply. "
-            "Alternate: Search Add-to-tag drawer apply associations.",
-            audit_emit(op, "manage_tags"),
+            _row(LOGIN),
+            _row(
+                "/manage/tags/list → configure → [data-qa-id^='assign-fonts-button-'] → "
+                "toggle fonts → apply."
+            ),
+            _row(audit_emit(op, "manage_tags"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Create / duplicate ──────────────────────────────────────────
     if op == "createAsset":
-        if ts == "project_list" or ts == "project":
+        if ts in {"project", "project_list"}:
             return _S(
-                f"GOAL: fire createAsset inside a project ({ts}). {seed}",
-                *_login_block(),
-                *_open_or_create_project(),
-                "Open Project Library All assets → data-qa-id=create-list-button "
-                "(or create-folder-button) → asset-name-input → drawer-primary-button.",
-                audit_emit(op, ts),
+                _row(LOGIN),
+                *_open_project_steps(),
+                _row(
+                    "Project Library → [data-qa-id='create-list-button'] "
+                    "(or [data-qa-id='create-folder-button']) → "
+                    "[data-qa-id='asset-name-input'] → [data-qa-id='drawer-primary-button']."
+                ),
+                _row(audit_emit(op, ts), audit_expected(op)),
                 op=op,
                 touch=touch_canon,
             )
         return _S(
-            f"GOAL: fire createAsset in My Library ({ts}). {seed}",
-            *_login_block(),
-            _nav_my_library(),
-            "Click create-list-button (FontList) OR create-folder-button (Folder) "
-            "OR sidebar-add-library-button → asset-name-input → drawer-primary-button.",
-            audit_emit(op, "list" if ts == "list" else ts),
+            _row(LOGIN),
+            _row(LIB_NAV),
+            _row(
+                "[data-qa-id='create-list-button'] OR [data-qa-id='create-folder-button'] OR "
+                "[data-testid='sidebar-add-library-button'] → "
+                "[data-qa-id='asset-type-list-button'] if needed → "
+                "[data-qa-id='asset-name-input'] → [data-qa-id='drawer-primary-button']."
+            ),
+            _row(audit_emit(op, "list" if ts == "list" else ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "createProject":
         return _S(
-            f"GOAL: fire createProject. {seed}",
-            *_login_block(),
-            "Click data-testid=sidebar-add-project-button → /projects/create.",
-            "Enter project name → project-creation-desktop-next through steps "
-            "(skip members if allowed; optional one font) → finish Create.",
-            audit_emit(op, "project" if ts == "project" else "global"),
+            _row(LOGIN),
+            _row(
+                "Click [data-testid='sidebar-add-project-button'] → /projects/create → "
+                "enter name → [data-qa-id='project-creation-desktop-next'] through steps → finish."
+            ),
+            _row(audit_emit(op, "project" if ts == "project" else "global"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "duplicateProject":
         return _S(
-            f"GOAL: fire duplicateProject (UI may use bulkCopyAssets under the hood). {seed}",
-            *_login_block(),
-            *_open_or_create_project(),
-            "Title kebab data-qa-id=project-library-title-kebab → "
-            "project-library-kebab-duplicate. Wait duplicate snackbar.",
-            "Emit AUDIT_RESULT with the ACTUAL operationName from Network.",
-            audit_emit(op, "project"),
+            _row(LOGIN),
+            *_open_project_steps(),
+            _row(
+                "[data-qa-id='project-library-title-kebab'] → "
+                "[data-qa-id='project-library-kebab-duplicate'] "
+                "(or [data-qa-id='context-menu-item-duplicate-project']). "
+                "Emit AUDIT_RESULT with ACTUAL operationName from Network."
+            ),
+            _row(audit_emit(op, "project"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Notifications ───────────────────────────────────────────────
     if op == "dismissNotification":
         return _S(
-            f"GOAL: fire dismissNotification. {seed}",
-            *_login_block(),
-            "Click header data-qa-id=notification-btn → /notifications.",
-            "Hover first data-qa-id^=notification-row- → click delete "
-            "data-qa-id^=notification-action-tooltip-notification-delete-tt- → "
-            "confirm modal “Yes, dismiss”.",
-            audit_emit(op, "notifications"),
+            _row(LOGIN),
+            _row("Click [data-qa-id='notification-btn'] → /notifications."),
+            _row(
+                "Hover [data-qa-id^='notification-row-'] → "
+                "[data-qa-id^='notification-action-tooltip-notification-delete-tt-'] "
+                "or [data-qa-id^='notification-delete-'] → confirm Yes, dismiss."
+            ),
+            _row(audit_emit(op, "notifications"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "markNotificationRead":
         return _S(
-            f"GOAL: fire markNotificationRead. {seed}",
-            *_login_block(),
-            "Open Notifications (notification-btn).",
-            "Click data-qa-id^=notification-mark-read- on one item OR "
-            "notifications-mark-all-read → confirm.",
-            audit_emit(op, "notifications"),
+            _row(LOGIN),
+            _row("Click [data-qa-id='notification-btn'] → /notifications."),
+            _row(
+                "Click [data-qa-id^='notification-mark-read-'] OR "
+                "[data-qa-id='notifications-mark-all-read'] → confirm."
+            ),
+            _row(audit_emit(op, "notifications"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Settings / admin ────────────────────────────────────────────
     if op == "setLanguagePreference":
         return _S(
-            f"GOAL: fire setLanguagePreference. {seed}",
-            *_login_block(),
-            "Profile avatar → profile-menu-item-language OR open /preferences/general.",
-            "preferences-language-dropdown → pick a DIFFERENT language → wait save.",
-            audit_emit(op, "preferences"),
+            _row(LOGIN),
+            _row(
+                "Profile → [data-qa-id='profile-menu-item-language'] or /preferences/general → "
+                "[data-qa-id='preferences-language-dropdown'] → pick different language."
+            ),
+            _row(audit_emit(op, "preferences"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "updateCustomerSettings":
         return _S(
-            f"GOAL: fire updateCustomerSettings. {seed}",
-            *_login_block(),
-            "Manage → Company Settings (or /company-setup/review-details).",
-            "Toggle any setting (e.g. review-details-setting-allow-downloading) → "
-            "data-qa-id=save-button. Wait snackbar.",
-            audit_emit(op, "account"),
+            _row(LOGIN),
+            _row("Open /company-setup/review-details (Manage → Company Settings)."),
+            _row(
+                "Toggle a setting → [data-qa-id='save-button']. Wait snackbar."
+            ),
+            _row(audit_emit(op, "account"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "getCustomerSettings":
         return _S(
-            f"GOAL: fire getCustomerSettings (query on page load). {seed}",
-            *_login_block(),
-            "Navigate to /company-setup/review-details (Manage → Company Settings).",
-            "Wait review-details-page ready — filter Network for getCustomerSettings / "
-            "GetCustomerSettings (no extra click needed).",
-            audit_emit(op, "account"),
+            _row(LOGIN),
+            _row(
+                "Navigate /company-setup/review-details — Network filter getCustomerSettings "
+                "(fires on load)."
+            ),
+            _row(audit_emit(op, "account"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "createUserInvitations":
         return _S(
-            f"GOAL: fire createUserInvitations. {seed}",
-            *_login_block(),
-            "Open /manage/users-and-teams/users → data-qa-id=add-users-button.",
-            "Enter a unique test email in email-input-input → email-add-button → "
-            "primary-action-button (Invite all).",
-            audit_emit(op, "user_access"),
+            _row(LOGIN),
+            _row(
+                "/manage/users-and-teams/users → [data-qa-id='add-users-button'] → "
+                "[data-qa-id='email-input-input'] → [data-qa-id='email-add-button'] → "
+                "[data-qa-id='primary-action-button']."
+            ),
+            _row(audit_emit(op, "user_access"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "deleteRoles":
         return _S(
-            f"GOAL: fire deleteRoles. Prefer a disposable/non-default role. {seed}",
-            *_login_block(),
-            "Open /manage/users-and-teams/roles.",
-            "Row kebab roles-actions-menu-* → roles-action-delete-* → confirm.",
-            audit_emit(op, "user_access"),
+            _row(LOGIN),
+            _row(
+                "/manage/users-and-teams/roles → [data-qa-id^='roles-actions-menu-'] → "
+                "[data-qa-id^='roles-action-delete-'] → confirm."
+            ),
+            _row(audit_emit(op, "user_access"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "deleteTeams":
         return _S(
-            f"GOAL: fire deleteTeams. Prefer a disposable team. {seed}",
-            *_login_block(),
-            "Open /manage/users-and-teams/teams → select team checkbox(es).",
-            "Toolbar delete or row delete → confirm mtc-add-edit-teams-delete-team-modal.",
-            audit_emit(op, "user_access"),
+            _row(LOGIN),
+            _row(
+                "/manage/users-and-teams/teams → select team → delete → confirm "
+                "[data-qa-id='mtc-add-edit-teams-delete-team-modal']."
+            ),
+            _row(audit_emit(op, "user_access"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "createServiceAccount":
         return _S(
-            f"GOAL: fire createServiceAccount (Servers / Font Bridge). {seed}",
-            *_login_block(),
-            "Open /manage/users-and-teams/servers → create-server-account-button.",
-            "Fill name/description → create-server-drawer-submit. "
-            "Dismiss token modal if shown.",
-            audit_emit(op, "user_access"),
+            _row(LOGIN),
+            _row(
+                "/manage/users-and-teams/servers → [data-qa-id='create-server-account-button'] → "
+                "fill → [data-qa-id='create-server-drawer-submit']."
+            ),
+            _row(audit_emit(op, "user_access"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "bulkUpdateProfiles":
         return _S(
-            f"GOAL: fire bulkUpdateProfiles. {seed}",
-            *_login_block(),
-            "Open /manage/users-and-teams/users → select 2+ users (checkbox-select-all).",
-            "Bulk bar changeroles__button → pick role → listcard-apply-selection-button / Save.",
-            audit_emit(op, "user_access"),
+            _row(LOGIN),
+            _row(
+                "/manage/users-and-teams/users → select 2+ → [data-qa-id='changeroles__button'] → "
+                "Apply [data-qa-id='listcard-apply-selection-button']."
+            ),
+            _row(audit_emit(op, "user_access"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Import / scan / licensing ───────────────────────────────────
     if op == "processUploadSessionFonts":
         return _S(
-            f"GOAL: fire processUploadSessionFonts via document scan. {seed}",
-            *_login_block(),
-            "Click data-qa-id=sidebar-scan-document-button.",
-            "Upload a small PDF/image → document-scan-scan-now-button → "
-            "wait document-scan-results (mutation fires on hydration).",
-            audit_emit(op, "global"),
+            _row(LOGIN),
+            _row(
+                "[data-qa-id='sidebar-scan-document-button'] → upload file → "
+                "[data-qa-id='document-scan-scan-now-button'] → wait "
+                "[data-qa-id='document-scan-results']."
+            ),
+            _row(audit_emit(op, "global"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "updateSessionFiles":
         return _S(
-            f"GOAL: fire updateSessionFiles. {seed}",
-            *_login_block(),
-            "Open document scan drawer with uploaded files → "
-            "click data-qa-id^=document-scan-delete-docscan- on a row.",
-            audit_emit(op, "global"),
+            _row(LOGIN),
+            _row(
+                "Document scan drawer with files → "
+                "click [data-qa-id^='document-scan-delete-docscan-']."
+            ),
+            _row(audit_emit(op, "global"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "addStyleDocument":
         return _S(
-            f"GOAL: fire addStyleDocument. {seed}",
-            *_login_block(),
-            "Manage → Imported fonts → Fonts → imported-fonts-fonts-import.",
-            "Upload/open font detail → Documents → import-font-detail-upload-docs "
-            "(or import-font-detail-docs-empty-upload).",
-            audit_emit(op, "global"),
+            _row(LOGIN),
+            _row(
+                "Manage → Imported fonts → [data-qa-id='imported-fonts-fonts-import'] → "
+                "detail → [data-qa-id='import-font-detail-upload-docs']."
+            ),
+            _row(audit_emit(op, "global"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "submitIntentForProduction":
         return _S(
-            f"GOAL: fire submitIntentForProduction (requires share-intent permission). {seed}",
-            *_login_block(),
-            _nav_search(),
-            "Style/family kebab → context-menu-item-request-for-production → "
-            "complete new-production-font-drawer → submit.",
-            audit_emit(op, "global"),
+            _row(LOGIN),
+            _row(SEARCH_NAV),
+            _row(
+                "Kebab → [data-qa-id='context-menu-item-request-for-production'] → "
+                "complete [data-qa-id='new-production-font-drawer'] → submit."
+            ),
+            _row(audit_emit(op, "global"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "parseAndCreateContract":
         return _S(
-            f"GOAL: fire parseAndCreateContract. {seed}",
-            *_login_block(),
-            "Open /manage/imported-fonts/licenses → Add → upload license file "
-            "(imported-fonts-add-license-upload-entry) → Verify on the upload row.",
-            audit_emit(op, "global"),
+            _row(LOGIN),
+            _row(
+                "/manage/imported-fonts/licenses → "
+                "[data-qa-id='imported-fonts-add-license-upload-entry'] → Verify upload row."
+            ),
+            _row(audit_emit(op, "global"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "createContract":
         return _S(
-            f"GOAL: fire createContract. {seed}",
-            *_login_block(),
-            "Open /manage/imported-fonts/licenses → Add → "
-            "imported-fonts-add-license-manual-entry → fill form → Save/Create.",
-            audit_emit(op, "global"),
+            _row(LOGIN),
+            _row(
+                "/manage/imported-fonts/licenses → "
+                "[data-qa-id='imported-fonts-add-license-manual-entry'] → fill → Save."
+            ),
+            _row(audit_emit(op, "global"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "cancelBatch":
         return _S(
-            f"GOAL: fire cancelBatch. WEB UI GAP — no cancel control found in mtconnect-ui. {seed}",
-            "If a bulk progress drawer exposes Cancel, click it and capture Network. "
-            "Otherwise mark as not triggerable from web and stop (do not invent clicks).",
-            audit_emit(op, ts),
+            _row(
+                "WEB GAP: no cancel control in mtconnect-ui. If bulk drawer exposes Cancel, click it; "
+                "else stop — do not invent clicks."
+            ),
+            _row(audit_emit(op, ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
     if op == "syncUnSyncVariations":
         return _S(
-            f"GOAL: fire syncUnSyncVariations. WEB UI GAP — desktop Connect only. {seed}",
-            "Web CasePilot: do not wander. If desktop bridge is available, use Font versions "
-            "drawer toggles; else flag not triggerable from web and stop.",
-            audit_emit(op, "global"),
+            _row(
+                "WEB GAP: desktop Connect only. Do not wander web UI. "
+                "If desktop available use font-version toggles; else stop."
+            ),
+            _row(audit_emit(op, "global"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
-    # ── Fallback ────────────────────────────────────────────────────
     return _S(
-        f"GOAL: fire {label} only. Reuse existing UI state. {seed}",
-        *_login_block(),
-        f"Navigate to the UI surface for touchpoint={touch_canon}.",
-        f"Perform the single control that posts GraphQL operationName={op}. "
-        "Do not open unrelated family detail. Do not explore after the mutation fires.",
-        audit_emit(op, ts),
+        _row(LOGIN),
+        _row(
+            f"Navigate to UI for touchpoint={touch_canon}. "
+            f"Click the control that posts operationName={op}. Use [data-qa-id=…] when visible."
+        ),
+        _row(audit_emit(op, ts), audit_expected(op)),
         op=op,
         touch=touch_canon,
     )
 
 
 def steps_for_selection(selection: list[dict[str, Any]]) -> list[dict[str, str]]:
-    """Build steps. Multi-select → numbered checklist; finish each then continue."""
     out: list[dict[str, str]] = []
     items = [s for s in selection if isinstance(s, dict)]
     n = len(items)
@@ -921,38 +986,32 @@ def steps_for_selection(selection: list[dict[str, Any]]) -> list[dict[str, str]]
         op = str(s.get("operation") or "").strip()
         touch = str(s.get("touchpoint") or "").strip()
         label = str(s.get("label") or op).strip()
-        extra = str(s.get("notes") or s.get("extra_details") or "").strip()
         if n > 1:
             out.append(
                 {
                     "op": op,
                     "touchpoint": touch,
                     "step": (
-                        f"=== EVENT {idx}/{n}: {label} — complete ALL steps below, emit "
-                        f"AUDIT_RESULT, then immediately start event "
-                        f"{idx + 1 if idx < n else 'DONE'}. Keep browser open. ==="
+                        f"=== EVENT {idx}/{n}: {label} — follow locators, emit AUDIT_RESULT, "
+                        f"then event {idx + 1 if idx < n else 'DONE'}. NO RETRIES. ==="
                     ),
+                    "expected": "",
                 }
             )
-        if extra:
-            out.append({"op": op, "touchpoint": touch, "step": f"Hint: {extra}"})
         out.extend(recipe_for(op, touch, label=label))
     if n > 1:
         out.append(
             {
                 "op": "",
                 "touchpoint": "",
-                "step": (
-                    f"After all {n} AUDIT_RESULT lines are emitted, close the browser. "
-                    "One AUDIT_RESULT per selected event (helpers optional)."
-                ),
+                "step": f"After all {n} AUDIT_RESULT lines, close browser. No retries.",
+                "expected": "",
             }
         )
     return out
 
 
 def compact_checklist(selection: list[dict[str, Any]]) -> list[str]:
-    """Ultra-short checklist lines for multi-event CasePilot context."""
     lines: list[str] = []
     for i, s in enumerate([x for x in selection if isinstance(x, dict)], 1):
         op = str(s.get("operation") or "").strip()
@@ -960,32 +1019,25 @@ def compact_checklist(selection: list[dict[str, Any]]) -> list[str]:
         ts = short_touch(touch)
         label = str(s.get("label") or f"{op}({ts})")
         lines.append(
-            f"{i}. {label} → fire {op} → "
+            f"{i}. {label} → fire {op} once (NO RETRY) → "
             f"AUDIT_RESULT|operation={op}|correlation_id=<uuid>|touchpoint={ts}"
         )
     return lines
 
 
 def testrail_steps_separated(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
-    """TestRail custom_steps_separated payload from recipe."""
     rows = recipe_for(op, touch, label=label)
-    expected = (
-        f"GraphQL {op} fires; response has correlation-id; "
-        f"AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
-    )
-    out: list[dict[str, str]] = []
-    for r in rows:
-        out.append({"content": r["step"], "expected": expected if "AUDIT_RESULT" in r["step"] else ""})
-    if out and "AUDIT_RESULT" not in out[-1]["content"]:
-        out.append({"content": audit_emit(op, short_touch(touch)), "expected": expected})
-    return out
+    return [
+        {"content": r["step"], "expected": r.get("expected") or ""}
+        for r in rows
+    ]
 
 
 def testrail_steps_text(op: str, touch: str, *, label: str = "") -> str:
     rows = recipe_for(op, touch, label=label)
-    lines = [f"{i}. {r['step']}" for i, r in enumerate(rows, 1)]
-    lines.append(
-        "Expected: Mutation fires; AUDIT_RESULT with real correlation-id; "
-        "raw+enrich visible in Generation Status."
-    )
+    lines = []
+    for i, r in enumerate(rows, 1):
+        lines.append(f"{i}. {r['step']}")
+        if r.get("expected"):
+            lines.append(f"   Expected: {r['expected']}")
     return "\n".join(lines)

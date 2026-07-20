@@ -18,6 +18,7 @@ import {
   fetchTokenStatus,
   refreshGenerateInUi,
   cancelGenerateInUi,
+  cancelGenerateJob,
   refreshToken,
   applyTokenCredentials,
   recordGenerateInUiResults,
@@ -869,7 +870,11 @@ export default function GeneratePage({
         const j = await fetchJob(id);
         misses = 0;
         setJob(j);
-        if (j.status === "completed" || j.status === "failed") {
+        if (
+          j.status === "completed" ||
+          j.status === "failed" ||
+          j.status === "cancelled"
+        ) {
           if (pollRef.current) clearInterval(pollRef.current);
           pollRef.current = null;
           if (j.result?.token) setToken(j.result.token);
@@ -1086,6 +1091,21 @@ export default function GeneratePage({
       setError(String(e));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function abortGenerate() {
+    if (!job?.id) return;
+    try {
+      const res = await cancelGenerateJob(job.id);
+      setJob(res.job);
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+      localStorage.removeItem(JOB_KEY);
+    } catch (e) {
+      setError(String(e));
     }
   }
 
@@ -1616,6 +1636,16 @@ export default function GeneratePage({
         <button type="button" className="primary outline" disabled={running} onClick={() => run(true)}>
           {running ? "Running…" : "Generate & validate"}
         </button>
+        {running && job?.id && (
+          <button
+            type="button"
+            className="primary outline"
+            onClick={() => void abortGenerate()}
+            title="Stop the current Generate / Generate & validate job"
+          >
+            Close / abort ✕
+          </button>
+        )}
         <button
           type="button"
           className="primary outline"

@@ -22,6 +22,7 @@ class JobStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 @dataclass
@@ -168,6 +169,26 @@ class JobStore:
                 setattr(job, key, val)
             self._persist()
 
+    def request_cancel(self, job_id: str) -> JobRecord | None:
+        """Mark a running/pending job cancelled so worker loops can stop."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if not job:
+                return None
+            if job.status in (JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED):
+                return job
+            job.status = JobStatus.CANCELLED
+            job.finished_at = _now()
+            job.error = job.error or "Cancelled by user"
+            job.logs.append("⏹ Cancelled by user — aborting remaining work")
+            self._persist()
+            return job
+
+    def is_cancelled(self, job_id: str) -> bool:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            return bool(job and job.status == JobStatus.CANCELLED)
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -289,6 +310,20 @@ class AuditBridge:
         )
         thread.start()
         return job
+
+    def cancel_job(self, job_id: str) -> JobRecord | None:
+        """Abort a running Generate / Generate & validate / Compare job."""
+        job = self.store.request_cancel(job_id)
+        return job
+
+    def _finalize_job(self, job_id: str, **kwargs: Any) -> None:
+        """Apply terminal status unless the user already cancelled."""
+        if self.store.is_cancelled(job_id):
+            cur = self.store.get(job_id)
+            if cur and kwargs.get("result") is not None and cur.result is None:
+                self.store.update(job_id, result=kwargs["result"])
+            return
+        self.store.update(job_id, **kwargs)
 
     def start_compare(
         self,
@@ -543,7 +578,7 @@ class AuditBridge:
                 sc_fail = sum(
                     1 for s in scenario_results if str(s.get("status") or "").upper() == "FAIL"
                 )
-                self.store.update(
+                self._finalize_job(
                     job_id,
                     status=JobStatus.COMPLETED
                     if exit_code == 0 and val_result.get("failed", 0) == 0 and sc_fail == 0
@@ -561,6 +596,8 @@ class AuditBridge:
                 )
                 return
             else:
+                if self.store.is_cancelled(job_id):
+                    return
                 if gql_ops:
                     self.store.append_log(
                         job_id,
@@ -568,10 +605,15 @@ class AuditBridge:
                     )
                     scenario_code, scenario_results = self._run_touchpoint_scenarios(job_id, gql_ops)
                     exit_code = max(exit_code, scenario_code)
+                if self.store.is_cancelled(job_id):
+                    return
                 if cron_cases:
                     exit_code = max(exit_code, self._run_cron_cases(job_id, cron_cases))
                 if ingress_cases:
                     exit_code = max(exit_code, self._run_ingress_cases(job_id, ingress_cases))
+
+            if self.store.is_cancelled(job_id):
+                return
 
             ops_to_check = resolved_ops or list(flow_set or [])
             # Re-ensure just before poll — user may have stopped ingestion mid-run.
@@ -588,7 +630,7 @@ class AuditBridge:
             except Exception:  # noqa: BLE001
                 pass
 
-            self.store.update(
+            self._finalize_job(
                 job_id,
                 status=JobStatus.COMPLETED if exit_code == 0 else JobStatus.FAILED,
                 finished_at=_now(),
@@ -597,12 +639,13 @@ class AuditBridge:
             )
         except Exception as exc:
             log.exception("Generate job failed")
-            self.store.update(
-                job_id,
-                status=JobStatus.FAILED,
-                finished_at=_now(),
-                error=str(exc),
-            )
+            if not self.store.is_cancelled(job_id):
+                self.store.update(
+                    job_id,
+                    status=JobStatus.FAILED,
+                    finished_at=_now(),
+                    error=str(exc),
+                )
         finally:
             root_logger.removeHandler(handler)
 
@@ -722,6 +765,9 @@ class AuditBridge:
         scenario_rows: list[dict[str, Any]] = []
         ops_for_verify: list[str] = []
         for sc in scenarios:
+            if self.store.is_cancelled(job_id):
+                self.store.append_log(job_id, "⏹ Generate aborted — skipping remaining scenarios")
+                break
             op = sc["operation"]
             touch = sc["touchpoint"]
             steps = list(sc.get("steps") or [op])

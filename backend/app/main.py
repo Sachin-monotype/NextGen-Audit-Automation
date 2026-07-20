@@ -1008,6 +1008,15 @@ def start_generate(body: GenerateRequest) -> dict[str, Any]:
     return _job_payload(job)
 
 
+@app.post("/api/jobs/{job_id}/cancel")
+def cancel_job(job_id: str) -> dict[str, Any]:
+    """Abort a running Generate / Generate & validate / Compare job."""
+    job = bridge.cancel_job(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    return {"ok": True, "job": _job_payload(job)}
+
+
 @app.post("/api/jobs/compare")
 def start_compare(body: CompareRequest) -> dict[str, Any]:
     if not body.operations:

@@ -257,7 +257,8 @@ class CasePilotMcpClient:
 
     def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
         last_err: CasePilotMcpError | None = None
-        for attempt in range(3):
+        # At most one session-reinit. Never retry IP bans or tool business errors.
+        for attempt in range(2):
             try:
                 self.ensure_session(force=attempt > 0)
                 hdrs, text = self._post(
@@ -314,7 +315,8 @@ class CasePilotMcpClient:
                 # Never retry Cloudflare IP bans — retries make the ban worse.
                 if self._is_ip_banned(exc):
                     raise
-                if attempt < 2 and self._is_session_missing(exc):
+                # Session not found: re-initialize once, then fail (no multi-retry loops).
+                if attempt == 0 and self._is_session_missing(exc):
                     self._reset_session()
                     continue
                 raise

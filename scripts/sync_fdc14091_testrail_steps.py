@@ -119,19 +119,19 @@ def main() -> int:
     ok = fail = 0
     for i, item in enumerate(work, 1):
         steps = testrail_steps_separated(item["operation"], item["touchpoint"])
-        preconds = (
-            "1. NextGen PP/QA is reachable; CasePilot runner can log in.\n"
-            "2. Prefer reuse of existing projects/lists/favourites; create only if required for scope.\n"
-            "3. Do NOT hardcode family IDs — pick any visible card matching ON/OFF state.\n"
-            "4. Capture response header correlation-id (not x-correlation-id).\n"
-            f"5. Jira: {REFS}. Recipe source: ui_case_recipes.py."
+        custom_preconds = (
+            "1. NextGen PP/QA is reachable; CasePilot can log in.\n"
+            "2. Prefer reuse of existing projects/lists/favourites.\n"
+            "3. Capture response header correlation-id (not x-correlation-id).\n"
+            "4. Follow locators exactly ([data-qa-id=…]). No retries.\n"
+            f"5. Jira: {REFS}."
         )
         payload = {
             "estimate": ESTIMATE,
             "refs": REFS,
             "custom_platforms": PLATFORMS,
             "custom_levels": LEVELS,
-            "custom_preconds": preconds,
+            "custom_preconds": custom_preconds,
             "custom_steps_separated": steps,
         }
         preview = testrail_steps_text(item["operation"], item["touchpoint"])
