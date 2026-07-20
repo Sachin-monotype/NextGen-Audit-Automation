@@ -301,6 +301,10 @@ export type UiTriggerSelectionItem = {
   operation: string;
   touchpoint?: string | null;
   label?: string;
+  /** Per-scenario TestRail case id (digits or C#######). */
+  test_case_id?: string;
+  /** Per-scenario hints for the CasePilot agent. */
+  notes?: string;
 };
 
 export type UiTriggerJob = {
@@ -815,6 +819,7 @@ export type GenerateScenarioStatus = {
   scenario_id: string;
   operation: string;
   touchpoint: string;
+  label?: string;
   steps?: string[];
   status: string;
   xCorrelationId?: string | null;
@@ -824,12 +829,16 @@ export type GenerateScenarioStatus = {
   raw_event?: Record<string, unknown> | null;
   enriched_event?: Record<string, unknown> | null;
   error?: string | null;
+  source?: string;
+  remark?: string;
 };
 
 export type GenerateRunReport = {
   checked_at?: string;
   job_id?: string;
   validate?: boolean;
+  kind?: string;
+  source?: string;
   summary?: {
     total?: number;
     success?: number;

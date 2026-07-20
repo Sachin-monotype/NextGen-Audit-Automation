@@ -56,12 +56,33 @@ def short_touchpoint(touch: str | None) -> str:
     return _SHORT_TOUCH.get(kind, kind.replace(" ", "_") or "global")
 
 
-def scenario_display_name(operation: str, touchpoint: str | None = None) -> str:
-    """e.g. ``activateFamily(global)`` — used in Generation Status + CSV."""
+def scenario_display_name(
+    operation: str,
+    touchpoint: str | None = None,
+    *,
+    ui: bool = False,
+) -> str:
+    """e.g. ``activateFamily(global)`` or ``activateFamily(global)(ui)`` for UI triggers."""
     short = short_touchpoint(touchpoint)
-    if not short:
-        return operation
-    return f"{operation}({short})"
+    base = f"{operation}({short})" if short else operation
+    if ui and not base.endswith("(ui)"):
+        return f"{base}(ui)"
+    return base
+
+
+def is_placeholder_scenario(operation: str | None, touchpoint: str | None = None) -> bool:
+    """True when CasePilot left angle-bracket template tokens (e.g. ``<op>``, ``<touch>``)."""
+    for part in (operation, touchpoint):
+        if not part:
+            continue
+        s = str(part).strip()
+        if not s:
+            continue
+        if "<" in s or ">" in s:
+            return True
+        if s.lower() in {"op", "touch", "operation", "touchpoint", "uuid", "value"}:
+            return True
+    return False
 
 
 def canonicalize_touchpoint(touch: str | None) -> str | None:

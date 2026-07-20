@@ -12,7 +12,12 @@ type Props = {
   onActive?: (job: UiTriggerJob) => void;
 };
 
-/** FDC-00001 TestRail map — keep in sync with python/audit_validator/ui_testrail_map.py */
+type ScenarioRow = UiTriggerSelectionItem & {
+  test_case_id: string;
+  notes: string;
+};
+
+/** FDC-00001 / FDC-14091 TestRail map — keep in sync with python/audit_validator/ui_testrail_map.py */
 const FDC_CASE_BY_ID: Record<string, number> = {
   "activateFamily::Discovery/Browse (global)": 73300131,
   "activateFamily::List (FONTLIST)": 73300132,
@@ -45,47 +50,55 @@ const FDC_CASE_BY_LABEL: Record<string, number> = {
   "dismissnotification(global)": 73300140,
 };
 
-function mapCaseIds(selection: UiTriggerSelectionItem[]): number[] {
-  const out: number[] = [];
-  const seen = new Set<number>();
-  for (const s of selection) {
-    let cid =
-      (s.id && FDC_CASE_BY_ID[s.id]) ||
-      FDC_CASE_BY_LABEL[(s.label || "").toLowerCase()] ||
-      (s.operation && FDC_CASE_BY_ID[s.operation]) ||
-      undefined;
-    if (!cid && s.operation === "activateFamily") {
-      const t = (s.touchpoint || "").toLowerCase();
-      if (t.includes("project") && t.includes("list")) cid = 73300135;
-      else if (t.includes("favourite") || t.includes("favorite")) cid = 73300133;
-      else if (t.includes("project")) cid = 73300134;
-      else if (t.includes("list")) cid = 73300132;
-      else cid = 73300131;
-    }
-    if (cid && !seen.has(cid)) {
-      seen.add(cid);
-      out.push(cid);
-    }
+const TESTRAIL_CASE_URL = "https://type.testrail.com/index.php?/cases/view/";
+
+function resolveCaseId(s: UiTriggerSelectionItem): number | undefined {
+  let cid =
+    (s.id && FDC_CASE_BY_ID[s.id]) ||
+    FDC_CASE_BY_LABEL[(s.label || "").toLowerCase()] ||
+    (s.operation && FDC_CASE_BY_ID[s.operation]) ||
+    undefined;
+  if (!cid && s.operation === "activateFamily") {
+    const t = (s.touchpoint || "").toLowerCase();
+    if (t.includes("project") && t.includes("list")) cid = 73300135;
+    else if (t.includes("favourite") || t.includes("favorite")) cid = 73300133;
+    else if (t.includes("project")) cid = 73300134;
+    else if (t.includes("list")) cid = 73300132;
+    else cid = 73300131;
   }
-  return out;
+  return cid;
+}
+
+function scenarioTitle(s: UiTriggerSelectionItem): string {
+  return s.label || (s.touchpoint ? `${s.operation}(${s.touchpoint})` : s.operation);
 }
 
 /**
- * One-step Generate in UI: auto-mapped TestRail ids + optional extra details → Send.
- * Parent log auto-refreshes and auto-verifies raw/enrich into Generation Status.
+ * One-to-one Generate in UI: each event has its own TestRail id (linked) + details box.
  */
 export default function GenerateInUiModal({ selection, onClose, onActive }: Props) {
-  const mapped = useMemo(() => mapCaseIds(selection), [selection]);
-  const [testCaseId, setTestCaseId] = useState(() => mapped.join(", "));
-  const [notes, setNotes] = useState("");
+  const initialRows = useMemo<ScenarioRow[]>(
+    () =>
+      selection.map((s) => {
+        const cid = resolveCaseId(s);
+        return {
+          ...s,
+          test_case_id: cid ? String(cid) : "",
+          notes: "",
+        };
+      }),
+    [selection],
+  );
+
+  const [rows, setRows] = useState<ScenarioRow[]>(initialRows);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [mcpOk, setMcpOk] = useState<boolean | null>(null);
   const [mcpDetail, setMcpDetail] = useState("");
 
   useEffect(() => {
-    setTestCaseId(mapped.join(", "));
-  }, [mapped]);
+    setRows(initialRows);
+  }, [initialRows]);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,21 +124,42 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
     };
   }, []);
 
+  function updateRow(index: number, patch: Partial<ScenarioRow>) {
+    setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  }
+
+  const missingCase = rows.some((r) => !r.test_case_id.trim());
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!testCaseId.trim()) return;
+    if (missingCase) {
+      setError("Each scenario needs a TestRail case id.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
+      const payloadSelection = rows.map((r) => ({
+        id: r.id,
+        operation: r.operation,
+        touchpoint: r.touchpoint,
+        label: r.label,
+        test_case_id: r.test_case_id.trim(),
+        notes: r.notes.trim(),
+      }));
+      const caseIds = rows.map((r) => r.test_case_id.trim()).join(", ");
       const cta =
-        selection.length === 1
-          ? `Perform ${selection[0].label || selection[0].operation} in NextGen UI`
-          : `Perform ${selection.length} selected scenarios in NextGen UI`;
+        rows.length === 1
+          ? `Perform ${scenarioTitle(rows[0])} in NextGen UI`
+          : `Perform ${rows.length} selected scenarios in NextGen UI`;
       const res = await startGenerateInUi({
-        selection,
-        test_case_id: testCaseId.trim(),
+        selection: payloadSelection,
+        test_case_id: caseIds,
         cta_text: cta,
-        notes: notes.trim(),
+        notes: rows
+          .filter((r) => r.notes.trim())
+          .map((r) => `${scenarioTitle(r)}: ${r.notes.trim()}`)
+          .join("\n"),
         dispatch: true,
       });
       onActive?.(res.job);
@@ -148,7 +182,7 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
   return (
     <div className="modal-backdrop" onClick={() => !busy && onClose()} role="presentation">
       <div
-        className="modal-card generate-ui-modal"
+        className="modal-card generate-ui-modal generate-ui-modal-wide"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label="Generate in UI"
@@ -160,62 +194,76 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
           </button>
         </div>
         <p className="muted small">
-          Send {selection.length} scenario{selection.length === 1 ? "" : "s"} to CasePilot. When the UI
-          browser closes we auto-capture correlation ids (including intermediate mutations) and load
-          raw + enrich into Generation Status.
+          One row per event. Edit TestRail id or extra details per scenario, then Send. When the UI
+          browser closes we capture correlation ids and load raw + enrich into Generation Status.
         </p>
         <p className={`small ${mcpOk ? "ok" : mcpOk === false ? "error" : "muted"}`}>
           {mcpDetail || "Checking CasePilot…"}
         </p>
-        <ul className="muted small" style={{ margin: "8px 0" }}>
-          {selection.map((s) => {
-            const cid =
-              (s.id && FDC_CASE_BY_ID[s.id]) ||
-              FDC_CASE_BY_LABEL[(s.label || "").toLowerCase()] ||
-              undefined;
-            return (
-              <li key={s.id || `${s.operation}-${s.touchpoint}`}>
-                {s.label || s.operation}
-                {s.touchpoint ? ` · ${s.touchpoint}` : ""}
-                {cid ? (
-                  <>
-                    {" "}
-                    → <code>C{cid}</code>
-                  </>
-                ) : (
-                  " → (enter id below)"
-                )}
-              </li>
-            );
-          })}
-        </ul>
+
         <form onSubmit={onSubmit} className="token-cred-form">
-          <label>
-            TestRail testcase id{mapped.length > 1 ? "s" : ""}
-            <input
-              value={testCaseId}
-              onChange={(e) => setTestCaseId(e.target.value)}
-              placeholder="Auto-mapped from selection — edit if needed"
-              required
-              autoFocus
-            />
-          </label>
-          <label>
-            Extra details (optional)
-            <textarea
-              rows={3}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Hints for the UI agent (e.g. prefer family detail Activate button)"
-            />
-          </label>
+          <div className="generate-ui-scenario-list">
+            {rows.map((r, i) => {
+              const digits = r.test_case_id.replace(/\D/g, "");
+              const trUrl = digits ? `${TESTRAIL_CASE_URL}${digits}` : "";
+              return (
+                <div key={r.id || `${r.operation}-${r.touchpoint}-${i}`} className="generate-ui-scenario-row">
+                  <div className="generate-ui-scenario-head">
+                    <code className="generate-ui-event-name">{scenarioTitle(r)}</code>
+                    {r.touchpoint ? (
+                      <span className="muted small">{r.touchpoint}</span>
+                    ) : null}
+                  </div>
+                  <label>
+                    TestRail case id
+                    <div className="generate-ui-case-row">
+                      <input
+                        value={r.test_case_id}
+                        onChange={(e) => updateRow(i, { test_case_id: e.target.value })}
+                        placeholder="e.g. 73300131"
+                        required
+                        autoFocus={i === 0}
+                      />
+                      {trUrl ? (
+                        <a
+                          href={trUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="link-btn"
+                          title={trUrl}
+                        >
+                          open C{digits}
+                        </a>
+                      ) : (
+                        <span className="muted small">no link yet</span>
+                      )}
+                    </div>
+                  </label>
+                  <label>
+                    Extra details (optional)
+                    <textarea
+                      rows={2}
+                      value={r.notes}
+                      onChange={(e) => updateRow(i, { notes: e.target.value })}
+                      placeholder="Hints for this event only (e.g. use family 910042901, prefer detail Activate)"
+                    />
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+
           {error && <p className="error small">{error}</p>}
           <div className="modal-actions">
             <button type="button" disabled={busy} onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="primary" disabled={busy || !testCaseId.trim() || mcpOk === false}>
-              {busy ? "Sending…" : "Send to CasePilot"}
+            <button
+              type="submit"
+              className="primary"
+              disabled={busy || missingCase || mcpOk === false}
+            >
+              {busy ? "Sending…" : `Send ${rows.length} to CasePilot`}
             </button>
           </div>
         </form>

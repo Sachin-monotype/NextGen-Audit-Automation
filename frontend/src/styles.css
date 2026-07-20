@@ -573,6 +573,28 @@ button, input, select {
   background: var(--surface);
 }
 
+.event-json-modal {
+  width: min(920px, 96vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.event-json-modal-body {
+  flex: 1;
+  overflow: auto;
+  max-height: calc(88vh - 72px);
+  padding: 8px 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.scenario-op-name {
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
 .flow-preview {
   margin: 8px 0 12px;
   padding: 8px 10px;
@@ -760,8 +782,10 @@ button.primary.outline {
 }
 
 .enrich-diff-modal {
-  width: min(960px, 100%);
-  max-height: 85vh;
+  width: min(1100px, 96vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .enrich-diff-labels {
@@ -790,10 +814,46 @@ button.primary.outline {
   color: inherit;
 }
 
+.enrich-diff-modal .result-table-wrap {
+  overflow: auto;
+  max-height: min(62vh, 640px);
+}
+
+.enrich-diff-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.enrich-diff-table th:nth-child(1),
+.enrich-diff-table td:nth-child(1) {
+  width: 28%;
+}
+
+.enrich-diff-table th:nth-child(2),
+.enrich-diff-table td:nth-child(2),
+.enrich-diff-table th:nth-child(3),
+.enrich-diff-table td:nth-child(3) {
+  width: 33%;
+}
+
+.enrich-diff-table th:nth-child(4),
+.enrich-diff-table td:nth-child(4) {
+  width: 6%;
+}
+
 .enrich-diff-table .diff-val {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.75rem;
-  max-width: 280px;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  vertical-align: top;
+  min-width: 0;
+}
+
+.enrich-diff-table td code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   word-break: break-word;
 }
 
@@ -803,6 +863,66 @@ button.primary.outline {
 
 .generate-ui-modal {
   width: min(560px, 100%);
+}
+
+.generate-ui-modal-wide {
+  width: min(720px, 96vw);
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.generate-ui-scenario-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: min(58vh, 560px);
+  overflow: auto;
+  padding-right: 4px;
+  margin: 8px 0 12px;
+}
+
+.generate-ui-scenario-row {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+}
+
+.generate-ui-scenario-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.generate-ui-event-name {
+  font-size: 0.9rem;
+}
+
+.generate-ui-case-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.generate-ui-case-row input {
+  flex: 1;
+  min-width: 140px;
+}
+
+.generate-status-table {
+  overflow-x: auto;
+}
+
+.generate-status-table .scenario-status-table {
+  min-width: 720px;
+}
+
+.generate-status-table td {
+  vertical-align: top;
 }
 
 .display-panel {

@@ -113,13 +113,25 @@ def extract_audit_details_from_casepilot_result(
         cid = (cid or "").strip()
         if not cid or cid in seen:
             return
-        seen.add(cid)
+        # Reject leftover template tokens copied from instructions
+        if cid.startswith("<") or "uuid" in cid.lower() and "<" in cid:
+            return
         op = str(extra.get("operation") or default_operation or "").strip()
+        touch = str(extra.get("touchpoint") or default_touchpoint or "").strip()
+        try:
+            from audit_validator.touchpoint.scenarios import is_placeholder_scenario
+
+            if is_placeholder_scenario(op, touch):
+                return
+        except Exception:  # noqa: BLE001
+            if "<" in op or "<" in touch:
+                return
+        seen.add(cid)
         found.append(
             {
                 "correlation_id": cid,
                 "operation": op,
-                "touchpoint": str(extra.get("touchpoint") or default_touchpoint or "").strip(),
+                "touchpoint": touch,
                 "source": extra.get("source") or "casepilot_result",
                 "raw_marker": extra.get("raw_marker"),
                 "casepilot_job_id": run_status.get("job_id"),
@@ -203,6 +215,15 @@ def apply_extracted_results(
         # If agent omitted operation and we have multiple selection items, try label match later
         if not op and selection:
             op = str(selection[0].get("operation") or "")
+        try:
+            from audit_validator.touchpoint.scenarios import is_placeholder_scenario
+
+            if is_placeholder_scenario(op, touch):
+                _append_log(job, f"⚠ skipped placeholder AUDIT_RESULT op={op!r} touch={touch!r}")
+                continue
+        except Exception:  # noqa: BLE001
+            if "<" in op or "<" in touch:
+                continue
         row = {
             "operation": op,
             "touchpoint": touch,
@@ -223,6 +244,9 @@ def apply_extracted_results(
         )
         if record_generation and op:
             try:
+                from audit_validator.touchpoint.scenarios import scenario_display_name
+
+                display = scenario_display_name(op, touch, ui=True)
                 record_generation(
                     op,
                     cid,
@@ -232,21 +256,18 @@ def apply_extracted_results(
                         "touchpoint": touch,
                         "ui_trigger_job_id": job.get("id"),
                         "source": "casepilot",
+                        "display": display,
                     },
                 )
-                # Also register display name if we know the touchpoint
-                if touch:
-                    from audit_validator.touchpoint.scenarios import scenario_display_name
-
-                    display = scenario_display_name(op, touch)
-                    if display != op:
-                        record_generation(
-                            display,
-                            cid,
-                            project_root=project_root,
-                            kind="ui",
-                            meta={"touchpoint": touch, "ui_trigger_job_id": job.get("id")},
-                        )
+                # Also register UI display name (…(ui)) for Generation Status / Compare
+                if display != op:
+                    record_generation(
+                        display,
+                        cid,
+                        project_root=project_root,
+                        kind="ui",
+                        meta={"touchpoint": touch, "ui_trigger_job_id": job.get("id")},
+                    )
             except Exception as exc:  # noqa: BLE001
                 _append_log(job, f"⚠ could not record_generation: {exc}")
         if build_trigger_context and save_trigger_context and op:
@@ -294,10 +315,33 @@ def create_ui_trigger_job(
     """Persist a Generate-in-UI handoff. Optionally dispatch to CasePilot immediately."""
     cfg = load_casepilot_config()
     job_id = str(uuid.uuid4())
+    # Prefer per-scenario test_case_id on selection rows; fall back to bulk / auto-map.
+    per_item: list[int] = []
+    for s in selection:
+        if not isinstance(s, dict):
+            continue
+        raw_cid = s.get("test_case_id") or s.get("testcase_id") or ""
+        parsed = parse_testrail_case_ids(str(raw_cid)) if raw_cid else []
+        if parsed:
+            per_item.extend(int(x) for x in parsed if str(x).isdigit() or isinstance(x, int))
+        else:
+            from audit_validator.ui_testrail_map import case_id_for_selection_item
+
+            mapped_one = case_id_for_selection_item(s)
+            if mapped_one:
+                per_item.append(int(mapped_one))
+    # Dedupe preserving order
+    seen_ids: set[int] = set()
+    per_item_unique: list[int] = []
+    for cid in per_item:
+        if cid not in seen_ids:
+            seen_ids.add(cid)
+            per_item_unique.append(cid)
+
     mapped = map_selection_to_case_ids(selection)
     manual = parse_testrail_case_ids(test_case_id)
-    # Manual override wins when provided; else auto-map from FDC-00001 catalog.
-    case_ids = manual or mapped
+    # Priority: bulk manual field → per-item ids → catalog auto-map
+    case_ids = manual or per_item_unique or mapped
     testcase_display = (test_case_id or "").strip() or format_case_ids(case_ids) or "TR-TBD"
     payload = {
         "id": job_id,
@@ -437,8 +481,81 @@ def record_ui_trigger_result(
         return data
 
 
+# Stable seed families used across audit automation (fast search path).
+_SEED_FAMILIES = ("910042901", "910011880")
+
+
+def _short_touch_label(touch: str) -> str:
+    t = (touch or "").lower().replace("/", " ").replace(">", " ").replace("_", " ")
+    t = " ".join(t.split())
+    if "project" in t and "list" in t:
+        return "project_list"
+    if "favourite" in t or "favorite" in t:
+        return "favourite"
+    if t == "project" or t.startswith("project "):
+        return "project"
+    if "list" in t or "fontlist" in t:
+        return "list"
+    if "discover" in t or "browse" in t or "search" in t or "global" in t or not t:
+        return "global"
+    return t.replace(" ", "_") or "global"
+
+
+def _audit_emit_step(op: str, touch_short: str) -> str:
+    return (
+        f"In DevTools Network, open the {op} GraphQL/BFF response and copy header "
+        f"correlation-id (NOT x-correlation-id). Emit exactly: "
+        f"AUDIT_RESULT|operation={op}|correlation_id=<uuid>|touchpoint={touch_short} "
+        f"— replace <uuid> with the real header value; never leave angle-bracket placeholders."
+    )
+
+
+def _fast_search_activate_steps(op: str, touch: str, touch_short: str) -> list[dict[str, str]]:
+    """Minimal path: search seed family → deactivate if needed → activate → emit."""
+    seeds = " or ".join(_SEED_FAMILIES)
+    return [
+        {
+            "op": op,
+            "touchpoint": touch,
+            "step": (
+                f"FAST PATH — do not wander the UI. Use global Search for family id {seeds} "
+                f"(prefer {_SEED_FAMILIES[0]}). Open that family card/detail."
+            ),
+        },
+        {
+            "op": op,
+            "touchpoint": touch,
+            "step": (
+                "If the family is already activated, Deactivate it once, wait for success, "
+                "then continue. Skip unrelated menus, projects, lists, or favourites."
+            ),
+        },
+        {
+            "op": op,
+            "touchpoint": touch,
+            "step": (
+                "Activate the family from the card toggle or family-detail Activate button "
+                f"(global / Discovery scope — touchpoint={touch_short})."
+            ),
+        },
+        {
+            "op": op,
+            "touchpoint": touch,
+            "step": _audit_emit_step(op, touch_short),
+        },
+        {
+            "op": op,
+            "touchpoint": touch,
+            "step": "Close the browser. Do not perform extra clicks after AUDIT_RESULT.",
+        },
+    ]
+
+
 def ui_steps_for_selection(selection: list[dict[str, Any]]) -> list[dict[str, str]]:
-    """Simple UI steps we want CasePilot to follow (override verbose TestRail prose)."""
+    """Concise UI steps for CasePilot (override verbose TestRail prose).
+
+    Prefer search → deactivate-if-needed → act. Avoid random navigation.
+    """
     steps: list[dict[str, str]] = []
     for s in selection:
         if not isinstance(s, dict):
@@ -446,64 +563,261 @@ def ui_steps_for_selection(selection: list[dict[str, Any]]) -> list[dict[str, st
         op = str(s.get("operation") or "").strip()
         touch = str(s.get("touchpoint") or "").strip()
         label = str(s.get("label") or op).strip()
-        touch_l = touch.lower()
-        if op == "activateFamily" and (
-            not touch
-            or "discovery" in touch_l
-            or "global" in touch_l
-            or "browse" in touch_l
-        ):
+        extra = str(s.get("notes") or s.get("extra_details") or "").strip()
+        touch_short = _short_touch_label(touch)
+        touch_canon = touch or {
+            "global": "Discovery/Browse (global)",
+            "list": "List (FONTLIST)",
+            "favourite": "Favourite",
+            "project": "Project",
+            "project_list": "Project > List",
+        }.get(touch_short, touch)
+
+        if extra:
+            steps.append(
+                {
+                    "op": op,
+                    "touchpoint": touch_canon,
+                    "step": f"Operator hint for {label}: {extra}",
+                }
+            )
+
+        if op == "activateFamily" and touch_short == "global":
+            steps.extend(_fast_search_activate_steps(op, touch_canon, "global"))
+            continue
+
+        if op == "activateFamily" and touch_short == "favourite":
+            seeds = " or ".join(_SEED_FAMILIES)
             steps.extend(
                 [
                     {
                         "op": op,
-                        "touchpoint": touch or "Discovery/Browse (global)",
-                        "step": "Open Discover / Browse fonts (do NOT hardcode a family id).",
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch or "Discovery/Browse (global)",
-                        "step": "Find any family that is currently NOT activated (toggle off / shows Activate).",
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch or "Discovery/Browse (global)",
-                        "step": "Activate it from the card toggle OR open family detail and click Activate.",
-                    },
-                    {
-                        "op": op,
-                        "touchpoint": touch or "Discovery/Browse (global)",
+                        "touchpoint": touch_canon,
                         "step": (
-                            "In DevTools Network, open the activateFamily GraphQL/BFF response and copy "
-                            "header correlation-id (NOT x-correlation-id). Emit: "
-                            "AUDIT_RESULT|operation=activateFamily|correlation_id=<value>|touchpoint=global"
+                            f"Search family {seeds}. Add to Favourites if missing "
+                            "(skip if already favourited)."
                         ),
                     },
                     {
                         "op": op,
-                        "touchpoint": touch or "Discovery/Browse (global)",
-                        "step": "Close the browser. Verification continues in the audit app.",
+                        "touchpoint": touch_canon,
+                        "step": (
+                            "Open Favourites. Deactivate the family if already activated, "
+                            "then Activate from the Favourites context (listType=FAVORITE)."
+                        ),
+                    },
+                    {"op": op, "touchpoint": touch_canon, "step": _audit_emit_step(op, "favourite")},
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": "Close the browser after AUDIT_RESULT.",
                     },
                 ]
             )
-        else:
-            steps.append(
-                {
-                    "op": op,
-                    "touchpoint": touch,
-                    "step": f"Perform {label} in NextGen UI, then capture response header correlation-id.",
-                }
+            continue
+
+        if op == "activateFamily" and touch_short == "list":
+            seeds = " or ".join(_SEED_FAMILIES)
+            steps.extend(
+                [
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": (
+                            "Create a new font list (Assets) OR open an existing editable list. "
+                            "Keep this short — no unrelated browsing."
+                        ),
+                    },
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": f"Add family {seeds} to that list (addFontListFamilies).",
+                    },
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": (
+                            "From the LIST context, deactivate if needed, then Activate family "
+                            "(FONTLIST scope — must include listIds in the mutation)."
+                        ),
+                    },
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": (
+                            "Also emit AUDIT_RESULT for createAsset / addFontListFamilies if those "
+                            "mutations ran, then: " + _audit_emit_step(op, "list")
+                        ),
+                    },
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": "Close the browser after AUDIT_RESULT lines.",
+                    },
+                ]
             )
-            steps.append(
-                {
-                    "op": op,
-                    "touchpoint": touch,
-                    "step": (
-                        f"Emit AUDIT_RESULT|operation={op}|correlation_id=<value>|touchpoint="
-                        f"{touch or 'global'} then close the browser."
-                    ),
-                }
+            continue
+
+        if op == "activateFamily" and touch_short == "project":
+            seeds = " or ".join(_SEED_FAMILIES)
+            steps.extend(
+                [
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": "Create a project (or open a recent editable project). Stay on project flow.",
+                    },
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": f"Add family {seeds} to the project (addFontProjectFamilies).",
+                    },
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": (
+                            "From the PROJECT family page, deactivate if needed, then Activate "
+                            "(FONTPROJECT — mutation must include projectId)."
+                        ),
+                    },
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": (
+                            "Emit AUDIT_RESULT for createProject / addFontProjectFamilies if run, then: "
+                            + _audit_emit_step(op, "project")
+                        ),
+                    },
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": "Close the browser after AUDIT_RESULT lines.",
+                    },
+                ]
             )
+            continue
+
+        if op == "activateFamily" and touch_short == "project_list":
+            seeds = " or ".join(_SEED_FAMILIES)
+            steps.extend(
+                [
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": (
+                            "CRITICAL — Project > List is NOT the same as List alone. "
+                            "You must create/open a PROJECT, then create a LIST inside that project."
+                        ),
+                    },
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": f"Create/open project → add family {seeds} to the project.",
+                    },
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": (
+                            "Inside that project, create a font list (createAsset under project), "
+                            f"then add family {seeds} to that project list (addFontListFamilies)."
+                        ),
+                    },
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": (
+                            "Activate the family FROM the project-list context so the mutation "
+                            "includes BOTH projectId AND listIds. Deactivate first if already on."
+                        ),
+                    },
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": (
+                            "Emit AUDIT_RESULT for each helper mutation "
+                            "(createProject, addFontProjectFamilies, createAsset, addFontListFamilies), "
+                            "then: " + _audit_emit_step(op, "project_list")
+                        ),
+                    },
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": "Close the browser. Do not activate from global/list-only screens.",
+                    },
+                ]
+            )
+            continue
+
+        if op == "deactivateFamilies" and touch_short == "global":
+            seeds = " or ".join(_SEED_FAMILIES)
+            steps.extend(
+                [
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": (
+                            f"Search family {seeds}. If not activated, Activate once first, "
+                            "then Deactivate from Discovery/card."
+                        ),
+                    },
+                    {"op": op, "touchpoint": touch_canon, "step": _audit_emit_step(op, "global")},
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": "Close the browser after AUDIT_RESULT.",
+                    },
+                ]
+            )
+            continue
+
+        if op == "activateStyle" and touch_short == "global":
+            seeds = " or ".join(_SEED_FAMILIES)
+            steps.extend(
+                [
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": (
+                            f"Search family {seeds}, open family detail, activate one style "
+                            "(not the whole family) from style row / right-click Activate Style."
+                        ),
+                    },
+                    {"op": op, "touchpoint": touch_canon, "step": _audit_emit_step(op, "global")},
+                    {
+                        "op": op,
+                        "touchpoint": touch_canon,
+                        "step": "Close the browser after AUDIT_RESULT.",
+                    },
+                ]
+            )
+            continue
+
+        # Generic compact path for other ops
+        steps.append(
+            {
+                "op": op,
+                "touchpoint": touch_canon,
+                "step": (
+                    f"Perform {label} in NextGen UI with the shortest path. "
+                    f"Prefer Search with seed families {_SEED_FAMILIES[0]}/{_SEED_FAMILIES[1]} when fonts are involved. "
+                    "Do not explore unrelated pages."
+                ),
+            }
+        )
+        steps.append(
+            {
+                "op": op,
+                "touchpoint": touch_canon,
+                "step": _audit_emit_step(op, touch_short or "global"),
+            }
+        )
+        steps.append(
+            {
+                "op": op,
+                "touchpoint": touch_canon,
+                "step": "Close the browser after AUDIT_RESULT.",
+            }
+        )
     return steps
 
 
@@ -545,8 +859,8 @@ def _build_context(job: dict[str, Any]) -> tuple[str, str, dict[str, str]]:
             "- Intermediate helpers also count: createProject, createAsset, addFontProjectFamilies,",
             "  addFontListFamilies, addFavoriteFamilies, deactivateFamilies, activateFamily, etc.",
             "- Never use x-correlation-id.",
-            "- Emit one line per mutation:",
-            "  AUDIT_RESULT|operation=<op>|correlation_id=<uuid>|touchpoint=<touch>",
+            "- Emit one line per mutation (fill real values — never leave angle brackets):",
+            "  AUDIT_RESULT|operation=activateFamily|correlation_id=7a4f9f30-f35b-400c-89af-3cc21b15c51a|touchpoint=global",
             "- Example for Project > List flow:",
             "  AUDIT_RESULT|operation=createProject|correlation_id=...|touchpoint=project",
             "  AUDIT_RESULT|operation=addFontProjectFamilies|correlation_id=...|touchpoint=project",
@@ -554,17 +868,32 @@ def _build_context(job: dict[str, Any]) -> tuple[str, str, dict[str, str]]:
             "  AUDIT_RESULT|operation=addFontListFamilies|correlation_id=...|touchpoint=list",
             "  AUDIT_RESULT|operation=activateFamily|correlation_id=...|touchpoint=project_list",
             "- Then close the browser; the audit app auto-verifies raw↔enriched for ALL captured ops.",
+            "- NEVER emit literal tokens like <op>, <touch>, or <uuid>.",
         ]
     )
+    # Fold per-scenario notes into description when present
+    per_notes = []
+    for s in selection:
+        if not isinstance(s, dict):
+            continue
+        n = str(s.get("notes") or s.get("extra_details") or "").strip()
+        if n:
+            per_notes.append(f"- {s.get('label') or s.get('operation')}: {n}")
+    if per_notes:
+        description += "\n\n## Per-scenario hints\n" + "\n".join(per_notes)
+
     hints = {
         "correlation_header": "correlation-id",
         "avoid_header": "x-correlation-id",
-        "audit_result_format": "AUDIT_RESULT|operation=<op>|correlation_id=<uuid>|touchpoint=<touch>",
+        "audit_result_format": (
+            "AUDIT_RESULT|operation=activateFamily|correlation_id=<real-uuid>|touchpoint=global"
+        ),
         "capture_intermediate_mutations": "true",
         "product": "NextGen",
         "source": "nextgen-audit-automation",
         "after_ui": "close_browser_auto_verify_in_audit_app",
         "prefer_steps": "context_over_testrail",
+        "seed_families": ",".join(_SEED_FAMILIES),
     }
     return summary, description, hints
 
@@ -940,7 +1269,18 @@ def finalize_ui_trigger_verification(
             op = str(r.get("operation") or "").strip()
             touch = str(r.get("touchpoint") or "").strip()
             cid = str(r.get("correlation_id") or "").strip()
-            display = scenario_display_name(op, touch) if op else op
+            if not op:
+                continue
+            try:
+                from audit_validator.touchpoint.scenarios import is_placeholder_scenario
+
+                if is_placeholder_scenario(op, touch):
+                    _log(f"  ⚠ skip placeholder scenario op={op!r} touch={touch!r}")
+                    continue
+            except Exception:  # noqa: BLE001
+                if "<" in op or "<" in touch:
+                    continue
+            display = scenario_display_name(op, touch, ui=True)
             landing_row = landing_by_op.get(op) or {}
 
             raw_doc = landing_row.get("raw_event")

@@ -22,9 +22,21 @@ enrich-JSON leaf (same set as the Results **List** view).
 | `ums>` | MySQL `user_management.*` |
 | `ams>` | MySQL `asset_management.*` |
 | `typesense>` | Discovery HTTP as copy-paste `curl` |
-| `raw>` | Producer audit envelope — Query left **blank** |
+| `trigger>` / GraphQL curl | Mutation **response + input** from the event trigger (`payload/trigger/*.json` / live curl). Prefer this over Raw for join keys (`familyIds`, `listIds`, `projectId`, batch ids). |
+| `raw>` | Producer audit envelope (legacy). Prefer `trigger>` / GraphQL curl when both exist. Query left **blank** |
 | `jwt>` | Bearer claims — Query left **blank** |
 | `audit-service>` | Enricher-derived — Query left **blank** |
+
+### Compare source priority (raw ↔ enrich)
+
+Source validation resolves subject join keys and envelope fields against:
+
+1. **GraphQL curl / event trigger** (`load_trigger_context` — mutation input + response)
+2. JWT / UMS / CMS / Discovery as documented per field
+3. Raw envelope only when the trigger context is missing
+
+When regenerating workbooks, notes that previously said `Source: raw envelope` should read
+`Source: GraphQL curl / event trigger`.
 
 Within each sheet, the first row for a given source (e.g. all `cms>customers>*`) gets
 the full SQL/curl; following rows show **`↻ same as above`**.

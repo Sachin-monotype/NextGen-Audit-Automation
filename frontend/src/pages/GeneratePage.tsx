@@ -85,21 +85,44 @@ function EventJsonCell({
   label,
   present,
   data,
+  title,
 }: {
   label: string;
   present?: boolean;
   data?: Record<string, unknown> | null;
+  title?: string;
 }) {
   const [open, setOpen] = useState(false);
   if (!present && !data) return <span className="muted">—</span>;
   return (
     <div className="event-json-cell">
-      <button type="button" className="link-btn" onClick={() => setOpen((o) => !o)}>
-        {present ? "✓" : "—"} {label} {open ? "▴" : "▾"}
+      <button type="button" className="link-btn" onClick={() => setOpen(true)}>
+        {present ? "✓" : "—"} {label}
       </button>
       {open && (
-        <div className="event-json-panel">
-          {data ? <JsonTree data={data} defaultOpen={false} /> : <span className="muted">No JSON captured</span>}
+        <div className="modal-backdrop" onClick={() => setOpen(false)} role="presentation">
+          <div
+            className="modal-card event-json-modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label={`${label} JSON`}
+          >
+            <div className="modal-head">
+              <strong>
+                {title || label} JSON
+              </strong>
+              <button type="button" className="link-btn" onClick={() => setOpen(false)}>
+                close ✕
+              </button>
+            </div>
+            <div className="event-json-modal-body">
+              {data ? (
+                <JsonTree data={data} defaultOpen={false} />
+              ) : (
+                <span className="muted">No JSON captured</span>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -120,9 +143,28 @@ function shortTouchpoint(touch?: string | null): string {
   return t.replace(/\s+/g, "_") || "global";
 }
 
-function scenarioDisplayName(operation: string, touchpoint?: string | null): string {
+function isPlaceholderScenario(operation?: string | null, touchpoint?: string | null): boolean {
+  for (const part of [operation, touchpoint]) {
+    if (!part) continue;
+    const s = String(part).trim();
+    if (!s) continue;
+    if (s.includes("<") || s.includes(">")) return true;
+    if (["op", "touch", "operation", "touchpoint", "uuid", "value"].includes(s.toLowerCase())) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function scenarioDisplayName(
+  operation: string,
+  touchpoint?: string | null,
+  opts?: { ui?: boolean },
+): string {
   const short = shortTouchpoint(touchpoint);
-  return short ? `${operation}(${short})` : operation;
+  const base = short ? `${operation}(${short})` : operation;
+  if (opts?.ui && !base.endsWith("(ui)")) return `${base}(ui)`;
+  return base;
 }
 
 type ScenarioRow = GenerateScenarioStatus;
@@ -131,16 +173,18 @@ type ScenarioRow = GenerateScenarioStatus;
 function dedupeScenarioRows(scenarios: ScenarioRow[]): ScenarioRow[] {
   const byKey = new Map<string, ScenarioRow>();
   for (const s of scenarios) {
-    const key = scenarioDisplayName(s.operation, s.touchpoint);
+    if (isPlaceholderScenario(s.operation, s.touchpoint)) continue;
+    const ui = String(s.source || "").toLowerCase() === "ui" || String((s as { kind?: string }).kind || "").includes("ui");
+    const key = scenarioDisplayName(s.operation, s.touchpoint, { ui });
     const prev = byKey.get(key);
     if (!prev) {
-      byKey.set(key, s);
+      byKey.set(key, { ...s, label: key });
       continue;
     }
     // Prefer the row that actually landed raw/enrich JSON
     const prevScore = (prev.raw ? 2 : 0) + (prev.enriched ? 1 : 0) + (prev.status === "PASS" ? 1 : 0);
     const nextScore = (s.raw ? 2 : 0) + (s.enriched ? 1 : 0) + (s.status === "PASS" ? 1 : 0);
-    if (nextScore > prevScore) byKey.set(key, s);
+    if (nextScore > prevScore) byKey.set(key, { ...s, label: key });
   }
   return [...byKey.values()];
 }
@@ -1612,7 +1656,12 @@ export default function GeneratePage() {
                   </thead>
                   <tbody>
                     {statusScenarios.map((s) => {
-                      const name = scenarioDisplayName(s.operation, s.touchpoint);
+                      const ui =
+                        String(s.source || "").toLowerCase() === "ui" ||
+                        Boolean(runReport?.source === "generate_in_ui");
+                      const name =
+                        s.label ||
+                        scenarioDisplayName(s.operation, s.touchpoint, { ui });
                       const canDiff = Boolean(s.enriched_event);
                       return (
                         <tr key={`${s.scenario_id}-${s.xCorrelationId || ""}`}>
@@ -1628,12 +1677,24 @@ export default function GeneratePage() {
                               <span className="muted">—</span>
                             )}
                           </td>
-                          <td><code>{name}</code></td>
                           <td>
-                            <EventJsonCell label="raw" present={s.raw} data={s.raw_event} />
+                            <code className="scenario-op-name">{name}</code>
                           </td>
                           <td>
-                            <EventJsonCell label="enrich" present={s.enriched} data={s.enriched_event} />
+                            <EventJsonCell
+                              label="raw"
+                              present={s.raw}
+                              data={s.raw_event}
+                              title={name}
+                            />
+                          </td>
+                          <td>
+                            <EventJsonCell
+                              label="enrich"
+                              present={s.enriched}
+                              data={s.enriched_event}
+                              title={name}
+                            />
                           </td>
                           {isValidateMode && (
                             <>
@@ -1642,7 +1703,7 @@ export default function GeneratePage() {
                                   {s.status}
                                 </span>
                               </td>
-                              <td className="remark-cell">{s.error || "—"}</td>
+                              <td className="remark-cell">{s.remark || s.error || "—"}</td>
                             </>
                           )}
                           <td>

@@ -1,20 +1,20 @@
 # NextGen Audit Automation
 
-End-to-end UI for audit log generation, display, source comparison, and results — built on top of [mt-audit-log-automation](../mt-audit-log-automation) (Python) and MongoDB (from [audit-sense](../audit-sense)).
+End-to-end UI for audit event **generation**, Mongo **raw/enrich** inspection, **source comparison**, and **results** — with optional **Generate in UI** via CasePilot for touchpoint coverage.
 
 ## Architecture
 
 | Layer | Stack | Role |
 |-------|-------|------|
-| **Frontend** | React 19 + Vite | 4 sections: Generate, Enrich/raw, Compare, Result |
+| **Frontend** | React 19 + Vite | Generate, Enrich/raw, Compare, Result |
 | **Backend** | FastAPI + pymongo | Mongo queries, job runner wrapping `audit_validator` |
-| **Validator** | `python/audit_validator/` (vendored) | Simulation, E2E, source validation |
+| **Validator** | `python/audit_validator/` (vendored) | Simulation, E2E, source validation, CasePilot handoff |
 
 ## Quick start
 
 ```bash
 cp .env.example .env
-# Edit MONGO_DB_URL and AUDIT_PROJECT_ROOT if needed
+# Set MONGO_DB_URL, GraphQL/token settings, and (optional) CASEPILOT_* vars
 
 python3 -m venv backend/.venv
 backend/.venv/bin/pip install -r backend/requirements.txt
@@ -24,63 +24,79 @@ chmod +x backend/run.sh scripts/dev.sh
 ./scripts/dev.sh
 ```
 
-`backend/run.sh` also installs both requirement files automatically. Run the
-commands above explicitly when preparing a virtual environment without using
-the development script.
-
-- UI: http://localhost:5174
-- API: http://localhost:3200
-- Health: http://localhost:3200/health
+- UI: http://localhost:5174  
+- API: http://localhost:3200  
+- Health: http://localhost:3200/health  
 
 ## Sections
 
 ### Generate
-Select operations (or leave empty for all). Two actions:
-- **Generate** — trigger events, capture raw/enriched via RabbitMQ
-- **Generate & validate** — full pipeline including UMS/CMS/Discovery source validation
+- **Generate** / **Generate & validate** — GraphQL (or flow) triggers, capture raw/enriched, optional source validation.
+- **Generate in UI** — send selected scenarios to CasePilot; auto-capture `correlation-id` and open Generation Status with raw + enrich. UI runs are labeled with an `(ui)` suffix (e.g. `activateFamily(global)(ui)`).
 
-Live logs show queue names, environment, capture progress, and Mongo verification.
-
-### Enrich/raw collection
-Browse **enriched** (default), **raw**, or **DLQ** from Mongo:
-- Sticky filter + pagination bar (stays visible while scrolling)
-- Page size: 20 / 50 / 100 / 200
-- Default: **latest entry per unique operation**
-- When filtered: all matching entries
+### Enrich/raw
+Browse enriched (default), raw, or DLQ from Mongo with sticky filters and pagination.
 
 ### Compare
-Select operations that exist in both raw and enriched collections. Runs Python source validation against Typesense, UMS, CMS.
+Source-validate enriched fields against GraphQL **trigger/curl** context, JWT, UMS, CMS, Discovery — not only the raw envelope.
 
 ### Result
-Grouped card view or compact table view (`$.field.path` | enriched | source). Excel download included.
+Grouped or table view of compare outcomes; Excel export available.
 
-## Self-contained repo
+## CasePilot (Generate in UI)
 
-The `python/audit_validator/` package is vendored in this repo — no sibling `mt-audit-log-automation` checkout required. Copy `.env.example` to `.env` and fill tokens/RabbitMQ/Mongo settings.
+Requires `CASEPILOT_API_KEY` and UI credentials in `.env`. See the full technical write-up:
+
+→ **[docs/CASEPILOT_INTEGRATION.md](docs/CASEPILOT_INTEGRATION.md)**
+
+TestRail pack for touchpoints: sibling repo `qa_agent/output/test_cases/FDC-14091.json` ([Jira FDC-14091](https://monotype.atlassian.net/browse/FDC-14091)).
+
+## Repository layout
+
+| Path | Purpose |
+|------|---------|
+| `frontend/` | React app |
+| `backend/` | FastAPI |
+| `python/audit_validator/` | Core validator + CasePilot client |
+| `docs/` | **Pushable** technical docs (CasePilot, E2E, mappings README, …) |
+| `temp/` | Local scratch notes (gitignored except `.gitkeep`) |
+| `payload/` | Runtime raw/enrich/trigger artifacts (gitignored JSON) |
+| `reports/` | Local run reports (gitignored) |
+
+Keep one-off investigation notes in `temp/`, not under `docs/`.
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
+| [docs/CASEPILOT_INTEGRATION.md](docs/CASEPILOT_INTEGRATION.md) | CasePilot MCP flow, correlation, APIs |
 | [docs/TECHNICAL.md](docs/TECHNICAL.md) | Architecture, API, pipeline overview |
-| [docs/E2E_ACTIVATE_FAMILY.md](docs/E2E_ACTIVATE_FAMILY.md) | End-to-end walkthrough for activateFamily |
-| [docs/postman/](docs/postman/) | Postman collections (Simulation, Ingress, Verification) |
+| [docs/E2E_ACTIVATE_FAMILY.md](docs/E2E_ACTIVATE_FAMILY.md) | End-to-end activateFamily walkthrough |
+| [docs/mappings/README.md](docs/mappings/README.md) | Field-mapping workbook conventions (trigger/curl source) |
 
-## Environment
+Excel / Postman / generated touchpoint packs stay local (see `.gitignore`).
 
-Copy `.env.example`. Key variables:
+## Environment (high level)
 
-- `MONGO_DB_URL` — same cluster as audit-sense
-- `AUDIT_PROJECT_ROOT` — defaults to `.` (this repo)
-Tokens / RabbitMQ — set in this repo's `.env` (see `.env.example`)
+| Variable | Purpose |
+|----------|---------|
+| `MONGO_DB_URL` | Same cluster as audit-sense |
+| `AUDIT_PROJECT_ROOT` | Defaults to this repo |
+| GraphQL / Bearer / RabbitMQ | See `.env.example` |
+| `CASEPILOT_API_KEY` + UI login vars | Generate in UI |
 
-## API
+## API (selected)
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/health` | Mongo + project root status |
-| GET | `/api/raw\|enriched\|dlq` | Filtered logs (limit 5 default) |
-| GET | `/api/meta/comparable-operations` | Ops in both collections |
-| POST | `/api/jobs/generate` | Start generation job |
-| POST | `/api/jobs/compare` | Start comparison job |
-| GET | `/api/jobs/{id}` | Job status + logs + results |
+| GET | `/health` | Mongo + project root |
+| GET | `/api/raw\|enriched\|dlq` | Filtered logs |
+| POST | `/api/jobs/generate` | GraphQL generate job |
+| POST | `/api/jobs/generate-ui` | CasePilot UI handoff (`dispatch` optional) |
+| GET | `/api/meta/casepilot` | CasePilot MCP health |
+| POST | `/api/jobs/compare` | Source comparison job |
+| GET | `/api/jobs/{id}` | Job status + logs |
+
+## Branching
+
+Feature work that touches CasePilot / Generate-in-UI should land on a dedicated branch (e.g. `CasePilot-Integration`) and merge to `main` only after smoke verification — avoid breaking the default Generate path.

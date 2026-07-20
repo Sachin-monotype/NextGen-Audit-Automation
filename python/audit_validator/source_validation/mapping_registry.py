@@ -247,9 +247,9 @@ def _font_envelope_fields(operation: str) -> list[MappingField]:
     """Shared font-activation mapping (activate-family.enricher pattern)."""
     op = operation
     base: list[tuple[str, str, str, str, str, str]] = [
-        ("xCorrelationId", "", "", "", "Source: mtconnect-api → xCorrelationId", "N"),
-        ("eventId", "", "", "", "Source: mtconnect-api → eventId", "N"),
-        ("source", "operation", "", "", f"Source: raw envelope → {op}", "N"),
+        ("xCorrelationId", "", "", "", "Source: GraphQL curl / event trigger → xCorrelationId", "N"),
+        ("eventId", "", "", "", "Source: GraphQL curl / event trigger → eventId", "N"),
+        ("source", "operation", "", "", f"Source: GraphQL curl / event trigger → {op}", "N"),
         ("actor.enrichedSnapshot", "user", "profile.id", "", "Source: UMS POST profiles", "Y"),
         ("actor.enrichedSnapshot", "user", "profile.email", "", "Source: UMS POST profiles", "Y"),
         ("actor.enrichedSnapshot", "user", "role.displayName", "", "Source: UMS GET roles", "Y"),

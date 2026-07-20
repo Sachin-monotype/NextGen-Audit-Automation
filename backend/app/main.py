@@ -729,6 +729,8 @@ class UiTriggerSelectionItem(BaseModel):
     operation: str
     touchpoint: str | None = None
     label: str = ""
+    test_case_id: str = ""
+    notes: str = ""
 
 
 class UiTriggerRequest(BaseModel):
