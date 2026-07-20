@@ -1074,27 +1074,88 @@ export default function GeneratePage({
     () => dedupeScenarioRows(runReport?.scenarios || []),
     [runReport?.scenarios],
   );
+
+  /** Rows shown in Generation Status with Pick checkboxes (scenarios preferred, else operations). */
+  type StatusRow = {
+    key: string;
+    operation: string;
+    touchpoint?: string | null;
+    status: string;
+    remark: string;
+    raw?: boolean;
+    enriched?: boolean;
+    raw_event?: Record<string, unknown> | null;
+    enriched_event?: Record<string, unknown> | null;
+    scenario_id?: string;
+    xCorrelationId?: string | null;
+    source?: string;
+  };
+
+  const statusRows: StatusRow[] = useMemo(() => {
+    if (statusScenarios.length > 0) {
+      const uiRun = Boolean(runReport?.source === "generate_in_ui");
+      return statusScenarios.map((s) => {
+        const ui = String(s.source || "").toLowerCase() === "ui" || uiRun;
+        const key = s.label || scenarioDisplayName(s.operation, s.touchpoint, { ui });
+        return {
+          key,
+          operation: s.operation,
+          touchpoint: s.touchpoint,
+          status: String(s.status || "").toUpperCase() || "N/A",
+          remark: s.remark || s.error || "—",
+          raw: s.raw,
+          enriched: s.enriched,
+          raw_event: s.raw_event,
+          enriched_event: s.enriched_event,
+          scenario_id: s.scenario_id,
+          xCorrelationId: s.xCorrelationId,
+          source: s.source,
+        };
+      });
+    }
+    return (runReport?.operations || []).map((o, index) => {
+      const ui =
+        o.ui_status ||
+        (o.status === "success"
+          ? "PASS"
+          : o.status === "no_correlation"
+            ? "N/A"
+            : o.status === "fail" || o.status === "failed" || o.trigger_error
+              ? "FAIL"
+              : String(o.status || "N/A").toUpperCase());
+      const status = String(ui).toUpperCase();
+      return {
+        key: o.operation || `op-${index}`,
+        operation: o.operation,
+        status: status === "SUCCESS" ? "PASS" : status,
+        remark: o.remark || o.trigger_error || o.status || "—",
+        raw: o.raw,
+        enriched: o.enriched,
+        raw_event: o.raw_event,
+        enriched_event: o.enriched_event,
+        xCorrelationId: o.xCorrelationId,
+      };
+    });
+  }, [statusScenarios, runReport?.operations, runReport?.source]);
+
   const scenarioSummary = useMemo(() => {
-    if (!statusScenarios.length) return null;
-    const pass = statusScenarios.filter((s) => String(s.status).toUpperCase() === "PASS").length;
-    const fail = statusScenarios.filter((s) => String(s.status).toUpperCase() === "FAIL").length;
-    const na = statusScenarios.length - pass - fail;
-    return { pass, fail, na, total: statusScenarios.length };
-  }, [statusScenarios]);
-  const scenariosWithLanding = statusScenarios.filter((s) => s.raw || s.enriched).length;
-  const opsWithLanding = (runReport?.operations || []).filter((o) => o.raw || o.enriched).length;
-  const openOpsSummary =
-    !(runReport?.scenarios?.length) || scenariosWithLanding === 0;
+    if (!statusRows.length) return null;
+    const pass = statusRows.filter((s) => s.status === "PASS").length;
+    const fail = statusRows.filter((s) => s.status === "FAIL").length;
+    const na = statusRows.length - pass - fail;
+    return { pass, fail, na, total: statusRows.length };
+  }, [statusRows]);
+  const scenariosWithLanding = statusRows.filter((s) => s.raw || s.enriched).length;
 
   const enrichCandidates = useMemo(() => {
-    return statusScenarios
+    return statusRows
       .filter((s) => s.enriched_event)
       .map((s) => ({
-        key: scenarioDisplayName(s.operation, s.touchpoint),
-        label: scenarioDisplayName(s.operation, s.touchpoint),
+        key: s.key,
+        label: s.key,
         data: s.enriched_event as Record<string, unknown>,
       }));
-  }, [statusScenarios]);
+  }, [statusRows]);
 
   function toggleEnrichPick(key: string) {
     setEnrichPick((prev) => {
@@ -1135,13 +1196,6 @@ export default function GeneratePage({
     }
   }
 
-  function scenarioKey(s: GenerateScenarioStatus): string {
-    const ui =
-      String(s.source || "").toLowerCase() === "ui" ||
-      Boolean(runReport?.source === "generate_in_ui");
-    return s.label || scenarioDisplayName(s.operation, s.touchpoint, { ui });
-  }
-
   function toggleExportPick(key: string) {
     setExportPick((prev) =>
       prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
@@ -1150,9 +1204,7 @@ export default function GeneratePage({
 
   function selectExportByStatus(statuses: string[]) {
     const want = new Set(statuses.map((s) => s.toUpperCase()));
-    const keys = statusScenarios
-      .filter((s) => want.has(String(s.status || "").toUpperCase()))
-      .map(scenarioKey);
+    const keys = statusRows.filter((s) => want.has(s.status)).map((s) => s.key);
     setExportPick(keys);
   }
 
@@ -1162,46 +1214,34 @@ export default function GeneratePage({
     const headers = isValidateMode
       ? ["operation", "raw", "enrich", "status", "remark"]
       : ["operation", "raw", "enrich"];
-    const scenarioRows = dedupeScenarioRows(runReport.scenarios || []);
     const picked = new Set(exportPick);
     const onlyPicked = picked.size > 0;
-    if (scenarioRows.length > 0) {
-      for (const s of scenarioRows) {
-        const name = scenarioKey(s);
-        if (onlyPicked && !picked.has(name)) continue;
-        const base = [name, jsonCell(s.raw_event), jsonCell(s.enriched_event)];
-        rows.push(
-          isValidateMode ? [...base, s.status || "", s.remark || s.error || ""] : base,
-        );
-      }
-    } else {
-      for (const o of runReport.operations || []) {
-        if (onlyPicked && !picked.has(o.operation)) continue;
-        const ui =
-          o.ui_status ||
-          (o.status === "success" ? "PASS" : o.status === "no_correlation" ? "N/A" : o.status || "");
-        const base = [o.operation, jsonCell(o.raw_event), jsonCell(o.enriched_event)];
-        rows.push(
-          isValidateMode
-            ? [...base, ui, o.remark || o.trigger_error || ""]
-            : base,
-        );
-      }
+    const source = statusRows.length > 0 ? statusRows : [];
+    for (const s of source) {
+      if (onlyPicked && !picked.has(s.key)) continue;
+      const base = [s.key, jsonCell(s.raw_event), jsonCell(s.enriched_event)];
+      rows.push(isValidateMode ? [...base, s.status || "", s.remark || ""] : base);
     }
     downloadCsv(`generate-status-${isValidateMode ? "validate" : "generate"}.csv`, headers, rows);
   }
 
   async function compareSelectedFromStatus() {
-    if (!statusScenarios.length) return;
+    if (!statusRows.length) {
+      setError("No generation status rows to compare.");
+      return;
+    }
     const picked = new Set(exportPick);
-    const pool = statusScenarios.filter((s) => {
-      const key = scenarioKey(s);
-      if (picked.size && !picked.has(key)) return false;
-      return String(s.status || "").toUpperCase() === "PASS" && (s.raw || s.enriched);
+    const pool = statusRows.filter((s) => {
+      if (picked.size && !picked.has(s.key)) return false;
+      return s.status === "PASS" && (s.raw || s.enriched);
     });
     const ops = [...new Set(pool.map((s) => s.operation).filter(Boolean))];
     if (!ops.length) {
-      setError("Select PASS rows (checkbox) that have raw/enrich, then Compare selected.");
+      setError(
+        picked.size
+          ? "No selected PASS rows with raw/enrich. Tick PASS rows first, or clear pick and try again."
+          : "No PASS rows with raw/enrich to compare.",
+      );
       return;
     }
     setCompareBusy(true);
@@ -1665,7 +1705,7 @@ export default function GeneratePage({
               {!isValidateMode && (
                 <>
                   {" · "}
-                  scenarios {statusScenarios.length || runReport.scenarios?.length || 0}
+                  scenarios {statusRows.length}
                   {" · "}
                   landed {scenariosWithLanding}
                 </>
@@ -1681,28 +1721,30 @@ export default function GeneratePage({
               <button type="button" className="link-btn" onClick={() => selectExportByStatus(["PASS"])}>
                 Select PASS
               </button>
-              <button type="button" className="link-btn" onClick={() => setExportPick(statusScenarios.map(scenarioKey))}>
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => setExportPick(statusRows.map((r) => r.key))}
+              >
                 Select all
               </button>
               {exportPick.length > 0 && (
                 <button type="button" className="link-btn" onClick={() => setExportPick([])}>
-                  clear export
+                  clear ({exportPick.length})
                 </button>
               )}
               <button
                 type="button"
                 className="link-btn"
-                disabled={compareBusy}
+                disabled={compareBusy || statusRows.length === 0}
                 onClick={compareSelectedFromStatus}
-                title="Run source compare for selected PASS rows (or all PASS if none selected)"
+                title="Compare selected PASS rows (or all PASS if none selected) → Result tab"
               >
                 {compareBusy ? "Comparing…" : "Compare selected PASS → Result"}
               </button>
               {enrichCandidates.length >= 2 && (
                 <>
-                  <span className="muted small">
-                    Pick 2 enrich rows to diff metadata
-                  </span>
+                  <span className="muted small">Pick 2 for enrich leaf-diff</span>
                   <button
                     type="button"
                     className="link-btn"
@@ -1719,18 +1761,36 @@ export default function GeneratePage({
                 </>
               )}
             </div>
-            {scenariosWithLanding === 0 && (runReport.scenarios?.length ?? 0) > 0 && (
-              <p className="warn small">
-                No scenario raw/enrich JSON yet — triggers likely failed.
-                Check Operation-level Mongo summary below for any landed events.
+            {exportPick.length > 0 && (
+              <p className="muted small" style={{ margin: "4px 0 8px" }}>
+                {exportPick.length} selected — Export CSV uses this set; Compare uses PASS among selection
+                (or all PASS if you clear selection).
               </p>
             )}
-            {(statusScenarios.length > 0) && (
+            {statusRows.length === 0 ? (
+              <p className="warn small">No status rows yet — run Generate first.</p>
+            ) : (
               <div className="result-table-wrap compact-table-wrap generate-status-table">
                 <table className="result-table scenario-status-table">
                   <thead>
                     <tr>
-                      <th title="Select for CSV export / compare">Pick</th>
+                      <th title="Select for CSV export / compare">
+                        <input
+                          type="checkbox"
+                          checked={
+                            statusRows.length > 0 &&
+                            statusRows.every((r) => exportPick.includes(r.key))
+                          }
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setExportPick(statusRows.map((r) => r.key));
+                            } else {
+                              setExportPick([]);
+                            }
+                          }}
+                          aria-label="Select all rows"
+                        />
+                      </th>
                       <th title="Select for enrich JSON leaf diff">Diff</th>
                       <th>Operation</th>
                       <th>Raw</th>
@@ -1745,45 +1805,39 @@ export default function GeneratePage({
                     </tr>
                   </thead>
                   <tbody>
-                    {statusScenarios.map((s) => {
-                      const ui =
-                        String(s.source || "").toLowerCase() === "ui" ||
-                        Boolean(runReport?.source === "generate_in_ui");
-                      const name =
-                        s.label ||
-                        scenarioDisplayName(s.operation, s.touchpoint, { ui });
+                    {statusRows.map((s) => {
                       const canDiff = Boolean(s.enriched_event);
                       return (
-                        <tr key={`${s.scenario_id}-${s.xCorrelationId || ""}`}>
+                        <tr key={`${s.key}-${s.xCorrelationId || ""}`}>
                           <td>
                             <input
                               type="checkbox"
-                              checked={exportPick.includes(name)}
-                              onChange={() => toggleExportPick(name)}
-                              aria-label={`Select ${name} for export/compare`}
+                              checked={exportPick.includes(s.key)}
+                              onChange={() => toggleExportPick(s.key)}
+                              aria-label={`Select ${s.key}`}
                             />
                           </td>
                           <td>
                             {canDiff ? (
                               <input
                                 type="checkbox"
-                                checked={enrichPick.includes(name)}
-                                onChange={() => toggleEnrichPick(name)}
-                                aria-label={`Select ${name} for enrich diff`}
+                                checked={enrichPick.includes(s.key)}
+                                onChange={() => toggleEnrichPick(s.key)}
+                                aria-label={`Diff ${s.key}`}
                               />
                             ) : (
                               <span className="muted">—</span>
                             )}
                           </td>
                           <td>
-                            <code className="scenario-op-name">{name}</code>
+                            <code className="scenario-op-name">{s.key}</code>
                           </td>
                           <td>
                             <EventJsonCell
                               label="raw"
                               present={s.raw}
                               data={s.raw_event}
-                              title={name}
+                              title={s.key}
                             />
                           </td>
                           <td>
@@ -1791,17 +1845,25 @@ export default function GeneratePage({
                               label="enrich"
                               present={s.enriched}
                               data={s.enriched_event}
-                              title={name}
+                              title={s.key}
                             />
                           </td>
                           {isValidateMode && (
                             <>
                               <td>
-                                <span className={`status-pill ${s.status === "PASS" ? "completed" : "failed"}`}>
+                                <span
+                                  className={`status-pill ${
+                                    s.status === "PASS"
+                                      ? "completed"
+                                      : s.status === "N/A"
+                                        ? "pending"
+                                        : "failed"
+                                  }`}
+                                >
                                   {s.status}
                                 </span>
                               </td>
-                              <td className="remark-cell">{s.remark || s.error || "—"}</td>
+                              <td className="remark-cell">{s.remark}</td>
                             </>
                           )}
                           <td>
@@ -1811,7 +1873,7 @@ export default function GeneratePage({
                               onClick={() =>
                                 setVerifyCtx({
                                   operation: s.operation,
-                                  touchpoint: s.touchpoint,
+                                  touchpoint: s.touchpoint ?? undefined,
                                   scenarioId: s.scenario_id,
                                   correlationId: s.xCorrelationId || undefined,
                                 })
@@ -1840,55 +1902,6 @@ export default function GeneratePage({
               onClose={() => setEnrichDiff(null)}
             />
           )}
-          <details className="operation-summary-details" open={openOpsSummary}>
-            <summary>
-              Operation-level Mongo summary
-              {opsWithLanding > 0 ? ` · ${opsWithLanding} with raw/enrich JSON` : ""}
-            </summary>
-            <div className="result-table-wrap compact-table-wrap generate-status-table">
-              <table className="result-table">
-                <thead>
-                  <tr>
-                    <th>Operation</th>
-                    <th>Raw</th>
-                    <th>Enrich</th>
-                    {isValidateMode && (
-                      <>
-                        <th>Status</th>
-                        <th>Remark</th>
-                      </>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(runReport.operations || []).map((o, index) => {
-                    const ui = o.ui_status || (o.status === "success" ? "PASS" : o.status === "no_correlation" ? "N/A" : "FAIL");
-                    return (
-                      <tr key={`${o.operation}-${o.xCorrelationId || index}`}>
-                        <td><code>{o.operation}</code></td>
-                        <td>
-                          <EventJsonCell label="raw" present={o.raw} data={o.raw_event} />
-                        </td>
-                        <td>
-                          <EventJsonCell label="enrich" present={o.enriched} data={o.enriched_event} />
-                        </td>
-                        {isValidateMode && (
-                          <>
-                            <td>
-                              <span className={`status-pill ${ui === "PASS" ? "completed" : ui === "N/A" ? "pending" : "failed"}`}>
-                                {ui}
-                              </span>
-                            </td>
-                            <td className="remark-cell">{o.remark || o.trigger_error || o.status || "—"}</td>
-                          </>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </details>
         </div>
       )}
     </section>
