@@ -123,7 +123,7 @@ export default function App() {
           />
         </div>
         <div className={section === "display" ? "section-panel" : "section-panel hidden"}>
-          <DisplayPage />
+          <DisplayPage onCompareRequested={onCompareRequested} />
         </div>
         <div className={section === "compare" ? "section-panel" : "section-panel hidden"}>
           <ComparePage onCompareCompleted={onCompareCompleted} adoptJobId={compareAdoptId} />

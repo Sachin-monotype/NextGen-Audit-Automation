@@ -12,6 +12,10 @@ export type LogRow = {
   "actor.globalUserId": string;
   occurredAt: string;
   message: Record<string, unknown>;
+  /** Scenario label when this event was minted by us, e.g. activateFamily(global)(UI). */
+  scenario?: string;
+  /** UI | BE — present only for events we generated. */
+  channel?: string;
 };
 
 export type ComparisonRow = {
@@ -795,6 +799,7 @@ export async function fetchPayloadCurl(
 export async function startCompare(
   operations: string[],
   fieldPathsByOp?: Record<string, string[]>,
+  correlationByOp?: Record<string, string>,
 ) {
   const res = await fetch(`${API}/api/jobs/compare`, {
     method: "POST",
@@ -804,6 +809,9 @@ export async function startCompare(
       sample_source: "fresh",
       field_paths_by_op: fieldPathsByOp && Object.keys(fieldPathsByOp).length
         ? fieldPathsByOp
+        : undefined,
+      correlation_by_op: correlationByOp && Object.keys(correlationByOp).length
+        ? correlationByOp
         : undefined,
     }),
   });

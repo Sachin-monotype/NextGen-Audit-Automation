@@ -242,6 +242,40 @@ def resolve_category(operation: str) -> str:
     return "Other"
 
 
+@lru_cache(maxsize=1)
+def known_operations() -> frozenset[str]:
+    """Canonical set of audit operations we actually track/scenario.
+
+    Union of the UI Navigation sheet, the resolver routing map, and the cron
+    routing map. Used to trim the Compare list down to real scenarios instead of
+    every distinct ``source.operation`` that ever landed in Mongo (400+, most of
+    them fired by other teams and not part of our audit coverage).
+    """
+    ops: set[str] = set(_ui_navigation_sections().keys())
+    # Include every operation listed in the sheet, even ones whose section did
+    # not normalise to a canonical category (they are still real events).
+    if _PKG_DATA.is_file():
+        try:
+            raw = json.loads(_PKG_DATA.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                ops.update(str(k) for k in raw.keys())
+        except Exception:
+            pass
+    ops.update(OPERATION_TO_ROUTING_KEY.keys())
+    ops.update(_CRON_ROUTING_KEYS.keys())
+    return frozenset(o for o in ops if o)
+
+
+def is_known_operation(operation: str) -> bool:
+    """True when ``operation`` (or its base, minus touchpoint suffix) is tracked."""
+    if not operation:
+        return False
+    if operation in known_operations():
+        return True
+    base = operation.split("(", 1)[0].strip() if "(" in operation else operation
+    return base in known_operations()
+
+
 def category_by_operation(operations: list[str]) -> dict[str, str]:
     return {op: resolve_category(op) for op in operations}
 

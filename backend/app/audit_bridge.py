@@ -330,6 +330,7 @@ class AuditBridge:
         operations: list[str],
         sample_source: str = "fresh",
         field_paths_by_op: dict[str, list[str]] | None = None,
+        correlation_by_op: dict[str, str] | None = None,
     ) -> JobRecord:
         job = self.store.create(
             "compare",
@@ -337,11 +338,12 @@ class AuditBridge:
                 "operations": operations,
                 "sample_source": sample_source,
                 "field_paths_by_op": field_paths_by_op or {},
+                "correlation_by_op": correlation_by_op or {},
             },
         )
         thread = threading.Thread(
             target=self._run_compare,
-            args=(job.id, operations, sample_source, field_paths_by_op),
+            args=(job.id, operations, sample_source, field_paths_by_op, correlation_by_op),
             daemon=True,
         )
         thread.start()
@@ -1138,6 +1140,7 @@ class AuditBridge:
         field_paths_by_op: dict[str, list[str]] | None = None,
         *,
         skip_stage: bool = False,
+        correlation_by_op: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         if skip_stage:
             ops = [o for o in operations if (self.project_root / "payload" / "enrich" / f"{o}.json").is_file()]
@@ -1148,7 +1151,9 @@ class AuditBridge:
                 raise RuntimeError("No staged enriched samples for selected scenario operations")
             self.store.append_log(job_id, f"▸ Validating {len(ops)} pre-staged scenario sample(s)…")
         else:
-            ops = self._stage_mongo_samples(job_id, operations)
+            ops = self._stage_mongo_samples(
+                job_id, operations, correlation_by_op=correlation_by_op
+            )
             if not ops:
                 raise RuntimeError("No enriched samples in Mongo for selected operations")
 
@@ -1240,13 +1245,19 @@ class AuditBridge:
             log.warning("Could not persist latest comparison: %s", exc)
         return result
 
-    def _stage_mongo_samples(self, job_id: str, operations: list[str]) -> list[str]:
+    def _stage_mongo_samples(
+        self,
+        job_id: str,
+        operations: list[str],
+        correlation_by_op: dict[str, str] | None = None,
+    ) -> list[str]:
         import json
 
         from bson import json_util
 
         if not self.db:
             return operations
+        pinned_cids = correlation_by_op or {}
 
         enriched_dir = self.project_root / "payload" / "enrich"
         enriched_dir.mkdir(parents=True, exist_ok=True)
@@ -1291,7 +1302,7 @@ class AuditBridge:
                 # now — this keeps the compared count 1:1 with Generation Status and
                 # preserves the (UI) label on the Result row.
                 base_touch_op = op.split("(", 1)[0].strip() or op
-                owned_cid = (
+                owned_cid = pinned_cids.get(op) or (
                     get_owned_correlation(op, project_root=self.project_root)
                     if get_owned_correlation
                     else None
@@ -1340,7 +1351,7 @@ class AuditBridge:
                 )
                 missing_pair.append(op)
                 continue
-            owned_cid = (
+            owned_cid = pinned_cids.get(op) or (
                 get_owned_correlation(op, project_root=self.project_root)
                 if get_owned_correlation
                 else None
@@ -1444,6 +1455,7 @@ class AuditBridge:
         operations: list[str],
         sample_source: str,
         field_paths_by_op: dict[str, list[str]] | None = None,
+        correlation_by_op: dict[str, str] | None = None,
     ) -> None:
         self.store.update(job_id, status=JobStatus.RUNNING, started_at=_now())
         self.store.append_log(job_id, f"▸ Source validation for {len(operations)} operation(s)…")
@@ -1454,7 +1466,10 @@ class AuditBridge:
             token_status = self._ensure_token(job_id)
             self._warn_on_stale_sources(job_id, token_status)
             val_result = self._run_source_validation(
-                job_id, operations, field_paths_by_op=field_paths_by_op
+                job_id,
+                operations,
+                field_paths_by_op=field_paths_by_op,
+                correlation_by_op=correlation_by_op,
             )
             val_result["token"] = token_status
             self.store.update(

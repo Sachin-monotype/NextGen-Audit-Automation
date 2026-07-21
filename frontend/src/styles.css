@@ -1274,6 +1274,32 @@ button:disabled {
   margin-top: 4px;
 }
 
+.log-card-compare {
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.channel-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
+
+.channel-badge.ui {
+  background: rgba(56, 189, 248, 0.16);
+  color: #38bdf8;
+}
+
+.channel-badge.be {
+  background: rgba(167, 139, 250, 0.16);
+  color: #a78bfa;
+}
+
 .log-card-body {
   margin-top: 10px;
   padding-top: 10px;

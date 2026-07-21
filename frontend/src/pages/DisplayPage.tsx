@@ -10,6 +10,7 @@ import {
   fetchUiConfig,
   hasActiveFilters,
   purgeIngestion,
+  startCompare,
   startIngestion,
   stopIngestion,
   type FilterState,
@@ -19,6 +20,11 @@ import {
   type OperationCurl,
   type Tab,
 } from "../api";
+
+type DisplayPageProps = {
+  /** Start a compare for one operation, then land on the live Compare tab. */
+  onCompareRequested?: (jobId: string) => void;
+};
 
 const EMPTY: FilterState = {
   xCorrelationId: "",
@@ -325,8 +331,9 @@ function TriggerInfo({ operation }: { operation: string }) {
   );
 }
 
-export default function DisplayPage() {
+export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
   const [tab, setTab] = useState<Tab>("enriched");
+  const [comparingOp, setComparingOp] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>(EMPTY);
   const [applied, setApplied] = useState<FilterState>(EMPTY);
   const [filterValues, setFilterValues] = useState<FilterValues>({
@@ -434,6 +441,30 @@ export default function DisplayPage() {
       if (prev.length >= 2) return [prev[1], key];
       return [...prev, key];
     });
+  }
+
+  async function compareRow(row: LogRow) {
+    if (!onCompareRequested) return;
+    // Prefer the scenario label (owned/UI/BE) so Compare pairs by our own
+    // correlation; fall back to the bare operation for events fired by others.
+    const op = row.scenario || row["source.operation"] || "";
+    if (!op) return;
+    setComparingOp(op);
+    try {
+      // Pin the exact event on this card so Compare pairs by its correlation —
+      // works for our own runs and for events other teams fired.
+      const cid = row.xCorrelationId || row.correlationId || "";
+      const job = await startCompare(
+        [op],
+        undefined,
+        cid ? { [op]: cid } : undefined,
+      );
+      onCompareRequested(job.id);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setComparingOp(null);
+    }
   }
 
   function openEnrichDiff() {
@@ -575,6 +606,8 @@ export default function DisplayPage() {
               selectable={tab === "enriched"}
               selected={diffPick.includes(key)}
               onSelect={() => toggleDiffPick(key)}
+              onCompare={onCompareRequested ? () => compareRow(row) : undefined}
+              comparing={comparingOp === (row.scenario || row["source.operation"])}
               onToggle={() => setExpandedRows((current) => {
                 const next = new Set(current);
                 if (next.has(key)) next.delete(key);
@@ -606,6 +639,8 @@ function LogCard({
   selectable,
   selected,
   onSelect,
+  onCompare,
+  comparing,
 }: {
   row: LogRow;
   open: boolean;
@@ -613,9 +648,12 @@ function LogCard({
   selectable?: boolean;
   selected?: boolean;
   onSelect?: () => void;
+  onCompare?: () => void;
+  comparing?: boolean;
 }) {
   const op = row["source.operation"] || "(unknown)";
   const cid = row.xCorrelationId || row.correlationId || "";
+  const channel = row.channel;
   return (
     <article className={`log-card${open ? " is-open" : " is-collapsed"}${selected ? " is-picked" : ""}`}>
       <button
@@ -636,7 +674,12 @@ function LogCard({
         )}
         <span className="chevron">{open ? "▾" : "▸"}</span>
         <div className="log-meta">
-          <span className="meta-chip"><strong>operation</strong> {op}</span>
+          <span className="meta-chip">
+            <strong>operation</strong> {row.scenario || op}
+            {channel && (
+              <span className={`channel-badge ${channel.toLowerCase()}`}>{channel}</span>
+            )}
+          </span>
           <span className="meta-chip"><strong>state</strong> {row["source.operationState"]}</span>
           <span className="meta-chip"><strong>service</strong> {row["source.service"]}</span>
           <span className="meta-chip"><strong>env</strong> {row["source.platformEnvironment"]}</span>
@@ -649,6 +692,17 @@ function LogCard({
         {row.correlationId && row.correlationId !== row.xCorrelationId ? (
           <> · <strong>correlationId</strong> {row.correlationId}</>
         ) : null}
+        {onCompare && (
+          <button
+            type="button"
+            className="link-btn log-card-compare"
+            disabled={comparing}
+            onClick={onCompare}
+            title="Compare this event's enriched vs source now"
+          >
+            {comparing ? "Comparing…" : "Compare now"}
+          </button>
+        )}
       </div>
       <div className="log-card-body" hidden={!open}>
         <TriggerInfo operation={op} />

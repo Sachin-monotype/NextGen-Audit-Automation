@@ -73,6 +73,9 @@ class CompareRequest(BaseModel):
     sample_source: str = "fresh"
     # Optional: operation → list of enriched JSON paths to validate (Compare attribute editor)
     field_paths_by_op: dict[str, list[str]] | None = None
+    # Optional: operation → exact xCorrelationId to pair (Compare-from-Enrich/raw card).
+    # Lets us compare the specific event on the card, including ones fired by others.
+    correlation_by_op: dict[str, str] | None = None
 
 
 def _job_payload(job) -> dict[str, Any]:
@@ -114,6 +117,18 @@ def ui_config() -> dict[str, Any]:
 @app.get("/api/meta/comparable-operations")
 def comparable_operations() -> dict[str, Any]:
     items = db.comparable_operations_detail()
+
+    # Trim to real scenarios: Mongo accumulates 400+ distinct operations (many
+    # fired by other teams and never part of our audit coverage). Keep only the
+    # operations we actually track — the UI Navigation sheet + resolver/cron
+    # routing maps. Touchpoint/owned (UI)/(BE) labels are added back below.
+    try:
+        from audit_validator.event_categories import is_known_operation
+
+        items = [i for i in items if is_known_operation(str(i.get("operation") or ""))]
+    except Exception:
+        pass
+
     seen = {i["operation"] for i in items}
 
     # Also surface touchpoint variants (activateFamily(global), (list), …) that were
@@ -1029,6 +1044,7 @@ def start_compare(body: CompareRequest) -> dict[str, Any]:
         body.operations,
         body.sample_source,
         field_paths_by_op=body.field_paths_by_op,
+        correlation_by_op=body.correlation_by_op,
     )
     return _job_payload(job)
 
@@ -1086,6 +1102,55 @@ def preview_pair(operation: str) -> dict[str, Any]:
     return {"operation": operation, "raw": raw, "enriched": enriched}
 
 
+def _owned_correlation_index() -> dict[str, dict[str, str]]:
+    """xCorrelationId → {scenario label, channel} for events *we* generated.
+
+    Lets the Enrich/raw browser label a card as e.g. ``activateFamily(global)(UI)``
+    when its correlation matches one we minted. Events fired by other teams (read
+    straight off the queue) have no match and stay on their bare operation name —
+    still valid to compare, just not tagged as ours.
+    """
+    try:
+        from audit_validator.generation_tracker import list_owned
+    except Exception:
+        return {}
+    try:
+        owned = list_owned(project_root=settings.audit_project_root)
+    except Exception:
+        return {}
+    idx: dict[str, dict[str, str]] = {}
+    for op, entry in (owned.get("by_operation") or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        channel = "UI" if str(entry.get("kind") or "").lower() == "ui" else "BE"
+        base = str(op)
+        for legacy in ("(ui)", "(be)", "(UI)", "(BE)"):
+            if base.endswith(legacy):
+                base = base[: -len(legacy)]
+        label = f"{base}({channel})"
+        cids = {str(entry.get("xCorrelationId") or "").strip()}
+        for hist in entry.get("history") or []:
+            cids.add(str((hist or {}).get("xCorrelationId") or "").strip())
+        for cid in cids:
+            if cid:
+                idx.setdefault(cid, {"scenario": label, "channel": channel})
+    return idx
+
+
+def _annotate_scenarios(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Tag rows minted by us with their scenario label + UI/BE channel."""
+    idx = _owned_correlation_index()
+    if not idx:
+        return results
+    for row in results:
+        cid = row.get("xCorrelationId") or row.get("correlationId") or ""
+        info = idx.get(cid)
+        if info:
+            row["scenario"] = info["scenario"]
+            row["channel"] = info["channel"]
+    return results
+
+
 # Catch-all MUST be last — otherwise it steals /api/jobs, /api/meta/*, etc.
 @app.get("/api/{tab}")
 def list_logs(
@@ -1115,4 +1180,9 @@ def list_logs(
         "source.service": source_service,
         "source.operationState": source_operationState,
     }
-    return db.find_logs(tab, filters=query_filters, limit=lim, page=page, unique=unique)
+    result = db.find_logs(tab, filters=query_filters, limit=lim, page=page, unique=unique)
+    try:
+        _annotate_scenarios(result.get("results") or [])
+    except Exception:
+        pass
+    return result
