@@ -67,18 +67,30 @@ class CronRunResult:
         return sum(1 for c in self.cases if c.validation_status == "WARN")
 
 
+def _first_env(*keys: str) -> str | None:
+    for key in keys:
+        val = (os.getenv(key) or "").strip()
+        if val:
+            return val
+    return None
+
+
 def _default_gcid() -> str | None:
-    for key in (
+    return _first_env(
         "CRON_DEFAULT_GCID",
         "GLOBAL_CUSTOMER_ID",
         "GRAPHQL_CONTEXT_CUSTOMER_ID",
         "NEXTGEN_UI_GCID",
         "OAUTH_GCID",
-    ):
-        val = (os.getenv(key) or "").strip()
-        if val:
-            return val
-    return None
+    )
+
+
+def _default_user_id() -> str | None:
+    return _first_env("CRON_USER_ID", "NOTIFICATION_CLEANUP_USER_ID", "OAUTH_USER_ID")
+
+
+def _default_profile_id() -> str | None:
+    return _first_env("CRON_PROFILE_ID", "AUDIT_PROFILE_ID", "OAUTH_PROFILE_ID")
 
 
 def _publish_case(cfg: AppConfig, payload: JsonDict) -> None:
@@ -97,6 +109,8 @@ def inject_cron_payloads(
     Intended to run after GQL simulation on an already-started collector (before settle).
     """
     gcid = _default_gcid()
+    user_id = _default_user_id()
+    profile_id = _default_profile_id()
     byof_contract_id = resolve_byof_contract_id()
     cases = load_cron_cases()
     if case_filter:
@@ -113,6 +127,8 @@ def inject_cron_payloads(
                 raw,
                 case_id=case.case_id,
                 gcid=gcid,
+                user_id=user_id,
+                profile_id=profile_id,
                 byof_contract_id=byof_contract_id
                 if case.case_id in {"licneseexpiry", "byofLicenceExpiry"}
                 else None,

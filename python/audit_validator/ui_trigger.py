@@ -14,6 +14,7 @@ import json
 import os
 import re
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -677,6 +678,51 @@ def _build_context(
 
 
 
+def _connector_online(client: CasePilotMcpClient) -> bool | None:
+    """Best-effort check that a CasePilot runner is registered + online.
+
+    Returns True/False when known, None when the preflight itself flaked (in which
+    case callers should not block on it).
+    """
+    try:
+        pre = client.preflight()
+    except Exception:
+        return None
+    conn = pre.get("connector") if isinstance(pre.get("connector"), dict) else {}
+    online = conn.get("online")
+    if isinstance(online, bool):
+        return online
+    if isinstance(online, (int, float)):
+        return online > 0
+    # Some builds only report a registered count/flag.
+    reg = conn.get("registered")
+    if isinstance(reg, (int, float)):
+        return reg > 0
+    if isinstance(reg, bool):
+        return reg
+    return None
+
+
+def _wait_for_connector_online(client: CasePilotMcpClient, job: dict[str, Any]) -> None:
+    """Poll preflight until a runner is online (or give up after a short window)."""
+    tries = max(1, int(os.getenv("CASEPILOT_CONNECTOR_WAIT_TRIES", "6") or "6"))
+    for i in range(tries):
+        state = _connector_online(client)
+        if state is None or state:
+            return  # online, or preflight flaked — don't block the queue
+        if i == 0:
+            _append_log(
+                job,
+                "⏳ No CasePilot runner online yet — waiting for the connector to register…",
+            )
+        time.sleep(min(2.0 * (i + 1), 8.0))
+    _append_log(
+        job,
+        "⚠ Proceeding to queue although no runner reported online — "
+        "start/check your CasePilot connector if this run does not begin.",
+    )
+
+
 def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] | None:
     """Queue CasePilot ``run_testrail_ui_tests`` for this handoff job."""
     job = get_ui_trigger_job(project_root, job_id)
@@ -770,16 +816,44 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
             "nextgen_ui_url": ui_cfg["base_url"],
             "mongo_db": (os.getenv("MONGO_DB_NAME") or "").strip(),
         }
-        run = client.run_testrail_ui_tests(
-            case_ids,
-            ui_config=ui_cfg,
-            context_summary=summary,
-            context_description=description + env_block,
-            context_hints=hints,
-            wait_for_completion=False,
-            stop_on_failure=False,
-        )
-        cp_jobs = extract_casepilot_job_ids(run)
+
+        # The #1 cause of "CasePilot returned no job_id" is queuing while no runner
+        # is online yet (connector still registering). Wait briefly for one.
+        _wait_for_connector_online(client, job)
+
+        # Queue with retry: a transient LB/connector hiccup returns a response with no
+        # job_id. Re-queue a few times (only when there is no definitive error), so the
+        # run actually starts instead of silently failing.
+        run: dict[str, Any] = {}
+        cp_jobs: list[int] = []
+        run_tries = max(1, int(os.getenv("CASEPILOT_RUN_RETRIES", "3") or "3"))
+        for attempt in range(run_tries):
+            run = client.run_testrail_ui_tests(
+                case_ids,
+                ui_config=ui_cfg,
+                context_summary=summary,
+                context_description=description + env_block,
+                context_hints=hints,
+                wait_for_completion=False,
+                stop_on_failure=False,
+            )
+            cp_jobs = extract_casepilot_job_ids(run)
+            if cp_jobs:
+                break
+            hard = str(run.get("error") or run.get("message") or run.get("stop_reason") or "").lower()
+            if any(
+                k in hard
+                for k in ("not found", "unauthorized", "forbidden", "ip_banned", "invalid api", "no such")
+            ):
+                break  # definitive failure — retrying will not help
+            if attempt < run_tries - 1:
+                _append_log(
+                    job,
+                    f"⚠ CasePilot returned no job_id (attempt {attempt + 1}/{run_tries}) — "
+                    "re-queuing after short backoff…",
+                )
+                _wait_for_connector_online(client, job)
+                time.sleep(min(1.5 * (attempt + 1), 5.0))
         run_snap = {
             k: run.get(k)
             for k in (

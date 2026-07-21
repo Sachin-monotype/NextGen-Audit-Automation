@@ -234,14 +234,70 @@ def _patch_byof_contract(payload: JsonDict, *, contract_id: str | None = None) -
         subject["styles"] = []
 
 
+_UUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+
+# Identity fields in cron samples that all point at the *target customer* — safe to
+# re-point at the run-time gcid so a stale sample id doesn't break enrichment.
+_DYNAMIC_GCID_KEYS = frozenset({"globalCustomerId", "customerId", "workspaceId"})
+_DYNAMIC_GCID_LIST_KEYS = frozenset({"globalCustomerIds"})
+# Scheduler emits these at run time — refresh so they are never stale.
+_RUNTIME_TS_KEYS = frozenset({"scheduledAt", "triggeredAt"})
+
+
+def _apply_runtime_overrides(
+    node: Any,
+    *,
+    gcid: str | None,
+    user_id: str | None,
+    profile_id: str | None,
+    now_iso: str,
+) -> None:
+    """Recursively replace stale sample identity/time values with run-time ones.
+
+    Only rewrites values that clearly refer to the target customer/user (UUID-shaped
+    gcid/customerId/workspaceId, userId, profileId) and the scheduler timestamps. Other
+    fields (names, roles, formatted expiry dates) are left to the caller/sample.
+    """
+    if isinstance(node, dict):
+        for key, val in list(node.items()):
+            if gcid and key in _DYNAMIC_GCID_KEYS and isinstance(val, str) and _UUID_RE.match(val):
+                node[key] = gcid
+            elif gcid and key in _DYNAMIC_GCID_LIST_KEYS and isinstance(val, list):
+                node[key] = [gcid] if not val else [gcid for _ in val]
+            elif key in _RUNTIME_TS_KEYS and isinstance(val, str) and val.strip():
+                node[key] = now_iso
+            elif user_id and key == "userId" and isinstance(val, str) and val.strip():
+                node[key] = user_id
+            elif profile_id and key == "profileId" and isinstance(val, str) and val.strip():
+                node[key] = profile_id
+            else:
+                _apply_runtime_overrides(
+                    val, gcid=gcid, user_id=user_id, profile_id=profile_id, now_iso=now_iso
+                )
+    elif isinstance(node, list):
+        for item in node:
+            _apply_runtime_overrides(
+                item, gcid=gcid, user_id=user_id, profile_id=profile_id, now_iso=now_iso
+            )
+
+
 def normalize_cron_payload(
     payload: JsonDict,
     *,
     case_id: str,
     gcid: str | None = None,
     byof_contract_id: str | None = None,
+    user_id: str | None = None,
+    profile_id: str | None = None,
 ) -> JsonDict:
-    """Fresh correlation ids + fix known sample defects before publish."""
+    """Fresh correlation ids + fix known sample defects before publish.
+
+    Run-time variables (``gcid``/``user_id``/``profile_id``) override the stale ids
+    baked into the sample so payloads stay dynamic per environment. Timestamps
+    (``occurredAt``/``scheduledAt``/``triggeredAt``) are always refreshed to now.
+    """
     out = copy.deepcopy(payload)
 
     for field in _ENRICHED_ONLY_FIELDS:
@@ -273,13 +329,25 @@ def normalize_cron_payload(
         if not service or service == "scheduler":
             pass  # keep explicit service from sample when present
 
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     out["xCorrelationId"] = str(uuid.uuid4())
     out["eventId"] = str(uuid.uuid4())
-    out["occurredAt"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    out["occurredAt"] = now_iso
     if rk:
         out["routingKey"] = rk
     elif "routingKey" in out and not out["routingKey"]:
         out.pop("routingKey", None)
+
+    # Re-point stale sample ids at the run-time customer/user and refresh scheduler
+    # timestamps so the same payload works across environments and never goes stale.
+    if resolved_gcid or user_id or profile_id:
+        _apply_runtime_overrides(
+            out,
+            gcid=resolved_gcid,
+            user_id=(user_id or "").strip() or None,
+            profile_id=(profile_id or "").strip() or None,
+            now_iso=now_iso,
+        )
 
     _patch_byof_contract(out, contract_id=byof_contract_id)
     return out
