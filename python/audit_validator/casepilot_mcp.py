@@ -455,23 +455,38 @@ class CasePilotMcpClient:
         except Exception as exc:  # noqa: BLE001
             raise CasePilotMcpError("CasePilot REST jobs/status returned non-JSON", payload=resp.text[:800]) from exc
 
-    def batch_run_status(self, job_ids: list[int]) -> list[dict[str, Any]]:
-        """Current status for each job via one MCP call, REST fallback on session loss.
+    def poll_jobs_status(self, job_ids: list[int]) -> list[dict[str, Any]]:
+        """Non-blocking snapshot of each job's current status.
 
-        Never re-queues. Returns a normalized ``[{job_id, status, …}]`` list.
+        Prefers the REST ``/api/mcp/v1/jobs/status`` endpoint (fast, no MCP session).
+        Falls back to per-job ``get_run_status`` MCP calls when REST is unavailable.
+        Never blocks until jobs finish — safe for UI refresh polling.
         """
         ids = [int(x) for x in job_ids if str(x).strip().lstrip("-").isdigit()]
         if not ids:
             return []
         try:
-            payload = self.wait_for_run_jobs(ids)
-            return normalize_job_statuses(payload, ids)
-        except CasePilotMcpError as exc:
-            if self._is_ip_banned(exc):
-                raise
-            # Session lost / MCP disconnect → REST fallback (no re-queue).
             payload = self.rest_jobs_status(ids)
             return normalize_job_statuses(payload, ids)
+        except CasePilotMcpError:
+            pass
+        # REST unavailable — one MCP call per job (still non-blocking).
+        rows: list[dict[str, Any]] = []
+        for jid in ids:
+            try:
+                st = self.get_run_status(jid)
+                if "job_id" not in st:
+                    st = {"job_id": jid, **st}
+                rows.append(st)
+            except CasePilotMcpError as exc:
+                if self._is_ip_banned(exc):
+                    raise
+                rows.append({"job_id": jid, "status": "pending", "error": str(exc)})
+        return normalize_job_statuses(rows, ids)
+
+    def batch_run_status(self, job_ids: list[int]) -> list[dict[str, Any]]:
+        """Alias for non-blocking status polling (used by UI refresh)."""
+        return self.poll_jobs_status(job_ids)
 
     def wait_for_jobs_terminal(
         self,
@@ -493,7 +508,18 @@ class CasePilotMcpClient:
         deadline = time.monotonic() + max_wait_secs
         last: list[dict[str, Any]] = []
         while True:
-            statuses = self.batch_run_status(ids)
+            # Non-blocking poll — never call wait_for_run_jobs here (it blocks until
+            # jobs finish and urllib times out on long UI runs).
+            try:
+                statuses = self.poll_jobs_status(ids)
+            except CasePilotMcpError as exc:
+                if self._is_ip_banned(exc):
+                    raise
+                # Session lost → REST-only retry on next tick.
+                try:
+                    statuses = normalize_job_statuses(self.rest_jobs_status(ids), ids)
+                except CasePilotMcpError:
+                    statuses = last
             last = statuses or last
             if on_poll:
                 try:

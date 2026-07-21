@@ -89,27 +89,59 @@ def main() -> int:
     }
     work: list[dict] = []
     seen: set[int] = set()
-    for s in catalog:
-        key = s.get("id") or f"{s.get('operation')}::{s.get('touchpoint')}"
-        case_id = by_key.get(key)
-        if not case_id:
-            continue
-        case_id = int(case_id)
+    catalog_keys: set[str] = set()
+
+    def _add_item(case_id: int, op: str, touch: str, key: str, title: str) -> None:
         if case_id in seen:
-            continue
-        op = str(s.get("operation") or "")
-        touch = str(s.get("touchpoint") or "")
+            return
         if op_filter and op not in op_filter:
-            continue
+            return
         seen.add(case_id)
         work.append(
             {
                 "case_id": case_id,
-                "title": title_by_id.get(case_id) or s.get("label") or key,
+                "title": title,
                 "operation": op,
                 "touchpoint": touch,
                 "key": key,
             }
+        )
+
+    for s in catalog:
+        key = s.get("id") or f"{s.get('operation')}::{s.get('touchpoint')}"
+        catalog_keys.add(key)
+        case_id = by_key.get(key)
+        if not case_id:
+            continue
+        _add_item(
+            int(case_id),
+            str(s.get("operation") or ""),
+            str(s.get("touchpoint") or ""),
+            key,
+            title_by_id.get(int(case_id)) or str(s.get("label") or key),
+        )
+
+    # Mapped TestRail cases that are seed/setup ops (createRole, createPrivateTags, …)
+    # but not standalone entries in list_scenarios().
+    for c in m.get("cases") or []:
+        if not isinstance(c, dict) or not c.get("case_id"):
+            continue
+        key = str(c.get("key") or "")
+        if not key or key in catalog_keys:
+            continue
+        case_id = by_key.get(key) or c.get("case_id")
+        if not case_id:
+            continue
+        op = str(c.get("operation") or "")
+        touch = str(c.get("touchpoint") or "")
+        if not op:
+            continue
+        _add_item(
+            int(case_id),
+            op,
+            touch,
+            key,
+            str(c.get("title") or title_by_id.get(int(case_id)) or key),
         )
 
     if args.limit:

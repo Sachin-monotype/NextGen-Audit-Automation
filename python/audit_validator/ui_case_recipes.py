@@ -85,6 +85,24 @@ LIB_NAV = (
     "(sidebar [data-testid='sidebar-my-library-show-all'])."
 )
 
+MANAGE_NAV = (
+    "Click [data-testid='menu-item-Manage'] → wait Manage submenu visible."
+)
+
+TEAMS_USERS_NAV = (
+    "Click [data-testid='menu-item-Users & teams'] → URL /manage/users-and-teams/users."
+)
+
+ROLES_TAB_NAV = (
+    "Click Roles tab: md-tabs[data-qa-id='teams-users-tabs'] md-link[id='tab-2'] → "
+    "URL /manage/users-and-teams/roles → wait [data-qa-id='add-role-button']."
+)
+
+TAGS_NAV = (
+    "Click [data-testid='menu-item-Tags'] → URL /manage/tags/list → "
+    "wait [data-qa-id='create-tag-button']."
+)
+
 
 def _S(*rows: dict[str, str], op: str, touch: str) -> list[dict[str, str]]:
     out = []
@@ -299,7 +317,14 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
         need = "OFF" if op == "activateStyle" else "ON"
         prep = {
             "global": [_row(SEARCH_NAV)],
-            "favourite": [_row(FAV_NAV)],
+            "favourite": [
+                _row(
+                    SEARCH_NAV
+                    + " If needed click [data-qa-id='icon-favorite'] (outline) OR kebab → "
+                    "[data-qa-id='context-menu-item-add-to-favourites']."
+                ),
+                _row(FAV_NAV),
+            ],
             "list": _open_list_steps(),
             "project": _open_project_steps(),
             "project_list": _open_project_list_steps(),
@@ -686,11 +711,20 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
         )
     if op == "updatePrivateTag":
         return _S(
-            _row(LOGIN),
-            _row("Open /manage/tags/list → [data-qa-id^='configure-button-']."),
+            _row(LOGIN + " Requires company admin."),
+            _row(MANAGE_NAV),
+            _row(TAGS_NAV),
             _row(
-                "Edit [data-qa-id='configure-tag-name-input'] → "
-                "[data-qa-id='configure-tag-update-button']."
+                "Click first visible [data-qa-id^='configure-button-'] OR tag name "
+                "[data-qa-id^='tag-name-text-'] → [data-qa-id='configure-tag-drawer'] opens."
+            ),
+            _row(
+                "Edit [data-qa-id='configure-tag-name-input'] input — append _audit suffix "
+                "(keep name unique, max 64 chars)."
+            ),
+            _row(
+                "Click [data-qa-id='configure-tag-update-button'] button. "
+                "Wait [data-qa-id='snackbar-success']."
             ),
             _row(audit_emit(op, "manage_tags"), audit_expected(op)),
             op=op,
@@ -829,6 +863,58 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
                 "[data-qa-id='primary-action-button']."
             ),
             _row(audit_emit(op, "user_access"), audit_expected(op)),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "createRole":
+        return _S(
+            _row(LOGIN + " Requires company admin (Manage → Users & teams → Roles)."),
+            _row(MANAGE_NAV),
+            _row(TEAMS_USERS_NAV),
+            _row(ROLES_TAB_NAV),
+            _row(
+                "Click [data-qa-id='add-role-button'] → [data-qa-id='drawer-body'] opens. "
+                "Step 1 [data-qa-id='role-drawer-tab-0'] active."
+            ),
+            _row(
+                "Type unique role name in [data-qa-id='add-role-name-input'] input "
+                "(e.g. AuditRole_<short-random>). Optional: description in "
+                "[data-qa-id='add-team-description-textarea'] textarea."
+            ),
+            _row(
+                "Click [data-qa-id='drawer-primary-button'] (Next) → step 2 "
+                "[data-qa-id='role-drawer-tab-1'] Configure permissions."
+            ),
+            _row(
+                "Leave all permission checkboxes at defaults (do not toggle). "
+                "Click [data-qa-id='drawer-primary-button'] (Next) → step 3 Users assigned."
+            ),
+            _row(
+                "Do NOT add users. Click [data-qa-id='drawer-primary-button'] "
+                "(Create role). Wait [data-qa-id='snackbar-success'] → dismiss."
+            ),
+            _row(audit_emit(op, "user_access"), audit_expected(op)),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "createPrivateTags":
+        emit_ts = "global" if ts in {"", "global"} else ts
+        return _S(
+            _row(LOGIN + " Requires company admin (Manage → Tags)."),
+            _row(MANAGE_NAV),
+            _row(TAGS_NAV),
+            _row(
+                "Click [data-qa-id='create-tag-button'] → [data-qa-id='create-tags-drawer'] opens."
+            ),
+            _row(
+                "Type ONE unique tag name in [data-qa-id='tag-names-input'] "
+                "(e.g. AuditTag_<short-random>). Do not reuse existing tag names."
+            ),
+            _row(
+                "Click [data-qa-id='create-tags-drawer-submit'] button (enabled). "
+                "Wait [data-qa-id='snackbar-success'] → dismiss."
+            ),
+            _row(audit_emit(op, emit_ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
