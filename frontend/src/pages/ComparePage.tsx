@@ -13,12 +13,19 @@ import {
 
 type Props = {
   /** Fired when a compare job finishes (completed or failed) so Result can show the snapshot. */
-  onCompareCompleted: (jobId: string) => void;
+  onCompareCompleted: (jobId: string, operations?: string[]) => void;
+  /** Compare job id started elsewhere (Generation Status) that this page should show live. */
+  adoptJobId?: string | null;
 };
 
 const JOB_KEY = "audit_compare_job_id";
 
-export default function ComparePage({ onCompareCompleted }: Props) {
+function jobOperations(job: Job | null): string[] {
+  const ops = job?.params?.operations;
+  return Array.isArray(ops) ? (ops as string[]) : [];
+}
+
+export default function ComparePage({ onCompareCompleted, adoptJobId }: Props) {
   const [items, setItems] = useState<ComparableOperation[]>([]);
   const [categories, setCategories] = useState<CategoryReport | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -54,7 +61,7 @@ export default function ComparePage({ onCompareCompleted }: Props) {
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
             setBusy(false);
-            if (j.status === "completed") onCompareCompleted(j.id);
+            if (j.status === "completed") onCompareCompleted(j.id, jobOperations(j));
           }
         } catch {
           misses += 1;
@@ -87,6 +94,24 @@ export default function ComparePage({ onCompareCompleted }: Props) {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [pollJob]);
+
+  // Adopt a compare job started from Generation Status → show it live here.
+  useEffect(() => {
+    if (!adoptJobId) return;
+    fetchJob(adoptJobId)
+      .then((j) => {
+        setActiveJob(j);
+        setError("");
+        if (j.status === "running" || j.status === "pending") {
+          setBusy(true);
+          pollJob(j.id);
+        } else if (j.status === "completed") {
+          onCompareCompleted(j.id, jobOperations(j));
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adoptJobId, pollJob]);
 
   const environmentOptions = useMemo(
     () => [...new Set(items.map((i) => i.environment).filter(Boolean))].sort(),
@@ -281,7 +306,7 @@ export default function ComparePage({ onCompareCompleted }: Props) {
               <button
                 type="button"
                 className="primary"
-                onClick={() => onCompareCompleted(activeJob.id)}
+                onClick={() => onCompareCompleted(activeJob.id, jobOperations(activeJob))}
               >
                 Open results
               </button>

@@ -655,8 +655,11 @@ function PayloadEditor({ itemId, label, onClose, onGenerateScenario }: PayloadEd
 
 export default function GeneratePage({
   onCompareCompleted,
+  onCompareRequested,
 }: {
-  onCompareCompleted?: (jobId: string) => void;
+  onCompareCompleted?: (jobId: string, operations?: string[]) => void;
+  /** Start a compare and land on the Compare page (live) instead of Result. */
+  onCompareRequested?: (jobId: string) => void;
 } = {}) {
   const [available, setAvailable] = useState<string[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -1309,7 +1312,10 @@ export default function GeneratePage({
     setError("");
     try {
       const job = await startCompare(ops);
-      onCompareCompleted?.(job.id);
+      // Land on the Compare page (live) so the user sees progress, instead of
+      // jumping straight to Result and having to navigate back.
+      if (onCompareRequested) onCompareRequested(job.id);
+      else onCompareCompleted?.(job.id, ops);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

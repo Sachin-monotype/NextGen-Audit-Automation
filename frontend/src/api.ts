@@ -128,7 +128,7 @@ export type CoverageReport = {
 export type Job = {
   id: string;
   kind: string;
-  status: "pending" | "running" | "completed" | "failed";
+  status: "pending" | "running" | "completed" | "failed" | "cancelled";
   created_at: string;
   started_at?: string;
   finished_at?: string;

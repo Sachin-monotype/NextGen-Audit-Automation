@@ -38,6 +38,10 @@ export default function App() {
   const [lastCompareJobId, setLastCompareJobId] = useState<string | null>(() =>
     localStorage.getItem(COMPARE_JOB_KEY),
   );
+  /** Compare job id that the Compare page should adopt & show live (from Generation Status). */
+  const [compareAdoptId, setCompareAdoptId] = useState<string | null>(null);
+  /** Operations from the last compare — Result page highlights just these. */
+  const [comparedOps, setComparedOps] = useState<string[] | null>(null);
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
 
   useEffect(() => {
@@ -59,10 +63,19 @@ export default function App() {
     setSection(next);
   }
 
-  function onCompareCompleted(jobId: string) {
+  function onCompareCompleted(jobId: string, operations?: string[]) {
     setLastCompareJobId(jobId);
     localStorage.setItem(COMPARE_JOB_KEY, jobId);
+    setComparedOps(operations && operations.length ? operations : null);
     setSection("result");
+  }
+
+  /** Generation Status → "Compare selected PASS": start the job, then land on Compare (live). */
+  function onCompareRequested(jobId: string) {
+    setLastCompareJobId(jobId);
+    localStorage.setItem(COMPARE_JOB_KEY, jobId);
+    setCompareAdoptId(jobId);
+    setSection("compare");
   }
 
   return (
@@ -104,16 +117,19 @@ export default function App() {
       <main className="content">
         {/* Keep pages mounted so Compare/Generate job logs survive tab switches. */}
         <div className={section === "generate" ? "section-panel" : "section-panel hidden"}>
-          <GeneratePage onCompareCompleted={onCompareCompleted} />
+          <GeneratePage
+            onCompareCompleted={onCompareCompleted}
+            onCompareRequested={onCompareRequested}
+          />
         </div>
         <div className={section === "display" ? "section-panel" : "section-panel hidden"}>
           <DisplayPage />
         </div>
         <div className={section === "compare" ? "section-panel" : "section-panel hidden"}>
-          <ComparePage onCompareCompleted={onCompareCompleted} />
+          <ComparePage onCompareCompleted={onCompareCompleted} adoptJobId={compareAdoptId} />
         </div>
         <div className={section === "result" ? "section-panel" : "section-panel hidden"}>
-          <ResultsPage initialJobId={lastCompareJobId} />
+          <ResultsPage initialJobId={lastCompareJobId} highlightOperations={comparedOps} />
         </div>
         <div className={section === "health" ? "section-panel" : "section-panel hidden"}>
           <HealthPage />

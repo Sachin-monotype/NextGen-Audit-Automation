@@ -1285,9 +1285,58 @@ class AuditBridge:
                         job_id, f"  ✓ Using staged touchpoint sample for {op}"
                     )
                     continue
+                # No pre-staged sample (e.g. compare launched straight from a
+                # Generate-in-UI run). Each UI touchpoint scenario minted its own
+                # correlation id, so pair raw+enrich by that owned cid and stage it
+                # now — this keeps the compared count 1:1 with Generation Status and
+                # preserves the (UI) label on the Result row.
+                base_touch_op = op.split("(", 1)[0].strip() or op
+                owned_cid = (
+                    get_owned_correlation(op, project_root=self.project_root)
+                    if get_owned_correlation
+                    else None
+                )
+                t_raw = t_enriched = None
+                if owned_cid:
+                    t_raw, t_enriched = self.db.latest_pair(
+                        base_touch_op, require_pair=True, correlation_id=owned_cid
+                    )
+                if not (t_raw and t_enriched):
+                    try:
+                        from audit_validator.generation_tracker import list_owned
+
+                        t_entry = (list_owned(project_root=self.project_root).get("by_operation") or {}).get(op) or {}
+                    except Exception:
+                        t_entry = {}
+                    find_fp = getattr(self.db, "find_fingerprint_pair", None)
+                    if callable(find_fp) and (
+                        owned_cid or t_entry.get("profile_id") or t_entry.get("generated_at")
+                    ):
+                        t_raw, t_enriched, _m = find_fp(
+                            base_touch_op,
+                            actor_global_user_id=our_profile or t_entry.get("profile_id"),
+                            since_iso=t_entry.get("generated_at"),
+                            event_id=t_entry.get("eventId") or t_entry.get("event_id"),
+                        )
+                if t_raw and t_enriched:
+                    cid = t_enriched.get("xCorrelationId", "") or (owned_cid or "")
+                    (enriched_dir / f"{op}.json").write_text(
+                        json_util.dumps(t_enriched, indent=2, ensure_ascii=False), encoding="utf-8"
+                    )
+                    (raw_dir / f"{op}.json").write_text(
+                        json_util.dumps(t_raw, indent=2, ensure_ascii=False), encoding="utf-8"
+                    )
+                    staged.append(op)
+                    if owned_cid and cid == owned_cid:
+                        owned_hits += 1
+                    self.store.append_log(
+                        job_id, f"  ✓ Paired {op} (owned xCorrelationId={cid}) from Mongo"
+                    )
+                    continue
                 self.store.append_log(
                     job_id,
-                    f"  ⚠ Skip {op}: no staged sample — run Generate & validate for this touchpoint first",
+                    f"  ⚠ Skip {op}: no staged sample and no owned raw+enrich pair in Mongo yet "
+                    "— run Generate & validate for this touchpoint first",
                 )
                 missing_pair.append(op)
                 continue

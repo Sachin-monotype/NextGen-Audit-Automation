@@ -20,6 +20,8 @@ import { downloadComparisonExcel } from "../utils/exportExcel";
 
 type Props = {
   initialJobId: string | null;
+  /** When set, show/limit the coverage list to just these compared operations. */
+  highlightOperations?: string[] | null;
 };
 
 type ViewMode = "cards" | "list";
@@ -194,7 +196,7 @@ function summarizeOp(rows: ComparisonRow[]) {
   return { passed, failed, skipped, na, total: rows.length };
 }
 
-export default function ResultsPage({ initialJobId }: Props) {
+export default function ResultsPage({ initialJobId, highlightOperations }: Props) {
   const [sourceMode, setSourceMode] = useState<SourceMode>(() => {
     const stored = localStorage.getItem(RESULT_MODE_KEY);
     return stored === "job" ? "job" : "latest";
@@ -254,6 +256,21 @@ export default function ResultsPage({ initialJobId }: Props) {
   }, []);
 
   const [deletingOp, setDeletingOp] = useState<string | null>(null);
+  /** Bulk-select operations in the coverage table for deletion. */
+  const [selectedOps, setSelectedOps] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  /** When Compare hands us the compared ops, limit the coverage list to those. */
+  const [highlightActive, setHighlightActive] = useState(false);
+  const highlightSet = useMemo(
+    () => new Set((highlightOperations ?? []).filter(Boolean)),
+    [highlightOperations],
+  );
+  useEffect(() => {
+    if (highlightSet.size) {
+      setHighlightActive(true);
+      setSourceMode("latest");
+    }
+  }, [highlightSet]);
 
   const onDeleteResult = useCallback(
     async (operation: string) => {
@@ -410,7 +427,6 @@ export default function ResultsPage({ initialJobId }: Props) {
       map.set(row.operation, list);
     }
     return [...map.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
       .map(([operation, opRows]) => {
         const summary = summarizeOp(opRows);
         const meta = metaForOperation(operation);
@@ -424,17 +440,51 @@ export default function ResultsPage({ initialJobId }: Props) {
           track: status,
           ...summary,
         };
+      })
+      // Newest run first; fall back to operation name when timestamps tie.
+      .sort((a, b) => {
+        const byDate = (b.comparedAt || "").localeCompare(a.comparedAt || "");
+        return byDate !== 0 ? byDate : a.operation.localeCompare(b.operation);
       });
   }, [scopedRows, metaByOp, byOperation, comparedAtByOp, track]);
 
   const coverageRows = useMemo(() => {
     return allCoverageRows.filter((r) => {
+      if (highlightActive && highlightSet.size && !highlightSet.has(r.operation)) return false;
       if (coverageOutcome === "pass") return r.failed === 0 && r.skipped === 0;
       if (coverageOutcome === "failed") return r.failed > 0;
       if (coverageOutcome === "partial") return r.failed === 0 && r.skipped > 0;
       return true;
     });
-  }, [allCoverageRows, coverageOutcome]);
+  }, [allCoverageRows, coverageOutcome, highlightActive, highlightSet]);
+
+  const onDeleteSelected = useCallback(async () => {
+    if (!selectedOps.size) return;
+    if (!window.confirm(`Delete ${selectedOps.size} stored result(s)?`)) return;
+    setBulkDeleting(true);
+    try {
+      for (const op of selectedOps) {
+        try {
+          await deleteLatestResult(op);
+        } catch {
+          /* keep going; reload reflects what stuck */
+        }
+      }
+      setSelectedOps(new Set());
+      loadLatest();
+    } finally {
+      setBulkDeleting(false);
+    }
+  }, [selectedOps, loadLatest]);
+
+  function toggleSelectOp(op: string) {
+    setSelectedOps((prev) => {
+      const next = new Set(prev);
+      if (next.has(op)) next.delete(op);
+      else next.add(op);
+      return next;
+    });
+  }
 
   const coverageCounts = useMemo(() => {
     let pass = 0;
@@ -836,10 +886,54 @@ export default function ResultsPage({ initialJobId }: Props) {
               ))}
             </div>
           </div>
+          {highlightActive && highlightSet.size > 0 && (
+            <div className="banner" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span>
+                Showing the <strong>{coverageRows.length}</strong> operation
+                {coverageRows.length === 1 ? "" : "s"} you just compared.
+              </span>
+              <button type="button" className="link-btn" onClick={() => setHighlightActive(false)}>
+                Show all results
+              </button>
+            </div>
+          )}
+          <div className="coverage-bulk-actions" style={{ display: "flex", alignItems: "center", gap: 12, margin: "4px 0 8px" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={coverageRows.length > 0 && coverageRows.every((r) => selectedOps.has(r.operation))}
+                ref={(el) => {
+                  if (el) {
+                    const some = coverageRows.some((r) => selectedOps.has(r.operation));
+                    const all = coverageRows.length > 0 && coverageRows.every((r) => selectedOps.has(r.operation));
+                    el.indeterminate = some && !all;
+                  }
+                }}
+                onChange={(e) => {
+                  setSelectedOps((prev) => {
+                    const next = new Set(prev);
+                    if (e.target.checked) coverageRows.forEach((r) => next.add(r.operation));
+                    else coverageRows.forEach((r) => next.delete(r.operation));
+                    return next;
+                  });
+                }}
+              />
+              <span className="muted">select shown</span>
+            </label>
+            <button
+              type="button"
+              className="danger"
+              disabled={!selectedOps.size || bulkDeleting}
+              onClick={() => void onDeleteSelected()}
+            >
+              {bulkDeleting ? "Deleting…" : `Delete selected (${selectedOps.size})`}
+            </button>
+          </div>
           <div className="result-table-wrap compact-table-wrap">
             <table className="result-table coverage-table">
               <thead>
                 <tr>
+                  <th className="coverage-col-narrow" title="Select for delete"></th>
                   <th>Operation</th>
                   <th>Category</th>
                   <th>Env</th>
@@ -854,13 +948,21 @@ export default function ResultsPage({ initialJobId }: Props) {
               <tbody>
                 {coverageRows.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="muted">
+                    <td colSpan={10} className="muted">
                       No operations match this coverage filter.
                     </td>
                   </tr>
                 )}
                 {coverageRows.map((r) => (
                   <tr key={r.operation} className={r.failed ? "fail" : r.skipped ? "skip" : "pass"}>
+                    <td className="coverage-col-narrow">
+                      <input
+                        type="checkbox"
+                        checked={selectedOps.has(r.operation)}
+                        onChange={() => toggleSelectOp(r.operation)}
+                        aria-label={`Select ${r.operation}`}
+                      />
+                    </td>
                     <td>
                       <button
                         type="button"

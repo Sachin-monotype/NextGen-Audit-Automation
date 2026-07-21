@@ -10,6 +10,7 @@ retry the same tool call (fresh initialize per attempt) until it succeeds.
 
 from __future__ import annotations
 
+import http.cookiejar
 import json
 import os
 import re
@@ -101,6 +102,15 @@ class CasePilotMcpClient:
         self.config = config or load_casepilot_config()
         self._session_id: str | None = None
         self._req_id = 0
+        # Cloudflare pins a backend instance via an affinity cookie (__cf_bm / lb
+        # cookies). urllib.urlopen drops cookies, so initialize and the follow-up
+        # tools/call used to land on different instances → "Session not found".
+        # A shared cookie jar keeps both requests on the same instance, which both
+        # fixes the session errors and removes the need to re-initialize per call.
+        self._cookies = http.cookiejar.CookieJar()
+        self._opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(self._cookies)
+        )
 
     def _next_id(self) -> int:
         self._req_id += 1
@@ -108,6 +118,12 @@ class CasePilotMcpClient:
 
     def _reset_session(self) -> None:
         self._session_id = None
+        # Drop the affinity cookie too so the next initialize can land on a
+        # healthy instance instead of the one that just lost our session.
+        try:
+            self._cookies.clear()
+        except Exception:
+            pass
 
     @staticmethod
     def _is_session_missing(exc: CasePilotMcpError | str | dict[str, Any] | None) -> bool:
@@ -187,7 +203,7 @@ class CasePilotMcpClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with self._opener.open(req, timeout=120) as resp:
                 hdrs = {k.lower(): v for k, v in resp.headers.items()}
                 text = resp.read().decode("utf-8", errors="replace")
                 return hdrs, text
@@ -300,17 +316,18 @@ class CasePilotMcpClient:
     def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
         """Call an MCP tool with LB-safe session retry.
 
-        Each attempt: fresh ``initialize`` → immediate ``tools/call``. On
-        ``Session not found``, discard session and retry (up to
-        ``CASEPILOT_SESSION_RETRIES``, default 15). Never retries IP bans.
+        With the shared cookie jar the affinity cookie keeps ``initialize`` and
+        ``tools/call`` on the same instance, so we reuse the existing session
+        (fast) and only re-initialize when the server reports ``Session not
+        found`` (up to ``CASEPILOT_SESSION_RETRIES``). Never retries IP bans.
         """
         last_err: CasePilotMcpError | None = None
         max_tries = max(1, _SESSION_RETRY_MAX)
         for attempt in range(max_tries):
             try:
-                # Always mint a fresh session per attempt — reusing a "good" session
-                # still fails on the next LB hop ~half the time.
-                self.ensure_session(force=True)
+                # Reuse the affinity-pinned session; force a fresh one only after a
+                # prior "Session not found" reset (attempt > 0 with no session).
+                self.ensure_session()
                 hdrs, text = self._post(
                     {
                         "jsonrpc": "2.0",
