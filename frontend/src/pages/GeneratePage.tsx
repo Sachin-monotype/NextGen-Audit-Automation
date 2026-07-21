@@ -1157,10 +1157,10 @@ export default function GeneratePage({
 
   const statusRows: StatusRow[] = useMemo(() => {
     if (statusScenarios.length > 0) {
-      const uiRun = Boolean(runReport?.source === "generate_in_ui");
       return statusScenarios.map((s) => {
-        const ui = String(s.source || "").toLowerCase() === "ui" || uiRun;
-        const key = s.label || scenarioDisplayName(s.operation, s.touchpoint, { ui, be: !ui });
+        // Generation Status shows the clean scenario name (no "(UI)"/"(BE)" suffix).
+        const cleanLabel = (s.label || "").replace(/\s*\((?:UI|BE)\)\s*$/i, "");
+        const key = cleanLabel || scenarioDisplayName(s.operation, s.touchpoint);
         return {
           key,
           operation: s.operation,
@@ -1200,7 +1200,7 @@ export default function GeneratePage({
         xCorrelationId: o.xCorrelationId,
       };
     });
-  }, [statusScenarios, runReport?.operations, runReport?.source]);
+  }, [statusScenarios, runReport?.operations]);
 
   const scenarioSummary = useMemo(() => {
     if (!statusRows.length) return null;

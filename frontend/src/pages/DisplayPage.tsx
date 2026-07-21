@@ -677,7 +677,7 @@ function LogCard({
           <span className="meta-chip">
             <strong>operation</strong> {row.scenario || op}
             {channel && (
-              <span className={`channel-badge ${channel.toLowerCase()}`}>{channel}</span>
+              <span className={`channel-badge ${channel.toLowerCase()}`}>({channel})</span>
             )}
           </span>
           <span className="meta-chip"><strong>state</strong> {row["source.operationState"]}</span>

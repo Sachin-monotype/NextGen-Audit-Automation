@@ -168,16 +168,24 @@ def list_latest(project_root: Path) -> dict[str, Any]:
         if changed:
             item["rows"] = cleaned
             item["summary"] = _summary_for_rows(cleaned)
-    items = list(data.values())
+    # Hide the bare base op when scenario variants exist (e.g. drop "activateFamily"
+    # once "activateFamily(global)" is stored) so Results are maintained by scenario.
+    bases_with_variants = {op.split("(", 1)[0] for op in data if "(" in op}
+    visible_ops = [
+        op
+        for op in data
+        if not ("(" not in op and op in bases_with_variants)
+    ]
+    items = [data[op] for op in visible_ops]
     items.sort(key=lambda x: str(x.get("compared_at") or ""), reverse=True)
     merged_rows: list[dict[str, Any]] = []
-    for item in sorted(data.keys()):
-        merged_rows.extend(data[item].get("rows") or [])
+    for op in sorted(visible_ops):
+        merged_rows.extend(data[op].get("rows") or [])
     return {
-        "operations": sorted(data.keys()),
+        "operations": sorted(visible_ops),
         "items": items,
         "rows": merged_rows,
-        "count": len(data),
+        "count": len(visible_ops),
     }
 
 

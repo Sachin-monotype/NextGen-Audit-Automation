@@ -234,6 +234,12 @@ def _row(
     remark = notes
     if not remark and status in {"SKIP", "FAIL"}:
         remark = spec.notes or ("Source not fetched" if status == "SKIP" else "")
+    # Relabel the Source column when the value was taken from the paired raw event
+    # so it reads "Raw event · published envelope" instead of the generic trigger.
+    src_system, src_api = spec.source_system, spec.source_api
+    if notes == _RAW_ENVELOPE_NOTE:
+        src_system, src_api = "Raw event", "published envelope"
+        remark = ""
     return ComparisonRow(
         operation=operation,
         layer=spec.layer,
@@ -241,8 +247,8 @@ def _row(
         field=spec.field,
         node=spec.node,
         sub_node=spec.sub_node,
-        source_system=spec.source_system,
-        source_api=spec.source_api,
+        source_system=src_system,
+        source_api=src_api,
         value_in_source=sv[:500],
         value_in_enriched=ev[:500],
         match_status=status,
@@ -577,6 +583,16 @@ def _resolve_source_value(
         return None, live.get("ams_error") or ""
 
     if spec.source_system in {"Raw", "GraphQL", "Trigger"}:
+        # Envelope/metadata fields (platformEnvironment, platform, actorUserAgent,
+        # xCorrelationId, …) are authoritatively carried by the *paired raw event* —
+        # the same event that was enriched. Source them from raw so a UI event
+        # (env=app) is not compared against a re-fired GraphQL curl (env=web).
+        if _is_envelope_path(path):
+            raw_event = live.get("raw_event")
+            if isinstance(raw_event, dict) and raw_event:
+                rv = _dig(raw_event, path)
+                if rv is not None and rv != "":
+                    return rv, _RAW_ENVELOPE_NOTE
         # Prefer captured trigger context (correlation + request we sent + mutation response).
         trigger = live.get("trigger")
         if isinstance(trigger, dict) and trigger:
@@ -657,6 +673,20 @@ def _jwt_actor_value(
     if val is None:
         val = _dig(enriched, path)
     return val, "Bearer token / actor envelope"
+
+
+_RAW_ENVELOPE_NOTE = "Raw event (published envelope)"
+
+
+def _is_envelope_path(path: str) -> bool:
+    """Envelope/metadata fields whose true source is the published (raw) event.
+
+    Excludes ``occurredAt`` (raw vs enriched timestamps legitimately differ) and
+    subject/actor join keys (those come from GraphQL/AMS/CMS, not the envelope).
+    """
+    if path.startswith("source."):
+        return True
+    return path in {"xCorrelationId", "eventId", "eventVersion", "routingKey"}
 
 
 def _trigger_value(path: str, trigger: dict, enriched: JsonDict) -> object:

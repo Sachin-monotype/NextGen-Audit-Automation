@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
@@ -199,6 +201,20 @@ def comparable_operations() -> dict[str, Any]:
             seen.add(label)
     except Exception:
         pass
+
+    # Hide the bare base op when scenario variants exist (e.g. drop "activateFamily"
+    # once "activateFamily(global)" / "activateFamily(UI)" are present) so the list
+    # is maintained purely by scenario.
+    bases_with_variants = {
+        str(i["operation"]).split("(", 1)[0]
+        for i in items
+        if "(" in str(i["operation"])
+    }
+    items = [
+        i
+        for i in items
+        if not ("(" not in str(i["operation"]) and str(i["operation"]) in bases_with_variants)
+    ]
 
     items.sort(key=lambda x: str(x.get("operation") or ""))
     return {
@@ -1102,52 +1118,198 @@ def preview_pair(operation: str) -> dict[str, Any]:
     return {"operation": operation, "raw": raw, "enriched": enriched}
 
 
-def _owned_correlation_index() -> dict[str, dict[str, str]]:
-    """xCorrelationId → {scenario label, channel} for events *we* generated.
+_SCENARIO_INDEX_CACHE: dict[str, Any] = {"key": None, "index": {}}
+_CATALOG_TOUCH_CACHE: dict[str, Any] = {"map": None}
 
-    Lets the Enrich/raw browser label a card as e.g. ``activateFamily(global)(UI)``
-    when its correlation matches one we minted. Events fired by other teams (read
-    straight off the queue) have no match and stay on their bare operation name —
-    still valid to compare, just not tagged as ours.
+# actorUserAgent fingerprints. Real browser / Electron desktop clients = UI;
+# scripted HTTP clients (our GraphQL curls, SDKs, tools) = BE.
+_UI_UA_MARKERS = (
+    "mozilla",
+    "chrome",
+    "safari",
+    "firefox",
+    "electron",
+    "monotypenextgen",
+    "applewebkit",
+    "gecko",
+    "edg/",
+)
+_BE_UA_MARKERS = (
+    "python",
+    "httpx",
+    "curl",
+    "wget",
+    "node-fetch",
+    "axios",
+    "postmanruntime",
+    "go-http",
+    "okhttp",
+    "java/",
+    "apache-httpclient",
+    "requests/",
+    "undici",
+    "insomnia",
+)
+
+
+def _classify_channel(source: dict[str, Any]) -> str:
+    """UI vs BE from the event's own metadata (actorUserAgent / platform).
+
+    A real browser or the Monotype NextGen Electron desktop app → ``UI``. A
+    scripted GraphQL client (curl/httpx/etc.) or no client fingerprint on a
+    non-NextGen platform → ``BE``.
     """
+    ua = str(source.get("actorUserAgent") or "").lower()
+    platform = str(source.get("platform") or "").lower()
+    env = str(source.get("platformEnvironment") or "").lower()
+    if any(m in ua for m in _BE_UA_MARKERS):
+        return "BE"
+    if any(m in ua for m in _UI_UA_MARKERS):
+        return "UI"
+    # No UA fingerprint: a NextGen client on app/web/plugin is still a UI action.
+    if platform == "nextgen" or env in {"app", "web", "plugin"}:
+        return "UI"
+    return "BE"
+
+
+def _catalog_touches() -> dict[str, list[str]]:
+    """operation → known short touchpoints (global/list/project/…), from FLOW_DEFS."""
+    if _CATALOG_TOUCH_CACHE.get("map") is not None:
+        return _CATALOG_TOUCH_CACHE["map"]
+    out: dict[str, list[str]] = {}
     try:
-        from audit_validator.generation_tracker import list_owned
+        from audit_validator.touchpoint.scenarios import list_scenarios
+
+        for s in list_scenarios():
+            out.setdefault(str(s["operation"]), []).append(str(s.get("short_touchpoint") or ""))
     except Exception:
-        return {}
+        out = {}
+    _CATALOG_TOUCH_CACHE["map"] = out
+    return out
+
+
+def _infer_touchpoint(operation: str, input_obj: Any, catalog: list[str] | None) -> str:
+    """Best-effort scenario touchpoint from the mutation input.
+
+    Uses the same signals the staged samples carry: ``listType``
+    (FONTLIST/FONTPROJECT/FAVORITE) plus project/list id keys. Constrained to
+    the operation's known touchpoints so we never invent an impossible scenario.
+    Returns "" when the operation has no scenario catalog (e.g. read queries).
+    """
+    if not catalog:
+        return ""
+    inp = input_obj if isinstance(input_obj, dict) else {}
+    keys = {str(k).lower() for k in inp.keys()}
+    lt = str(inp.get("listType") or "").upper()
+    has_fav = lt == "FAVORITE" or "favorite" in keys or "favourite" in keys
+    has_proj = lt == "FONTPROJECT" or any(k in keys for k in ("projectid", "fontprojectid"))
+    has_list = lt == "FONTLIST" or any(k in keys for k in ("listid", "listids", "fontlistid"))
+    if has_proj and has_list and lt != "FONTPROJECT":
+        tp = "project_list"
+    elif has_proj:
+        tp = "project"
+    elif has_list:
+        tp = "list"
+    elif has_fav:
+        tp = "favourite"
+    else:
+        tp = "global"
+    if tp in catalog:
+        return tp
+    if len(catalog) == 1:
+        return catalog[0]
+    if "global" in catalog:
+        return "global"
+    return ""
+
+
+def _scenario_label(operation: str, touchpoint: str) -> str:
     try:
-        owned = list_owned(project_root=settings.audit_project_root)
+        from audit_validator.touchpoint.scenarios import scenario_display_name
+
+        return scenario_display_name(operation, touchpoint or None)
     except Exception:
-        return {}
-    idx: dict[str, dict[str, str]] = {}
-    for op, entry in (owned.get("by_operation") or {}).items():
-        if not isinstance(entry, dict):
+        return f"{operation}({touchpoint})" if touchpoint else operation
+
+
+def _owned_correlation_index() -> dict[str, str]:
+    """xCorrelationId → authoritative scenario label for events *we* staged.
+
+    Built from the staged sample files (``payload/enrich|raw/<scenario>.json``),
+    which carry the *real published event* and its xCorrelationId — reliable,
+    unlike the minted correlation-id captured from the UI response header, which
+    Cloudflare can rewrite so it never matches the event on the queue.
+    """
+    root = settings.audit_project_root
+    enrich_dir = root / "payload" / "enrich"
+    raw_dir = root / "payload" / "raw"
+
+    def _mtime(p) -> float:
+        try:
+            return p.stat().st_mtime
+        except Exception:
+            return 0.0
+
+    key = (_mtime(enrich_dir), _mtime(raw_dir))
+    if _SCENARIO_INDEX_CACHE.get("key") == key:
+        return _SCENARIO_INDEX_CACHE["index"]
+
+    catalog = _catalog_touches()
+    idx: dict[str, str] = {}
+    for base_dir in (enrich_dir, raw_dir):
+        if not base_dir.is_dir():
             continue
-        channel = "UI" if str(entry.get("kind") or "").lower() == "ui" else "BE"
-        base = str(op)
-        for legacy in ("(ui)", "(be)", "(UI)", "(BE)"):
-            if base.endswith(legacy):
-                base = base[: -len(legacy)]
-        label = f"{base}({channel})"
-        cids = {str(entry.get("xCorrelationId") or "").strip()}
-        for hist in entry.get("history") or []:
-            cids.add(str((hist or {}).get("xCorrelationId") or "").strip())
-        for cid in cids:
-            if cid:
-                idx.setdefault(cid, {"scenario": label, "channel": channel})
+        for f in base_dir.glob("*.json"):
+            try:
+                doc = json.loads(f.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            cid = str(doc.get("xCorrelationId") or doc.get("correlationId") or "").strip()
+            if not cid:
+                continue
+            stem = f.stem  # e.g. activateFamily, activateStyle(list), createRole(global)(UI)
+            m = re.match(r"^([^(]+)(?:\(([^)]*)\))?", stem)
+            op = (m.group(1) if m else stem).strip()
+            touch = (m.group(2) if m and m.group(2) else "").strip()
+            # Drop any legacy channel token that leaked into the touchpoint slot.
+            if touch.upper() in {"UI", "BE"}:
+                touch = ""
+            # Bare stems (activateFamily) represent the global path → normalize the
+            # label so every card shows an explicit scenario touchpoint.
+            if not touch and "global" in (catalog.get(op) or []):
+                touch = "global"
+            idx.setdefault(cid, _scenario_label(op, touch))
+
+    _SCENARIO_INDEX_CACHE["key"] = key
+    _SCENARIO_INDEX_CACHE["index"] = idx
     return idx
 
 
 def _annotate_scenarios(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Tag rows minted by us with their scenario label + UI/BE channel."""
+    """Tag every row with a UI/BE channel (from event data) and a scenario label.
+
+    - ``channel``: derived from the event's own actorUserAgent/platform, so all
+      UI-origin events are marked ``(UI)`` (not only the ones we staged).
+    - ``scenario``: authoritative label when the correlation matches a staged
+      sample, else inferred from the mutation input's touchpoint signals.
+    """
     idx = _owned_correlation_index()
-    if not idx:
-        return results
+    catalog = _catalog_touches()
     for row in results:
+        doc = row.get("message") if isinstance(row.get("message"), dict) else {}
+        source = doc.get("source") if isinstance(doc.get("source"), dict) else {}
+        op = str(row.get("source.operation") or source.get("operation") or "")
+        # Channel from the event itself — this is the ground truth of who fired it.
+        row["channel"] = _classify_channel(source)
         cid = row.get("xCorrelationId") or row.get("correlationId") or ""
-        info = idx.get(cid)
-        if info:
-            row["scenario"] = info["scenario"]
-            row["channel"] = info["channel"]
+        if cid in idx:
+            row["scenario"] = idx[cid]
+            continue
+        subject = doc.get("subject") if isinstance(doc.get("subject"), dict) else {}
+        meta = subject.get("metadata") if isinstance(subject.get("metadata"), dict) else {}
+        tp = _infer_touchpoint(op, meta.get("input"), catalog.get(op))
+        if tp:
+            row["scenario"] = _scenario_label(op, tp)
     return results
 
 

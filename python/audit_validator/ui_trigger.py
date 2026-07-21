@@ -867,12 +867,15 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
                 "results",
                 "queued",
                 "status",
+                "status_api",
                 "queued_count",
             )
             if k in run
         }
         if not run_snap:
             run_snap = {"ok": run.get("ok"), "keys": sorted(str(k) for k in run.keys())[:40]}
+        # Persist the status endpoint CasePilot hands back so refresh can prefer it.
+        status_api = run.get("status_api") or ""
 
         queued_ok = bool(cp_jobs)
         queued_case_ids: list[int] = []
@@ -895,6 +898,7 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
                 "connected": True,
                 "send_status": "queued" if queued_ok else "error",
                 "casepilot_job_ids": cp_jobs,
+                "status_api": status_api,
                 "last_error": None
                 if queued_ok
                 else (
@@ -990,12 +994,10 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
         default_touch = ""
     try:
         client = CasePilotMcpClient()
-        statuses = []
-        for jid in cp_ids:
-            st = client.get_run_status(jid)
-            if "job_id" not in st:
-                st = {"job_id": jid, **st}
-            statuses.append(st)
+        # One batch status call (wait_for_run_jobs) instead of many get_run_status;
+        # on "Session not found" / MCP disconnect it falls back to the REST
+        # /api/mcp/v1/jobs/status endpoint. Never re-queues.
+        statuses = client.batch_run_status(cp_ids)
         agent["run_statuses"] = statuses
         finals = {str(s.get("status") or "").lower() for s in statuses}
         prev = str(job.get("status") or "")

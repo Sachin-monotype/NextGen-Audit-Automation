@@ -31,6 +31,7 @@ _SESSION_RETRY_MAX = int(os.getenv("CASEPILOT_SESSION_RETRIES", "15") or "15")
 class CasePilotConfig:
     api_key: str
     mcp_url: str = DEFAULT_MCP_URL
+    public_url: str = ""  # REST base, e.g. https://casepilot.monotype-pp.com
     ui_base_url: str = ""
     ui_username: str = ""
     ui_password: str = ""
@@ -65,9 +66,15 @@ def load_casepilot_config() -> CasePilotConfig:
         or os.getenv("CASEPILOT_API_TOKEN", "").strip()
     )
     headless_raw = os.getenv("CASEPILOT_UI_HEADLESS", "false").strip().lower()
+    mcp_url = os.getenv("CASEPILOT_MCP_URL", "").strip() or DEFAULT_MCP_URL
+    # REST base for the jobs/status fallback. Defaults to the MCP host minus /mcp.
+    public_url = os.getenv("CASEPILOT_PUBLIC_URL", "").strip()
+    if not public_url:
+        public_url = re.sub(r"/mcp/?$", "", mcp_url).rstrip("/")
     return CasePilotConfig(
         api_key=key,
-        mcp_url=(os.getenv("CASEPILOT_MCP_URL", "").strip() or DEFAULT_MCP_URL),
+        mcp_url=mcp_url,
+        public_url=public_url,
         ui_base_url=(
             os.getenv("CASEPILOT_UI_BASE_URL", "").strip()
             or os.getenv("NEXTGEN_UI_URL", "").strip()
@@ -405,6 +412,160 @@ class CasePilotMcpClient:
 
     def get_run_status(self, job_id: int) -> dict[str, Any]:
         return self.call_tool("get_run_status", {"job_id": int(job_id)})
+
+    # ---- Batch job status (wait_for_run_jobs + REST fallback) -------------------
+
+    def wait_for_run_jobs(self, job_ids: list[int]) -> dict[str, Any]:
+        """Single MCP call that returns the status of every queued runner job.
+
+        Replaces looping ``get_run_status`` per job (and ``wait_for_completion``).
+        """
+        ids = [int(x) for x in job_ids if str(x).strip().lstrip("-").isdigit()]
+        return self.call_tool("wait_for_run_jobs", {"job_ids": ids})
+
+    def rest_jobs_status(self, job_ids: list[int]) -> dict[str, Any]:
+        """REST fallback: POST {public_url}/api/mcp/v1/jobs/status with the same Bearer.
+
+        Used when the MCP session is lost / disconnected — this path has no session
+        affinity problem, so it always reaches a healthy instance.
+        """
+        import httpx
+
+        ids = [int(x) for x in job_ids if str(x).strip().lstrip("-").isdigit()]
+        base = (self.config.public_url or "").rstrip("/")
+        if not base:
+            raise CasePilotMcpError("CASEPILOT_PUBLIC_URL is not set for REST status fallback")
+        url = f"{base}/api/mcp/v1/jobs/status"
+        headers = {
+            "Authorization": f"Bearer {self.config.api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        try:
+            resp = httpx.post(url, json={"job_ids": ids}, headers=headers, timeout=30.0)
+        except httpx.HTTPError as exc:
+            raise CasePilotMcpError(f"CasePilot REST jobs/status unreachable: {exc}") from exc
+        if resp.status_code >= 400:
+            raise CasePilotMcpError(
+                self._friendly_http_error(resp.status_code, resp.text),
+                payload={"status": resp.status_code, "body": resp.text[:800]},
+            )
+        try:
+            return resp.json()
+        except Exception as exc:  # noqa: BLE001
+            raise CasePilotMcpError("CasePilot REST jobs/status returned non-JSON", payload=resp.text[:800]) from exc
+
+    def batch_run_status(self, job_ids: list[int]) -> list[dict[str, Any]]:
+        """Current status for each job via one MCP call, REST fallback on session loss.
+
+        Never re-queues. Returns a normalized ``[{job_id, status, …}]`` list.
+        """
+        ids = [int(x) for x in job_ids if str(x).strip().lstrip("-").isdigit()]
+        if not ids:
+            return []
+        try:
+            payload = self.wait_for_run_jobs(ids)
+            return normalize_job_statuses(payload, ids)
+        except CasePilotMcpError as exc:
+            if self._is_ip_banned(exc):
+                raise
+            # Session lost / MCP disconnect → REST fallback (no re-queue).
+            payload = self.rest_jobs_status(ids)
+            return normalize_job_statuses(payload, ids)
+
+    def wait_for_jobs_terminal(
+        self,
+        job_ids: list[int],
+        *,
+        poll_secs: float = 15.0,
+        max_wait_secs: float = 1200.0,
+        on_poll=None,
+    ) -> list[dict[str, Any]]:
+        """Block until every job is completed/failed/cancelled (or timeout).
+
+        Prefers the single ``wait_for_run_jobs`` MCP call; on ``Session not found``
+        or MCP disconnect it polls the REST ``/api/mcp/v1/jobs/status`` endpoint
+        every ``poll_secs`` seconds. Never re-queues tests.
+        """
+        ids = [int(x) for x in job_ids if str(x).strip().lstrip("-").isdigit()]
+        if not ids:
+            return []
+        deadline = time.monotonic() + max_wait_secs
+        last: list[dict[str, Any]] = []
+        while True:
+            statuses = self.batch_run_status(ids)
+            last = statuses or last
+            if on_poll:
+                try:
+                    on_poll(statuses)
+                except Exception:  # noqa: BLE001
+                    pass
+            states = {str(s.get("status") or "").lower() for s in statuses}
+            if statuses and states <= _TERMINAL_STATES:
+                return statuses
+            if time.monotonic() >= deadline:
+                return last
+            time.sleep(poll_secs)
+
+
+_TERMINAL_STATES = {
+    "completed",
+    "passed",
+    "pass",
+    "success",
+    "failed",
+    "error",
+    "cancelled",
+    "canceled",
+}
+
+
+def normalize_job_statuses(payload: Any, job_ids: list[int]) -> list[dict[str, Any]]:
+    """Flatten wait_for_run_jobs / REST jobs/status responses to [{job_id, status, …}].
+
+    Accepts the various shapes CasePilot returns: ``{jobs:[…]}``, ``{results:[…]}``,
+    ``{runs:[…]}``, ``{statuses:[…]}``, a bare list, or ``{"<id>": {...}}``.
+    """
+    def _rows_from(node: Any) -> list[dict[str, Any]]:
+        if isinstance(node, list):
+            return [r for r in node if isinstance(r, dict)]
+        if isinstance(node, dict):
+            for key in ("jobs", "results", "runs", "statuses", "job_statuses"):
+                val = node.get(key)
+                if isinstance(val, list):
+                    return [r for r in val if isinstance(r, dict)]
+            # Mapping of id -> status dict
+            mapped = [
+                {"job_id": k, **v} if isinstance(v, dict) else {"job_id": k, "status": v}
+                for k, v in node.items()
+                if str(k).strip().lstrip("-").isdigit()
+            ]
+            if mapped:
+                return mapped
+        return []
+
+    rows = _rows_from(payload)
+    out: list[dict[str, Any]] = []
+    by_id: dict[int, dict[str, Any]] = {}
+    for r in rows:
+        jid = r.get("job_id") or r.get("runner_job_id") or r.get("id")
+        try:
+            jid_int = int(jid)
+        except (TypeError, ValueError):
+            jid_int = 0
+        row = {**r}
+        if jid_int:
+            row["job_id"] = jid_int
+            by_id[jid_int] = row
+        out.append(row)
+    # Ensure every requested id is represented (pending if the server omitted it).
+    for jid in job_ids:
+        if jid not in by_id:
+            placeholder = {"job_id": jid, "status": "pending"}
+            out.append(placeholder)
+            by_id[jid] = placeholder
+    # Prefer one row per requested id, in request order.
+    return [by_id[jid] for jid in job_ids if jid in by_id] or out
 
 
 def extract_casepilot_job_ids(payload: Any) -> list[int]:

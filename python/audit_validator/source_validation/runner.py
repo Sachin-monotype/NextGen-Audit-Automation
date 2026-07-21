@@ -1361,6 +1361,16 @@ def run_source_validation(
                 live["graphql_response"] = json.loads(gql_path.read_text(encoding="utf-8"))
             except Exception:
                 pass
+        # The paired raw event (same xCorrelationId as enriched) is the authoritative
+        # source for envelope/metadata fields — platformEnvironment, platform,
+        # actorUserAgent, xCorrelationId, etc. Using it fixes the app-vs-web mismatch
+        # where those were compared against a re-fired GraphQL curl (env=web).
+        raw_path = cfg.project_root / "payload" / "raw" / f"{op}.json"
+        if raw_path.is_file():
+            try:
+                live["raw_event"] = json.loads(raw_path.read_text(encoding="utf-8"))
+            except Exception:
+                pass
         try:
             from audit_validator.simulation.trigger_context import load_trigger_context
             from audit_validator.auth import jwt_identity, resolve_our_profile_id
