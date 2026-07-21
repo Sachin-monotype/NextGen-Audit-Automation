@@ -994,9 +994,8 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
         default_touch = ""
     try:
         client = CasePilotMcpClient()
-        # One batch status call (wait_for_run_jobs) instead of many get_run_status;
-        # on "Session not found" / MCP disconnect it falls back to the REST
-        # /api/mcp/v1/jobs/status endpoint. Never re-queues.
+        # Non-blocking status poll (REST /jobs/status) — never call wait_for_run_jobs
+        # here; that blocks until jobs finish and urllib times out on long UI runs.
         statuses = client.batch_run_status(cp_ids)
         agent["run_statuses"] = statuses
         finals = {str(s.get("status") or "").lower() for s in statuses}
