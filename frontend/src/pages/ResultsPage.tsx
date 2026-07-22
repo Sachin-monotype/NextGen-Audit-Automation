@@ -9,6 +9,7 @@ import {
   fetchJobs,
   fetchLatestResults,
   deleteLatestResult,
+  exportComparisonExcel,
   type CategoryReport,
   type ComparableOperation,
   type ComparisonRow,
@@ -16,7 +17,6 @@ import {
   type Job,
   type LatestComparisonItem,
 } from "../api";
-import { downloadComparisonExcel } from "../utils/exportExcel";
 
 type Props = {
   initialJobId: string | null;
@@ -41,6 +41,19 @@ function statusClass(s: string) {
 
 function displayField(row: ComparisonRow): string {
   return row.field || row.field_path.split(".").pop() || row.field_path;
+}
+
+/** Match highlight keys across bare vs scenario names (activateFamily ↔ activateFamily(global)). */
+function operationMatchesHighlight(operation: string, highlight: Set<string>): boolean {
+  if (!highlight.size) return true;
+  if (highlight.has(operation)) return true;
+  const base = operation.split("(", 1)[0];
+  for (const h of highlight) {
+    if (h === base || operation.startsWith(`${h}(`) || h.startsWith(`${base}(`)) return true;
+    const hBase = h.split("(", 1)[0];
+    if (base === hBase) return true;
+  }
+  return false;
 }
 
 /** Top-level enrich JSON sections — same order as the resolver envelope. */
@@ -259,6 +272,9 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   /** Bulk-select operations in the coverage table for deletion. */
   const [selectedOps, setSelectedOps] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [refreshJobId, setRefreshJobId] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState("");
   /** When Compare hands us the compared ops, limit the coverage list to those. */
   const [highlightActive, setHighlightActive] = useState(false);
   const highlightSet = useMemo(
@@ -318,11 +334,12 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   // Refresh coverage while a long compare is writing progressive snapshots.
   useEffect(() => {
     if (sourceMode !== "latest") return;
+    const ms = refreshJobId ? 3000 : 8000;
     const t = setInterval(() => {
       loadLatest();
-    }, 8000);
+    }, ms);
     return () => clearInterval(t);
-  }, [sourceMode, loadLatest]);
+  }, [sourceMode, loadLatest, refreshJobId]);
 
   useEffect(() => {
     if (!activeId) return;
@@ -334,6 +351,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
           setJob(j);
           if (j.status === "completed" || j.status === "failed") {
             loadLatest();
+            if (refreshJobId && j.id === refreshJobId) setRefreshJobId(null);
             return;
           }
         }
@@ -344,7 +362,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     }
     poll();
     return () => { stop = true; };
-  }, [activeId, loadLatest]);
+  }, [activeId, loadLatest, refreshJobId]);
 
   useEffect(() => {
     if (initialJobId) setActiveId(initialJobId);
@@ -450,7 +468,9 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
 
   const coverageRows = useMemo(() => {
     return allCoverageRows.filter((r) => {
-      if (highlightActive && highlightSet.size && !highlightSet.has(r.operation)) return false;
+      if (highlightActive && highlightSet.size && !operationMatchesHighlight(r.operation, highlightSet)) {
+        return false;
+      }
       if (coverageOutcome === "pass") return r.failed === 0 && r.skipped === 0;
       if (coverageOutcome === "failed") return r.failed > 0;
       if (coverageOutcome === "partial") return r.failed === 0 && r.skipped > 0;
@@ -695,8 +715,24 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
             </div>
           )}
           {filtered.length > 0 && (
-            <button type="button" className="primary" onClick={() => downloadComparisonExcel(filtered)}>
-              Download Excel
+            <button
+              type="button"
+              className="primary"
+              disabled={exportBusy}
+              onClick={() => {
+                setExportBusy(true);
+                const ops =
+                  selectedOps.size > 0
+                    ? [...selectedOps]
+                    : filterOp
+                      ? [filterOp]
+                      : coverageRows.map((r) => r.operation);
+                void exportComparisonExcel(ops)
+                  .catch((e) => setRefreshError(String(e)))
+                  .finally(() => setExportBusy(false));
+              }}
+            >
+              {exportBusy ? "Exporting…" : "Download Excel"}
             </button>
           )}
         </div>
@@ -768,9 +804,15 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
         <p className="result-source-banner">
           Showing the <strong>latest stored comparison for each operation</strong>
           {latest?.count ? ` (${latest.count} operation${latest.count === 1 ? "" : "s"})` : ""}.
-          Re-run Compare on an operation to refresh its snapshot here.
+          {refreshJobId ? (
+            <> Compare in progress… snapshots update here as each operation finishes.</>
+          ) : (
+            <> Run Compare from the Compare tab; results appear here automatically.</>
+          )}
         </p>
       )}
+
+      {refreshError && <p className="error">{refreshError}</p>}
 
       {unreachableCount > 0 && (
         <div className="banner warn">
@@ -1082,6 +1124,14 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                 </div>
                 <button type="button" className="link-btn" onClick={clearFilters}>
                   ← Back to coverage list
+                </button>
+                <button
+                  type="button"
+                  className="danger"
+                  disabled={deletingOp === filterOp}
+                  onClick={() => void onDeleteResult(filterOp)}
+                >
+                  {deletingOp === filterOp ? "Deleting…" : "Delete result"}
                 </button>
               </div>
             </div>

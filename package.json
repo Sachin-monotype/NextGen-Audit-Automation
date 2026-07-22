@@ -1,0 +1,11 @@
+{
+  "name": "nextgen-audit-automation",
+  "private": true,
+  "description": "NextGen Audit Automation — use npm run playwright for UI tests",
+  "scripts": {
+    "playwright": "npm --prefix playwright-ui run test --",
+    "playwright:headed": "npm --prefix playwright-ui run test:headed",
+    "playwright:install": "npm --prefix playwright-ui install && npm --prefix playwright-ui exec playwright install chromium",
+    "playwright:global": "npm --prefix playwright-ui run test:global"
+  }
+}

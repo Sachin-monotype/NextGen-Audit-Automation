@@ -1,15 +1,16 @@
-"""CasePilot / TestRail UI steps — locator-first click paths.
+"""CasePilot / TestRail UI steps — plain-English actions for AI execution.
 
-Pattern matches TestRail C73303503: login → try action → navigate with
-``[data-qa-id='…']`` / ``[data-testid='…']`` → click → AUDIT_RESULT.
+Each recipe describes what to do in natural language (like C73306718 / C73306719),
+then a final step to capture GraphQL correlation-id and emit AUDIT_RESULT.
 
-No family-id hardcoding. No recipe/source fluff. Locators from
-MTConnectAutomation + mtconnect-ui.
+Login is handled via TestRail preconditions — recipes focus on the user action only.
 """
 
 from __future__ import annotations
 
 from typing import Any
+
+from .export_ui_catalog import export_spec, export_touchpoint
 
 
 def short_touch(touch: str) -> str:
@@ -59,49 +60,12 @@ def _row(step: str, expected: str = "") -> dict[str, str]:
     return {"step": step, "expected": expected}
 
 
-LOGIN = (
-    "LOGIN (skip if already signed in): open /search → click [data-qa-id='sign-in-button'] → "
-    "Auth0 #username → button[data-action-button-primary='true'] → #password → "
-    "button[data-action-button-primary='true'] → if /auth/workspace-switch pick company "
-    "button[aria-label] → wait [data-qa-id='expandable-searchbar__wrapper']. "
-    "Dismiss snackbars ([data-qa-id='snackbar-success'] close)."
-)
+def _capture(op: str, touch_short: str) -> dict[str, str]:
+    return _row(audit_emit(op, touch_short), audit_expected(op))
 
-SEARCH_NAV = (
-    "Click [data-testid='menu-item-Search'] (or [data-qa-id='menu-item-Search']) → URL /search → "
-    "type short query e.g. hel in [data-qa-id='expandable-searchbar_input'] → Enter "
-    "(or click [data-qa-id='expandable-searchbar__search-button']) → "
-    "wait [data-qa-id='font-name'] + [data-qa-id='toggle-btn'] on cards."
-)
 
-FAV_NAV = (
-    "Click [data-qa-id='sidebar-my-library-favourites'] "
-    "(fallback #menu-item-tooltip-favorites) → URL /library/favourites/fonts → "
-    "wait [data-qa-id='toggle-btn']."
-)
-
-LIB_NAV = (
-    "Open My Library Show all assets → URL /library "
-    "(sidebar [data-testid='sidebar-my-library-show-all'])."
-)
-
-MANAGE_NAV = (
-    "Click [data-testid='menu-item-Manage'] → wait Manage submenu visible."
-)
-
-TEAMS_USERS_NAV = (
-    "Click [data-testid='menu-item-Users & teams'] → URL /manage/users-and-teams/users."
-)
-
-ROLES_TAB_NAV = (
-    "Click Roles tab: md-tabs[data-qa-id='teams-users-tabs'] md-link[id='tab-2'] → "
-    "URL /manage/users-and-teams/roles → wait [data-qa-id='add-role-button']."
-)
-
-TAGS_NAV = (
-    "Click [data-testid='menu-item-Tags'] → URL /manage/tags/list → "
-    "wait [data-qa-id='create-tag-button']."
-)
+def _where(ts: str, mapping: dict[str, str], default: str = "the UI") -> str:
+    return mapping.get(ts, default)
 
 
 def _S(*rows: dict[str, str], op: str, touch: str) -> list[dict[str, str]]:
@@ -118,77 +82,6 @@ def _S(*rows: dict[str, str], op: str, touch: str) -> list[dict[str, str]]:
     return out
 
 
-def _ensure_off() -> str:
-    return (
-        "On the target card: if [data-qa-id='toggle-btn'] looks ON, click once to deactivate; "
-        "wait [data-testid='deactivation-toast-wrapper'] or [data-qa-id='snackbar-info-grey']; "
-        "dismiss. Target must be OFF before activate."
-    )
-
-
-def _ensure_on() -> str:
-    return (
-        "On the target card: if [data-qa-id='toggle-btn'] looks OFF, click once to activate; "
-        "wait [data-qa-id='snackbar-success']; dismiss. Target must be ON before deactivate."
-    )
-
-
-def _open_list_steps() -> list[dict[str, str]]:
-    return [
-        _row(LIB_NAV),
-        _row(
-            "If a FontList exists: click [data-qa-id^='asset-name-link-'] for that list "
-            "(URL /library/FontList/{id}). Else: click [data-qa-id='create-list-button'] → "
-            "[data-qa-id='asset-name-input'] → [data-qa-id='drawer-primary-button']."
-        ),
-        _row(
-            "If list empty: "
-            + SEARCH_NAV
-            + " Card kebab [data-qa-id='search-card-options-trigger'] → "
-            "[data-qa-id='context-menu-item-add-to-list-or-tag'] → "
-            "click [data-qa-id^='add-to-list-or-tag-drawer-add-'] → reopen list."
-        ),
-    ]
-
-
-def _open_project_steps() -> list[dict[str, str]]:
-    return [
-        _row(
-            "Open a recent project [data-qa-id^='sidebar-recent-project-'] OR "
-            "Show all projects → pick one with fonts. Prefer reuse."
-        ),
-        _row(
-            "If none: click [data-testid='sidebar-add-project-button'] → /projects/create → "
-            "name → [data-qa-id='project-creation-desktop-next'] through wizard → finish. "
-            "Land /projects/library/{projectId}/fonts."
-        ),
-        _row(
-            "On project fonts: wait [data-qa-id='toggle-btn'] "
-            "(nav [data-qa-id='project-nav-project-fonts'] if needed)."
-        ),
-    ]
-
-
-def _open_project_list_steps() -> list[dict[str, str]]:
-    return [
-        *_open_project_steps(),
-        _row(
-            "Open Project Library All assets → /projects/library/{projectId}. "
-            "If project FontList exists open it. Else [data-qa-id='create-list-button'] → "
-            "[data-qa-id='asset-name-input'] → [data-qa-id='drawer-primary-button']."
-        ),
-        _row(
-            "Add a family into that project list: on project fonts card kebab → "
-            "[data-qa-id='context-menu-item-add-to-list-or-tag'] → "
-            "[data-qa-id^='add-to-list-or-tag-drawer-add-']."
-        ),
-        _row(
-            "Open the project FontList grid (URL under /projects/library/{projectId}/… — "
-            "NOT global /library). Stay here for the click."
-        ),
-    ]
-
-
 def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
     op = (op or "").strip()
     touch = (touch or "").strip()
@@ -202,24 +95,14 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
     }.get(ts, touch)
     label = label or f"{op}({ts})"
 
-    # ── activateFamily global (C73303503 pattern) ───────────────────
+    # ── activateFamily — plain English (matches C73306719 / C73306718) ──
     if op == "activateFamily" and ts == "global":
         return _S(
-            _row(LOGIN),
             _row(
-                "Click the first [data-qa-id='toggle-btn'] on a Search card to Activate. "
-                "Wait [data-qa-id='snackbar-success'].",
-                "If done then go to AUDIT_RESULT step directly; if not follow next steps.",
-            ),
-            _row(SEARCH_NAV),
-            _row(
-                "Stay on Search font-family cards. Do NOT open /family/… detail. "
-                "Do NOT open Quick View ([data-qa-id='font preview text'])."
-            ),
-            _row(_ensure_off()),
-            _row(
-                "Click [data-qa-id='toggle-btn'] on that card to Activate. "
-                "Wait [data-qa-id='snackbar-success']."
+                "Perform activate family from search page for a family which is not activated. "
+                "Capture the GraphQL ActivateFamily mutation from network and provide family id "
+                "from the request variables.",
+                "Family should be activated and GraphQL call captured with family ids.",
             ),
             _row(audit_emit(op, "global"), audit_expected(op)),
             op=op,
@@ -228,21 +111,15 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
 
     if op == "activateFamily" and ts == "favourite":
         return _S(
-            _row(LOGIN),
             _row(
-                "On /library/favourites/fonts click first [data-qa-id='toggle-btn'] to Activate. "
-                "Wait [data-qa-id='snackbar-success'].",
-                "If done go to AUDIT_RESULT; else continue.",
+                "Search for a style and mark favourite for a non-activated family.",
+                "Non-activated family should be marked as favourite.",
             ),
             _row(
-                SEARCH_NAV
-                + " If needed click [data-qa-id='icon-favorite'] (outline) OR kebab → "
-                "[data-qa-id='context-menu-item-add-to-favourites']."
+                "Go to favourites and activate the same style. Capture family id from "
+                "ActivateFamily network mutation and response header correlation-id.",
+                "Family should be activated; family id and correlation-id captured.",
             ),
-            _row(FAV_NAV),
-            _row("Do NOT open /family/… detail."),
-            _row(_ensure_off()),
-            _row("Click [data-qa-id='toggle-btn'] to Activate. Wait [data-qa-id='snackbar-success']."),
             _row(audit_emit(op, "favourite"), audit_expected(op)),
             op=op,
             touch=touch_canon,
@@ -250,13 +127,14 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
 
     if op == "activateFamily" and ts == "list":
         return _S(
-            _row(LOGIN),
-            *_open_list_steps(),
-            _row("Do NOT open /family/… detail. Do NOT use kebab Activate all fonts."),
-            _row(_ensure_off()),
             _row(
-                "Click family [data-qa-id='toggle-btn'] to Activate. "
-                "Wait [data-qa-id='snackbar-success']."
+                "Open My Library and open a font list (create a list and add a family if needed).",
+                "Font list is open with at least one family.",
+            ),
+            _row(
+                "Activate a non-activated family in that list. Capture ActivateFamily GraphQL "
+                "mutation with family id and correlation-id header.",
+                "Family activated in list; mutation and correlation-id captured.",
             ),
             _row(audit_emit(op, "list"), audit_expected(op)),
             op=op,
@@ -265,14 +143,15 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
 
     if op == "activateFamily" and ts == "project":
         return _S(
-            _row(LOGIN),
-            *_open_project_steps(),
-            _row("Stay on project fonts grid — do NOT use global Search for this click."),
-            _row(_ensure_off()),
             _row(
-                "Click [data-qa-id='toggle-btn'] to Activate "
-                "(or [data-qa-id='activate-all-button'] if only one family). "
-                "Wait [data-qa-id='snackbar-success']."
+                "Open a project fonts page (/projects/library/{projectId}/fonts). "
+                "Reuse an existing project or create one and add fonts if empty.",
+                "Project fonts grid is visible with at least one family.",
+            ),
+            _row(
+                "Activate a non-activated family on the project fonts grid. Capture "
+                "ActivateFamily GraphQL mutation with family id and correlation-id header.",
+                "Family activated in project; mutation and correlation-id captured.",
             ),
             _row(audit_emit(op, "project"), audit_expected(op)),
             op=op,
@@ -281,31 +160,34 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
 
     if op == "activateFamily" and ts == "project_list":
         return _S(
-            _row(LOGIN),
-            *_open_project_list_steps(),
-            _row("On project list grid only — do NOT use global Search toggle."),
-            _row(_ensure_off()),
-            _row("Click family [data-qa-id='toggle-btn'] to Activate. Wait [data-qa-id='snackbar-success']."),
+            _row(
+                "Open a project, go to Project Library, and open a project font list "
+                "(create list and add a family if needed).",
+                "Project font list grid is open with at least one family.",
+            ),
+            _row(
+                "Activate a non-activated family in that project list. Capture ActivateFamily "
+                "GraphQL mutation with family id and correlation-id header.",
+                "Family activated in project list; mutation and correlation-id captured.",
+            ),
             _row(audit_emit(op, "project_list"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
     if op == "deactivateFamilies":
-        prep = {
-            "global": [_row(SEARCH_NAV), _row("Stay on Search cards. Do NOT open /family/….")],
-            "favourite": [_row(FAV_NAV)],
-            "list": _open_list_steps(),
-            "project": _open_project_steps(),
-            "project_list": _open_project_list_steps(),
-        }.get(ts, [_row(SEARCH_NAV)])
+        where = {
+            "global": "from the search page",
+            "favourite": "from favourites",
+            "list": "from a font list in My Library",
+            "project": "from a project fonts page",
+            "project_list": "from a project font list",
+        }.get(ts, "from the UI")
         return _S(
-            _row(LOGIN),
-            *prep,
-            _row(_ensure_on()),
             _row(
-                "Click [data-qa-id='toggle-btn'] to Deactivate. "
-                "Wait [data-testid='deactivation-toast-wrapper']."
+                f"Deactivate an activated family {where}. Capture DeactivateFamilies GraphQL "
+                "mutation with family id(s) and correlation-id header.",
+                "Family deactivated; DeactivateFamilies mutation and correlation-id captured.",
             ),
             _row(audit_emit(op, ts), audit_expected(op)),
             op=op,
@@ -314,32 +196,19 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
 
     if op in {"activateStyle", "deactivateStyle"}:
         act = "Activate" if op == "activateStyle" else "Deactivate"
-        need = "OFF" if op == "activateStyle" else "ON"
-        prep = {
-            "global": [_row(SEARCH_NAV)],
-            "favourite": [
-                _row(
-                    SEARCH_NAV
-                    + " If needed click [data-qa-id='icon-favorite'] (outline) OR kebab → "
-                    "[data-qa-id='context-menu-item-add-to-favourites']."
-                ),
-                _row(FAV_NAV),
-            ],
-            "list": _open_list_steps(),
-            "project": _open_project_steps(),
-            "project_list": _open_project_list_steps(),
-        }.get(ts, [_row(SEARCH_NAV)])
+        where = {
+            "global": "search page",
+            "favourite": "favourites (mark favourite first if needed)",
+            "list": "a font list",
+            "project": "a project fonts page",
+            "project_list": "a project font list",
+        }.get(ts, "the UI")
         return _S(
-            _row(LOGIN),
-            *prep,
             _row(
-                "Open ONE style control: (A) click [data-qa-id='font preview text'] → QV → "
-                "[data-qa-id='toggle-btn'] on a style row under [data-qa-id='fontFamilies Cards']; "
-                "OR (B) [data-qa-id='search-card-options-trigger'] → "
-                "[data-qa-id='context-menu-item-activate-styles'] → pick one style; "
-                "OR (C) /family/… Styles tab → [data-qa-id*='family-style-card-'] toggle."
+                f"{act} a single font style from {where}. Capture {op} GraphQL mutation "
+                "with style id and correlation-id header.",
+                f"Style {act.lower()}d; {op} mutation and correlation-id captured.",
             ),
-            _row(f"Ensure chosen style is {need}, then {act} that ONE style."),
             _row(audit_emit(op, ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
@@ -347,26 +216,18 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
 
     if op in {"activateVariation", "deactivateVariation"}:
         act = "Activate" if op == "activateVariation" else "Deactivate"
-        prep = {
-            "global": [_row(SEARCH_NAV)],
-            "favourite": [_row(FAV_NAV)],
-            "list": _open_list_steps(),
-            "project": _open_project_steps(),
-            "project_list": _open_project_list_steps(),
-        }.get(ts, [_row(SEARCH_NAV)])
+        where = {
+            "global": "search page (open font versions drawer from card kebab)",
+            "favourite": "favourites",
+            "list": "a font list",
+            "project": "a project fonts page",
+            "project_list": "a project font list",
+        }.get(ts, "the UI")
         return _S(
-            _row(LOGIN),
-            *prep,
             _row(
-                "Kebab [data-qa-id='search-card-options-trigger'] → "
-                "[data-qa-id='context-menu-item-more-actions'] → "
-                "[data-qa-id='context-menu-item-font-versions'] "
-                "(or [data-qa-id='more-actions-submenu-item-font-versions'])."
-            ),
-            _row(
-                "In [data-qa-id='font-versions-drawer-list'] click "
-                "[data-qa-id^='font-versions-drawer-item-'] → "
-                f"{act} non-default version via [data-qa-id^='font-version-details-toggle-']."
+                f"{act} a non-default font variation from {where}. Capture {op} GraphQL "
+                "mutation with variation/style id and correlation-id header.",
+                f"Variation {act.lower()}d; {op} mutation and correlation-id captured.",
             ),
             _row(audit_emit(op, ts), audit_expected(op)),
             op=op,
@@ -374,44 +235,31 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
         )
 
     if op in {"activateList", "deActivateList"}:
-        kebab = (
-            "context-menu-item-activate-all-fonts"
-            if op == "activateList"
-            else "context-menu-item-deactivate-all-fonts"
-        )
-        prep = _open_project_list_steps() if ts == "project_list" else _open_list_steps()
-        emit_ts = "project_list" if ts == "project_list" else "list"
+        act = "Activate" if op == "activateList" else "Deactivate"
+        where = "a project font list" if ts == "project_list" else "a font list in My Library"
         return _S(
-            _row(LOGIN),
-            *prep,
             _row(
-                f"FontList row kebab → [data-qa-id='{kebab}']. "
-                "Alternate inside list: [data-qa-id='bulk-select-all-button'] → "
-                "[data-qa-id='activate-all-button'] / [data-qa-id='deactivate-all-button']."
+                f"Open {where}, ensure fonts in the list are active, then use the list toolbar "
+                f"'{act} list' action (kebab/menu on the list itself — NOT bulk deactivate fonts "
+                f"which fires deactivateFamilies). Capture {op} GraphQL mutation and correlation-id.",
+                f"List {act.lower()}d via toolbar; {op} mutation and correlation-id captured.",
             ),
-            _row("Wait list snackbar success message."),
-            _row(audit_emit(op, emit_ts), audit_expected(op)),
+            _row(
+                audit_emit(op, "project_list" if ts == "project_list" else "list"),
+                audit_expected(op),
+            ),
             op=op,
             touch=touch_canon,
         )
 
     if op in {"activateFontProject", "deActivateFontProject"}:
-        btn = (
-            "[data-qa-id='activate-all-button']"
-            if op == "activateFontProject"
-            else "[data-qa-id='deactivate-all-button']"
-        )
+        act = "Activate" if op == "activateFontProject" else "Deactivate"
         return _S(
-            _row(LOGIN),
-            *_open_project_steps(),
             _row(
-                "Click [data-qa-id='bulk-select-all-button'] or "
-                "[data-qa-id='asset-list-select-all-checkbox'] or "
-                "[data-qa-id='select-all-checkbox']."
-            ),
-            _row(
-                f"Click {btn}. If Network shows activateFamily instead of {op}, "
-                "emit AUDIT_RESULT with the ACTUAL operationName."
+                f"On a project fonts page select all families and {act.lower()} them using "
+                f"bulk {act.lower()}. Capture {op} GraphQL mutation (or activateFamily if that "
+                "fires instead) with family ids and correlation-id header.",
+                f"Project fonts {act.lower()}d; mutation and correlation-id captured.",
             ),
             _row(audit_emit(op, "project"), audit_expected(op)),
             op=op,
@@ -419,41 +267,32 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
         )
 
     if op in {"bulkActivateStyles", "bulkDeactivateStyles"}:
-        btn = (
-            "[data-qa-id='activate-all-button']"
-            if op == "bulkActivateStyles"
-            else "[data-qa-id='deactivate-all-button']"
-        )
-        prep = _open_project_steps() if ts == "project" else [_row(SEARCH_NAV)]
+        act = "Activate" if op == "bulkActivateStyles" else "Deactivate"
+        where = "a project fonts page" if ts == "project" else "search page"
         return _S(
-            _row(LOGIN),
-            *prep,
             _row(
-                "Select 2+ cards via checkboxes or [data-qa-id='bulk-select-all-button'] "
-                "/ [data-qa-id='select-all-checkbox']."
+                f"On {where} select multiple font cards and bulk {act.lower()} styles. "
+                f"Capture {op} GraphQL mutation and correlation-id header.",
+                f"Bulk style {act.lower()} completed; mutation and correlation-id captured.",
             ),
-            _row(f"In [data-qa-id='action-buttons'] click {btn}."),
             _row(audit_emit(op, ts if ts in {"global", "project"} else "global"), audit_expected(op)),
             op=op,
             touch=touch_canon,
         )
 
     if op in {"bulkActivateLists", "bulkDeactivateLists"}:
-        kebab = (
-            "context-menu-item-activate-all-fonts"
-            if op == "bulkActivateLists"
-            else "context-menu-item-deactivate-all-fonts"
-        )
+        act = "Activate" if op == "bulkActivateLists" else "Deactivate"
         where = (
-            "Project Library assets table"
+            "Project Library assets"
             if ts in {"project", "project_list"}
-            else "My Library /library [data-qa-id='assets-table-view']"
+            else "My Library assets table"
         )
         return _S(
-            _row(LOGIN),
-            _row(f"Open {where}."),
-            _row("Checkbox-select 2+ FontList rows only."),
-            _row(f"Right-click → [data-qa-id='{kebab}']."),
+            _row(
+                f"On {where} select multiple FontList rows and bulk {act.lower()} them. "
+                f"Capture {op} GraphQL mutation and correlation-id header.",
+                f"Bulk list {act.lower()} completed; mutation and correlation-id captured.",
+            ),
             _row(audit_emit(op, "list" if ts == "list" else ts), audit_expected(op)),
             op=op,
             touch=touch_canon,
@@ -461,283 +300,501 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
 
     if op == "pinAsset":
         return _S(
-            _row(LOGIN),
             _row(
-                LIB_NAV
-                + " OR Search → [data-qa-id='sorted-search-location-dropdown'] → Lists & folders."
+                "Open My Library or Search lists view and pin an unpinned folder or font list "
+                "to the sidebar.",
+                "Folder or list is pinned and visible in the sidebar.",
             ),
-            _row(
-                "Unpinned Folder/FontList kebab → [data-qa-id='context-menu-item-pin-list'] "
-                "OR [data-qa-id='context-menu-item-pin-folder']."
-            ),
-            _row(audit_emit(op, "global"), audit_expected(op)),
+            _capture(op, "global"),
             op=op,
             touch=touch_canon,
         )
     if op == "unpinAsset":
         return _S(
-            _row(LOGIN),
-            _row("Open a pinned Folder/FontList (sidebar pin or /library)."),
             _row(
-                "Kebab → [data-qa-id='context-menu-item-unpin-list'] OR "
-                "[data-qa-id='context-menu-item-unpin-folder']."
+                "Open a pinned folder or font list and unpin it from the sidebar or library view.",
+                "Asset is unpinned successfully.",
             ),
-            _row(audit_emit(op, "global"), audit_expected(op)),
+            _capture(op, "global"),
             op=op,
             touch=touch_canon,
         )
     if op == "updateAssets":
         return _S(
-            _row(LOGIN),
-            _row("Open My Library or Project Library → Webkits tab."),
             _row(
-                "Click [data-qa-id^='webkit-actions-take-offline-'] OR "
-                "[data-qa-id^='webkit-actions-take-online-']."
+                "From search or Webkits inventory, locate font assets with online/offline toggle "
+                "(My Library / Project Library Webkits tab).",
+                "Asset row with Webkits status control is visible.",
             ),
-            _row(audit_emit(op, "global"), audit_expected(op)),
+            _row(
+                "Toggle one or more assets online/offline (bulk update if multi-select available).",
+                "Assets updated; updateAssets mutation captured.",
+            ),
+            _capture(op, "global"),
             op=op,
             touch=touch_canon,
         )
 
     if op == "addFavoriteFamilies":
+        emit = "favourite" if ts == "favourite" else "global"
         return _S(
-            _row(LOGIN),
-            _row(SEARCH_NAV),
             _row(
-                "On card with outline heart click [data-qa-id='icon-favorite'] OR kebab → "
-                "[data-qa-id='context-menu-item-add-to-favourites']. "
-                "Wait [data-qa-id='snackbar-success']."
+                "From search, add a font family to favourites using the heart icon or "
+                "card context menu.",
+                "Family appears in favourites; addFavoriteFamilies mutation captured.",
             ),
-            _row(audit_emit(op, "favourite" if ts == "favourite" else "global"), audit_expected(op)),
+            _capture(op, emit),
             op=op,
             touch=touch_canon,
         )
     if op == "removeFavoriteFamilies":
         return _S(
-            _row(LOGIN),
-            _row(FAV_NAV),
-            _row("Click filled [data-qa-id='icon-favorite'] (solid → outline)."),
-            _row(audit_emit(op, "favourite"), audit_expected(op)),
+            _row(
+                "Go to favourites and remove a favourited family using the heart icon.",
+                "Family removed from favourites; removeFavoriteFamilies mutation captured.",
+            ),
+            _capture(op, "favourite"),
             op=op,
             touch=touch_canon,
         )
     if op == "addFavoriteStyles":
         return _S(
-            _row(LOGIN),
-            _row(SEARCH_NAV),
             _row(
-                "Open QV ([data-qa-id='font preview text']) or family Styles → "
-                "click [data-qa-id='icon-favorite'] on ONE style row."
+                "From search or family detail, favourite a single font style.",
+                "Style added to favourites; addFavoriteStyles mutation captured.",
             ),
-            _row(audit_emit(op, ts), audit_expected(op)),
+            _capture(op, ts),
             op=op,
             touch=touch_canon,
         )
     if op == "removeFavoriteStyles":
         return _S(
-            _row(LOGIN),
-            _row(FAV_NAV + " Or open favourited style in QV."),
-            _row("Click filled [data-qa-id='icon-favorite'] on the style row."),
-            _row(audit_emit(op, "favourite"), audit_expected(op)),
+            _row(
+                "Go to favourites (or open a favourited style) and remove favourite from one style.",
+                "Style removed from favourites; removeFavoriteStyles mutation captured.",
+            ),
+            _capture(op, "favourite"),
             op=op,
             touch=touch_canon,
         )
     if op == "addFavoritePair":
         return _S(
-            _row(LOGIN),
-            _row(SEARCH_NAV),
             _row(
-                "Kebab → [data-qa-id='context-menu-item-pairs-of-this-fonts'] → "
-                "click [data-qa-id^='pairing-font-card-favorite-']."
+                "From search, open font pairings for a family and favourite one pairing.",
+                "Pair added to favourites; addFavoritePair mutation captured.",
             ),
-            _row(audit_emit(op, ts), audit_expected(op)),
+            _capture(op, ts),
             op=op,
             touch=touch_canon,
         )
     if op == "removeFavoritePair":
         return _S(
-            _row(LOGIN),
-            _row("Open /library/favourites/pairs."),
-            _row("Click [data-qa-id^='pairing-font-card-favorite-'] to toggle OFF."),
-            _row(audit_emit(op, "favourite"), audit_expected(op)),
+            _row(
+                "Open favourites pairs page and remove favourite from one font pair.",
+                "Pair removed from favourites; removeFavoritePair mutation captured.",
+            ),
+            _capture(op, "favourite"),
             op=op,
             touch=touch_canon,
         )
 
     if op == "addFontListFamilies":
+        emit = "project_list" if ts == "project_list" else ("list" if ts == "list" else ts)
+        where = _where(
+            ts,
+            {
+                "list": "a font list in My Library",
+                "project_list": "a project font list",
+            },
+            "a font list",
+        )
         return _S(
-            _row(LOGIN),
-            _row(SEARCH_NAV),
             _row(
-                "Family kebab [data-qa-id='search-card-options-trigger'] → "
-                "[data-qa-id='context-menu-item-add-to-list-or-tag'] → "
-                "optional search [data-qa-id='add-to-list-or-folder-drawer-search'] → "
-                "click [data-qa-id^='add-to-list-or-tag-drawer-add-']."
+                f"Add a font family from search into {where}.",
+                "Family added to list; addFontListFamilies mutation captured.",
             ),
-            _row(audit_emit(op, "list" if ts == "list" else ts), audit_expected(op)),
+            _capture(op, emit if emit in {"list", "project_list"} else "list"),
             op=op,
             touch=touch_canon,
         )
     if op == "addFontListStyles":
+        emit = "project_list" if ts == "project_list" else "list"
+        if ts == "project_list":
+            return _S(
+                _row(
+                    "Open a project, go to Project Library, and open a project font list "
+                    "(create project + list and add a family if needed).",
+                    "Project font list is open.",
+                ),
+                _row(
+                    "From search, add a font style into that project font list.",
+                    "Style added to project list; addFontListStyles mutation captured.",
+                ),
+                _capture(op, emit),
+                op=op,
+                touch=touch_canon,
+            )
+        where = _where(
+            ts,
+            {"list": "a font list in My Library"},
+            "a font list in My Library",
+        )
         return _S(
-            _row(LOGIN),
-            _row(SEARCH_NAV),
             _row(
-                "Open style/QV → [data-qa-id='context-menu-item-add-to-list-or-tag'] → "
-                "[data-qa-id^='add-to-list-or-tag-drawer-add-']."
+                f"Open My Library and open {where} (create a list and add a family if needed).",
+                "Font list is open with at least one family.",
             ),
-            _row(audit_emit(op, "list" if ts == "list" else ts), audit_expected(op)),
+            _row(
+                "From search, add a font style into that list.",
+                "Style added to list; addFontListStyles mutation captured.",
+            ),
+            _capture(op, emit),
             op=op,
             touch=touch_canon,
         )
     if op == "addFontProjectFamilies":
         return _S(
-            _row(LOGIN),
-            _row(SEARCH_NAV),
             _row(
-                "Family kebab → Add to project → [data-qa-id='add-to-project-drawer-body'] → "
-                "select project → [data-qa-id='add-to-project-drawer-submit']."
+                "Open a project fonts page (/projects/library/{projectId}/fonts). "
+                "Reuse an existing project or create one if needed.",
+                "Project fonts grid is visible.",
             ),
-            _row(audit_emit(op, "project"), audit_expected(op)),
+            _row(
+                "From search or project browse inventory, add a font family to the project.",
+                "Family added to project; addFontProjectFamilies mutation captured.",
+            ),
+            _capture(op, "project"),
             op=op,
             touch=touch_canon,
         )
     if op == "addFontProjectStyles":
         return _S(
-            _row(LOGIN),
-            *_open_project_steps(),
             _row(
-                "Use [data-qa-id='project-fonts-browse-inventory-btn'] or Search add-to-project "
-                "for a STYLE → [data-qa-id='add-to-project-drawer-submit']."
+                "Add a font style to an existing project (from project browse inventory or search).",
+                "Style added to project; addFontProjectStyles mutation captured.",
             ),
-            _row(audit_emit(op, "project"), audit_expected(op)),
+            _capture(op, "project"),
             op=op,
             touch=touch_canon,
         )
     if op == "removeFontProjectStyles":
         return _S(
-            _row(LOGIN),
-            *_open_project_steps(),
-            _row("Remove one style from project (manage fonts / Remove from project → apply)."),
-            _row(audit_emit(op, "project"), audit_expected(op)),
+            _row(
+                "Open a project fonts page with at least one style "
+                "(reuse project or addFontProjectStyles first if empty).",
+                "Project fonts grid shows at least one style.",
+            ),
+            _row(
+                "Remove one style from the project (kebab menu or bulk remove on grid).",
+                "Style removed from project; removeFontProjectStyles mutation captured.",
+            ),
+            _capture(op, "project"),
+            op=op,
+            touch=touch_canon,
+        )
+
+    if op == "addStylesToWebProject":
+        return _S(
+            _row(
+                "Open or create a project, then open its web/embed fonts flow "
+                "(My Library embed-all-fonts drawer or project web fonts UI).",
+                "Web project fonts panel is open.",
+            ),
+            _row(
+                "From search, add one or more font styles to the web project.",
+                "Styles added to web project; addStylesToWebProject mutation captured.",
+            ),
+            _capture(op, "project"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "removeStylesFromWebProject":
+        return _S(
+            _row(
+                "Open a project web/embed fonts view with styles already added.",
+                "Web project shows at least one style.",
+            ),
+            _row(
+                "Select and remove one or more styles from the web project.",
+                "Styles removed; removeStylesFromWebProject mutation captured.",
+            ),
+            _capture(op, "project"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "createWebProject":
+        return _S(
+            _row(
+                "Create a new project using the project creation wizard (or reuse an empty project).",
+                "Project exists and is open.",
+            ),
+            _row(
+                "From My Library, open the embed-all-fonts / web project drawer and create a web project.",
+                "Web project created; createWebProject mutation captured.",
+            ),
+            _capture(op, "project" if ts == "project" else "global"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "deleteProject":
+        return _S(
+            _row(
+                "Create a disposable project or open an existing test project you may delete.",
+                "Project detail page is open.",
+            ),
+            _row(
+                "Delete the project from the project menu / settings.",
+                "Project deleted; deleteProject mutation captured.",
+            ),
+            _capture(op, "project" if ts == "project" else "global"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "publishProject":
+        return _S(
+            _row(
+                "Open a project that can be published (create one if needed).",
+                "Project detail is open.",
+            ),
+            _row(
+                "Open the Publish drawer and publish the project.",
+                "Project published; publishProject mutation captured.",
+            ),
+            _capture(op, "project"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "linkDocumentToProject":
+        return _S(
+            _row(
+                "Open a project (create one if needed) and open the document linking side panel.",
+                "Project linking UI is visible.",
+            ),
+            _row(
+                "Link an existing document to the project and save.",
+                "Document linked; linkDocumentToProject mutation captured.",
+            ),
+            _capture(op, "project"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "removeFontListFamilies":
+        emit = "list" if ts in {"list", "library_assets"} else ts
+        return _S(
+            _row(
+                "Open My Library and a font list that already has families "
+                "(create list + addFontListFamilies first if empty).",
+                "Font list grid shows at least one family.",
+            ),
+            _row(
+                "Remove one font family from that list.",
+                "Family removed from list; removeFontListFamilies mutation captured.",
+            ),
+            _capture(op, emit if emit in {"list", "global"} else "list"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "removeFontListStyles":
+        emit = "list" if ts in {"list", "library_assets"} else ts
+        return _S(
+            _row(
+                "Open My Library and a font list that already has styles "
+                "(create list + addFontListStyles first if empty).",
+                "Font list grid shows at least one style.",
+            ),
+            _row(
+                "Remove one font style from that list.",
+                "Style removed from list; removeFontListStyles mutation captured.",
+            ),
+            _capture(op, emit if emit in {"list", "global"} else "list"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "removeFontProjectFamilies":
+        return _S(
+            _row(
+                "Open a project fonts page with families "
+                "(create project + addFontProjectFamilies first if empty).",
+                "Project fonts grid shows at least one family.",
+            ),
+            _row(
+                "Remove one font family from the project.",
+                "Family removed from project; removeFontProjectFamilies mutation captured.",
+            ),
+            _capture(op, "project"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "deleteAssets":
+        return _S(
+            _row(
+                "Open My Library and ensure at least one asset exists "
+                "(createAsset first if the library is empty).",
+                "At least one deletable asset is visible.",
+            ),
+            _row(
+                "Select the asset and delete it (confirm in the delete dialog).",
+                "Asset deleted; deleteAssets mutation captured.",
+            ),
+            _capture(op, "global"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "updateAsset":
+        emit = "library_assets" if ts == "library_assets" else ("list" if ts == "list" else "global")
+        return _S(
+            _row(
+                "Open My Library and select an existing asset (createAsset first if needed).",
+                "Asset row or detail is open.",
+            ),
+            _row(
+                "Edit asset details (rename or Edit Details) and save.",
+                "Asset updated; updateAsset mutation captured.",
+            ),
+            _capture(op, emit),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "updateAssetSharing":
+        return _S(
+            _row(
+                "Open My Library, open a shareable asset or list, and open the Share panel.",
+                "Share / access panel is visible.",
+            ),
+            _row(
+                "Grant or revoke sharing for a user/team and save.",
+                "Sharing updated; updateAssetSharing mutation captured.",
+            ),
+            _capture(op, "global"),
             op=op,
             touch=touch_canon,
         )
 
     if op == "bulkAddStylesToList":
         return _S(
-            _row(LOGIN),
-            _row(SEARCH_NAV),
             _row(
-                "Multi-select 2+ → [data-qa-id='action-buttons-options-trigger'] Add to list "
-                "OR [data-qa-id='context-menu-item-add-to-list-or-tag'] → "
-                "[data-qa-id^='add-to-list-or-tag-drawer-add-']."
+                "From search, multi-select several font cards (checkboxes on card grid).",
+                "Multiple styles are selected.",
             ),
-            _row(audit_emit(op, "list"), audit_expected(op)),
+            _row(
+                "Add the selected styles to a font list (pick list from Add to list menu).",
+                "Styles added to list; bulkAddStylesToList mutation captured.",
+            ),
+            _capture(op, "list"),
             op=op,
             touch=touch_canon,
         )
     if op == "bulkRemoveStylesFromList":
         return _S(
-            _row(LOGIN),
-            *_open_list_steps(),
             _row(
-                "Multi-select → Add to list drawer → "
-                "[data-qa-id^='add-to-list-or-tag-drawer-remove-']."
+                "Open a font list that already contains styles "
+                "(bulkAddStylesToList or addFontListStyles first if empty).",
+                "List grid shows multiple styles.",
             ),
-            _row(audit_emit(op, "list"), audit_expected(op)),
+            _row(
+                "Multi-select styles in the list and remove them from that list.",
+                "Styles removed from list; bulkRemoveStylesFromList mutation captured.",
+            ),
+            _capture(op, "list" if ts != "library_assets" else "library_assets"),
             op=op,
             touch=touch_canon,
         )
     if op == "bulkRemoveStylesFromFavourites":
         return _S(
-            _row(LOGIN),
-            _row(FAV_NAV),
             _row(
-                "Multi-select → [data-qa-id='favourites-bulk-remove-from-favorites-item'] OR "
-                "[data-qa-id='context-menu-item-remove-from-favourites']."
+                "From favourites, select multiple items and bulk remove them from favourites.",
+                "Items removed from favourites; bulkRemoveStylesFromFavourites mutation captured.",
             ),
-            _row(audit_emit(op, "favourite"), audit_expected(op)),
+            _capture(op, "favourite"),
             op=op,
             touch=touch_canon,
         )
     if op == "bulkCopyAssets":
+        emit = ts if ts in {"list", "project", "library_assets", "global"} else "library_assets"
+        where = _where(
+            ts,
+            {
+                "project": "Project Library",
+                "list": "My Library",
+                "library_assets": "My Library assets",
+            },
+            "My Library",
+        )
         return _S(
-            _row(LOGIN),
-            _row(LIB_NAV),
             _row(
-                "Select row(s) → [data-qa-id='context-menu-item-copy-to'] → destination → "
-                "[data-qa-id='copy-assets-drawer-copy']."
+                f"In {where}, ensure assets exist (createAsset / create folder if needed).",
+                "At least one asset is visible.",
             ),
-            _row(audit_emit(op, ts), audit_expected(op)),
+            _row(
+                "Select one or more assets and copy them to another folder or list.",
+                "Assets copied; bulkCopyAssets mutation captured.",
+            ),
+            _capture(op, emit),
             op=op,
             touch=touch_canon,
         )
     if op == "bulkMoveAssets":
+        emit = ts if ts in {"list", "project", "library_assets", "global"} else "library_assets"
+        where = _where(
+            ts,
+            {
+                "project": "Project Library",
+                "list": "My Library",
+                "library_assets": "My Library assets",
+            },
+            "My Library",
+        )
         return _S(
-            _row(LOGIN),
-            _row(LIB_NAV),
             _row(
-                "Select row(s) → [data-qa-id='context-menu-item-move-to'] → destination → "
-                "[data-qa-id='move-assets-drawer-move']."
+                f"In {where}, ensure assets exist (createAsset / create folder if needed).",
+                "At least one asset is visible.",
             ),
-            _row(audit_emit(op, ts), audit_expected(op)),
+            _row(
+                "Select one or more assets and move them to another folder or list.",
+                "Assets moved; bulkMoveAssets mutation captured.",
+            ),
+            _capture(op, emit),
             op=op,
             touch=touch_canon,
         )
     if op == "bulkTagStyles":
         return _S(
-            _row(LOGIN),
-            _row(SEARCH_NAV),
             _row(
-                "Multi-select 2+ → [data-qa-id='context-menu-item-add-to-list-or-tag'] → "
-                "pick tag / Create tag with selection."
+                "From search, select multiple font cards and tag them with an existing or new tag.",
+                "Styles tagged; bulkTagStyles mutation captured.",
             ),
-            _row(audit_emit(op, ts), audit_expected(op)),
+            _capture(op, ts if ts == "manage_tags" else "global"),
             op=op,
             touch=touch_canon,
         )
     if op == "bulkUntagStyles":
         return _S(
-            _row(LOGIN),
-            _row("Open /manage/tags/list → [data-qa-id^='configure-button-']."),
             _row(
-                "Fonts tagged → select → [data-qa-id='Untag-fonts-btn'] "
-                "or [data-qa-id^='fonts-tagged-untag-']."
+                "Open Manage Tags, select a tag, and untag one or more fonts from it.",
+                "Styles untagged; bulkUntagStyles mutation captured.",
             ),
-            _row(audit_emit(op, "manage_tags"), audit_expected(op)),
+            _capture(op, "manage_tags"),
             op=op,
             touch=touch_canon,
         )
     if op == "updatePrivateTag":
         return _S(
-            _row(LOGIN + " Requires company admin."),
-            _row(MANAGE_NAV),
-            _row(TAGS_NAV),
             _row(
-                "Click first visible [data-qa-id^='configure-button-'] OR tag name "
-                "[data-qa-id^='tag-name-text-'] → [data-qa-id='configure-tag-drawer'] opens."
+                "As company admin, open Manage Tags, edit an existing private tag name "
+                "(append a short suffix to keep it unique), and save.",
+                "Tag renamed; updatePrivateTag mutation captured.",
             ),
-            _row(
-                "Edit [data-qa-id='configure-tag-name-input'] input — append _audit suffix "
-                "(keep name unique, max 64 chars)."
-            ),
-            _row(
-                "Click [data-qa-id='configure-tag-update-button'] button. "
-                "Wait [data-qa-id='snackbar-success']."
-            ),
-            _row(audit_emit(op, "manage_tags"), audit_expected(op)),
+            _capture(op, "manage_tags"),
             op=op,
             touch=touch_canon,
         )
     if op == "updatePrivateTagAssociations":
         return _S(
-            _row(LOGIN),
             _row(
-                "/manage/tags/list → configure → [data-qa-id^='assign-fonts-button-'] → "
-                "toggle fonts → apply."
+                "Open Manage Tags, configure a tag, and add or remove font associations, then apply.",
+                "Tag associations updated; updatePrivateTagAssociations mutation captured.",
             ),
-            _row(audit_emit(op, "manage_tags"), audit_expected(op)),
+            _capture(op, "manage_tags"),
             op=op,
             touch=touch_canon,
         )
@@ -745,320 +802,304 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
     if op == "createAsset":
         if ts in {"project", "project_list"}:
             return _S(
-                _row(LOGIN),
-                *_open_project_steps(),
                 _row(
-                    "Project Library → [data-qa-id='create-list-button'] "
-                    "(or [data-qa-id='create-folder-button']) → "
-                    "[data-qa-id='asset-name-input'] → [data-qa-id='drawer-primary-button']."
+                    "Open a project library and create a new font list or folder.",
+                    "Project asset created; createAsset mutation captured.",
                 ),
-                _row(audit_emit(op, ts), audit_expected(op)),
+                _capture(op, ts),
                 op=op,
                 touch=touch_canon,
             )
+        where = "My Library" if ts == "list" else "library"
         return _S(
-            _row(LOGIN),
-            _row(LIB_NAV),
             _row(
-                "[data-qa-id='create-list-button'] OR [data-qa-id='create-folder-button'] OR "
-                "[data-testid='sidebar-add-library-button'] → "
-                "[data-qa-id='asset-type-list-button'] if needed → "
-                "[data-qa-id='asset-name-input'] → [data-qa-id='drawer-primary-button']."
+                f"Open {where} and create a new font list or folder.",
+                "Asset created; createAsset mutation captured.",
             ),
-            _row(audit_emit(op, "list" if ts == "list" else ts), audit_expected(op)),
+            _capture(op, "list" if ts == "list" else ts),
             op=op,
             touch=touch_canon,
         )
     if op == "createProject":
         return _S(
-            _row(LOGIN),
             _row(
-                "Click [data-testid='sidebar-add-project-button'] → /projects/create → "
-                "enter name → [data-qa-id='project-creation-desktop-next'] through steps → finish."
+                "Create a new project using the project creation wizard.",
+                "Project created; createProject mutation captured.",
             ),
-            _row(audit_emit(op, "project" if ts == "project" else "global"), audit_expected(op)),
+            _capture(op, "project" if ts == "project" else "global"),
             op=op,
             touch=touch_canon,
         )
     if op == "duplicateProject":
         return _S(
-            _row(LOGIN),
-            *_open_project_steps(),
             _row(
-                "[data-qa-id='project-library-title-kebab'] → "
-                "[data-qa-id='project-library-kebab-duplicate'] "
-                "(or [data-qa-id='context-menu-item-duplicate-project']). "
-                "Emit AUDIT_RESULT with ACTUAL operationName from Network."
+                "Open an existing project and duplicate it from the project menu.",
+                "Project duplicated; capture the actual GraphQL operation from network.",
             ),
-            _row(audit_emit(op, "project"), audit_expected(op)),
+            _capture(op, "project"),
             op=op,
             touch=touch_canon,
         )
 
     if op == "dismissNotification":
         return _S(
-            _row(LOGIN),
-            _row("Click [data-qa-id='notification-btn'] → /notifications."),
             _row(
-                "Hover [data-qa-id^='notification-row-'] → "
-                "[data-qa-id^='notification-action-tooltip-notification-delete-tt-'] "
-                "or [data-qa-id^='notification-delete-'] → confirm Yes, dismiss."
+                "Open notifications and dismiss one notification.",
+                "Notification dismissed; dismissNotification mutation captured.",
             ),
-            _row(audit_emit(op, "notifications"), audit_expected(op)),
+            _capture(op, "notifications"),
             op=op,
             touch=touch_canon,
         )
     if op == "markNotificationRead":
         return _S(
-            _row(LOGIN),
-            _row("Click [data-qa-id='notification-btn'] → /notifications."),
             _row(
-                "Click [data-qa-id^='notification-mark-read-'] OR "
-                "[data-qa-id='notifications-mark-all-read'] → confirm."
+                "Open notifications and mark one notification as read (or mark all read).",
+                "Notification marked read; markNotificationRead mutation captured.",
             ),
-            _row(audit_emit(op, "notifications"), audit_expected(op)),
+            _capture(op, "notifications"),
             op=op,
             touch=touch_canon,
         )
 
     if op == "setLanguagePreference":
         return _S(
-            _row(LOGIN),
             _row(
-                "Profile → [data-qa-id='profile-menu-item-language'] or /preferences/general → "
-                "[data-qa-id='preferences-language-dropdown'] → pick different language."
+                "Open user preferences and change the display language to a different language.",
+                "Language preference saved; setLanguagePreference mutation captured.",
             ),
-            _row(audit_emit(op, "preferences"), audit_expected(op)),
+            _capture(op, "preferences"),
             op=op,
             touch=touch_canon,
         )
     if op == "updateCustomerSettings":
         return _S(
-            _row(LOGIN),
-            _row("Open /company-setup/review-details (Manage → Company Settings)."),
             _row(
-                "Toggle a setting → [data-qa-id='save-button']. Wait snackbar."
+                "Open company settings, change a setting, and save.",
+                "Customer settings updated; updateCustomerSettings mutation captured.",
             ),
-            _row(audit_emit(op, "account"), audit_expected(op)),
+            _capture(op, "account"),
             op=op,
             touch=touch_canon,
         )
     if op == "getCustomerSettings":
         return _S(
-            _row(LOGIN),
             _row(
-                "Navigate /company-setup/review-details — Network filter getCustomerSettings "
-                "(fires on load)."
+                "Navigate to company settings page and capture the getCustomerSettings query "
+                "that loads on page open.",
+                "getCustomerSettings query captured with correlation-id.",
             ),
-            _row(audit_emit(op, "account"), audit_expected(op)),
+            _capture(op, "account"),
             op=op,
             touch=touch_canon,
         )
     if op == "createUserInvitations":
         return _S(
-            _row(LOGIN),
             _row(
-                "/manage/users-and-teams/users → [data-qa-id='add-users-button'] → "
-                "[data-qa-id='email-input-input'] → [data-qa-id='email-add-button'] → "
-                "[data-qa-id='primary-action-button']."
+                "Open Manage Users & Teams, invite a new user by email, and send the invitation.",
+                "Invitation sent; createUserInvitations mutation captured.",
             ),
-            _row(audit_emit(op, "user_access"), audit_expected(op)),
+            _capture(op, "user_access"),
             op=op,
             touch=touch_canon,
         )
     if op == "createRole":
         return _S(
-            _row(LOGIN + " Requires company admin (Manage → Users & teams → Roles)."),
-            _row(MANAGE_NAV),
-            _row(TEAMS_USERS_NAV),
-            _row(ROLES_TAB_NAV),
             _row(
-                "Click [data-qa-id='add-role-button'] → [data-qa-id='drawer-body'] opens. "
-                "Step 1 [data-qa-id='role-drawer-tab-0'] active."
+                "As company admin, open Manage Users & Teams Roles tab and create a new role "
+                "with a unique name (default permissions, no users assigned).",
+                "Role created; createRole mutation captured.",
             ),
-            _row(
-                "Type unique role name in [data-qa-id='add-role-name-input'] input "
-                "(e.g. AuditRole_<short-random>). Optional: description in "
-                "[data-qa-id='add-team-description-textarea'] textarea."
-            ),
-            _row(
-                "Click [data-qa-id='drawer-primary-button'] (Next) → step 2 "
-                "[data-qa-id='role-drawer-tab-1'] Configure permissions."
-            ),
-            _row(
-                "Leave all permission checkboxes at defaults (do not toggle). "
-                "Click [data-qa-id='drawer-primary-button'] (Next) → step 3 Users assigned."
-            ),
-            _row(
-                "Do NOT add users. Click [data-qa-id='drawer-primary-button'] "
-                "(Create role). Wait [data-qa-id='snackbar-success'] → dismiss."
-            ),
-            _row(audit_emit(op, "user_access"), audit_expected(op)),
+            _capture(op, "user_access"),
             op=op,
             touch=touch_canon,
         )
     if op == "createPrivateTags":
         emit_ts = "global" if ts in {"", "global"} else ts
         return _S(
-            _row(LOGIN + " Requires company admin (Manage → Tags)."),
-            _row(MANAGE_NAV),
-            _row(TAGS_NAV),
             _row(
-                "Click [data-qa-id='create-tag-button'] → [data-qa-id='create-tags-drawer'] opens."
+                "As company admin, open Manage Tags and create one new private tag with a unique name.",
+                "Tag created; createPrivateTags mutation captured.",
             ),
-            _row(
-                "Type ONE unique tag name in [data-qa-id='tag-names-input'] "
-                "(e.g. AuditTag_<short-random>). Do not reuse existing tag names."
-            ),
-            _row(
-                "Click [data-qa-id='create-tags-drawer-submit'] button (enabled). "
-                "Wait [data-qa-id='snackbar-success'] → dismiss."
-            ),
-            _row(audit_emit(op, emit_ts), audit_expected(op)),
+            _capture(op, emit_ts),
             op=op,
             touch=touch_canon,
         )
     if op == "deleteRoles":
         return _S(
-            _row(LOGIN),
             _row(
-                "/manage/users-and-teams/roles → [data-qa-id^='roles-actions-menu-'] → "
-                "[data-qa-id^='roles-action-delete-'] → confirm."
+                "Open Manage Users & Teams Roles and delete an existing custom role.",
+                "Role deleted; deleteRoles mutation captured.",
             ),
-            _row(audit_emit(op, "user_access"), audit_expected(op)),
+            _capture(op, "user_access"),
             op=op,
             touch=touch_canon,
         )
     if op == "deleteTeams":
         return _S(
-            _row(LOGIN),
             _row(
-                "/manage/users-and-teams/teams → select team → delete → confirm "
-                "[data-qa-id='mtc-add-edit-teams-delete-team-modal']."
+                "Open Manage Users & Teams Teams tab and delete an existing team.",
+                "Team deleted; deleteTeams mutation captured.",
             ),
-            _row(audit_emit(op, "user_access"), audit_expected(op)),
+            _capture(op, "user_access"),
             op=op,
             touch=touch_canon,
         )
     if op == "createServiceAccount":
         return _S(
-            _row(LOGIN),
             _row(
-                "/manage/users-and-teams/servers → [data-qa-id='create-server-account-button'] → "
-                "fill → [data-qa-id='create-server-drawer-submit']."
+                "Open Manage Servers and create a new service account.",
+                "Service account created; createServiceAccount mutation captured.",
             ),
-            _row(audit_emit(op, "user_access"), audit_expected(op)),
+            _capture(op, "user_access"),
             op=op,
             touch=touch_canon,
         )
     if op == "bulkUpdateProfiles":
         return _S(
-            _row(LOGIN),
             _row(
-                "/manage/users-and-teams/users → select 2+ → [data-qa-id='changeroles__button'] → "
-                "Apply [data-qa-id='listcard-apply-selection-button']."
+                "Open Manage Users, select multiple users, and bulk update their roles or profiles.",
+                "Profiles updated; bulkUpdateProfiles mutation captured.",
             ),
-            _row(audit_emit(op, "user_access"), audit_expected(op)),
+            _capture(op, "user_access"),
             op=op,
             touch=touch_canon,
         )
 
     if op == "processUploadSessionFonts":
         return _S(
-            _row(LOGIN),
             _row(
-                "[data-qa-id='sidebar-scan-document-button'] → upload file → "
-                "[data-qa-id='document-scan-scan-now-button'] → wait "
-                "[data-qa-id='document-scan-results']."
+                "Use document scan to upload a font file and process the upload session.",
+                "Fonts processed; processUploadSessionFonts mutation captured.",
             ),
-            _row(audit_emit(op, "global"), audit_expected(op)),
+            _capture(op, "global"),
             op=op,
             touch=touch_canon,
         )
     if op == "updateSessionFiles":
         return _S(
-            _row(LOGIN),
             _row(
-                "Document scan drawer with files → "
-                "click [data-qa-id^='document-scan-delete-docscan-']."
+                "Open document scan with uploaded files and remove one file from the session.",
+                "Session file updated; updateSessionFiles mutation captured.",
             ),
-            _row(audit_emit(op, "global"), audit_expected(op)),
+            _capture(op, "global"),
             op=op,
             touch=touch_canon,
         )
     if op == "addStyleDocument":
         return _S(
-            _row(LOGIN),
             _row(
-                "Manage → Imported fonts → [data-qa-id='imported-fonts-fonts-import'] → "
-                "detail → [data-qa-id='import-font-detail-upload-docs']."
+                "Open Manage Imported Fonts, select a font, and upload a document for that style.",
+                "Document uploaded; addStyleDocument mutation captured.",
             ),
-            _row(audit_emit(op, "global"), audit_expected(op)),
+            _capture(op, "global"),
             op=op,
             touch=touch_canon,
         )
     if op == "submitIntentForProduction":
         return _S(
-            _row(LOGIN),
-            _row(SEARCH_NAV),
             _row(
-                "Kebab → [data-qa-id='context-menu-item-request-for-production'] → "
-                "complete [data-qa-id='new-production-font-drawer'] → submit."
+                "From search, request a font for production using the production request flow.",
+                "Production intent submitted; submitIntentForProduction mutation captured.",
             ),
-            _row(audit_emit(op, "global"), audit_expected(op)),
+            _capture(op, "global"),
             op=op,
             touch=touch_canon,
         )
     if op == "parseAndCreateContract":
         return _S(
-            _row(LOGIN),
             _row(
-                "/manage/imported-fonts/licenses → "
-                "[data-qa-id='imported-fonts-add-license-upload-entry'] → Verify upload row."
+                "Open Manage Imported Fonts Licenses and upload a license file to parse and create contract.",
+                "Contract parsed and created; parseAndCreateContract mutation captured.",
             ),
-            _row(audit_emit(op, "global"), audit_expected(op)),
+            _capture(op, "global"),
             op=op,
             touch=touch_canon,
         )
     if op == "createContract":
         return _S(
-            _row(LOGIN),
             _row(
-                "/manage/imported-fonts/licenses → "
-                "[data-qa-id='imported-fonts-add-license-manual-entry'] → fill → Save."
+                "Open Manage Imported Fonts Licenses and manually create a new license contract.",
+                "Contract created; createContract mutation captured.",
             ),
-            _row(audit_emit(op, "global"), audit_expected(op)),
+            _capture(op, "global"),
             op=op,
             touch=touch_canon,
         )
     if op == "cancelBatch":
         return _S(
             _row(
-                "WEB GAP: no cancel control in mtconnect-ui. If bulk drawer exposes Cancel, click it; "
-                "else stop — do not invent clicks."
+                "Start a bulk operation that shows a cancel option, then cancel the batch. "
+                "If no cancel control exists in web UI, stop and report WEB GAP.",
+                "Batch cancelled or WEB GAP documented; cancelBatch mutation captured if fired.",
             ),
-            _row(audit_emit(op, ts), audit_expected(op)),
+            _capture(op, ts),
             op=op,
             touch=touch_canon,
         )
     if op == "syncUnSyncVariations":
         return _S(
             _row(
-                "WEB GAP: desktop Connect only. Do not wander web UI. "
-                "If desktop available use font-version toggles; else stop."
+                "Sync or unsync font variations. Note: primary flow may be desktop Connect only; "
+                "use web font-versions UI if available, else stop and report WEB GAP.",
+                "Variation sync state changed or WEB GAP documented.",
             ),
-            _row(audit_emit(op, "global"), audit_expected(op)),
+            _capture(op, "global"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "exportFontTemplate":
+        return _S(
+            _row(
+                "On Imported Fonts page open export/template flow and export a font template CSV. "
+                "Capture exportFontTemplate GraphQL mutation and correlation-id header.",
+                "Template export completed; exportFontTemplate mutation and correlation-id captured.",
+            ),
+            _capture(op, "global"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "exportUnassignedImportedFontsTemplate":
+        return _S(
+            _row(
+                "On Imported Fonts page export unassigned fonts template. "
+                "Capture exportUnassignedImportedFontsTemplate mutation and correlation-id.",
+                "Unassigned template export completed; mutation and correlation-id captured.",
+            ),
+            _capture(op, "global"),
             op=op,
             touch=touch_canon,
         )
 
+    export_meta = export_spec(op)
+    if export_meta:
+        touch_canon = touch or export_touchpoint(op)
+        ts = short_touch(touch_canon)
+        button = str(export_meta.get("button") or "Export")
+        gap = str(export_meta.get("web_gap") or "").strip()
+        ui_steps = export_meta.get("steps") or []
+        rows: list[dict[str, str]] = []
+        for step in ui_steps:
+            rows.append(
+                _row(str(step), f"{button} visible and page loaded.")
+            )
+        capture = (
+            f"Network filter operationName={op[0].upper() + op[1:]} → copy response header "
+            f"correlation-id (NOT x-correlation-id) → emit AUDIT_RESULT."
+        )
+        if gap:
+            capture += f" If UI is stubbed: {gap} Use GraphQL generate path instead."
+        rows.append(_row(capture, audit_expected(op)))
+        rows.append(_capture(op, ts))
+        return _S(*rows, op=op, touch=touch_canon)
+
     return _S(
-        _row(LOGIN),
         _row(
-            f"Navigate to UI for touchpoint={touch_canon}. "
-            f"Click the control that posts operationName={op}. Use [data-qa-id=…] when visible."
+            f"Perform {op} from {_where(ts, {'global': 'search', 'favourite': 'favourites', 'list': 'a font list', 'project': 'a project', 'project_list': 'a project list'}, touch_canon)}. "
+            f"Capture the GraphQL {op} mutation and correlation-id header.",
+            f"{op} completed; mutation and correlation-id captured.",
         ),
-        _row(audit_emit(op, ts), audit_expected(op)),
+        _capture(op, ts),
         op=op,
         touch=touch_canon,
     )
@@ -1078,8 +1119,9 @@ def steps_for_selection(selection: list[dict[str, Any]]) -> list[dict[str, str]]
                     "op": op,
                     "touchpoint": touch,
                     "step": (
-                        f"=== EVENT {idx}/{n}: {label} — follow locators, emit AUDIT_RESULT, "
-                        f"then event {idx + 1 if idx < n else 'DONE'}. NO RETRIES. ==="
+                        f"=== EVENT {idx}/{n}: {label} — perform the steps below, capture "
+                        f"correlation-id and emit AUDIT_RESULT, then continue to event "
+                        f"{idx + 1 if idx < n else 'DONE'}. NO RETRIES. ==="
                     ),
                     "expected": "",
                 }

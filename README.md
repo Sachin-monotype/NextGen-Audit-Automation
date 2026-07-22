@@ -113,6 +113,17 @@ See `.env.example` for the full list.
 | POST | `/api/jobs/generate-ui` |
 | POST | `/api/jobs/compare` |
 
+## Playwright UI pack (CasePilot alternative)
+
+Fast local UI triggers for `activateFamily` scenarios — see [`playwright-ui/README.md`](playwright-ui/README.md).
+
+```bash
+npm run playwright:install   # first time: deps + Chromium
+npm run playwright           # 5 activateFamily scenarios + Mongo verify
+```
+
+Do **not** run `npx playwright test` from the repo root; use the commands above or `cd playwright-ui && ./run.sh`.
+
 ## Branch
 
 Active CasePilot / multi-env work lives on **`CasePilot-Integration`**. Merge to `main` only after a smoke Generate on PP.

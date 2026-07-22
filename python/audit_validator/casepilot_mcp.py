@@ -39,6 +39,8 @@ class CasePilotConfig:
     ui_headless: bool = False
     ui_isolated: bool = True
     ui_app_type: str = "web"
+    # None = omit on run_testrail_ui_tests (use CasePilot PP cap); 1 = serial; 2+ = parallel batch
+    max_parallel: int | None = None
 
     @property
     def configured(self) -> bool:
@@ -71,6 +73,13 @@ def load_casepilot_config() -> CasePilotConfig:
     public_url = os.getenv("CASEPILOT_PUBLIC_URL", "").strip()
     if not public_url:
         public_url = re.sub(r"/mcp/?$", "", mcp_url).rstrip("/")
+    mp_raw = (os.getenv("CASEPILOT_MAX_PARALLEL") or "").strip()
+    max_parallel: int | None = None
+    if mp_raw:
+        try:
+            max_parallel = max(1, int(mp_raw))
+        except ValueError:
+            max_parallel = None
     return CasePilotConfig(
         api_key=key,
         mcp_url=mcp_url,
@@ -93,6 +102,7 @@ def load_casepilot_config() -> CasePilotConfig:
         ui_isolated=os.getenv("CASEPILOT_UI_ISOLATED", "true").strip().lower()
         not in {"0", "false", "no", "off"},
         ui_app_type=os.getenv("CASEPILOT_UI_APP_TYPE", "web").strip() or "web",
+        max_parallel=max_parallel,
     )
 
 
@@ -318,6 +328,9 @@ class CasePilotMcpClient:
         ids = extract_casepilot_job_ids(merged)
         if ids and not merged.get("job_ids"):
             merged["job_ids"] = ids
+        batch_id = extract_casepilot_batch_id(merged)
+        if batch_id and not merged.get("batch_id"):
+            merged["batch_id"] = batch_id
         return merged
 
     def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -389,6 +402,7 @@ class CasePilotMcpClient:
         context_hints: dict[str, str] | None = None,
         wait_for_completion: bool = False,
         stop_on_failure: bool = True,
+        max_parallel: int | None = None,
     ) -> dict[str, Any]:
         cfg = ui_config if ui_config is not None else self.config.ui_config()
         if not (cfg.get("base_url") and cfg.get("username") and cfg.get("password")):
@@ -402,6 +416,8 @@ class CasePilotMcpClient:
             "wait_for_completion": wait_for_completion,
             "stop_on_failure": stop_on_failure,
         }
+        if max_parallel is not None and int(max_parallel) >= 1:
+            args["max_parallel"] = int(max_parallel)
         if context_summary:
             args["context_summary"] = context_summary
         if context_description:
@@ -409,6 +425,22 @@ class CasePilotMcpClient:
         if context_hints:
             args["context_hints"] = context_hints
         return self.call_tool("run_testrail_ui_tests", args)
+
+    def stop_ui_execution(
+        self,
+        *,
+        batch_id: str | None = None,
+        job_id: int | None = None,
+    ) -> dict[str, Any]:
+        """Cancel queued batch jobs and optionally stop a running runner job."""
+        args: dict[str, Any] = {}
+        if batch_id:
+            args["batch_id"] = str(batch_id).strip()
+        if job_id is not None:
+            args["job_id"] = int(job_id)
+        if not args:
+            raise CasePilotMcpError("stop_ui_execution requires batch_id and/or job_id")
+        return self.call_tool("stop_ui_execution", args)
 
     def get_run_status(self, job_id: int) -> dict[str, Any]:
         return self.call_tool("get_run_status", {"job_id": int(job_id)})
@@ -645,6 +677,44 @@ def extract_casepilot_job_ids(payload: Any) -> list[int]:
     return found
 
 
+def extract_casepilot_batch_id(payload: Any) -> str:
+    """Collect CasePilot batch id from run_testrail_ui_tests response."""
+    if isinstance(payload, dict):
+        for key in ("batch_id", "batchId", "mcp_batch_id"):
+            val = payload.get(key)
+            if val is not None and str(val).strip():
+                return str(val).strip()
+        for key in ("batch", "run_batch"):
+            node = payload.get(key)
+            if isinstance(node, dict):
+                bid = node.get("id") or node.get("batch_id") or node.get("batchId")
+                if bid is not None and str(bid).strip():
+                    return str(bid).strip()
+    return ""
+
+
+def resolve_max_parallel(
+    *,
+    ui_app_type: str,
+    job_extra: dict[str, Any] | None,
+    cfg: CasePilotConfig,
+) -> int | None:
+    """Return None to omit (PP cap), 1 for serial, N for parallel browsers."""
+    app = (ui_app_type or "web").strip().lower()
+    if app in {"electron", "desktop", "app"}:
+        return 1
+    extra = job_extra or {}
+    raw = extra.get("max_parallel")
+    if raw is None:
+        raw = cfg.max_parallel
+    if raw is None or raw == "":
+        return None
+    try:
+        return max(1, int(raw))
+    except (TypeError, ValueError):
+        return None
+
+
 def parse_testrail_case_ids(raw: str | list[Any] | None) -> list[int | str]:
     """Accept ``C73298777``, ``73298777``, comma/space lists, or JSON arrays."""
     if raw is None:
@@ -678,6 +748,7 @@ def health_check() -> dict[str, Any]:
         "configured": cfg.configured,
         "mcp_url": cfg.mcp_url,
         "ui_config_ready": cfg.ui_config_ready(),
+        "default_max_parallel": cfg.max_parallel,
         "ok": False,
     }
     if not cfg.configured:

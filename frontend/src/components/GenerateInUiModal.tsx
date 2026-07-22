@@ -110,6 +110,9 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
   const [mcpDetail, setMcpDetail] = useState("");
   /** headed = visible browser (default); headless = no UI window */
   const [browserMode, setBrowserMode] = useState<"headed" | "headless">("headed");
+  /** default = PP cap / CASEPILOT_MAX_PARALLEL; 1 = serial */
+  const [parallelMode, setParallelMode] = useState<"default" | "1" | "2" | "3" | "4">("default");
+  const [defaultParallel, setDefaultParallel] = useState<number | null>(null);
   const closedRef = useRef(false);
 
   function requestClose() {
@@ -145,6 +148,11 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
       .then((s) => {
         if (cancelled) return;
         setMcpOk(Boolean(s.ok && s.configured));
+        const envDefault =
+          s.default_max_parallel != null && Number.isFinite(Number(s.default_max_parallel))
+            ? Number(s.default_max_parallel)
+            : null;
+        setDefaultParallel(envDefault);
         const online = s.connectors?.online;
         const email = s.connection_info?.email || s.preflight?.email || "";
         const err = s.error ? formatCasepilotError(String(s.error)) : "";
@@ -193,6 +201,8 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
         rows.length === 1
           ? `Perform ${scenarioTitle(rows[0])} in NextGen UI`
           : `Perform ${rows.length} selected scenarios in NextGen UI`;
+      const maxParallel =
+        parallelMode === "default" ? undefined : Number(parallelMode);
       const res = await startGenerateInUi({
         selection: payloadSelection,
         test_case_id: caseIds,
@@ -203,7 +213,12 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
           .join("\n"),
         dispatch: true,
         headless: browserMode === "headless",
-        extra: { headless: browserMode === "headless", browser_mode: browserMode },
+        max_parallel: maxParallel,
+        extra: {
+          headless: browserMode === "headless",
+          browser_mode: browserMode,
+          ...(maxParallel != null ? { max_parallel: maxParallel } : {}),
+        },
       });
       if (closedRef.current) return;
       onActive?.(res.job);
@@ -259,6 +274,31 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
               <option value="headed">Headed (visible browser) — default</option>
               <option value="headless">Headless (no browser window)</option>
             </select>
+          </label>
+
+          <label style={{ display: "block", marginBottom: 12, maxWidth: 360 }}>
+            Parallel browsers
+            <select
+              value={parallelMode}
+              onChange={(e) =>
+                setParallelMode(e.target.value as "default" | "1" | "2" | "3" | "4")
+              }
+              disabled={busy}
+              style={{ display: "block", width: "100%", marginTop: 4 }}
+            >
+              <option value="default">
+                Default
+                {defaultParallel != null ? ` (${defaultParallel} from env)` : " (CasePilot PP cap)"}
+              </option>
+              <option value="1">Serial — one browser at a time</option>
+              <option value="2">2 at a time</option>
+              <option value="3">3 at a time</option>
+              <option value="4">4 at a time</option>
+            </select>
+            <span className="muted small" style={{ display: "block", marginTop: 4 }}>
+              Clamped by CasePilot PP <code>MCP_MAX_PARALLEL_JOBS</code>. Each parallel job uses its
+              own browser + login. Electron/desktop tests stay serial on the connector.
+            </span>
           </label>
 
           <div className="generate-ui-scenario-list">

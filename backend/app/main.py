@@ -9,7 +9,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from .audit_bridge import AuditBridge, JobStore, JobStatus
@@ -78,6 +78,15 @@ class CompareRequest(BaseModel):
     # Optional: operation → exact xCorrelationId to pair (Compare-from-Enrich/raw card).
     # Lets us compare the specific event on the card, including ones fired by others.
     correlation_by_op: dict[str, str] | None = None
+
+
+class RefreshResultsRequest(BaseModel):
+    """Re-compare operations already shown in the Result tab (updates comparison-latest.json)."""
+    operations: list[str] | None = None
+
+
+class ExportResultsRequest(BaseModel):
+    operations: list[str] = Field(default_factory=list)
 
 
 def _job_payload(job) -> dict[str, Any]:
@@ -259,6 +268,29 @@ def clear_comparison_results() -> dict[str, Any]:
 
     removed = clear_all_results(settings.audit_project_root)
     return {"removed": removed, "ok": True}
+
+
+@app.post("/api/results/export-excel")
+def export_comparison_results_excel(body: ExportResultsRequest) -> Response:
+    """Download multi-sheet xlsx for selected (or all) stored comparison operations."""
+    from .comparison_store import export_comparison_excel
+
+    try:
+        data = export_comparison_excel(
+            settings.audit_project_root,
+            body.operations or None,
+        )
+    except Exception as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if not data:
+        raise HTTPException(404, "No comparison rows to export")
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": 'attachment; filename="source-comparison.xlsx"',
+        },
+    )
 
 
 @app.get("/api/meta/filter-values")
@@ -832,6 +864,8 @@ class UiTriggerRequest(BaseModel):
     dispatch: bool = False
     # Browser mode for CasePilot connector (default headed / visible)
     headless: bool = False
+    # Parallel UI browsers for this batch (1=serial; omit=None → env/PP cap)
+    max_parallel: int | None = None
 
 
 @app.get("/api/meta/casepilot")
@@ -872,6 +906,8 @@ def start_generate_ui(body: UiTriggerRequest) -> dict[str, Any]:
         cfg = load_casepilot_config()
         extra = dict(body.extra or {})
         extra["headless"] = bool(body.headless)
+        if body.max_parallel is not None:
+            extra["max_parallel"] = int(body.max_parallel)
         job = create_ui_trigger_job(
             settings.audit_project_root,
             selection=[s.model_dump() for s in body.selection],
@@ -964,9 +1000,16 @@ def refresh_generate_ui(job_id: str) -> dict[str, Any]:
             raise HTTPException(404, f"No UI trigger job {job_id}")
         job = refresh_casepilot_status(settings.audit_project_root, job_id)
         ver = (job or {}).get("verification") or {}
-        has_cids = bool(ver.get("ready") or ver.get("auto_verify_pending") or (job or {}).get("results"))
+        has_cids = bool(ver.get("auto_verify_pending") and (job or {}).get("results"))
         already = bool(ver.get("generate_run_saved"))
-        if job and has_cids and not already and (job.get("results") or []):
+        status = str((job or {}).get("status") or "").lower()
+        if (
+            job
+            and has_cids
+            and not already
+            and status not in {"failed", "cancelled"}
+            and (job.get("results") or [])
+        ):
             job = finalize_ui_trigger_verification(
                 settings.audit_project_root,
                 job_id,
@@ -1065,9 +1108,25 @@ def start_compare(body: CompareRequest) -> dict[str, Any]:
     return _job_payload(job)
 
 
+@app.post("/api/results/refresh")
+def refresh_stored_comparisons(body: RefreshResultsRequest | None = None) -> dict[str, Any]:
+    """Re-run Compare for stored Result-tab operations; snapshots update in place."""
+    from .comparison_store import list_latest
+
+    req = body or RefreshResultsRequest()
+    ops = [o.strip() for o in (req.operations or []) if o and o.strip()]
+    if not ops:
+        latest = list_latest(settings.audit_project_root)
+        ops = list(latest.get("operations") or [])
+    if not ops:
+        raise HTTPException(400, "No stored comparisons to refresh")
+    job = bridge.start_compare(ops, "fresh")
+    return {"ok": True, "operations": ops, "count": len(ops), "job": _job_payload(job)}
+
+
 @app.get("/api/meta/enriched-fields/{operation}")
 def enriched_fields_for_operation(operation: str) -> dict[str, Any]:
-    """List enriched JSON paths from the latest staged sample (Compare attribute editor)."""
+    """List enriched JSON paths from the latest Mongo pair (fallback: staged sample)."""
     root = settings.audit_project_root
     try:
         from audit_validator.source_validation.config import load_source_validation_config
@@ -1075,7 +1134,12 @@ def enriched_fields_for_operation(operation: str) -> dict[str, Any]:
         from audit_validator.source_validation.runner import _load_enriched_sample
 
         cfg = load_source_validation_config(root)
-        enriched = _load_enriched_sample(cfg, operation, sample_source="fresh")
+        enriched = None
+        base_op = operation.split("(", 1)[0].strip() if "(" in operation else operation
+        if db.ping():
+            _raw, enriched = db.latest_pair(base_op, require_pair=False)
+        if not enriched:
+            enriched = _load_enriched_sample(cfg, operation, sample_source="fresh")
         if not enriched:
             return {"operation": operation, "fields": [], "detail": "No enriched sample"}
         fields = [p for p, _ in scan_enriched_fields(enriched)]

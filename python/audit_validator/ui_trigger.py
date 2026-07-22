@@ -23,10 +23,12 @@ from typing import Any
 from audit_validator.casepilot_mcp import (
     CasePilotMcpClient,
     CasePilotMcpError,
+    extract_casepilot_batch_id,
     extract_casepilot_job_ids,
     health_check,
     load_casepilot_config,
     parse_testrail_case_ids,
+    resolve_max_parallel,
 )
 from audit_validator.ui_testrail_map import format_case_ids, map_selection_to_case_ids
 
@@ -92,6 +94,97 @@ def _walk_strings(node: Any, out: list[str], *, depth: int = 0) -> None:
             _walk_strings(v, out, depth=depth + 1)
 
 
+def _casepilot_status_nodes(run_status: dict[str, Any]) -> list[dict[str, Any]]:
+    """Flatten one job status into per-run nodes (batch runs nest under runs/results)."""
+    if not isinstance(run_status, dict):
+        return []
+    nodes: list[dict[str, Any]] = [run_status]
+    seen_ids: set[int] = {id(run_status)}
+    for key in (
+        "runs",
+        "results",
+        "jobs",
+        "case_runs",
+        "executions",
+        "test_runs",
+        "children",
+        "queued_jobs",
+    ):
+        val = run_status.get(key)
+        if not isinstance(val, list):
+            continue
+        for item in val:
+            if not isinstance(item, dict):
+                continue
+            iid = id(item)
+            if iid in seen_ids:
+                continue
+            seen_ids.add(iid)
+            nodes.append(item)
+    return nodes
+
+
+def _case_id_from_status_node(node: dict[str, Any]) -> int | None:
+    for key in ("case_id", "testrail_case_id", "test_case_id", "testcase_id"):
+        raw = node.get(key)
+        if raw is None:
+            continue
+        text = str(raw).strip()
+        digits = "".join(ch for ch in text if ch.isdigit())
+        if digits:
+            try:
+                return int(digits)
+            except ValueError:
+                continue
+    issue = str(node.get("issue_key") or node.get("jira_key") or "")
+    m = re.search(r"C(\d{6,})", issue, re.I)
+    if m:
+        return int(m.group(1))
+    return None
+
+
+def _selection_by_case_id(job: dict[str, Any]) -> dict[int, dict[str, Any]]:
+    from audit_validator.ui_testrail_map import case_id_for_selection_item
+
+    out: dict[int, dict[str, Any]] = {}
+    for item in job.get("selection") or []:
+        if not isinstance(item, dict):
+            continue
+        cid = case_id_for_selection_item(item)
+        if cid:
+            out[int(cid)] = item
+    return out
+
+
+def _match_selection_item(
+    selection: list[dict[str, Any]],
+    *,
+    operation: str = "",
+    touchpoint: str = "",
+    case_id: int | None = None,
+) -> dict[str, Any] | None:
+    if case_id:
+        from audit_validator.ui_testrail_map import case_id_for_selection_item
+
+        for item in selection:
+            if case_id_for_selection_item(item) == case_id:
+                return item
+    touch_short = _short_touch_label(touchpoint) if touchpoint else ""
+    op = (operation or "").strip()
+    if touch_short:
+        for item in selection:
+            if _short_touch_label(str(item.get("touchpoint") or "")) == touch_short:
+                if not op or str(item.get("operation") or "").strip() == op:
+                    return item
+    if op:
+        matches = [s for s in selection if str(s.get("operation") or "").strip() == op]
+        if len(matches) == 1:
+            return matches[0]
+    if len(selection) == 1:
+        return selection[0]
+    return None
+
+
 def extract_audit_details_from_casepilot_result(
     run_status: dict[str, Any],
     *,
@@ -152,9 +245,16 @@ def extract_audit_details_from_casepilot_result(
                 "raw_marker": extra.get("raw_marker"),
                 "casepilot_job_id": run_status.get("job_id"),
                 "issue_key": run_status.get("issue_key"),
+                "case_id": extra.get("case_id"),
                 "recorded_at": _now(),
             }
         )
+
+    node_case_id = _case_id_from_status_node(run_status)
+    node_op = default_operation
+    node_touch = default_touchpoint
+    if node_case_id and not node_op and not node_touch:
+        pass  # caller resolves via case_id in apply_extracted_results
 
     for m in _AUDIT_RESULT_RE.finditer(text):
         body = m.group("body")
@@ -166,16 +266,49 @@ def extract_audit_details_from_casepilot_result(
             or kvs.get("xcorrelationid")
             or ""
         )
+        if not cid:
+            near = re.search(
+                r"correlation[^\n|]{0,40}?" + _UUID_RE.pattern,
+                body,
+                re.IGNORECASE,
+            )
+            if near:
+                cid = near.group("cid")
+        if not cid:
+            um = _UUID_RE.search(body)
+            if um and re.search(r"correlation", body, re.I):
+                cid = um.group("cid")
         _add(
             cid,
-            operation=kvs.get("operation") or kvs.get("op") or default_operation,
-            touchpoint=kvs.get("touchpoint") or kvs.get("touch") or default_touchpoint,
+            operation=kvs.get("operation") or kvs.get("op") or node_op,
+            touchpoint=kvs.get("touchpoint") or kvs.get("touch") or node_touch,
             source="audit_result_marker",
             raw_marker=m.group(0)[:240],
+            case_id=node_case_id,
         )
 
     for m in _CID_LINE_RE.finditer(text):
-        _add(m.group("cid"), source="correlation_line")
+        _add(
+            m.group("cid"),
+            source="correlation_line",
+            operation=node_op,
+            touchpoint=node_touch,
+            case_id=node_case_id,
+        )
+
+    # CasePilot step actuals often say "correlation-id <uuid>" (space, not =).
+    for m in re.finditer(
+        r"correlation[- ]?id\s+(" + _UUID_RE.pattern + r")",
+        text,
+        re.IGNORECASE,
+    ):
+        _add(
+            m.group(1),
+            source="correlation_id_spaced",
+            operation=node_op,
+            touchpoint=node_touch,
+            case_id=node_case_id,
+        )
 
     # Last resort: UUID near the word correlation (avoid harvesting every UUID in the log)
     for m in re.finditer(
@@ -183,9 +316,73 @@ def extract_audit_details_from_casepilot_result(
         text,
         re.IGNORECASE,
     ):
-        _add(m.group("cid"), source="uuid_near_correlation")
+        _add(
+            m.group("cid"),
+            source="uuid_near_correlation",
+            operation=node_op,
+            touchpoint=node_touch,
+            case_id=node_case_id,
+        )
 
     return found
+
+
+def extract_audit_details_from_casepilot_statuses(
+    statuses: list[dict[str, Any]],
+    *,
+    default_operation: str = "",
+    default_touchpoint: str = "",
+    job: dict[str, Any] | None = None,
+    dispatched_at: str = "",
+) -> list[dict[str, Any]]:
+    """Extract from every nested run node in each CasePilot job status."""
+    sel_by_case = _selection_by_case_id(job) if job else {}
+    dispatched_at = dispatched_at or str((job or {}).get("agent", {}).get("dispatched_at") or "")
+    merged: list[dict[str, Any]] = []
+    seen_cids: set[str] = set()
+
+    for st in statuses:
+        if not isinstance(st, dict):
+            continue
+        nodes = _casepilot_status_nodes(st)
+        nested = [
+            n
+            for n in nodes
+            if n is not st and (_case_id_from_status_node(n) or n.get("result") or n.get("status"))
+        ]
+        extract_nodes = nested or [st]
+        for node in extract_nodes:
+            if _casepilot_run_failed(node):
+                continue
+            if not _casepilot_run_ok(node) and not _casepilot_run_payload(node):
+                continue
+            if not _run_executed_after(node, dispatched_at):
+                continue
+            case_id = _case_id_from_status_node(node)
+            node_op = default_operation
+            node_touch = default_touchpoint
+            if case_id and case_id in sel_by_case:
+                sel = sel_by_case[case_id]
+                node_op = str(sel.get("operation") or node_op)
+                node_touch = str(sel.get("touchpoint") or node_touch)
+            rows = extract_audit_details_from_casepilot_result(
+                node,
+                default_operation=node_op,
+                default_touchpoint=node_touch,
+            )
+            for row in rows:
+                cid = str(row.get("correlation_id") or "").strip()
+                if not cid or cid in seen_cids:
+                    continue
+                row_case = case_id or row.get("case_id")
+                if row_case and int(row_case) in sel_by_case:
+                    sel = sel_by_case[int(row_case)]
+                    row["case_id"] = int(row_case)
+                    row["operation"] = str(row.get("operation") or sel.get("operation") or "")
+                    row["touchpoint"] = str(row.get("touchpoint") or sel.get("touchpoint") or "")
+                seen_cids.add(cid)
+                merged.append(row)
+    return merged
 
 
 def apply_extracted_results(
@@ -237,9 +434,27 @@ def apply_extracted_results(
                 continue
         op = str(item.get("operation") or default_op or "").strip()
         touch = str(item.get("touchpoint") or default_touch or "").strip()
-        # If agent omitted operation and we have multiple selection items, try label match later
-        if not op and selection:
-            op = str(selection[0].get("operation") or "")
+        case_id_raw = item.get("case_id")
+        case_id = int(case_id_raw) if case_id_raw and str(case_id_raw).isdigit() else None
+        matched = _match_selection_item(
+            selection,
+            operation=op,
+            touchpoint=touch,
+            case_id=case_id,
+        )
+        if matched:
+            op = str(matched.get("operation") or op).strip()
+            touch = str(matched.get("touchpoint") or touch).strip()
+        elif len(selection) == 1:
+            op = op or str(selection[0].get("operation") or "")
+            touch = touch or str(selection[0].get("touchpoint") or "")
+        elif not op and not matched:
+            _append_log(
+                job,
+                f"⚠ correlation_id={cid[:8]}… missing operation/touch — "
+                "could not match multi-select scenario",
+            )
+            continue
         # Prefer the user's selected touchpoint when CasePilot mis-labels (e.g. global
         # instead of project_list) for the same primary operation.
         if len(selection) == 1 and default_touch and op == default_op:
@@ -479,13 +694,41 @@ def get_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] | None
 def cancel_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] | None:
     """Stop polling / pending retries for this Generate-in-UI job.
 
-    Marks the handoff cancelled so Refresh will no longer re-queue CasePilot runs.
-    (CasePilot connector browser may still finish an already-started run.)
+    Calls CasePilot ``stop_ui_execution`` when a batch_id is known (cancels queued
+    jobs; optional running job stop). Always marks the handoff cancelled locally.
     """
     job = get_ui_trigger_job(project_root, job_id)
     if not job:
         return None
     agent = dict(job.get("agent") or {})
+    batch_id = str(agent.get("casepilot_batch_id") or "").strip()
+    cp_ids = [
+        int(x)
+        for x in (agent.get("casepilot_job_ids") or [])
+        if str(x).isdigit() or isinstance(x, int)
+    ]
+    if batch_id or cp_ids:
+        try:
+            client = CasePilotMcpClient()
+            stop_args: dict[str, Any] = {}
+            if batch_id:
+                stop_args["batch_id"] = batch_id
+            if len(cp_ids) == 1:
+                stop_args["job_id"] = cp_ids[0]
+            if stop_args:
+                stop_resp = client.stop_ui_execution(**stop_args)
+                agent["stop_response"] = {
+                    k: stop_resp.get(k)
+                    for k in ("ok", "batch_id", "job_id", "cancelled", "message", "status")
+                    if k in stop_resp
+                }
+                _append_log(
+                    job,
+                    f"⏹ CasePilot stop_ui_execution batch_id={batch_id or '—'} "
+                    f"job_id={stop_args.get('job_id', '—')}",
+                )
+        except CasePilotMcpError as exc:
+            _append_log(job, f"⚠ CasePilot stop_ui_execution failed: {exc}")
     agent["pending_case_ids"] = []
     agent["send_status"] = "cancelled"
     agent["last_error"] = None
@@ -542,6 +785,130 @@ def record_ui_trigger_result(
             data["status"] = "completed" if results else data.get("status")
         path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         return data
+
+
+_TERMINAL_CP = frozenset(
+    {"completed", "passed", "pass", "success", "failed", "error", "cancelled", "canceled"}
+)
+_RUNNING_CP = frozenset({"queued", "pending", "running", "in_progress", "started"})
+
+
+def _parse_iso(ts: str) -> datetime | None:
+    s = (ts or "").strip()
+    if not s:
+        return None
+    try:
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        return datetime.fromisoformat(s)
+    except ValueError:
+        return None
+
+
+def _casepilot_run_payload(st: dict[str, Any]) -> dict[str, Any]:
+    payload = st.get("result")
+    return payload if isinstance(payload, dict) else {}
+
+
+def _casepilot_run_failed(st: dict[str, Any]) -> bool:
+    """True when CasePilot finished but the UI run did not actually execute."""
+    status = str(st.get("status") or "").lower()
+    if status in {"failed", "error", "cancelled", "canceled"}:
+        return True
+    payload = _casepilot_run_payload(st)
+    if payload.get("passed") is False:
+        return True
+    err = str(payload.get("error") or st.get("error") or "").lower()
+    if err and any(
+        k in err
+        for k in (
+            "connection refused",
+            "bridge request failed",
+            "connecterror",
+            "connector offline",
+            "no runner",
+            "ip_banned",
+        )
+    ):
+        return True
+    steps = payload.get("steps") or []
+    if isinstance(steps, list) and steps:
+        if all(isinstance(s, dict) and not s.get("passed") for s in steps):
+            return True
+    dur = payload.get("total_duration_ms")
+    if isinstance(dur, (int, float)) and dur < 1500 and payload.get("passed") is not True:
+        if err or (steps and all(not s.get("passed") for s in steps if isinstance(s, dict))):
+            return True
+    return False
+
+
+def _casepilot_run_ok(st: dict[str, Any]) -> bool:
+    if _casepilot_run_failed(st):
+        return False
+    status = str(st.get("status") or "").lower()
+    if status not in {"completed", "passed", "pass", "success"}:
+        return False
+    payload = _casepilot_run_payload(st)
+    if payload.get("passed") is True:
+        return True
+    steps = payload.get("steps") or []
+    return bool(steps) and all(isinstance(s, dict) and s.get("passed") for s in steps)
+
+
+def _run_executed_after(st: dict[str, Any], dispatched_at: str) -> bool:
+    if not dispatched_at:
+        return True
+    payload = _casepilot_run_payload(st)
+    executed = str(payload.get("executed_at") or st.get("executed_at") or "")
+    ex_dt = _parse_iso(executed)
+    base_dt = _parse_iso(dispatched_at)
+    if ex_dt and base_dt:
+        return ex_dt >= base_dt
+    return True
+
+
+def _summarize_casepilot_runs(
+    statuses: list[dict[str, Any]],
+    *,
+    dispatched_at: str = "",
+) -> dict[str, Any]:
+    ok = fail = pending = 0
+    errors: list[str] = []
+    for st in statuses:
+        if not isinstance(st, dict):
+            continue
+        state = str(st.get("status") or "").lower()
+        if state in _RUNNING_CP or not state:
+            pending += 1
+            continue
+        if state not in _TERMINAL_CP:
+            pending += 1
+            continue
+        if not _run_executed_after(st, dispatched_at):
+            pending += 1
+            continue
+        if _casepilot_run_ok(st):
+            ok += 1
+        elif _casepilot_run_failed(st):
+            fail += 1
+            err = str(_casepilot_run_payload(st).get("error") or st.get("error") or "").strip()
+            if err and err not in errors:
+                errors.append(err[:240])
+        else:
+            fail += 1
+    return {"ok": ok, "failed": fail, "pending": pending, "errors": errors}
+
+
+def _connector_error_hint(errors: list[str]) -> str:
+    joined = " ".join(errors).lower()
+    if "connection refused" in joined or "bridge request failed" in joined:
+        return (
+            "CasePilot connector bridge is not reachable (Connection refused). "
+            "Start the CasePilot connector on your machine and keep it online, then Send again."
+        )
+    if errors:
+        return errors[0]
+    return "CasePilot UI run failed — check connector logs and CasePilot execution history."
 
 
 def _short_touch_label(touch: str) -> str:
@@ -787,10 +1154,24 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
         extra = job.get("extra") if isinstance(job.get("extra"), dict) else {}
         if "headless" in extra:
             ui_cfg["headless"] = bool(extra.get("headless"))
+        max_parallel = resolve_max_parallel(
+            ui_app_type=str(ui_cfg.get("app_type") or cfg.ui_app_type),
+            job_extra=extra,
+            cfg=cfg,
+        )
         _append_log(
             job,
             f"▸ Browser mode: {'headless' if ui_cfg.get('headless') else 'headed (visible)'}",
         )
+        if max_parallel == 1:
+            _append_log(job, "▸ Parallelism: serial (max_parallel=1)")
+        elif max_parallel and max_parallel > 1:
+            _append_log(
+                job,
+                f"▸ Parallelism: up to {max_parallel} browsers at once (clamped by CasePilot PP cap)",
+            )
+        else:
+            _append_log(job, "▸ Parallelism: CasePilot PP default (full connector cap)")
 
         client = CasePilotMcpClient(cfg)
         # Preview cases first (surface not_found early)
@@ -816,6 +1197,11 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
             "nextgen_ui_url": ui_cfg["base_url"],
             "mongo_db": (os.getenv("MONGO_DB_NAME") or "").strip(),
         }
+        if max_parallel and max_parallel > 1:
+            hints["parallel_ui"] = (
+                f"max_parallel={max_parallel} — each TestRail case may run in its own "
+                "browser/login concurrently; still emit one AUDIT_RESULT per case."
+            )
 
         # The #1 cause of "CasePilot returned no job_id" is queuing while no runner
         # is online yet (connector still registering). Wait briefly for one.
@@ -836,8 +1222,10 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
                 context_hints=hints,
                 wait_for_completion=False,
                 stop_on_failure=False,
+                max_parallel=max_parallel,
             )
             cp_jobs = extract_casepilot_job_ids(run)
+            batch_id = extract_casepilot_batch_id(run)
             if cp_jobs:
                 break
             hard = str(run.get("error") or run.get("message") or run.get("stop_reason") or "").lower()
@@ -862,6 +1250,8 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
                 "message",
                 "job_id",
                 "job_ids",
+                "batch_id",
+                "max_parallel",
                 "jobs",
                 "runs",
                 "results",
@@ -898,6 +1288,8 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
                 "connected": True,
                 "send_status": "queued" if queued_ok else "error",
                 "casepilot_job_ids": cp_jobs,
+                "casepilot_batch_id": batch_id or run.get("batch_id") or "",
+                "max_parallel": run.get("max_parallel") if run.get("max_parallel") is not None else max_parallel,
                 "status_api": status_api,
                 "last_error": None
                 if queued_ok
@@ -911,7 +1303,11 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
                 },
                 "run_response": run_snap,
                 "planned_steps": ui_steps_for_selection(selection_items)[:60],
-                "dispatch_mode": "batch_event_trigger",
+                "dispatch_mode": (
+                    "parallel_ui_batch"
+                    if (max_parallel or 0) > 1
+                    else "batch_event_trigger"
+                ),
                 "pending_case_ids": pending,
             }
         )
@@ -922,10 +1318,14 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
             _append_log(job, f"  snap={json.dumps(run_snap)[:500]}")
         else:
             job["status"] = "queued"
+            agent["dispatched_at"] = _now()
             _append_log(
                 job,
-                f"▸ CasePilot queued job_ids={cp_jobs} · {len(case_ids)} case(s) · "
-                f"batch event trigger (one browser session)",
+                f"▸ CasePilot queued job_ids={cp_jobs}"
+                f"{f' batch_id={batch_id}' if batch_id else ''}"
+                f" · {len(case_ids)} case(s)"
+                f" · max_parallel={max_parallel if max_parallel is not None else 'PP default'}"
+                f" · {'parallel' if (max_parallel or 0) > 1 else 'serial/single-session'} dispatch",
             )
             if pending:
                 _append_log(
@@ -997,42 +1397,105 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
         # Non-blocking status poll (REST /jobs/status) — never call wait_for_run_jobs
         # here; that blocks until jobs finish and urllib times out on long UI runs.
         statuses = client.batch_run_status(cp_ids)
-        agent["run_statuses"] = statuses
-        finals = {str(s.get("status") or "").lower() for s in statuses}
-        prev = str(job.get("status") or "")
+        dispatched_at = str(agent.get("dispatched_at") or "")
+        # REST /jobs/status can omit step notes — merge full MCP payload when jobs look terminal.
+        finals_now = {str(s.get("status") or "").lower() for s in statuses}
+        if finals_now & {"completed", "passed", "pass", "success", "failed", "error"}:
+            enriched: list[dict[str, Any]] = []
+            for st in statuses:
+                jid = st.get("job_id") or st.get("id")
+                try:
+                    jid_int = int(jid)
+                except (TypeError, ValueError):
+                    enriched.append(st)
+                    continue
+                try:
+                    full = client.get_run_status(jid_int)
+                    if isinstance(full, dict):
+                        merged = {**st, **full, "job_id": jid_int}
+                        enriched.append(merged)
+                    else:
+                        enriched.append(st)
+                except CasePilotMcpError:
+                    enriched.append(st)
+            statuses = enriched or statuses
 
-        if finals & {"failed", "error", "cancelled"} and not (
-            finals & {"completed", "passed", "pass", "success"}
-        ):
+        summary = _summarize_casepilot_runs(statuses, dispatched_at=dispatched_at)
+        agent["run_statuses"] = statuses
+        agent["run_summary"] = summary
+        prev = str(job.get("status") or "")
+        pending = int(summary.get("pending") or 0)
+        ok_runs = int(summary.get("ok") or 0)
+        fail_runs = int(summary.get("failed") or 0)
+        run_errors = list(summary.get("errors") or [])
+
+        if pending > 0:
+            job["status"] = "running"
+            agent["send_status"] = "running"
+            if prev not in {"running", "queued"}:
+                _append_log(job, f"▸ CasePilot running… {ok_runs} ok · {fail_runs} failed · {pending} pending")
+            elif prev == "queued":
+                _append_log(job, "▸ CasePilot running on connector (UI browser open)")
+        elif fail_runs > 0 and ok_runs == 0:
             job["status"] = "failed"
             agent["send_status"] = "failed"
+            hint = _connector_error_hint(run_errors)
+            agent["last_error"] = hint
             if prev != "failed":
-                _append_log(job, f"✖ CasePilot run failed · statuses={sorted(finals)}")
-                # Still try to harvest any correlation markers from partial results
-                extracted: list[dict[str, Any]] = []
-                for st in statuses:
-                    extracted.extend(
-                        extract_audit_details_from_casepilot_result(
-                            st,
-                            default_operation=default_op,
-                            default_touchpoint=default_touch,
-                        )
-                    )
-                job = apply_extracted_results(project_root, job, extracted)
-        elif finals and finals <= {"completed", "passed", "pass", "success"}:
+                _append_log(job, f"✖ CasePilot UI run failed ({fail_runs}/{fail_runs + ok_runs} case(s))")
+                _append_log(job, f"  {hint}")
+            job["verification"] = {
+                **(job.get("verification") or {}),
+                "ready": False,
+                "auto_verify_pending": False,
+            }
+        elif fail_runs > 0 and ok_runs > 0:
+            job["status"] = "completed"
+            agent["send_status"] = "partial"
+            if prev != "completed":
+                _append_log(
+                    job,
+                    f"⚠ CasePilot partial run · {ok_runs} passed · {fail_runs} failed — "
+                    "extracting correlation_id from successful case(s) only",
+                )
+            extracted = extract_audit_details_from_casepilot_statuses(
+                statuses,
+                default_operation=default_op,
+                default_touchpoint=default_touch,
+                job=job,
+                dispatched_at=dispatched_at,
+            )
+            before = len(job.get("results") or [])
+            job = apply_extracted_results(project_root, job, extracted)
+            after = len(job.get("results") or [])
+            if after == before:
+                _append_log(job, "⚠ No AUDIT_RESULT from successful runs — paste correlation_id manually")
+            else:
+                _append_log(
+                    job,
+                    f"✓ Captured {after - before} new correlation_id(s) ({after} total) from {ok_runs} run(s)",
+                )
+                job["verification"] = {
+                    **(job.get("verification") or {}),
+                    "ready": True,
+                    "auto_verify_pending": True,
+                    "partial": True,
+                    "failed_runs": fail_runs,
+                }
+            if run_errors:
+                _append_log(job, f"  failed: {run_errors[0][:200]}")
+        else:
             job["status"] = "completed"
             agent["send_status"] = "completed"
             if prev != "completed":
                 _append_log(job, "✓ CasePilot UI run completed — extracting correlation_id…")
-            extracted = []
-            for st in statuses:
-                extracted.extend(
-                    extract_audit_details_from_casepilot_result(
-                        st,
-                        default_operation=default_op,
-                        default_touchpoint=default_touch,
-                    )
-                )
+            extracted = extract_audit_details_from_casepilot_statuses(
+                statuses,
+                default_operation=default_op,
+                default_touchpoint=default_touch,
+                job=job,
+                dispatched_at=dispatched_at,
+            )
             before = len(job.get("results") or [])
             job = apply_extracted_results(project_root, job, extracted)
             after = len(job.get("results") or [])
@@ -1042,10 +1505,16 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
                     "⚠ No AUDIT_RESULT/correlation_id found in CasePilot notes — "
                     "paste correlation_id in the log panel (fallback)",
                 )
+                job["verification"] = {
+                    **(job.get("verification") or {}),
+                    "ready": False,
+                    "auto_verify_pending": False,
+                }
             else:
+                added = after - before
                 _append_log(
                     job,
-                    f"✓ Captured {after} correlation_id(s) including intermediate mutations — "
+                    f"✓ Captured {added} new correlation_id(s) ({after} total) — "
                     "auto-verifying raw/enrich…",
                 )
                 job["verification"] = {
@@ -1053,13 +1522,6 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
                     "ready": True,
                     "auto_verify_pending": True,
                 }
-        else:
-            job["status"] = "running"
-            agent["send_status"] = "running"
-            if prev not in {"running", "queued"}:
-                _append_log(job, f"▸ CasePilot running… {sorted(finals) or ['pending']}")
-            elif prev == "queued":
-                _append_log(job, "▸ CasePilot running on connector (UI browser open)")
         job["agent"] = agent
         return _write_job(project_root, job)
     except Exception as exc:

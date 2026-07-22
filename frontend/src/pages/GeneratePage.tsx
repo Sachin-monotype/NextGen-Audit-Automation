@@ -657,7 +657,7 @@ export default function GeneratePage({
   onCompareCompleted,
   onCompareRequested,
 }: {
-  onCompareCompleted?: (jobId: string, operations?: string[]) => void;
+  onCompareCompleted?: (jobId: string, operations?: string[], navigateToResult?: boolean) => void;
   /** Start a compare and land on the Compare page (live) instead of Result. */
   onCompareRequested?: (jobId: string) => void;
 } = {}) {
@@ -934,6 +934,27 @@ export default function GeneratePage({
     }
   }, [uiJob?.id]);
 
+  const openUiTrigger = useCallback(() => {
+    if (uiPollRef.current) {
+      clearInterval(uiPollRef.current);
+      uiPollRef.current = null;
+    }
+    setUiBusy(false);
+    setUiManualCid("");
+    const prev = uiJob;
+    setUiJob(null);
+    localStorage.removeItem(UI_JOB_KEY);
+    if (
+      prev?.id &&
+      (prev.status === "queued" ||
+        prev.status === "running" ||
+        prev.status === "pending_agent")
+    ) {
+      void cancelGenerateInUi(prev.id).catch(() => {});
+    }
+    setUiTriggerOpen(true);
+  }, [uiJob]);
+
   const pollUiJob = useCallback((id: string) => {
     if (uiPollRef.current) clearInterval(uiPollRef.current);
     uiPollRef.current = setInterval(async () => {
@@ -960,6 +981,7 @@ export default function GeneratePage({
           if (uiPollRef.current) clearInterval(uiPollRef.current);
           uiPollRef.current = null;
           setUiBusy(false);
+          return;
         }
       } catch {
         /* keep polling through transient CasePilot blips */
@@ -1299,7 +1321,13 @@ export default function GeneratePage({
       if (picked.size && !picked.has(s.key)) return false;
       return s.status === "PASS" && (s.raw || s.enriched);
     });
-    const ops = [...new Set(pool.map((s) => s.operation).filter(Boolean))];
+    // Compare per scenario (activateFamily(global)), not bare operation (activateFamily).
+    const ops = [...new Set(pool.map((s) => s.key).filter(Boolean))];
+    const correlationByOp: Record<string, string> = {};
+    for (const s of pool) {
+      const cid = s.xCorrelationId?.trim();
+      if (s.key && cid) correlationByOp[s.key] = cid;
+    }
     if (!ops.length) {
       setError(
         picked.size
@@ -1311,7 +1339,11 @@ export default function GeneratePage({
     setCompareBusy(true);
     setError("");
     try {
-      const job = await startCompare(ops);
+      const job = await startCompare(
+        ops,
+        undefined,
+        Object.keys(correlationByOp).length ? correlationByOp : undefined,
+      );
       // Land on the Compare page (live) so the user sees progress, instead of
       // jumping straight to Result and having to navigate back.
       if (onCompareRequested) onCompareRequested(job.id);
@@ -1661,7 +1693,7 @@ export default function GeneratePage({
               ? "Select at least one scenario"
               : "Trigger via CasePilot UI — then verify here with correlation-id"
           }
-          onClick={() => setUiTriggerOpen(true)}
+          onClick={() => openUiTrigger()}
         >
           Generate in UI
         </button>
@@ -1678,6 +1710,10 @@ export default function GeneratePage({
           selection={uiSelection}
           onClose={() => setUiTriggerOpen(false)}
           onActive={(j) => {
+            if (uiPollRef.current) {
+              clearInterval(uiPollRef.current);
+              uiPollRef.current = null;
+            }
             activateUiJob(j);
             if (j.status === "queued" || j.status === "running") pollUiJob(j.id);
           }}

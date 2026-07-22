@@ -11,8 +11,8 @@ CasePilot loads TestRail case **ids**, but this app sends **authoritative step t
 - Recipes: `python/audit_validator/ui_case_recipes.py` (MTConnectAutomation / mtconnect-ui qa-ids)
 - Built into each job by `ui_trigger._build_context` as an **EVENT CHECKLIST** (fire mutation → AUDIT_RESULT)
 - Hint `prefer_steps=context_over_testrail` — ignore conflicting TestRail prose
-- **One CasePilot browser session per job** (`dispatch_mode=batch_event_trigger`) — do not queue dozens of parallel connector jobs
-- Refresh retries `pending_case_ids` in small chunks if the connector dropped some
+- **Parallel UI runs** via CasePilot PP MCP (`max_parallel` on `run_testrail_ui_tests`) — each job may use its own browser + login; serial when `max_parallel=1` or Electron/desktop
+- Cancel uses CasePilot `stop_ui_execution` with persisted `batch_id` when available
 
 Seeds are dynamic. Recipes **reuse existing** projects/lists when possible — goal is trigger events, not rebuild setup every time.
 
@@ -50,8 +50,29 @@ refresh / auto-finalize
 | `CASEPILOT_API_KEY` | Bearer for `https://casepilot.monotype-pp.com/mcp` |
 | `CASEPILOT_UI_BASE_URL` | NextGen PP URL |
 | `CASEPILOT_UI_USERNAME` / `PASSWORD` or OAuth vars | Login for the UI connector |
+| `CASEPILOT_MAX_PARALLEL` | App default for `max_parallel` (1=serial; omit unset → PP cap on MCP call) |
+| `CASEPILOT_PUBLIC_URL` | REST fallback for job status (`/api/mcp/v1/jobs/status`) when MCP session drops |
 
 See `.env.example`. Do not commit secrets.
+
+## Parallel UI runs (CasePilot PP)
+
+Two settings — do not mix them up:
+
+| Who | Setting | Meaning |
+|-----|---------|---------|
+| CasePilot PP (admin) | `MCP_MAX_PARALLEL_JOBS` | Max browsers the connector can run (e.g. 4) |
+| This app (per run) | `max_parallel` on `run_testrail_ui_tests` | How many tests this batch runs at once |
+
+App `max_parallel` is **clamped** to the PP cap. Example: cap 4, pass 2 → 2 browsers.
+
+- **Generate-in-UI modal** — Parallel browsers selector (serial / 2 / 3 / 4 / default)
+- **Env** — `CASEPILOT_MAX_PARALLEL` pre-fills the default option
+- **Dispatch** — `ui_trigger.dispatch_ui_trigger_job` passes `max_parallel`; persists `batch_id`, `job_ids`, effective `max_parallel` on the job
+- **Refresh** — non-blocking poll via REST `batch_run_status` (not `wait_for_run_jobs`, which blocks until finish)
+- **Cancel** — `stop_ui_execution(batch_id=…)` then local cancel
+
+Prerequisites: valid `cp_api_…` token, PP MCP URL, connector online. Run `casepilot_preflight` once before batch runs (health check does this for the modal badge).
 
 ## Correlation (critical)
 
@@ -121,6 +142,7 @@ Compare prefers **GraphQL curl / event trigger** context (`payload/trigger/`, li
 
 ## Operational notes
 
-- CasePilot connectors are often **single-flight** (`job_busy`). Prefer smaller batches.
+- Larger batches benefit from `max_parallel=2` (or PP cap) when the connector supports it — each case still emits its own `AUDIT_RESULT`.
 - Refresh the Generate-in-UI log until auto-verify writes Generation Status.
+- If MCP session drops during a long run, status falls back to PP REST on the connector host (`CASEPILOT_PUBLIC_URL` + Bearer token).
 - Scratch / one-off notes belong under `temp/` (gitignored), not `docs/`.

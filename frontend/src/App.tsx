@@ -60,14 +60,19 @@ export default function App() {
   }, []);
 
   function goToSection(next: Section) {
+    if (next !== "result" && next !== "compare") {
+      setComparedOps(null);
+    }
     setSection(next);
   }
 
-  function onCompareCompleted(jobId: string, operations?: string[]) {
+  function onCompareCompleted(jobId: string, operations?: string[], navigateToResult = false) {
     setLastCompareJobId(jobId);
     localStorage.setItem(COMPARE_JOB_KEY, jobId);
     setComparedOps(operations && operations.length ? operations : null);
-    setSection("result");
+    if (navigateToResult) {
+      setSection("result");
+    }
   }
 
   /** Generation Status → "Compare selected PASS": start the job, then land on Compare (live). */
@@ -126,7 +131,11 @@ export default function App() {
           <DisplayPage onCompareRequested={onCompareRequested} />
         </div>
         <div className={section === "compare" ? "section-panel" : "section-panel hidden"}>
-          <ComparePage onCompareCompleted={onCompareCompleted} adoptJobId={compareAdoptId} />
+          <ComparePage
+            onCompareCompleted={onCompareCompleted}
+            adoptJobId={compareAdoptId}
+            onAdoptConsumed={() => setCompareAdoptId(null)}
+          />
         </div>
         <div className={section === "result" ? "section-panel" : "section-panel hidden"}>
           <ResultsPage initialJobId={lastCompareJobId} highlightOperations={comparedOps} />

@@ -34,6 +34,140 @@ class ComparisonRow:
     sub_node: str = ""
 
 
+# Font-list activation ops attach a list asset snapshot for context; lists are often
+# deleted during test cleanup before Compare runs — don't SKIP every asset.* field.
+# Font activation / deactivation ops — default subject.activationType/activationMode when blank.
+_ACTIVATION_DEFAULT_OPS = frozenset({
+    "activateFamily",
+    "activateFontProject",
+    "activateList",
+    "activateStyle",
+    "activateVariation",
+    "pluginFontAutoActivated",
+    "bulkActivateAll",
+    "bulkActivateComplete",
+    "bulkActivateLists",
+    "bulkActivateStyles",
+    "bulkDeactivateComplete",
+    "bulkDeactivateLists",
+    "bulkDeactivateStyles",
+    "deactivateFamilies",
+    "deActivateFontProject",
+    "deActivateList",
+    "deactivateStyle",
+    "deactivateVariation",
+    "fontActivationTypeSwitched",
+})
+
+_ACTIVATION_FIELD_DEFAULTS: dict[str, str] = {
+    "subject.activationType": "permanent",
+    "subject.activationMode": "manual",
+}
+
+
+def _read_mutation_input(enriched: JsonDict, live: dict[str, Any]) -> dict[str, Any]:
+    trigger = live.get("trigger") if isinstance(live.get("trigger"), dict) else {}
+    inp = trigger.get("graphql_input") or trigger.get("input") or {}
+    if not isinstance(inp, dict):
+        inp = {}
+    meta = ((enriched.get("subject") or {}).get("metadata") or {}).get("input") or {}
+    if isinstance(meta, dict):
+        return {**meta, **inp}
+    return inp
+
+
+def _coerce_activation_value(val: object) -> str:
+    if val is None:
+        return ""
+    return str(val).strip()
+
+
+def _activation_field_pair(
+    path: str,
+    enriched: JsonDict,
+    live: dict[str, Any],
+) -> tuple[str, str, str]:
+    """Return (source_value, enriched_value, note) with defaults when blank."""
+    default = _ACTIVATION_FIELD_DEFAULTS.get(path, "")
+    leaf = path.rsplit(".", 1)[-1]
+    inp = _read_mutation_input(enriched, live)
+    sent = _coerce_activation_value(inp.get(leaf))
+    enriched_raw = _coerce_activation_value(_dig(enriched, path))
+    source_val = sent or default
+    enriched_val = enriched_raw or default
+    if sent:
+        note = "GraphQL mutation input (value sent)"
+    elif enriched_raw:
+        note = "Enriched resolver value"
+    else:
+        note = f"Default when blank ({default})"
+    return source_val, enriched_val, note
+
+
+def _append_activation_default_rows(
+    operation: str,
+    enriched: JsonDict,
+    live: dict[str, Any],
+    *,
+    seen_paths: set[str],
+    allow: set[str] | None,
+) -> list[ComparisonRow]:
+    base = _base_operation(operation)
+    if base not in _ACTIVATION_DEFAULT_OPS:
+        return []
+    extra: list[ComparisonRow] = []
+    for path, _default in _ACTIVATION_FIELD_DEFAULTS.items():
+        norm = normalize_enriched_path(path)
+        if norm in seen_paths:
+            continue
+        if allow is not None and norm not in allow:
+            continue
+        sv, ev, note = _activation_field_pair(path, enriched, live)
+        field, node, sub = display_node_subnode(norm)
+        status = "PASS" if values_equivalent(sv, ev, field_path=norm) else "FAIL"
+        extra.append(
+            ComparisonRow(
+                operation=operation,
+                layer="subject",
+                field_path=norm,
+                field=field or path.rsplit(".", 1)[-1],
+                node=node,
+                sub_node=sub,
+                source_system="Trigger",
+                source_api="GraphQL mutation input / resolver default",
+                value_in_source=_norm(sv)[:500],
+                value_in_enriched=_norm(ev)[:500],
+                match_status=status,
+                notes=note,
+            )
+        )
+        seen_paths.add(norm)
+    return extra
+
+
+_FONT_LIST_ASSET_OPS = frozenset({
+    "activateList",
+    "deActivateList",
+    "bulkActivateLists",
+    "bulkDeactivateLists",
+    "addFontListStyles",
+    "removeFontListStyles",
+    "addFontListFamilies",
+    "removeFontListFamilies",
+})
+
+
+def _base_op_name(operation: str) -> str:
+    return operation.split("(", 1)[0] if "(" in operation else operation
+
+
+def _is_font_list_asset_context(operation: str, path: str) -> bool:
+    return (
+        _base_op_name(operation) in _FONT_LIST_ASSET_OPS
+        and "subject.enrichedSnapshot.asset." in path
+    )
+
+
 def _norm(val: object) -> str:
     if val is None:
         return ""
@@ -217,6 +351,18 @@ def _row(
             else:
                 status = "FAIL"
                 notes = notes or "UMS response missing field (enriched has value)"
+        elif ev and spec.source_system == "AMS" and _is_font_list_asset_context(
+            operation, spec.enriched_path
+        ):
+            err = str(notes or live.get("ams_error") or "").lower()
+            if "not found" in err or (not sv and not live.get("ams_asset")):
+                status = "N/A"
+                notes = (
+                    "List asset no longer in AMS/DB (removed after enrichment) — "
+                    "font fields are still validated"
+                )
+            else:
+                status = "SKIP" if ev else "N/A"
         else:
             status = "SKIP" if ev else "N/A"
     elif values_equivalent(sv, ev, field_path=spec.enriched_path):
@@ -413,9 +559,9 @@ def _ums_value(
         rel = path.split(".role.", 1)[1]
         return dig_once(ums_subject_role, rel)
     if path.startswith("subject.enrichedSnapshot.role."):
-        if ums_role:
+        if ums_subject_role:
             rel = path.split(".role.", 1)[1]
-            return dig_once(ums_role, rel)
+            return dig_once(ums_subject_role, rel)
         return None
     if path.startswith("subject.enrichedSnapshot.team."):
         if ums_team:
@@ -444,11 +590,6 @@ def _ums_value(
             val = dig_once(root, rel)
             if val is not None:
                 return val
-    if "subject.enrichedSnapshot.user.role." in path and ums_role:
-        rel = path.split(".role.", 1)[1]
-        return dig_once(ums_role, rel)
-    if path.startswith("subject.enrichedSnapshot.role."):
-        return None
     if not ums_profile:
         return None
     if ".profile." in path:
@@ -1025,6 +1166,31 @@ def build_comparison_rows(
         spec = _spec_for_path(operation, norm, mapping_by_path=mapping_by_path)
 
         if (
+            norm in _ACTIVATION_FIELD_DEFAULTS
+            and _base_operation(operation) in _ACTIVATION_DEFAULT_OPS
+        ):
+            sv, ev, act_note = _activation_field_pair(norm, enriched, live)
+            field, node, sub = display_node_subnode(norm)
+            status = "PASS" if values_equivalent(sv, ev, field_path=norm) else "FAIL"
+            rows.append(
+                ComparisonRow(
+                    operation=operation,
+                    layer="subject",
+                    field_path=norm,
+                    field=field or norm.rsplit(".", 1)[-1],
+                    node=node,
+                    sub_node=sub,
+                    source_system="Trigger",
+                    source_api="GraphQL mutation input / resolver default",
+                    value_in_source=_norm(sv)[:500],
+                    value_in_enriched=_norm(ev)[:500],
+                    match_status=status,
+                    notes=act_note,
+                )
+            )
+            continue
+
+        if (
             spec.layer in ("actor", "subject")
             and spec.validate == "Y"
             and spec.source_system in {"UMS", "CMS", "Typesense", "AMS", "UMS/Search"}
@@ -1134,6 +1300,16 @@ def build_comparison_rows(
             )
     except Exception:
         pass
+
+    rows.extend(
+        _append_activation_default_rows(
+            operation,
+            enriched,
+            live,
+            seen_paths=seen_paths,
+            allow=allow,
+        )
+    )
 
     # Stamp display operation on every row (touchpoint-qualified name for Results)
     if rows and operation:

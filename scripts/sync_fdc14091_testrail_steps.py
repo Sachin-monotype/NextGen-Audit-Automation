@@ -152,10 +152,10 @@ def main() -> int:
     for i, item in enumerate(work, 1):
         steps = testrail_steps_separated(item["operation"], item["touchpoint"])
         custom_preconds = (
-            "1. NextGen PP/QA is reachable; CasePilot can log in.\n"
-            "2. Prefer reuse of existing projects/lists/favourites.\n"
-            "3. Capture response header correlation-id (not x-correlation-id).\n"
-            "4. Follow locators exactly ([data-qa-id=…]). No retries.\n"
+            "1. NextGen PP/QA is reachable; log in if not already signed in.\n"
+            "2. Prefer reuse of existing projects, lists, and favourites.\n"
+            "3. Capture response header correlation-id (not x-correlation-id) from GraphQL.\n"
+            "4. Follow plain-English steps; emit AUDIT_RESULT with real UUID after each mutation.\n"
             f"5. Jira: {REFS}."
         )
         payload = {

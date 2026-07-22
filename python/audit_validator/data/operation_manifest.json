@@ -1,6 +1,6 @@
 {
   "generatedFrom": "graphql_documents.json",
-  "operationCount": 200,
+  "operationCount": 230,
   "operations": [
     {
       "auditOperation": "activateFamily",
@@ -14,7 +14,7 @@
       "exportName": "ACTIVATE_FONT_PROJECT",
       "rootField": "activateFontProject",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "activateList",
@@ -91,14 +91,14 @@
       "exportName": "ADD_STYLE_COMMENT",
       "rootField": "addStyleComment",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "addStyleDocument",
       "exportName": "ADD_STYLE_DOCUMENT",
       "rootField": "addStyleDocument",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "addStylesToWebProject",
@@ -112,12 +112,19 @@
       "exportName": "APPLY_UNSUBSCRIBE",
       "rootField": "applyUnsubscribe",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "approveFontAccess",
       "exportName": "APPROVE_FONT_ACCESS",
       "rootField": "approveFontAccess",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "bulkActivateAll",
+      "exportName": "BULK_ACTIVATE_ALL",
+      "rootField": "bulkActivateAll",
       "kind": "mutation",
       "resolverMapped": false
     },
@@ -126,7 +133,7 @@
       "exportName": "BULK_ACTIVATE_LISTS",
       "rootField": "bulkActivateLists",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "bulkActivateStyles",
@@ -140,7 +147,7 @@
       "exportName": "BULK_ADD_PAIRS_TO_FAVORITE",
       "rootField": "bulkAddPairsToFavorite",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "bulkAddStylesToFavourites",
@@ -168,7 +175,7 @@
       "exportName": "BULK_DEACTIVATE_LISTS",
       "rootField": "bulkDeactivateLists",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "bulkDeactivateStyles",
@@ -181,6 +188,13 @@
       "auditOperation": "bulkMarkAsProductionFont",
       "exportName": "BULK_MARK_AS_PRODUCTION_FONT",
       "rootField": "bulkMarkAsProductionFont",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "bulkMarkAsProductionFontsRequest",
+      "exportName": "BULK_MARK_AS_PRODUCTION_FONTS_REQUEST",
+      "rootField": "bulkMarkAsProductionFontsRequest",
       "kind": "mutation",
       "resolverMapped": false
     },
@@ -196,14 +210,14 @@
       "exportName": "BULK_NOTIFICATION_ACTION",
       "rootField": "bulkNotificationAction",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "bulkRemovePairsFromFavorite",
       "exportName": "BULK_REMOVE_PAIRS_FROM_FAVORITE",
       "rootField": "bulkRemovePairsFromFavorite",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "bulkRemoveStylesFromFavourites",
@@ -231,6 +245,13 @@
       "exportName": "BULK_UNMARK_PRODUCTION_FONT",
       "rootField": "bulkUnmarkProductionFont",
       "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "bulkUnmarkProductionFontsRequest",
+      "exportName": "BULK_UNMARK_PRODUCTION_FONTS_REQUEST",
+      "rootField": "bulkUnmarkProductionFontsRequest",
+      "kind": "mutation",
       "resolverMapped": false
     },
     {
@@ -245,7 +266,7 @@
       "exportName": "BULK_UPDATE_PREFERENCES",
       "rootField": "bulkUpdatePreferences",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "bulkUpdateProfiles",
@@ -259,7 +280,7 @@
       "exportName": "CANCEL_BATCH",
       "rootField": "cancelBatch",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "completeUploadSession",
@@ -280,7 +301,7 @@
       "exportName": "CREATE_ASSET_ATTACHMENT_UPLOAD",
       "rootField": "createAssetAttachmentUpload",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "createBYOFBatchAndCheckDuplicates",
@@ -294,7 +315,7 @@
       "exportName": "CREATE_COMPANY_LOGO_UPLOAD_URL",
       "rootField": "createCompanyLogoUploadUrl",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "createContract",
@@ -343,14 +364,14 @@
       "exportName": "CREATE_SSO_MAPPING",
       "rootField": "createSsoMapping",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "createStyleDocumentsUploadUrl",
       "exportName": "CREATE_STYLE_DOCUMENTS_UPLOAD_URL",
       "rootField": "createStyleDocumentsUploadUrl",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "createTeam",
@@ -385,7 +406,7 @@
       "exportName": "DEACTIVATE_FONT_PROJECT",
       "rootField": "deActivateFontProject",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "deActivateList",
@@ -427,7 +448,7 @@
       "exportName": "DELETE_ASSET_ATTACHMENT",
       "rootField": "deleteAssetAttachment",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "deleteAssets",
@@ -441,7 +462,7 @@
       "exportName": "DELETE_COMPANY_LOGO",
       "rootField": "deleteCompanyLogo",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "deleteContracts",
@@ -455,7 +476,7 @@
       "exportName": "DELETE_IMPORTED_FONTS",
       "rootField": "deleteImportedFonts",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "deletePrivateTags",
@@ -497,21 +518,21 @@
       "exportName": "DELETE_SSO_MAPPINGS",
       "rootField": "deleteSsoMappings",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "deleteStyleComment",
       "exportName": "DELETE_STYLE_COMMENT",
       "rootField": "deleteStyleComment",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "deleteStyleDocument",
       "exportName": "DELETE_STYLE_DOCUMENT",
       "rootField": "deleteStyleDocument",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "deleteTeams",
@@ -521,18 +542,25 @@
       "resolverMapped": true
     },
     {
+      "auditOperation": "denyIntentForProduction",
+      "exportName": "DENY_INTENT_FOR_PRODUCTION",
+      "rootField": "denyIntentForProduction",
+      "kind": "mutation",
+      "resolverMapped": false
+    },
+    {
       "auditOperation": "dismissNotification",
       "exportName": "DISMISS_NOTIFICATION",
       "rootField": "dismissNotification",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "downloadAssetAttachmentSignedUrl",
       "exportName": "DOWNLOAD_ASSET_ATTACHMENT_SIGNED_URL",
       "rootField": "downloadAssetAttachmentSignedUrl",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "downloadWebProject",
@@ -544,7 +572,7 @@
     {
       "auditOperation": "duplicateProject",
       "exportName": "DUPLICATE_PROJECT",
-      "rootField": "duplicateProject",
+      "rootField": "bulkCopyAssets",
       "kind": "mutation",
       "resolverMapped": true
     },
@@ -556,32 +584,193 @@
       "resolverMapped": true
     },
     {
+      "auditOperation": "exportCompanyLibrary",
+      "exportName": "EXPORT_COMPANY_LIBRARY",
+      "rootField": "exportCompanyLibrary",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportFontAssets",
+      "exportName": "EXPORT_FONT_ASSETS",
+      "rootField": "exportFontAssets",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportFontProjects",
+      "exportName": "EXPORT_FONT_PROJECTS",
+      "rootField": "exportFontProjects",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
       "auditOperation": "exportFontTemplate",
       "exportName": "EXPORT_FONT_TEMPLATE",
       "rootField": "exportFontTemplate",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportFontUsers",
+      "exportName": "EXPORT_FONT_USERS",
+      "rootField": "exportFontUsers",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportFontWebkits",
+      "exportName": "EXPORT_FONT_WEBKITS",
+      "rootField": "exportFontWebkits",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportImportedFonts",
+      "exportName": "EXPORT_IMPORTED_FONTS",
+      "rootField": "exportImportedFonts",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportLeavingSoonFonts",
+      "exportName": "EXPORT_LEAVING_SOON_FONTS",
+      "rootField": "exportLeavingSoonFonts",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportMyLibrary",
+      "exportName": "EXPORT_MY_LIBRARY",
+      "rootField": "exportMyLibrary",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportNotifications",
+      "exportName": "EXPORT_NOTIFICATIONS",
+      "rootField": "exportNotifications",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportReportingFonts",
+      "exportName": "EXPORT_REPORTING_FONTS",
+      "rootField": "exportReportingFonts",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportReportingUsers",
+      "exportName": "EXPORT_REPORTING_USERS",
+      "rootField": "exportReportingUsers",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportReportingWebkits",
+      "exportName": "EXPORT_REPORTING_WEBKITS",
+      "rootField": "exportReportingWebkits",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportRoles",
+      "exportName": "EXPORT_ROLES",
+      "rootField": "exportRoles",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportServiceAccount",
+      "exportName": "EXPORT_SERVICE_ACCOUNT",
+      "rootField": "exportServiceAccount",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportSsoMappings",
+      "exportName": "EXPORT_SSO_MAPPINGS",
+      "rootField": "exportSsoMappings",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportTags",
+      "exportName": "EXPORT_TAGS",
+      "rootField": "exportTags",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportTeams",
+      "exportName": "EXPORT_TEAMS",
+      "rootField": "exportTeams",
+      "kind": "mutation",
+      "resolverMapped": true
     },
     {
       "auditOperation": "exportUnassignedImportedFontsTemplate",
       "exportName": "EXPORT_UNASSIGNED_IMPORTED_FONTS_TEMPLATE",
       "rootField": "exportUnassignedImportedFontsTemplate",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportUserAssets",
+      "exportName": "EXPORT_USER_ASSETS",
+      "rootField": "exportUserAssets",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportUserFonts",
+      "exportName": "EXPORT_USER_FONTS",
+      "rootField": "exportUserFonts",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportUserProjects",
+      "exportName": "EXPORT_USER_PROJECTS",
+      "rootField": "exportUserProjects",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportUsers",
+      "exportName": "EXPORT_USERS",
+      "rootField": "exportUsers",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportWebkitDomains",
+      "exportName": "EXPORT_WEBKIT_DOMAINS",
+      "rootField": "exportWebkitDomains",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "exportWebkitFonts",
+      "exportName": "EXPORT_WEBKIT_FONTS",
+      "rootField": "exportWebkitFonts",
+      "kind": "mutation",
+      "resolverMapped": true
     },
     {
       "auditOperation": "finalizeAssetAttachments",
       "exportName": "FINALIZE_ASSET_ATTACHMENTS",
       "rootField": "finalizeAssetAttachments",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getActiveBatches",
       "exportName": "GET_ACTIVE_BATCHES",
       "rootField": "getActiveBatches",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getAddOnFonts",
@@ -602,7 +791,7 @@
       "exportName": "GET_ALL_ACCESS_REQUESTS",
       "rootField": "getAllAccessRequests",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getAllFoundriesForContracts",
@@ -637,7 +826,7 @@
       "exportName": "GET_ASSET_ATTACHMENTS",
       "rootField": "getAssetAttachments",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getAssets",
@@ -672,14 +861,14 @@
       "exportName": "GET_BATCH_PROGRESS",
       "rootField": "getBatchProgress",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getCategorizedGlyphs",
       "exportName": "GET_CATEGORIZED_GLYPHS",
       "rootField": "getCategorizedGlyphs",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getCompanyAssets",
@@ -707,7 +896,7 @@
       "exportName": "GET_CUSTOMER_SETTINGS",
       "rootField": "getCustomerSettings",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getCustomers",
@@ -721,14 +910,14 @@
       "exportName": "GET_DOCUMENT_METADATA",
       "rootField": "getDocumentMetadata",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getEligiblePrimaryContacts",
       "exportName": "GET_ELIGIBLE_PRIMARY_CONTACTS",
       "rootField": "getEligiblePrimaryContacts",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getEntitlement",
@@ -749,7 +938,7 @@
       "exportName": "GET_FAMILIES_OF_ALL_FONT_LISTS",
       "rootField": "getFamiliesOfAllFontLists",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getFavoritePairs",
@@ -770,7 +959,7 @@
       "exportName": "GET_IMPORTED_FONTS",
       "rootField": "getImportedFonts",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getIndividualStyleCountForFontLists",
@@ -790,6 +979,13 @@
       "auditOperation": "getMultipartUploadInfoForFile",
       "exportName": "GET_MULTIPART_UPLOAD_INFO_FOR_FILE",
       "rootField": "getMultipartUploadInfoForFile",
+      "kind": "query",
+      "resolverMapped": false
+    },
+    {
+      "auditOperation": "getNotifications",
+      "exportName": "GET_NOTIFICATIONS",
+      "rootField": "getNotifications",
       "kind": "query",
       "resolverMapped": false
     },
@@ -847,7 +1043,7 @@
       "exportName": "GET_PROJECT_BY_DOCUMENT_ID",
       "rootField": "getProjectByDocumentId",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getRoles",
@@ -861,28 +1057,28 @@
       "exportName": "GET_SSO_MAPPINGS",
       "rootField": "getSsoMappings",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getStyleComments",
       "exportName": "GET_STYLE_COMMENTS",
       "rootField": "getStyleComments",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getStyleDocuments",
       "exportName": "GET_STYLE_DOCUMENTS",
       "rootField": "getStyleDocuments",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getStyleDocumentsDownloadUrls",
       "exportName": "GET_STYLE_DOCUMENTS_DOWNLOAD_URLS",
       "rootField": "getStyleDocumentsDownloadUrls",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getStyles",
@@ -896,15 +1092,14 @@
       "exportName": "GET_STYLES_OF_ALL_FONT_LISTS",
       "rootField": "getStylesOfAllFontLists",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getSyncedVariations",
       "exportName": "GET_SYNCED_VARIATIONS",
       "rootField": "getSyncedVariations",
       "kind": "query",
-      "resolverMapped": true,
-      "notes": "FontBridge synced variations query — subjectExtractor emits fontVariation md5s (mtconnect-api #1016)"
+      "resolverMapped": true
     },
     {
       "auditOperation": "getTeams",
@@ -925,7 +1120,7 @@
       "exportName": "GET_UPLOAD_SESSION_FONTS",
       "rootField": "getUploadSessionFonts",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "getUserInvitations",
@@ -953,21 +1148,21 @@
       "exportName": "GLOBAL_EMAIL_OPT_OUT",
       "rootField": "globalEmailOptOut",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "importFontTemplate",
       "exportName": "IMPORT_FONT_TEMPLATE",
       "rootField": "importFontTemplate",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "keepInProduction",
       "exportName": "KEEP_IN_PRODUCTION",
       "rootField": "keepInProduction",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "linkContractToStyles",
@@ -988,14 +1183,14 @@
       "exportName": "LINK_DOCUMENTS_TO_CONTRACT",
       "rootField": "linkDocumentsToContract",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "markAllNotificationsRead",
       "exportName": "MARK_ALL_NOTIFICATIONS_READ",
       "rootField": "markAllNotificationsRead",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "markAsProductionFont",
@@ -1009,21 +1204,21 @@
       "exportName": "MARK_COMPANY_LOGO_UPLOAD_SUCCESS",
       "rootField": "markCompanyLogoUploadSuccess",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "markNotificationRead",
       "exportName": "MARK_NOTIFICATION_READ",
       "rootField": "markNotificationRead",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "markOnboardingCompleted",
       "exportName": "MARK_ONBOARDING_COMPLETED",
       "rootField": "markOnboardingCompleted",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "markProductionFonts",
@@ -1044,7 +1239,7 @@
       "exportName": "PARSE_AND_CREATE_CONTRACT",
       "rootField": "parseAndCreateContract",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "pinAsset",
@@ -1052,6 +1247,13 @@
       "rootField": "pinAsset",
       "kind": "mutation",
       "resolverMapped": true
+    },
+    {
+      "auditOperation": "processUploadSessionFonts",
+      "exportName": "PROCESS_UPLOAD_SESSION_FONTS",
+      "rootField": "processUploadSessionFonts",
+      "kind": "mutation",
+      "resolverMapped": false
     },
     {
       "auditOperation": "publishAddOn",
@@ -1072,14 +1274,14 @@
       "exportName": "REGENERATE_TOKEN",
       "rootField": "regenerateToken",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "rejectFontAccess",
       "exportName": "REJECT_FONT_ACCESS",
       "rootField": "rejectFontAccess",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "removeFavoriteFamilies",
@@ -1142,14 +1344,14 @@
       "exportName": "REORDER_SSO_MAPPINGS",
       "rootField": "reorderSsoMappings",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "requestFontAccess",
       "exportName": "REQUEST_FONT_ACCESS",
       "rootField": "requestFontAccess",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "resetPassword",
@@ -1163,6 +1365,13 @@
       "exportName": "RESET_PREFERENCES",
       "rootField": "resetPreferences",
       "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "revokeToken",
+      "exportName": "REVOKE_TOKEN",
+      "rootField": "revokeToken",
+      "kind": "mutation",
       "resolverMapped": false
     },
     {
@@ -1170,35 +1379,35 @@
       "exportName": "SAVE_DOCUMENT_METADATA",
       "rootField": "saveDocumentMetadata",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "setLanguagePreference",
       "exportName": "SET_LANGUAGE_PREFERENCE",
       "rootField": "setLanguagePreference",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "sharingInfoForAssets",
       "exportName": "SHARING_INFO_FOR_ASSETS",
       "rootField": "sharingInfoForAssets",
       "kind": "query",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "submitFontUsageReport",
       "exportName": "SUBMIT_FONT_USAGE_REPORT",
       "rootField": "submitFontUsageReport",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "submitIntentForProduction",
       "exportName": "SUBMIT_INTENT_FOR_PRODUCTION",
       "rootField": "submitIntentForProduction",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "suspendServiceAccount",
@@ -1226,7 +1435,7 @@
       "exportName": "UNLINK_DOCUMENTS_FROM_CONTRACT",
       "rootField": "unlinkDocumentsFromContract",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "unlinkStyleFromContract",
@@ -1268,14 +1477,14 @@
       "exportName": "UPDATE_ASSETS_SHARING_INFO",
       "rootField": "updateAssetsSharingInfo",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "updateCompanySsoStatus",
       "exportName": "UPDATE_COMPANY_SSO_STATUS",
       "rootField": "updateCompanySsoStatus",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "updateContract",
@@ -1296,28 +1505,28 @@
       "exportName": "UPDATE_CUSTOMER_SETTINGS",
       "rootField": "updateCustomerSettings",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "updateFontProjectStyles",
       "exportName": "UPDATE_FONT_PROJECT_STYLES",
       "rootField": "updateFontProjectStyles",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "updateFontsForReview",
       "exportName": "UPDATE_FONTS_FOR_REVIEW",
       "rootField": "updateFontsForReview",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "updatePreference",
       "exportName": "UPDATE_PREFERENCE",
       "rootField": "updatePreference",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "updatePrivateTag",
@@ -1359,7 +1568,7 @@
       "exportName": "UPDATE_SERVICE_ACCOUNT",
       "rootField": "updateServiceAccount",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "updateSessionFiles",
@@ -1373,21 +1582,21 @@
       "exportName": "UPDATE_SSO_MAPPING",
       "rootField": "updateSsoMapping",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "updateStyleComment",
       "exportName": "UPDATE_STYLE_COMMENT",
       "rootField": "updateStyleComment",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "updateSubToggle",
       "exportName": "UPDATE_SUB_TOGGLE",
       "rootField": "updateSubToggle",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "updateTeam",

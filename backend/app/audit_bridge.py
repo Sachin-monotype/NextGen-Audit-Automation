@@ -1288,7 +1288,37 @@ class AuditBridge:
             # Touchpoint variants (e.g. activateFamily(global)) don't exist as a
             # distinct source.operation in Mongo — reuse the enriched sample staged
             # during the last Generate run so Compare can re-validate them.
-            if "(" in op and op.endswith(")"):
+            owned_cid = pinned_cids.get(op) or (
+                get_owned_correlation(op, project_root=self.project_root)
+                if get_owned_correlation
+                else None
+            )
+            if "(" in op and op.endswith(")") and owned_cid:
+                base_touch_op = op.split("(", 1)[0].strip() or op
+                raw, enriched = self.db.latest_pair(
+                    base_touch_op,
+                    require_pair=True,
+                    correlation_id=owned_cid,
+                    actor_global_user_id=our_profile or None,
+                )
+                if raw and enriched:
+                    cid = enriched.get("xCorrelationId", "") or owned_cid
+                    (enriched_dir / f"{op}.json").write_text(
+                        json_util.dumps(enriched, indent=2, ensure_ascii=False),
+                        encoding="utf-8",
+                    )
+                    (raw_dir / f"{op}.json").write_text(
+                        json_util.dumps(raw, indent=2, ensure_ascii=False),
+                        encoding="utf-8",
+                    )
+                    staged.append(op)
+                    owned_hits += 1
+                    self.store.append_log(
+                        job_id,
+                        f"  ✓ Paired {op} (pinned xCorrelationId={cid}) from Mongo",
+                    )
+                    continue
+            if "(" in op and op.endswith(")") and not owned_cid:
                 staged_file = enriched_dir / f"{op}.json"
                 if staged_file.is_file():
                     staged.append(op)
@@ -1302,7 +1332,7 @@ class AuditBridge:
                 # now — this keeps the compared count 1:1 with Generation Status and
                 # preserves the (UI) label on the Result row.
                 base_touch_op = op.split("(", 1)[0].strip() or op
-                owned_cid = pinned_cids.get(op) or (
+                owned_cid = (
                     get_owned_correlation(op, project_root=self.project_root)
                     if get_owned_correlation
                     else None
@@ -1351,11 +1381,14 @@ class AuditBridge:
                 )
                 missing_pair.append(op)
                 continue
-            owned_cid = pinned_cids.get(op) or (
-                get_owned_correlation(op, project_root=self.project_root)
-                if get_owned_correlation
-                else None
-            )
+            if "(" in op and op.endswith(")"):
+                # Scenario without pinned cid already handled above; do not query Mongo as bare op name.
+                missing_pair.append(op)
+                self.store.append_log(
+                    job_id,
+                    f"  ⚠ Skip {op}: no correlation id — compare from Enrich/raw or Generate first",
+                )
+                continue
             raw, enriched = self.db.latest_pair(
                 op,
                 require_pair=True,

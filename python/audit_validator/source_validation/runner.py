@@ -386,6 +386,7 @@ def _collect_identity_keys(samples: dict[str, JsonDict]) -> dict[str, set[str]]:
         if pid:
             profiles.add(pid)
         snap = (actor.get("enrichedSnapshot") or {})
+        subject = enriched.get("subject") or {}
         for role_obj in (
             ((snap.get("user") or {}).get("role") or {}),
             (snap.get("role") or {}),
@@ -393,6 +394,20 @@ def _collect_identity_keys(samples: dict[str, JsonDict]) -> dict[str, set[str]]:
             rid = str((role_obj or {}).get("id") or "").strip()
             if rid:
                 roles.add(rid)
+        subj_snap = subject.get("enrichedSnapshot") or {}
+        subj_role = subj_snap.get("role") or {}
+        if isinstance(subj_role, dict):
+            srid = str(subj_role.get("id") or "").strip()
+            if srid:
+                roles.add(srid)
+        meta = subject.get("metadata") or {}
+        result = meta.get("result") or {}
+        role_from_result = None
+        if isinstance(result, dict):
+            role_from_result = (result.get("role") or {}).get("id")
+        mrid = str(role_from_result or "").strip()
+        if mrid:
+            roles.add(mrid)
         for tid in _actor_team_ids_from_enriched(enriched):
             if gcid:
                 teams.add(f"{gcid}|{tid}")
@@ -440,8 +455,14 @@ def _prefetch_identity_sources(
 
     if source_truth_mode() == "db":
         try:
+            import pymysql  # noqa: F401
+
             with shared_connection(load_mysql_config()):
                 return _run()
+        except ImportError:
+            log.warning(
+                "SOURCE_TRUTH=db but pymysql missing — identity prefetch via API/DB clients without shared connection"
+            )
         except Exception as exc:  # noqa: BLE001
             log.warning("Shared MySQL prefetch failed (%s) — retrying without reuse", exc)
     return _run()
@@ -598,9 +619,22 @@ def _prefetch_identity_sources_inner(
     # --- AMS assets ---
     if ams and cfg.ams_ready and keys["assets"]:
         bulk_a = getattr(ams, "get_assets_by_ids", None)
+        bulk_only = getattr(ams, "get_assets_by_ids_only", None)
         asset_ids = sorted({a.split("|", 1)[0] for a in keys["assets"] if a})
-        # Prefer a known profile id so DB ACL + AMS API accessIds resolve the same.
         default_profile = next(iter(sorted(keys["profiles"])), "")
+        default_gcid = next(iter(sorted(keys["gcids"])), "")
+        if callable(bulk_only) and asset_ids:
+            try:
+                cache["ams_by_id"].update(
+                    bulk_only(
+                        asset_ids,
+                        correlation_id="identity-prefetch",
+                        global_user_id=default_profile,
+                        global_customer_id=default_gcid,
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.debug("AMS bulk-by-id prefetch failed: %s", exc)
         if callable(bulk_a) and asset_ids:
             try:
                 try:
@@ -678,14 +712,14 @@ def _live_context_for_operation(
             rid = _role_id_from_enriched(enriched)
             if rid:
                 try:
-                    ctx["ums_role"] = ums_role_by.get(rid) or ums.get_role_by_id(
+                    ctx["ums_subject_role"] = ums_role_by.get(rid) or ums.get_role_by_id(
                         rid, customer_id, correlation_id=cid
                     )
                     subject_role_fetched = True
-                    if not ctx["ums_role"]:
+                    if not ctx.get("ums_subject_role"):
                         ctx["ums_role_missing"] = f"Role {rid} not found in UMS"
                 except Exception as exc:  # noqa: BLE001
-                    ctx["ums_role_error"] = f"UMS role lookup failed: {exc}"
+                    ctx["ums_role_error"] = f"UMS subject role lookup failed: {exc}"
         pid = _profile_id_from_enriched(enriched)
         if pid:
             try:
@@ -701,7 +735,12 @@ def _live_context_for_operation(
                 role = profile.get("role") or {}
                 if isinstance(role, dict):
                     role_id = role.get("id")
-            if role_id and not ctx.get("ums_role") and not subject_role_fetched:
+            if (
+                role_id
+                and not ctx.get("ums_role")
+                and not subject_role_fetched
+                and operation not in subject_role_ops
+            ):
                 try:
                     ctx["ums_role"] = ums_role_by.get(str(role_id)) or ums.get_role_by_id(
                         str(role_id), customer_id, correlation_id=cid
@@ -717,10 +756,13 @@ def _live_context_for_operation(
             except Exception as exc:  # noqa: BLE001
                 # Keep actor profile results — only note subject-profile failure.
                 ctx.setdefault("ums_error", f"UMS subject profile lookup failed: {exc}")
-        sub_prof = ctx.get("ums_subject_profile") or ctx.get("ums_profile")
-        if isinstance(sub_prof, dict):
-            sub_role_id = (sub_prof.get("role") or {}).get("id")
-            if sub_role_id and not ctx.get("ums_subject_role"):
+        if not ctx.get("ums_subject_role"):
+            sub_role_id = _role_id_from_enriched(enriched)
+            if not sub_role_id:
+                sub_prof = ctx.get("ums_subject_profile")
+                if isinstance(sub_prof, dict):
+                    sub_role_id = (sub_prof.get("role") or {}).get("id")
+            if sub_role_id:
                 try:
                     ctx["ums_subject_role"] = ums_role_by.get(str(sub_role_id)) or ums.get_role_by_id(
                         str(sub_role_id), customer_id, correlation_id=cid
@@ -789,14 +831,12 @@ def _live_context_for_operation(
             except Exception as exc:
                 ctx["cms_subject_error"] = f"CMS subject lookup failed: {exc}"
 
-    # Asset Management — fetch the asset the resolver enriched from, so every
-    # subject.enrichedSnapshot.asset.* field can be compared against AMS (not SKIP).
+    # Asset Management — resolver uses POST /v2/assets/bulk (type-agnostic), not only typed GET.
     if ams and cfg.ams_ready:
         asset_id, asset_type = _asset_ref_from_enriched(enriched)
         if asset_id:
             try:
                 cached_ams = ams_by.get(asset_id)
-                # Prefer a live fetch when the cache miss / incomplete ACL projection.
                 incomplete = bool(
                     cached_ams
                     and global_user_id
@@ -806,15 +846,25 @@ def _live_context_for_operation(
                         or not cached_ams.get("accessIds")
                     )
                 )
-                ctx["ams_asset"] = (
-                    None if incomplete else cached_ams
-                ) or ams.get_asset_by_id(
-                    asset_id,
-                    asset_type or "Folder",
-                    correlation_id=cid,
-                    global_user_id=global_user_id,
-                    global_customer_id=customer_id,
-                )
+                ctx["ams_asset"] = None if incomplete else cached_ams
+                if not ctx.get("ams_asset"):
+                    bulk_fn = getattr(ams, "get_assets_by_ids_only", None)
+                    if callable(bulk_fn):
+                        bulk_rows = bulk_fn(
+                            [asset_id],
+                            correlation_id=cid,
+                            global_user_id=global_user_id,
+                            global_customer_id=customer_id,
+                        )
+                        ctx["ams_asset"] = bulk_rows.get(asset_id)
+                if not ctx.get("ams_asset"):
+                    ctx["ams_asset"] = ams.get_asset_by_id(
+                        asset_id,
+                        asset_type or "Folder",
+                        correlation_id=cid,
+                        global_user_id=global_user_id,
+                        global_customer_id=customer_id,
+                    )
                 if not ctx.get("ams_asset"):
                     ctx["ams_error"] = f"AMS asset {asset_id} not found"
             except Exception as exc:
@@ -948,7 +998,9 @@ def _role_id_from_enriched(enriched: JsonDict) -> str | None:
         return str(role["id"])
     meta = subject.get("metadata") or {}
     result = meta.get("result") or {}
-    rid = ((result.get("role") or {}).get("id"))
+    rid = None
+    if isinstance(result, dict):
+        rid = ((result.get("role") or {}).get("id"))
     if rid:
         return str(rid)
     ids = subject.get("id") or []

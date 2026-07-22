@@ -84,6 +84,10 @@ def scan_enriched_fields(enriched: JsonDict) -> list[tuple[str, object]]:
     if isinstance(subject, dict):
         if isinstance(subject.get("type"), str):
             out.append(("subject.type", subject["type"]))
+        for key in ("activationType", "activationMode", "deactivationType"):
+            val = subject.get(key)
+            if _is_scalar(val):
+                out.append((f"subject.{key}", val))
         ids = subject.get("id")
         if isinstance(ids, list):
             for idx, val in enumerate(ids[:3]):
@@ -203,10 +207,17 @@ def infer_source_system(path: str) -> tuple[str, str]:
         "isimportedfont",
         "activationtype",
         "activationmode",
+        "deactivationtype",
         "isproductionfont",
         "isfavorite",
         "isenabled",
     }:
+        if p.startswith("subject.") and leaf in {
+            "activationtype",
+            "activationmode",
+            "deactivationtype",
+        }:
+            return "Trigger", "GraphQL mutation input / resolver default"
         return "Audit service", "enricher-added flag/default"
     if p in {"enrichedeventid", "enrichmentversion", "enrichedat"}:
         return "Audit service", "enricher-generated"

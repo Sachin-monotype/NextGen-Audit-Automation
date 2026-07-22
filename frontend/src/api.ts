@@ -351,6 +351,8 @@ export async function startGenerateInUi(body: {
   dispatch?: boolean;
   /** CasePilot browser mode — false = headed (default), true = headless */
   headless?: boolean;
+  /** 1 = serial; 2+ = parallel browsers (clamped by CasePilot PP cap); omit = env / PP default */
+  max_parallel?: number;
 }) {
   const res = await fetch(`${API}/api/jobs/generate-ui`, {
     method: "POST",
@@ -440,6 +442,7 @@ export type CasepilotStatus = {
   configured?: boolean;
   mcp_url?: string;
   ui_config_ready?: boolean;
+  default_max_parallel?: number | null;
   error?: string;
   preflight?: Record<string, unknown>;
   connectors?: { registered?: number; online?: number; runners?: unknown[] };
@@ -796,6 +799,26 @@ export async function fetchPayloadCurl(
   return res.json() as Promise<PayloadCurlResult>;
 }
 
+/** Download multi-sheet xlsx for stored comparison results. */
+export async function exportComparisonExcel(operations?: string[]) {
+  const res = await fetch(`${API}/api/results/export-excel`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ operations: operations ?? [] }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err || "Excel export failed");
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `source-comparison-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function startCompare(
   operations: string[],
   fieldPathsByOp?: Record<string, string[]>,
@@ -817,6 +840,24 @@ export async function startCompare(
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<Job>;
+}
+
+/** Re-compare operations shown in Results (updates comparison-latest.json in place). */
+export async function refreshStoredComparisons(operations?: string[]) {
+  const res = await fetch(`${API}/api/results/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(
+      operations && operations.length ? { operations } : {},
+    ),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{
+    ok: boolean;
+    operations: string[];
+    count: number;
+    job: Job;
+  }>;
 }
 
 export async function fetchEnrichedFields(operation: string) {

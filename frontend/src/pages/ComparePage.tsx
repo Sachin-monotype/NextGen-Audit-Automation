@@ -6,26 +6,39 @@ import {
   fetchComparableOperations,
   fetchJob,
   startCompare,
+  deleteLatestResult,
   type CategoryReport,
   type ComparableOperation,
   type Job,
 } from "../api";
 
 type Props = {
-  /** Fired when a compare job finishes (completed or failed) so Result can show the snapshot. */
-  onCompareCompleted: (jobId: string, operations?: string[]) => void;
+  /** Persist compared ops; optional navigation to Result when user clicks Open results. */
+  onCompareCompleted: (jobId: string, operations?: string[], navigateToResult?: boolean) => void;
   /** Compare job id started elsewhere (Generation Status) that this page should show live. */
   adoptJobId?: string | null;
+  /** Called once adoptJobId is consumed so App can clear the handoff. */
+  onAdoptConsumed?: () => void;
 };
 
 const JOB_KEY = "audit_compare_job_id";
 
 function jobOperations(job: Job | null): string[] {
+  const fromResult = job?.result?.operations;
+  if (Array.isArray(fromResult) && fromResult.length) return fromResult as string[];
+  const fromRows = [
+    ...new Set(
+      ((job?.result?.rows ?? []) as { operation?: string }[])
+        .map((r) => r.operation)
+        .filter(Boolean),
+    ),
+  ] as string[];
+  if (fromRows.length) return fromRows;
   const ops = job?.params?.operations;
   return Array.isArray(ops) ? (ops as string[]) : [];
 }
 
-export default function ComparePage({ onCompareCompleted, adoptJobId }: Props) {
+export default function ComparePage({ onCompareCompleted, adoptJobId, onAdoptConsumed }: Props) {
   const [items, setItems] = useState<ComparableOperation[]>([]);
   const [categories, setCategories] = useState<CategoryReport | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -38,6 +51,7 @@ export default function ComparePage({ onCompareCompleted, adoptJobId }: Props) {
   const [draftEnv, setDraftEnv] = useState<string[]>([]);
   const [draftService, setDraftService] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [error, setError] = useState("");
   const [activeJob, setActiveJob] = useState<Job | null>(null);
   const [fieldPathsByOp, setFieldPathsByOp] = useState<Record<string, string[]>>({});
@@ -61,7 +75,6 @@ export default function ComparePage({ onCompareCompleted, adoptJobId }: Props) {
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
             setBusy(false);
-            if (j.status === "completed") onCompareCompleted(j.id, jobOperations(j));
           }
         } catch {
           misses += 1;
@@ -102,11 +115,12 @@ export default function ComparePage({ onCompareCompleted, adoptJobId }: Props) {
       .then((j) => {
         setActiveJob(j);
         setError("");
+        onAdoptConsumed?.();
         if (j.status === "running" || j.status === "pending") {
           setBusy(true);
           pollJob(j.id);
-        } else if (j.status === "completed") {
-          onCompareCompleted(j.id, jobOperations(j));
+        } else {
+          setBusy(false);
         }
       })
       .catch(() => {});
@@ -291,6 +305,32 @@ export default function ComparePage({ onCompareCompleted, adoptJobId }: Props) {
         <button type="button" onClick={clearAll} disabled={jobRunning}>
           Clear
         </button>
+        {selected.size > 0 && (
+          <button
+            type="button"
+            className="danger"
+            disabled={deleteBusy || jobRunning}
+            onClick={() => {
+              const ops = [...selected];
+              if (!window.confirm(`Delete stored result(s) for ${ops.length} operation(s)?`)) return;
+              setDeleteBusy(true);
+              void (async () => {
+                try {
+                  for (const op of ops) {
+                    await deleteLatestResult(op);
+                  }
+                  setSelected(new Set());
+                } catch (e) {
+                  setError(String(e));
+                } finally {
+                  setDeleteBusy(false);
+                }
+              })();
+            }}
+          >
+            {deleteBusy ? "Deleting…" : `Delete stored result (${selected.size})`}
+          </button>
+        )}
         <span className="muted">
           {visible.length} shown · {selected.size} selected
         </span>
@@ -306,7 +346,7 @@ export default function ComparePage({ onCompareCompleted, adoptJobId }: Props) {
               <button
                 type="button"
                 className="primary"
-                onClick={() => onCompareCompleted(activeJob.id, jobOperations(activeJob))}
+                onClick={() => onCompareCompleted(activeJob.id, jobOperations(activeJob), true)}
               >
                 Open results
               </button>

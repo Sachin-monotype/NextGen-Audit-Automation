@@ -5,15 +5,15 @@
   "notes": "Synced from TestRail section 4066542 after FDC-14091 GraphQL Generate expansion. CasePilot steps come from ui_case_recipes.py (prefer_steps=context_over_testrail). GraphQL mapped=109; extra non-catalog cases kept=57.",
   "cases": [
     {
-      "case_id": 73303503,
-      "title": "Verify activateFamily — Discovery/Browse (global)",
+      "case_id": 73306719,
+      "title": "Perform activate family from search page",
       "operation": "activateFamily",
       "touchpoint": "Discovery/Browse (global)",
       "key": "activateFamily::Discovery/Browse (global)"
     },
     {
-      "case_id": 73303505,
-      "title": "Verify activateFamily — Favourite",
+      "case_id": 73306718,
+      "title": "Perform activate family on a style from favourites section",
       "operation": "activateFamily",
       "touchpoint": "Favourite",
       "key": "activateFamily::Favourite"
@@ -1189,8 +1189,8 @@
     }
   ],
   "by_key": {
-    "activateFamily::Discovery/Browse (global)": 73303503,
-    "activateFamily::Favourite": 73303505,
+    "activateFamily::Discovery/Browse (global)": 73306719,
+    "activateFamily::Favourite": 73306718,
     "activateFamily::List (FONTLIST)": 73303504,
     "activateFamily::Project": 73304668,
     "activateFamily::Project > List": 73303506,

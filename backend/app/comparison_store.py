@@ -168,14 +168,8 @@ def list_latest(project_root: Path) -> dict[str, Any]:
         if changed:
             item["rows"] = cleaned
             item["summary"] = _summary_for_rows(cleaned)
-    # Hide the bare base op when scenario variants exist (e.g. drop "activateFamily"
-    # once "activateFamily(global)" is stored) so Results are maintained by scenario.
-    bases_with_variants = {op.split("(", 1)[0] for op in data if "(" in op}
-    visible_ops = [
-        op
-        for op in data
-        if not ("(" not in op and op in bases_with_variants)
-    ]
+    # Keep bare base ops and scenario variants side by side (e.g. activateFamily + activateFamily(global)).
+    visible_ops = list(data.keys())
     items = [data[op] for op in visible_ops]
     items.sort(key=lambda x: str(x.get("compared_at") or ""), reverse=True)
     merged_rows: list[dict[str, Any]] = []
@@ -217,3 +211,56 @@ def clear_all_results(project_root: Path) -> int:
         count = len(data)
         path.write_text("{}\n", encoding="utf-8")
     return count
+
+
+def export_comparison_excel(
+    project_root: Path,
+    operations: list[str] | None = None,
+) -> bytes:
+    """Build multi-sheet xlsx: one tab per operation with comparison rows."""
+    from io import BytesIO
+
+    from openpyxl import Workbook
+
+    data = _load(_store_path(project_root))
+    ops = [o for o in (operations or []) if o and o in data]
+    if not ops:
+        ops = sorted(data.keys())
+    headers = [
+        "Title",
+        "Operation",
+        "Enriched JSON path",
+        "Enriched",
+        "Source",
+        "Source value",
+        "Status",
+    ]
+    wb = Workbook()
+    wb.remove(wb.active)
+    for op in ops:
+        item = data.get(op) or {}
+        rows = item.get("rows") or []
+        title = op[:31].replace("/", "-").replace("\\", "-").replace("*", "").replace("?", "")
+        if not title:
+            title = "Sheet"
+        ws = wb.create_sheet(title=title)
+        ws.append(headers)
+        for row in rows:
+            fp = str(row.get("field_path") or "")
+            ws.append(
+                [
+                    row.get("field") or fp.rsplit(".", 1)[-1],
+                    op,
+                    f"$.{fp}" if fp else "",
+                    row.get("value_in_enriched") or "",
+                    row.get("source_system") or "",
+                    row.get("value_in_source") or "",
+                    row.get("match_status") or "",
+                ]
+            )
+    if not wb.sheetnames:
+        ws = wb.create_sheet(title="Results")
+        ws.append(headers)
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()

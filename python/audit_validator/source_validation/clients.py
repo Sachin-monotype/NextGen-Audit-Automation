@@ -493,6 +493,70 @@ class AmsClient:
             h["x-global-customer-id"] = global_customer_id
         return h
 
+    def get_assets_by_ids_only(
+        self,
+        asset_ids: list[str],
+        *,
+        correlation_id: str,
+        global_user_id: str = "",
+        global_customer_id: str = "",
+    ) -> dict[str, dict[str, Any]]:
+        """Bulk fetch by id only — mirrors resolver ``getAssetsByIdsOnly``."""
+        ids = [str(a).strip() for a in asset_ids if str(a or "").strip()]
+        if not ids:
+            return {}
+        url = f"{self._cfg.ams_base_url}/v2/assets/bulk"
+        headers = {
+            **self._headers(
+                correlation_id,
+                global_user_id=global_user_id,
+                global_customer_id=global_customer_id,
+            ),
+            "X-HTTP-Method-Override": "GET",
+            "x-method-overrides": "GET",
+        }
+        body = {
+            "ids": ids,
+            "fields": (
+                "name,depth,createdAt,updatedAt,lastAccessedAt,accessIds,accessRight,"
+                "parentId,assetType,assetPath,metaData.isProduction,metaData.v2,"
+                "hasChildren,metaData.markedAutomatically,createdBy,children"
+            ),
+        }
+        import time as _time
+
+        last_exc: Exception | None = None
+        for attempt in range(4):
+            try:
+                resp = self._session.post(url, headers=headers, json=body, timeout=30)
+                if resp.status_code == 404:
+                    return {}
+                if resp.status_code in (400, 403, 429, 500, 502, 503, 504) and attempt < 3:
+                    _time.sleep(0.6 * (2 ** attempt))
+                    continue
+                resp.raise_for_status()
+                data = resp.json()
+                rows = data.get("data") if isinstance(data, dict) else data
+                out: dict[str, dict[str, Any]] = {}
+                if isinstance(rows, list):
+                    for item in rows:
+                        if not isinstance(item, dict):
+                            continue
+                        inner = item.get("data") if isinstance(item.get("data"), dict) else item
+                        aid = str(inner.get("id") or item.get("id") or "").strip()
+                        if aid:
+                            out[aid] = inner
+                return out
+            except requests.RequestException as exc:
+                last_exc = exc
+                if attempt < 3:
+                    _time.sleep(0.6 * (2 ** attempt))
+                    continue
+                raise
+        if last_exc:
+            raise last_exc
+        return {}
+
     def get_asset_by_id(
         self,
         asset_id: str,
@@ -504,44 +568,53 @@ class AmsClient:
     ) -> dict[str, Any] | None:
         if not asset_id:
             return None
-        ams_type = self.ams_asset_type(asset_type) or "Folder"
-        projection = _AMS_PROJECTIONS.get(ams_type, _AMS_DEFAULT_PROJECTION)
-        url = (
-            f"{self._cfg.ams_base_url}/v2/type/{ams_type}/asset/{asset_id}"
-            f"?projection={projection}&limit=-1&offset=0"
-        )
-        headers = self._headers(
-            correlation_id,
+        bulk = self.get_assets_by_ids_only(
+            [asset_id],
+            correlation_id=correlation_id,
             global_user_id=global_user_id,
             global_customer_id=global_customer_id,
         )
-        # The AMS gateway intermittently returns 400/403/5xx under load for requests
-        # that succeed on retry. The resolver wraps every AMS call in an exponential
-        # backoff (3 attempts) for exactly this reason — mirror it so a flaky edge
-        # response doesn't turn into a false SKIP.
+        if bulk.get(asset_id):
+            return bulk[asset_id]
+        ams_type = self.ams_asset_type(asset_type) or "Folder"
+        type_chain = [ams_type]
+        for alt in ("FontSet", "Folder", "FontProject", "WebProject", "DigitalAd"):
+            if alt not in type_chain:
+                type_chain.append(alt)
         import time as _time
 
         last_exc: Exception | None = None
-        for attempt in range(4):
-            try:
-                resp = self._session.get(url, headers=headers, timeout=30)
-                if resp.status_code == 404:
+        for try_type in type_chain:
+            projection = _AMS_PROJECTIONS.get(try_type, _AMS_DEFAULT_PROJECTION)
+            url = (
+                f"{self._cfg.ams_base_url}/v2/type/{try_type}/asset/{asset_id}"
+                f"?projection={projection}&limit=-1&offset=0"
+            )
+            headers = self._headers(
+                correlation_id,
+                global_user_id=global_user_id,
+                global_customer_id=global_customer_id,
+            )
+            for attempt in range(4):
+                try:
+                    resp = self._session.get(url, headers=headers, timeout=30)
+                    if resp.status_code == 404:
+                        break
+                    if resp.status_code in (400, 403, 429, 500, 502, 503, 504) and attempt < 3:
+                        _time.sleep(0.6 * (2 ** attempt))
+                        continue
+                    resp.raise_for_status()
+                    data = resp.json()
+                    if isinstance(data, dict):
+                        inner = data.get("data")
+                        return inner if isinstance(inner, dict) else data
                     return None
-                if resp.status_code in (400, 403, 429, 500, 502, 503, 504) and attempt < 3:
-                    _time.sleep(0.6 * (2 ** attempt))
-                    continue
-                resp.raise_for_status()
-                data = resp.json()
-                if isinstance(data, dict):
-                    inner = data.get("data")
-                    return inner if isinstance(inner, dict) else data
-                return None
-            except requests.RequestException as exc:
-                last_exc = exc
-                if attempt < 3:
-                    _time.sleep(0.6 * (2 ** attempt))
-                    continue
-                raise
+                except requests.RequestException as exc:
+                    last_exc = exc
+                    if attempt < 3:
+                        _time.sleep(0.6 * (2 ** attempt))
+                        continue
+                    break
         if last_exc:
             raise last_exc
         return None

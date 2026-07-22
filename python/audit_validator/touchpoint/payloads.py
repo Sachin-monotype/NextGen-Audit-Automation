@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from audit_validator.export_ui_catalog import export_flow_defs
+
 
 @dataclass
 class SeedIds:
@@ -326,6 +328,52 @@ def _update_customer_settings_vars(seed: SeedIds) -> dict[str, Any]:
     if primary:
         inp["primaryContact"] = primary
     return {"input": inp}
+
+
+def export_csv_only() -> dict[str, Any]:
+    return {"input": {"format": "CSV"}}
+
+
+def export_font_scoped(seed: SeedIds) -> dict[str, Any]:
+    return {
+        "input": {
+            "format": "CSV",
+            "fontId": seed.family_id or seed.style_id or "",
+            "fontName": seed.family_name or "QA Export Font",
+        }
+    }
+
+
+def export_user_scoped(seed: SeedIds) -> dict[str, Any]:
+    return {
+        "input": {
+            "format": "CSV",
+            "subjectUserId": seed.profile_id or "",
+            "subjectUserName": "QA Export User",
+        }
+    }
+
+
+def export_webkit_scoped(seed: SeedIds) -> dict[str, Any]:
+    return {
+        "input": {
+            "format": "CSV",
+            "webkitId": seed.project_id or seed.list_id or "",
+            "webkitName": "QA Export Webkit",
+        }
+    }
+
+
+def export_roles(_seed: SeedIds) -> dict[str, Any]:
+    return {"input": {"format": "CSV"}}
+
+
+def export_users(_seed: SeedIds) -> dict[str, Any]:
+    return {"input": {"format": "CSV"}}
+
+
+def export_notifications(_seed: SeedIds) -> dict[str, Any]:
+    return {"input": {"format": "CSV"}}
 
 
 def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str, Any]:
@@ -1098,6 +1146,30 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
             **({"fileId": seed.file_id} if seed.file_id else {}),
             **({"projectId": seed.project_id} if seed.project_id else {}),
         },
+        # ── Batch exports (async Conductor) ──
+        "exportFontAssets": lambda: export_font_scoped(seed),
+        "exportFontProjects": lambda: export_font_scoped(seed),
+        "exportFontUsers": lambda: export_font_scoped(seed),
+        "exportFontWebkits": lambda: export_font_scoped(seed),
+        "exportReportingFonts": lambda: export_csv_only(),
+        "exportReportingUsers": lambda: export_csv_only(),
+        "exportReportingWebkits": lambda: export_csv_only(),
+        "exportUserAssets": lambda: export_user_scoped(seed),
+        "exportUserFonts": lambda: export_user_scoped(seed),
+        "exportUserProjects": lambda: export_user_scoped(seed),
+        "exportWebkitDomains": lambda: export_webkit_scoped(seed),
+        "exportWebkitFonts": lambda: export_webkit_scoped(seed),
+        "exportCompanyLibrary": lambda: export_csv_only(),
+        "exportMyLibrary": lambda: export_csv_only(),
+        "exportImportedFonts": lambda: export_csv_only(),
+        "exportLeavingSoonFonts": lambda: export_csv_only(),
+        "exportNotifications": lambda: export_notifications(seed),
+        "exportTags": lambda: export_csv_only(),
+        "exportServiceAccount": lambda: export_csv_only(),
+        "exportSsoMappings": lambda: export_csv_only(),
+        "exportTeams": lambda: export_csv_only(),
+        "exportRoles": lambda: export_roles(seed),
+        "exportUsers": lambda: export_users(seed),
         "exportFontTemplate": lambda: {
             "input": {
                 "columns": [
@@ -1668,3 +1740,5 @@ FLOW_DEFS.update(
 # "Search/ Family / Discovery" is the same path as Discovery/Browse (global).
 # Do NOT add it as a second FLOW_DEFS key — that duplicated generate runs.
 # Selection aliases are resolved in scenarios.expand_selection_to_scenarios.
+
+FLOW_DEFS.update(export_flow_defs())

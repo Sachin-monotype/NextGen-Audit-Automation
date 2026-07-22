@@ -710,6 +710,18 @@ class AmsDbClient:
             return None
         return self._hydrate(row, global_user_id=global_user_id)
 
+    def get_assets_by_ids_only(
+        self,
+        asset_ids: list[str],
+        *,
+        correlation_id: str = "",
+        global_user_id: str = "",
+        global_customer_id: str = "",
+    ) -> dict[str, dict[str, Any]]:
+        """Type-agnostic bulk lookup — mirrors HTTP ``POST /v2/assets/bulk``."""
+        del correlation_id, global_customer_id
+        return self.get_assets_by_ids(asset_ids, global_user_id=global_user_id)
+
     def get_assets_by_ids(
         self,
         asset_ids: list[str],

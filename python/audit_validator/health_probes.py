@@ -247,6 +247,308 @@ def _load_sample_context() -> dict[str, Any]:
     return ctx
 
 
+def _source_truth_db() -> bool:
+    cfg = load_source_validation_config()
+    return cfg.source_truth == "db" and cfg.mysql_source_ready
+
+
+def _mysql_display() -> str:
+    user = (os.getenv("MYSQL_USER") or "").strip()
+    host = (os.getenv("MYSQL_HOST") or "").strip()
+    port = int(os.getenv("MYSQL_PORT") or "3306")
+    return f"{user}@{host}:{port}" if host else "(MYSQL_HOST unset)"
+
+
+def _run_select_probe(
+    result: dict[str, Any],
+    sql: str,
+    params: tuple[Any, ...],
+    *,
+    ok_when,
+    start: float,
+) -> dict[str, Any]:
+    """Execute a read-only SQL probe and map to probe-shaped result."""
+    try:
+        from .source_validation.db.connection import connect, load_mysql_config
+
+        conn = connect(load_mysql_config())
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql, params)
+                row = cur.fetchone()
+        finally:
+            conn.close()
+        result["latency_ms"] = _now_ms(start)
+        result["reachable"] = True
+        result["status_code"] = 200
+        snippet = str(dict(row) if row else {})[:600]
+        result["response_snippet"] = snippet
+        if ok_when(row):
+            result.update(state="ok", ok=True, detail="Reachable — query returned data.")
+        else:
+            result.update(
+                state="error",
+                ok=False,
+                detail="Connected but query returned no matching row.",
+            )
+        return result
+    except Exception as exc:  # noqa: BLE001
+        result["latency_ms"] = _now_ms(start)
+        msg = str(exc)
+        is_auth = "1045" in msg or "Access denied" in msg
+        result.update(
+            state="blocked" if is_auth else "error",
+            reachable=False,
+            ok=False,
+            detail=f"MySQL query failed: {exc}",
+            hint=(
+                "Allowlist your IP on the RDS user grant or confirm MYSQL_PASSWORD."
+                if is_auth
+                else _VPN_HINT
+            ),
+        )
+        return result
+
+
+def probe_cms_db() -> dict[str, Any]:
+    ctx = _load_sample_context()
+    cfg = load_source_validation_config()
+    gcid = ctx["customer_id"] or cfg.gcid or "00000000-0000-0000-0000-000000000000"
+    display = _mysql_display()
+    sql = (
+        "SELECT id, name, display_name AS displayName "
+        "FROM customer_management.customers WHERE id = %s LIMIT 1"
+    )
+    result = _base(
+        "cms_customer",
+        "CMS · SELECT customer by id",
+        "source",
+        display,
+        "SELECT",
+        why=(
+            "Compares actor/subject customer fields against "
+            "customer_management.customers (SOURCE_TRUTH=db)."
+        ),
+    )
+    result["sample"] = f"customerId={gcid}"
+    result["request"] = {
+        "method": "SELECT",
+        "url": display,
+        "headers": {},
+        "params": {},
+        "body": sql.replace("%s", f"'{gcid}'"),
+    }
+    start = time.monotonic()
+    return _run_select_probe(
+        result,
+        sql,
+        (gcid,),
+        ok_when=lambda row: bool(row and row.get("id")),
+        start=start,
+    )
+
+
+def probe_ums_profiles_db() -> dict[str, Any]:
+    ctx = _load_sample_context()
+    gcid = ctx["customer_id"]
+    uid = ctx["user_id"]
+    display = _mysql_display()
+    sql = (
+        "SELECT profile_Id_uuid AS id, email, first_name AS firstName, "
+        "last_name AS lastName, role_name AS roleName "
+        "FROM user_management.vw_profile_details "
+        "WHERE profile_Id_uuid = %s LIMIT 1"
+    )
+    result = _base(
+        "ums_profiles",
+        "UMS · SELECT profile by id",
+        "source",
+        display,
+        "SELECT",
+        why=(
+            "Validates actor.enrichedSnapshot.user.profile.* from "
+            "user_management.vw_profile_details (SOURCE_TRUTH=db)."
+        ),
+    )
+    result["sample"] = f"profile.id={uid or '(none)'}"
+    result["request"] = {
+        "method": "SELECT",
+        "url": display,
+        "headers": {},
+        "params": {},
+        "body": sql.replace("%s", f"'{uid or '(profile_id)'}'"),
+    }
+    if not uid:
+        result.update(detail="No sample profile id available.", hint="Generate an event first.")
+        return result
+    start = time.monotonic()
+    return _run_select_probe(
+        result,
+        sql,
+        (uid,),
+        ok_when=lambda row: bool(row and row.get("id")),
+        start=start,
+    )
+
+
+def probe_ums_roles_db() -> dict[str, Any]:
+    ctx = _load_sample_context()
+    role_id = ctx["role_id"]
+    display = _mysql_display()
+    sql = (
+        "SELECT LOWER(BIN_TO_UUID(id)) AS id, display_name AS displayName, "
+        "type_id AS typeId "
+        "FROM user_management.roles WHERE id = UUID_TO_BIN(%s) LIMIT 1"
+    )
+    result = _base(
+        "ums_roles",
+        "UMS · SELECT role by id",
+        "source",
+        display,
+        "SELECT",
+        why="Validates role displayName / typeId from user_management.roles (SOURCE_TRUTH=db).",
+    )
+    result["sample"] = f"roleId={role_id or '(none)'}"
+    result["request"] = {
+        "method": "SELECT",
+        "url": display,
+        "headers": {},
+        "params": {},
+        "body": sql.replace("%s", f"'{role_id or '(role_id)'}'"),
+    }
+    if not role_id:
+        result.update(detail="No sample role id available.")
+        return result
+    start = time.monotonic()
+    return _run_select_probe(
+        result,
+        sql,
+        (role_id,),
+        ok_when=lambda row: bool(row and row.get("id")),
+        start=start,
+    )
+
+
+def probe_ums_teams_db() -> dict[str, Any]:
+    ctx = _load_sample_context()
+    gcid = ctx["customer_id"]
+    display = _mysql_display()
+    sql = (
+        "SELECT LOWER(BIN_TO_UUID(id)) AS id, name, description "
+        "FROM user_management.teams "
+        "WHERE customer_id = UUID_TO_BIN(%s) LIMIT 5"
+    )
+    result = _base(
+        "ums_teams",
+        "UMS · SELECT teams",
+        "source",
+        display,
+        "SELECT",
+        why="Validates team.name / description from user_management.teams (SOURCE_TRUTH=db).",
+    )
+    result["sample"] = f"customerId={gcid or '(none)'}"
+    result["request"] = {
+        "method": "SELECT",
+        "url": display,
+        "headers": {},
+        "params": {},
+        "body": sql.replace("%s", f"'{gcid or '(gcid)'}'"),
+    }
+    if not gcid:
+        result.update(detail="No sample customer id available.")
+        return result
+    start = time.monotonic()
+    return _run_select_probe(
+        result,
+        sql,
+        (gcid,),
+        ok_when=lambda row: bool(row),
+        start=start,
+    )
+
+
+def probe_ums_users_db() -> dict[str, Any]:
+    ctx = _load_sample_context()
+    idp = ctx.get("idp_user_id") or ""
+    display = _mysql_display()
+    sql = (
+        "SELECT idp_user_id AS idpUserId, first_name AS firstName, "
+        "last_name AS lastName, email "
+        "FROM user_management.users WHERE idp_user_id = %s LIMIT 1"
+    )
+    result = _base(
+        "ums_users",
+        "UMS · SELECT user by idpUserId",
+        "source",
+        display,
+        "SELECT",
+        why=(
+            "Rehydrates deletedProfiles[].user via user_management.users "
+            "(SOURCE_TRUTH=db)."
+        ),
+    )
+    result["sample"] = f"idpUserId={idp or '(edit to a real idp)'}"
+    result["request"] = {
+        "method": "SELECT",
+        "url": display,
+        "headers": {},
+        "params": {},
+        "body": sql.replace("%s", f"'{idp or 'auth0|example'}'"),
+    }
+    if not idp:
+        result.update(detail="No idpUserId from bearer — edit query to test.")
+        return result
+    start = time.monotonic()
+    return _run_select_probe(
+        result,
+        sql,
+        (idp,),
+        ok_when=lambda row: bool(row and row.get("idpUserId")),
+        start=start,
+    )
+
+
+def probe_ams_db() -> dict[str, Any]:
+    ctx = _load_sample_context()
+    asset_id = ctx["asset_id"]
+    display = _mysql_display()
+    sql = (
+        "SELECT asset_id AS id, asset_type AS assetType, created_by AS createdBy, "
+        "created_at AS createdAt "
+        "FROM asset_management.assets WHERE asset_id = %s LIMIT 1"
+    )
+    result = _base(
+        "ams_asset",
+        "AMS · SELECT asset by id",
+        "source",
+        display,
+        "SELECT",
+        why=(
+            "Validates subject.enrichedSnapshot.asset.* from "
+            "asset_management.assets (+ projects join at compare time)."
+        ),
+    )
+    result["sample"] = f"asset_id={asset_id or '(none)'}"
+    result["request"] = {
+        "method": "SELECT",
+        "url": display,
+        "headers": {},
+        "params": {},
+        "body": sql.replace("%s", f"'{asset_id or '(asset_id)'}'"),
+    }
+    if not asset_id:
+        result.update(detail="No sample asset id available.", hint="Generate an asset event first.")
+        return result
+    start = time.monotonic()
+    return _run_select_probe(
+        result,
+        sql,
+        (asset_id,),
+        ok_when=lambda row: bool(row and row.get("id")),
+        start=start,
+    )
+
+
 def probe_rabbitmq() -> dict[str, Any]:
     url = os.getenv("INGEST_RABBITMQ_URL") or os.getenv("RABBITMQ_URL") or ""
     parsed = urlparse(url)
@@ -828,6 +1130,15 @@ _PROBES = {
     "ams_asset": probe_ams,
 }
 
+_DB_SOURCE_PROBES = {
+    "cms_customer": probe_cms_db,
+    "ums_profiles": probe_ums_profiles_db,
+    "ums_roles": probe_ums_roles_db,
+    "ums_teams": probe_ums_teams_db,
+    "ums_users": probe_ums_users_db,
+    "ams_asset": probe_ams_db,
+}
+
 # Back-compat aliases so older UI calls (?target=cms/ums/discovery) still resolve.
 _PROBE_ALIASES = {
     "cms": "cms_customer",
@@ -838,6 +1149,8 @@ _PROBE_ALIASES = {
 
 def probe_one(target: str) -> dict[str, Any]:
     target = _PROBE_ALIASES.get(target, target)
+    if _source_truth_db() and target in _DB_SOURCE_PROBES:
+        return _DB_SOURCE_PROBES[target]()
     fn = _PROBES.get(target)
     if not fn:
         raise KeyError(target)
@@ -851,9 +1164,16 @@ def probe_all() -> list[dict[str, Any]]:
     global _SAMPLE_CACHE
     _SAMPLE_CACHE = None  # refresh Bearer-derived identity each Run all
 
+    use_db = _source_truth_db()
     order = list(_PROBES.keys())
+
+    def _run_probe(key: str) -> dict[str, Any]:
+        if use_db and key in _DB_SOURCE_PROBES:
+            return _DB_SOURCE_PROBES[key]()
+        return _PROBES[key]()
+
     with ThreadPoolExecutor(max_workers=len(order)) as pool:
-        results = list(pool.map(probe_one, order))
+        results = list(pool.map(_run_probe, order))
     return results
 
 
