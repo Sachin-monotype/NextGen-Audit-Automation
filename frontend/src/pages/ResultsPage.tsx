@@ -992,7 +992,8 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                   </thead>
                   <tbody>
                     {scenarioValueRows
-                      .filter((r) => !r.same || !fieldSearch.trim() || rowMatchesFieldSearch(
+                      .filter((r) => !r.same)
+                      .filter((r) => !fieldSearch.trim() || rowMatchesFieldSearch(
                         {
                           operation: "",
                           field: "",
@@ -1028,7 +1029,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                   <input
                     value={scenarioStructureFilter}
                     onChange={(e) => setScenarioStructureFilter(e.target.value)}
-                    placeholder="json path…"
+                    placeholder="e.g. activationType, catalog.md5…"
                   />
                 </label>
                 <div className="result-table-wrap compact-table-wrap">
@@ -1039,6 +1040,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                         {scenarioCompareOps.map((op) => (
                           <th key={op}>{op}</th>
                         ))}
+                        <th>Diff</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1048,30 +1050,33 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                           if (!q) return true;
                           return r.path.toLowerCase().includes(q);
                         })
-                        .filter((r) => {
-                          const present = Object.values(r.presence).filter(Boolean).length;
-                          return present > 0 && present < scenarioCompareOps.length;
-                        })
                         .slice(0, 500)
                         .map((r) => (
-                          <tr key={r.path}>
+                          <tr key={r.path} className={r.kind === "value" ? "fail" : "skip"}>
                             <td><code>{r.path}</code></td>
                             {scenarioCompareOps.map((op) => (
-                              <td key={op}>
+                              <td key={op} className="result-list-value">
                                 {r.presence[op] ? (
-                                  <span className="badge pass">yes</span>
+                                  <code>{r.values[op]}</code>
                                 ) : (
                                   <span className="badge na">—</span>
                                 )}
                               </td>
                             ))}
+                            <td>
+                              <span className={`badge ${r.kind === "value" ? "fail" : "skip"}`}>
+                                {r.kind === "value" ? "VALUE" : "MISSING"}
+                              </span>
+                            </td>
                           </tr>
                         ))}
                     </tbody>
                   </table>
                 </div>
                 <p className="muted">
-                  Showing paths that differ between scenarios (max 500). Use filter to narrow.
+                  Only real differences: normalized paths (array indexes collapsed to [*]), scalar arrays
+                  like catalog.md5 compared as whole lists, and metadata.input aliases synced with
+                  subject.activationType. Max 500 rows — filter to narrow.
                 </p>
               </>
             )}

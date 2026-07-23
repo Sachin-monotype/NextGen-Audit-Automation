@@ -9,37 +9,116 @@ export type ScenarioValueRow = {
 export type ScenarioStructureRow = {
   path: string;
   presence: Record<string, boolean>;
+  values: Record<string, string>;
+  kind: "presence" | "value";
 };
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-/** Flatten enriched JSON into dot/bracket paths (leaf scalars only). */
-export function flattenJsonPaths(value: unknown, prefix = ""): string[] {
-  if (value === null || value === undefined) {
-    return prefix ? [prefix] : [];
+/** Collapse numeric array indexes so length-only diffs do not spawn [0]/[1] rows. */
+export function normalizeStructurePath(path: string): string {
+  return path.replace(/\[\d+\]/g, "[*]");
+}
+
+/** Equivalent enriched paths (resolver root vs preserved metadata.input). */
+const PATH_ALIASES: ReadonlyArray<readonly [string, string]> = [
+  ["subject.activationType", "subject.metadata.input.activationType"],
+  ["subject.activationMode", "subject.metadata.input.activationMode"],
+  ["subject.deactivationType", "subject.metadata.input.deactivationType"],
+];
+
+function isScalarLeaf(v: unknown): boolean {
+  return v === null || v === undefined || typeof v !== "object";
+}
+
+function isScalarArray(arr: unknown[]): boolean {
+  return arr.every((x) => isScalarLeaf(x));
+}
+
+function serializeScalar(v: unknown): string {
+  if (v === null || v === undefined) return "null";
+  if (typeof v === "boolean") return v ? "true" : "false";
+  return String(v);
+}
+
+function serializeScalarArray(arr: unknown[]): string {
+  return JSON.stringify(arr.map(serializeScalar));
+}
+
+function structureValuesEqual(a: string, b: string, path: string): boolean {
+  if (a === b) return true;
+  if (/activationtype|activationmode|deactivationtype/i.test(path)) {
+    return a.toLowerCase() === b.toLowerCase();
   }
-  if (Array.isArray(value)) {
-    if (!value.length) return prefix ? [prefix] : [];
-    const out: string[] = [];
-    value.forEach((item, i) => {
-        const key = prefix ? `${prefix}[${i}]` : `[${i}]`;
-        out.push(...flattenJsonPaths(item, key));
-      });
-    return out;
+  return false;
+}
+
+function uniqueStructureValues(values: string[], path: string): number {
+  const uniq: string[] = [];
+  for (const v of values) {
+    if (!uniq.some((u) => structureValuesEqual(u, v, path))) uniq.push(v);
   }
-  if (isPlainObject(value)) {
-    const keys = Object.keys(value);
-    if (!keys.length) return prefix ? [prefix] : [];
-    const out: string[] = [];
-    for (const k of keys) {
-      const key = prefix ? `${prefix}.${k}` : k;
-      out.push(...flattenJsonPaths(value[k], key));
+  return uniq.length;
+}
+
+/** Collect normalized path → serialized leaf value (scalar arrays collapsed). */
+export function collectStructureEntries(json: unknown): Map<string, string> {
+  const out = new Map<string, string>();
+
+  function walk(value: unknown, prefix: string): void {
+    if (value === null || value === undefined) {
+      if (prefix) out.set(normalizeStructurePath(prefix), "null");
+      return;
     }
-    return out;
+    if (Array.isArray(value)) {
+      if (!value.length) {
+        if (prefix) out.set(normalizeStructurePath(prefix), "[]");
+        return;
+      }
+      if (isScalarArray(value)) {
+        out.set(normalizeStructurePath(prefix), serializeScalarArray(value));
+        return;
+      }
+      for (let i = 0; i < value.length; i += 1) {
+        const seg = prefix ? `${prefix}[${i}]` : `[${i}]`;
+        walk(value[i], seg);
+      }
+      return;
+    }
+    if (isPlainObject(value)) {
+      const keys = Object.keys(value);
+      if (!keys.length) {
+        if (prefix) out.set(normalizeStructurePath(prefix), "{}");
+        return;
+      }
+      for (const k of keys) {
+        const key = prefix ? `${prefix}.${k}` : k;
+        walk(value[k], key);
+      }
+      return;
+    }
+    if (prefix) out.set(normalizeStructurePath(prefix), serializeScalar(value));
   }
-  return prefix ? [prefix] : [];
+
+  walk(json, "");
+  applyPathAliases(out);
+  return out;
+}
+
+function applyPathAliases(entries: Map<string, string>): void {
+  for (const [a, b] of PATH_ALIASES) {
+    const va = entries.get(a);
+    const vb = entries.get(b);
+    if (va !== undefined && vb === undefined) entries.set(b, va);
+    else if (vb !== undefined && va === undefined) entries.set(a, vb);
+  }
+}
+
+/** Flatten enriched JSON into normalized structure paths. */
+export function flattenJsonPaths(value: unknown): string[] {
+  return [...collectStructureEntries(value).keys()];
 }
 
 export function compareScenarioValues(
@@ -73,24 +152,46 @@ export function compareScenarioStructure(
   operations: string[],
   enrichedByOp: Record<string, unknown>,
 ): ScenarioStructureRow[] {
-  const pathSets = new Map<string, Set<string>>();
+  const entriesByOp = new Map<string, Map<string, string>>();
   for (const op of operations) {
     const json = enrichedByOp[op];
-    pathSets.set(op, new Set(json ? flattenJsonPaths(json) : []));
+    entriesByOp.set(op, json ? collectStructureEntries(json) : new Map());
   }
+
   const allPaths = new Set<string>();
-  for (const s of pathSets.values()) {
-    for (const p of s) allPaths.add(p);
+  for (const m of entriesByOp.values()) {
+    for (const p of m.keys()) allPaths.add(p);
   }
-  return [...allPaths]
-    .sort((a, b) => a.localeCompare(b))
-    .map((path) => {
-      const presence: Record<string, boolean> = {};
-      for (const op of operations) {
-        presence[op] = pathSets.get(op)?.has(path) ?? false;
-      }
-      return { path, presence };
+
+  const rows: ScenarioStructureRow[] = [];
+  for (const path of [...allPaths].sort((a, b) => a.localeCompare(b))) {
+    const presence: Record<string, boolean> = {};
+    const values: Record<string, string> = {};
+    for (const op of operations) {
+      const v = entriesByOp.get(op)?.get(path);
+      presence[op] = v !== undefined;
+      values[op] = v ?? "—";
+    }
+
+    const presentOps = operations.filter((op) => presence[op]);
+    const presentCount = presentOps.length;
+    const presentValues = presentOps.map((op) => values[op]);
+    const valueDiff =
+      presentCount === operations.length &&
+      uniqueStructureValues(presentValues, path) > 1;
+
+    const presenceDiff = presentCount > 0 && presentCount < operations.length;
+
+    if (!presenceDiff && !valueDiff) continue;
+
+    rows.push({
+      path,
+      presence,
+      values,
+      kind: valueDiff ? "value" : "presence",
     });
+  }
+  return rows;
 }
 
 export function structureDiffSummary(rows: ScenarioStructureRow[]): {
