@@ -1073,24 +1073,21 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
 
     export_meta = export_spec(op)
     if export_meta:
-        touch_canon = touch or export_touchpoint(op)
-        ts = short_touch(touch_canon)
+        touch_canon = "Discovery/Browse (global)"
+        ts = "global"
         button = str(export_meta.get("button") or "Export")
-        gap = str(export_meta.get("web_gap") or "").strip()
         ui_steps = export_meta.get("steps") or []
         rows: list[dict[str, str]] = []
-        for step in ui_steps:
-            rows.append(
-                _row(str(step), f"{button} visible and page loaded.")
+        for step in ui_steps[:3]:
+            rows.append(_row(str(step), f"Page loaded; {button} is visible when applicable."))
+        op_name = op[0].upper() + op[1:] if op else op
+        rows.append(
+            _row(
+                f"Network filter operationName={op_name} → copy response header "
+                f"correlation-id (NOT x-correlation-id) → emit AUDIT_RESULT.",
+                audit_expected(op),
             )
-        capture = (
-            f"Network filter operationName={op[0].upper() + op[1:]} → copy response header "
-            f"correlation-id (NOT x-correlation-id) → emit AUDIT_RESULT."
         )
-        if gap:
-            capture += f" If UI is stubbed: {gap} Use GraphQL generate path instead."
-        rows.append(_row(capture, audit_expected(op)))
-        rows.append(_capture(op, ts))
         return _S(*rows, op=op, touch=touch_canon)
 
     return _S(

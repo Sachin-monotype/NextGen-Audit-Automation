@@ -624,6 +624,20 @@ _FONT_OPS = frozenset({
     "activateFamily", "activateStyle", "deactivateStyle", "activateVariation",
     "bulkActivateStyles", "bulkDeactivateStyles", "addFavoriteStyles", "addFavoriteFamilies",
 })
+_EXPORT_OPS = frozenset({
+    "exportFontAssets",
+    "exportFontProjects",
+    "exportFontUsers",
+    "exportFontWebkits",
+    "exportImportedFonts",
+    "exportMyLibrary",
+    "exportNotifications",
+    "exportRoles",
+    "exportTags",
+    "exportCompanyLibrary",
+    "exportTeams",
+    "exportUsers",
+})
 _ROLE_OPS = frozenset({"createRole", "updateRole", "deleteRoles"})
 _ASSET_OPS = frozenset({
     "createProject", "publishProject", "createAsset", "updateAsset", "createWebProject",
@@ -634,7 +648,45 @@ _EXCEL_SHEET_BY_OP = {
 }
 
 
+def _export_batch_fields(operation: str) -> list[MappingField]:
+    """Async batch export mutations — source is GraphQL input + response batchId."""
+    fields = _event_header_fields(operation)
+    fields.extend(
+        [
+            MappingField(
+                "subject", "batchId", "", "",
+                "Source: GraphQL mutation response batchId", "", "Y",
+                "subject.batchId", "GraphQL", "mutation response batchId", "subject",
+            ),
+            MappingField(
+                "subject", "type", "", "",
+                "Source: GraphQL mutation response subject.type", "", "Y",
+                "subject.type", "GraphQL", "mutation response", "subject",
+            ),
+            MappingField(
+                "subject", "metadata", "input", "format",
+                "Source: GraphQL mutation input format (CSV)", "", "Y",
+                "subject.metadata.input.format", "GraphQL", "mutation input", "subject",
+            ),
+            MappingField(
+                "subject", "metadata", "result", "status", "",
+                "Source: GraphQL mutation response status", "", "Y",
+                "subject.metadata.result.status", "GraphQL", "mutation response", "subject",
+            ),
+            MappingField(
+                "subject", "metadata", "result", "message", "",
+                "Source: GraphQL mutation response message", "", "N",
+                "subject.metadata.result.message", "GraphQL", "mutation response", "subject",
+            ),
+        ]
+    )
+    fields.extend(_actor_fields())
+    return fields
+
+
 def _builtin_mapping(operation: str) -> list[MappingField]:
+    if operation in _EXPORT_OPS:
+        return _export_batch_fields(operation)
     if operation in _FONT_OPS:
         return _font_envelope_fields(operation)
     if operation == "activateList":

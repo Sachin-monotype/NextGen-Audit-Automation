@@ -1,98 +1,53 @@
 {
-  "version": 1,
-  "notes": "UI steps for batch export mutations. GQL payloads use format CSV; customer/user scope comes from Bearer JWT unless noted.",
+  "version": 2,
+  "notes": "Batch export UI steps. All scenarios use Discovery/Browse (global) → display exportOp(global). GQL payloads use format CSV unless scoped (font drawer).",
   "exports": {
-    "exportUsers": {
-      "touchpoint": "User & Access",
-      "url_hint": "/manage/users-and-teams/users",
-      "button": "Export filtered data",
-      "gql_export": "EXPORT_USERS",
-      "steps": [
-        "Go to Manage → Users & teams.",
-        "Open the Users tab (Active users).",
-        "Optionally apply a filter (e.g. Active status) so the toolbar shows Export filtered data.",
-        "Click Export filtered data (or Export all data when no filters are applied)."
-      ],
-      "web_gap": "UI may download CSV client-side today; capture ExportUsers GraphQL when the async export is wired."
-    },
-    "exportTeams": {
-      "touchpoint": "User & Access",
-      "url_hint": "/manage/users-and-teams/teams",
-      "button": "Export all data",
-      "gql_export": "EXPORT_TEAMS",
-      "steps": [
-        "Go to Manage → Users & teams.",
-        "Open the Teams tab.",
-        "Click Export all data (or Export filtered data when filters are applied)."
-      ]
-    },
-    "exportRoles": {
-      "touchpoint": "User & Access",
-      "url_hint": "/manage/users-and-teams/roles",
-      "button": "Export all data",
-      "gql_export": "EXPORT_ROLES",
-      "steps": [
-        "Go to Manage → Users & teams.",
-        "Open the Roles tab.",
-        "Click Export all data (Unassigned roles view uses the same export control when filtered)."
-      ]
-    },
-    "exportServiceAccount": {
-      "touchpoint": "User & Access",
-      "url_hint": "/manage/users-and-teams/servers",
+    "exportFontAssets": {
+      "touchpoint": "Discovery/Browse (global)",
+      "url_hint": "/manage/usage-activity/fonts",
       "button": "Export data",
-      "gql_export": "EXPORT_SERVICE_ACCOUNT",
+      "gql_export": "EXPORT_FONT_ASSETS",
       "steps": [
-        "Go to Manage → Users & teams.",
-        "Open the Servers tab.",
+        "Go to Manage → Usage activity → Fonts tab.",
+        "Open a font usage row and open the drawer → Assets tab.",
         "Click Export data."
       ]
     },
-    "exportSsoMappings": {
-      "touchpoint": "User & Access",
-      "url_hint": "/manage/users-and-teams/sso",
-      "button": "Export all data",
-      "gql_export": "EXPORT_SSO_MAPPINGS",
+    "exportFontProjects": {
+      "touchpoint": "Discovery/Browse (global)",
+      "url_hint": "/manage/usage-activity/fonts",
+      "button": "Export data",
+      "gql_export": "EXPORT_FONT_PROJECTS",
       "steps": [
-        "Go to Manage → Users & teams.",
-        "Open the SSO tab.",
-        "Click Export all data when enabled (currently may be disabled in UI — use GQL trigger if WEB GAP)."
-      ],
-      "web_gap": "SSO export button may be disabled; fire exportSsoMappings via GraphQL generate if UI stub."
-    },
-    "exportTags": {
-      "touchpoint": "Manage>Tags",
-      "url_hint": "/manage/tags",
-      "button": "Export all data",
-      "gql_export": "EXPORT_TAGS",
-      "steps": [
-        "Go to Manage → Tags.",
-        "Stay on All tags (or Unused tags tab).",
-        "Click Export all data."
+        "Go to Manage → Usage activity → Fonts tab.",
+        "Open a font usage row and open the drawer → Projects tab.",
+        "Click Export data."
       ]
     },
-    "exportCompanyLibrary": {
-      "touchpoint": "Manage>Company library",
-      "url_hint": "/manage/company-assets/company-library",
-      "button": "Export All Data",
-      "gql_export": "EXPORT_COMPANY_LIBRARY",
+    "exportFontUsers": {
+      "touchpoint": "Discovery/Browse (global)",
+      "url_hint": "/manage/usage-activity/fonts",
+      "button": "Export data",
+      "gql_export": "EXPORT_FONT_USERS",
       "steps": [
-        "Go to Manage → Company assets → Company Library.",
-        "Click Export All Data in the action bar."
+        "Go to Manage → Usage activity → Fonts tab.",
+        "Open a font usage row and open the drawer → Users tab.",
+        "Click Export data."
       ]
     },
-    "exportMyLibrary": {
-      "touchpoint": "My Library",
-      "url_hint": "/library",
-      "button": "Export All Data",
-      "gql_export": "EXPORT_MY_LIBRARY",
+    "exportFontWebkits": {
+      "touchpoint": "Discovery/Browse (global)",
+      "url_hint": "/manage/usage-activity/fonts",
+      "button": "Export data",
+      "gql_export": "EXPORT_FONT_WEBKITS",
       "steps": [
-        "Open My Library.",
-        "On the Assets tab (or Webkits tab), click Export All Data."
+        "Go to Manage → Usage activity → Fonts tab.",
+        "Open a font usage row and open the drawer → Webkits tab.",
+        "Click Export data."
       ]
     },
     "exportImportedFonts": {
-      "touchpoint": "Manage>Imported fonts",
+      "touchpoint": "Discovery/Browse (global)",
       "url_hint": "/manage/imported-fonts/fonts",
       "button": "Export list",
       "gql_export": "EXPORT_IMPORTED_FONTS",
@@ -100,174 +55,84 @@
         "Go to Manage → Imported fonts.",
         "Open the Fonts tab.",
         "Click Export list."
-      ],
-      "web_gap": "UI may call exportFontTemplate (sync CSV) instead of exportImportedFonts batch mutation."
+      ]
     },
-    "exportLeavingSoonFonts": {
-      "touchpoint": "Discover>Leaving soon",
-      "url_hint": "/discover-fonts/leaving-soon",
-      "button": "Export all data",
-      "gql_export": "EXPORT_LEAVING_SOON_FONTS",
+    "exportMyLibrary": {
+      "touchpoint": "Discovery/Browse (global)",
+      "url_hint": "/library",
+      "button": "Export All Data",
+      "gql_export": "EXPORT_MY_LIBRARY",
       "steps": [
-        "Go to Discover fonts → Leaving soon.",
-        "Click Export all data and confirm in the modal."
-      ],
-      "web_gap": "Confirm modal may not call mutation yet — capture exportLeavingSoonFonts from GQL generate if WEB GAP."
-    },
-    "exportReportingFonts": {
-      "touchpoint": "Manage>Usage activity",
-      "url_hint": "/manage/usage-activity/fonts",
-      "button": "Export",
-      "gql_export": "EXPORT_REPORTING_FONTS",
-      "steps": [
-        "Go to Manage → Usage activity.",
-        "Open the Fonts tab.",
-        "Click Export in the toolbar and confirm."
-      ],
-      "web_gap": "Export confirm modal may be a stub — use GQL generate when UI does not fire mutation."
-    },
-    "exportReportingUsers": {
-      "touchpoint": "Manage>Usage activity",
-      "url_hint": "/manage/usage-activity/users",
-      "button": "Export",
-      "gql_export": "EXPORT_REPORTING_USERS",
-      "steps": [
-        "Go to Manage → Usage activity.",
-        "Open the Users tab.",
-        "Click Export in the toolbar and confirm."
-      ],
-      "web_gap": "Export confirm modal may be a stub — use GQL generate when UI does not fire mutation."
-    },
-    "exportReportingWebkits": {
-      "touchpoint": "Manage>Usage activity",
-      "url_hint": "/manage/usage-activity/webkits",
-      "button": "Export",
-      "gql_export": "EXPORT_REPORTING_WEBKITS",
-      "steps": [
-        "Go to Manage → Usage activity.",
-        "Open the Webkits tab.",
-        "Click Export in the toolbar and confirm."
-      ],
-      "web_gap": "Export confirm modal may be a stub — use GQL generate when UI does not fire mutation."
-    },
-    "exportFontAssets": {
-      "touchpoint": "Manage>Usage activity>Font drawer",
-      "url_hint": "/manage/usage-activity/fonts",
-      "button": "Export data",
-      "gql_export": "EXPORT_FONT_ASSETS",
-      "steps": [
-        "Go to Manage → Usage activity → Fonts tab.",
-        "Open a font usage drawer.",
-        "On the Assets tab, click Export data."
-      ],
-      "web_gap": "Drawer export may be un wired — use GQL generate with fontId from drawer context."
-    },
-    "exportFontProjects": {
-      "touchpoint": "Manage>Usage activity>Font drawer",
-      "url_hint": "/manage/usage-activity/fonts",
-      "button": "Export data",
-      "gql_export": "EXPORT_FONT_PROJECTS",
-      "steps": [
-        "Go to Manage → Usage activity → Fonts tab.",
-        "Open a font usage drawer.",
-        "On the Projects tab, click Export data."
-      ],
-      "web_gap": "Drawer export may be un wired — use GQL generate with fontId from drawer context."
-    },
-    "exportFontUsers": {
-      "touchpoint": "Manage>Usage activity>Font drawer",
-      "url_hint": "/manage/usage-activity/fonts",
-      "button": "Export data",
-      "gql_export": "EXPORT_FONT_USERS",
-      "steps": [
-        "Go to Manage → Usage activity → Fonts tab.",
-        "Open a font usage drawer.",
-        "On the Users tab, click Export data."
-      ],
-      "web_gap": "Drawer export may be un wired — use GQL generate with fontId from drawer context."
-    },
-    "exportFontWebkits": {
-      "touchpoint": "Manage>Usage activity>Font drawer",
-      "url_hint": "/manage/usage-activity/fonts",
-      "button": "Export data",
-      "gql_export": "EXPORT_FONT_WEBKITS",
-      "steps": [
-        "Go to Manage → Usage activity → Fonts tab.",
-        "Open a font usage drawer.",
-        "On the Webkits tab, click Export data."
-      ],
-      "web_gap": "Drawer export may be un wired — use GQL generate with fontId from drawer context."
-    },
-    "exportUserAssets": {
-      "touchpoint": "Manage>Usage activity>User drawer",
-      "url_hint": "/manage/usage-activity/users",
-      "button": "Export data",
-      "gql_export": "EXPORT_USER_ASSETS",
-      "steps": [
-        "Go to Manage → Usage activity → Users tab.",
-        "Open a user usage drawer.",
-        "On the Assets tab, click Export data."
-      ],
-      "web_gap": "Drawer export may be un wired — use GQL generate with subjectUserId from drawer."
-    },
-    "exportUserFonts": {
-      "touchpoint": "Manage>Usage activity>User drawer",
-      "url_hint": "/manage/usage-activity/users",
-      "button": "Export data",
-      "gql_export": "EXPORT_USER_FONTS",
-      "steps": [
-        "Go to Manage → Usage activity → Users tab.",
-        "Open a user usage drawer.",
-        "On the Fonts tab, click Export data."
-      ],
-      "web_gap": "Drawer export may be un wired — use GQL generate with subjectUserId from drawer."
-    },
-    "exportUserProjects": {
-      "touchpoint": "Manage>Usage activity>User drawer",
-      "url_hint": "/manage/usage-activity/users",
-      "button": "Export data",
-      "gql_export": "EXPORT_USER_PROJECTS",
-      "steps": [
-        "Go to Manage → Usage activity → Users tab.",
-        "Open a user usage drawer.",
-        "On the Projects tab, click Export data."
-      ],
-      "web_gap": "Drawer export may be un wired — use GQL generate with subjectUserId from drawer."
-    },
-    "exportWebkitDomains": {
-      "touchpoint": "Manage>Usage activity>Webkit drawer",
-      "url_hint": "/manage/usage-activity/webkits",
-      "button": "Export data",
-      "gql_export": "EXPORT_WEBKIT_DOMAINS",
-      "steps": [
-        "Go to Manage → Usage activity → Webkits tab.",
-        "Open Domains served (or webkit usage drawer).",
-        "Click Export data."
-      ],
-      "web_gap": "May only log analytics today — use GQL generate with webkitId."
-    },
-    "exportWebkitFonts": {
-      "touchpoint": "Manage>Usage activity>Webkit drawer",
-      "url_hint": "/manage/usage-activity/webkits",
-      "button": "Export data",
-      "gql_export": "EXPORT_WEBKIT_FONTS",
-      "steps": [
-        "Go to Manage → Usage activity → Webkits tab.",
-        "Open a webkit usage drawer.",
-        "On the Fonts tab, click Export data."
-      ],
-      "web_gap": "Drawer export may be un wired — use GQL generate with webkitId."
+        "Open My Library.",
+        "Stay on the Assets tab (or Webkits tab).",
+        "Click Export All Data."
+      ]
     },
     "exportNotifications": {
-      "touchpoint": "Notifications",
+      "touchpoint": "Discovery/Browse (global)",
       "url_hint": "/notifications",
-      "button": "Export",
+      "button": "Export all data",
       "gql_export": "EXPORT_NOTIFICATIONS",
       "steps": [
-        "Open Notifications inbox.",
-        "Use export control if present; otherwise trigger exportNotifications via GraphQL generate (no UI yet)."
-      ],
-      "web_gap": "No export UI in notifications inbox — GQL-only until UI ships."
+        "Open Notifications.",
+        "Stay on All notifications.",
+        "Click Export all data."
+      ]
+    },
+    "exportRoles": {
+      "touchpoint": "Discovery/Browse (global)",
+      "url_hint": "/manage/users-and-teams/roles",
+      "button": "Export all data",
+      "gql_export": "EXPORT_ROLES",
+      "steps": [
+        "Go to Manage → Users & teams.",
+        "Open the Roles tab.",
+        "Click Export all data."
+      ]
+    },
+    "exportTags": {
+      "touchpoint": "Discovery/Browse (global)",
+      "url_hint": "/manage/tags",
+      "button": "Export data",
+      "gql_export": "EXPORT_TAGS",
+      "steps": [
+        "Go to Manage → Tags.",
+        "Stay on All tags.",
+        "Click Export data."
+      ]
+    },
+    "exportCompanyLibrary": {
+      "touchpoint": "Discovery/Browse (global)",
+      "url_hint": "/manage/company-assets/company-library",
+      "button": "Export All Data",
+      "gql_export": "EXPORT_COMPANY_LIBRARY",
+      "steps": [
+        "Go to Manage → Company assets → Company Library.",
+        "Wait for the library table to load.",
+        "Click Export All Data."
+      ]
+    },
+    "exportTeams": {
+      "touchpoint": "Discovery/Browse (global)",
+      "url_hint": "/manage/users-and-teams/teams",
+      "button": "Export all data",
+      "gql_export": "EXPORT_TEAMS",
+      "steps": [
+        "Go to Manage → Users & teams.",
+        "Open the Teams tab.",
+        "Click Export all data."
+      ]
+    },
+    "exportUsers": {
+      "touchpoint": "Discovery/Browse (global)",
+      "url_hint": "/manage/users-and-teams/users",
+      "button": "Export all data",
+      "gql_export": "EXPORT_USERS",
+      "steps": [
+        "Go to Manage → Users & teams.",
+        "Open the Users tab.",
+        "Click Export all data (or Export filtered data when filters are applied)."
+      ]
     }
   }
 }
