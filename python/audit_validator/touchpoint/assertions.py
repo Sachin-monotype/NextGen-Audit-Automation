@@ -102,3 +102,14 @@ def extract_raw_metadata_input(raw_doc: dict[str, Any]) -> dict[str, Any]:
     meta = subject.get("metadata") or msg.get("metadata") or {}
     inp = meta.get("input")
     return inp if isinstance(inp, dict) else {}
+
+
+def extract_raw_metadata_result(raw_doc: dict[str, Any]) -> dict[str, Any]:
+    """Pull subject.metadata.result (GraphQL mutation response at publish time)."""
+    msg = raw_doc.get("message") if isinstance(raw_doc.get("message"), dict) else raw_doc
+    if not isinstance(msg, dict):
+        return {}
+    subject = msg.get("subject") or {}
+    meta = subject.get("metadata") or msg.get("metadata") or {}
+    res = meta.get("result")
+    return res if isinstance(res, dict) else {}

@@ -271,7 +271,6 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const [deletingOp, setDeletingOp] = useState<string | null>(null);
   /** Bulk-select operations in the coverage table for deletion. */
   const [selectedOps, setSelectedOps] = useState<Set<string>>(new Set());
-  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
   const [refreshJobId, setRefreshJobId] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState("");
@@ -477,25 +476,6 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
       return true;
     });
   }, [allCoverageRows, coverageOutcome, highlightActive, highlightSet]);
-
-  const onDeleteSelected = useCallback(async () => {
-    if (!selectedOps.size) return;
-    if (!window.confirm(`Delete ${selectedOps.size} stored result(s)?`)) return;
-    setBulkDeleting(true);
-    try {
-      for (const op of selectedOps) {
-        try {
-          await deleteLatestResult(op);
-        } catch {
-          /* keep going; reload reflects what stuck */
-        }
-      }
-      setSelectedOps(new Set());
-      loadLatest();
-    } finally {
-      setBulkDeleting(false);
-    }
-  }, [selectedOps, loadLatest]);
 
   function toggleSelectOp(op: string) {
     setSelectedOps((prev) => {
@@ -962,14 +942,6 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
               />
               <span className="muted">select shown</span>
             </label>
-            <button
-              type="button"
-              className="danger"
-              disabled={!selectedOps.size || bulkDeleting}
-              onClick={() => void onDeleteSelected()}
-            >
-              {bulkDeleting ? "Deleting…" : `Delete selected (${selectedOps.size})`}
-            </button>
           </div>
           <div className="result-table-wrap compact-table-wrap">
             <table className="result-table coverage-table">

@@ -100,3 +100,109 @@ def load_trigger_context(project_root: Path, operation: str) -> dict[str, Any] |
         return data if isinstance(data, dict) else None
     except Exception:
         return None
+
+
+def _replay_graphql_live(
+    base_op: str,
+    inp: dict[str, Any],
+    *,
+    project_root: Path,
+) -> dict[str, Any] | None:
+    """Re-fire the mutation with captured input; return GraphQL ``data`` object."""
+    from audit_validator.simulation.client import DualEndpointGraphQLClient, GraphQLClient
+    from audit_validator.simulation.config import load_simulation_config
+    from audit_validator.utility.operation_graphql import (
+        get_document_for_operation,
+        is_nextgen_ui_operation,
+    )
+
+    document = get_document_for_operation(base_op)
+    if not document or not inp:
+        return None
+    cfg = load_simulation_config(project_root)
+    try:
+        if is_nextgen_ui_operation(base_op):
+            client = DualEndpointGraphQLClient(cfg)
+        else:
+            client = GraphQLClient(cfg)
+        data = client.request(document, {"input": inp})
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def build_trigger_from_captured_event(
+    operation: str,
+    raw_event: dict[str, Any],
+    enriched: dict[str, Any] | None = None,
+    *,
+    project_root: Path | None = None,
+) -> dict[str, Any] | None:
+    """Build trigger context from a paired raw event — never use raw envelope as row source.
+
+    Prefer ``subject.metadata.result`` (mutation response at publish). When absent,
+    re-fire GraphQL with ``subject.metadata.input`` so Compare can source join keys
+    and response fields from the API — not the published raw envelope.
+    """
+    from audit_validator.touchpoint.assertions import (
+        extract_raw_metadata_input,
+        extract_raw_metadata_result,
+    )
+
+    msg = raw_event.get("message") if isinstance(raw_event.get("message"), dict) else raw_event
+    if not isinstance(msg, dict):
+        return None
+
+    base_op = operation.split("(", 1)[0].strip() if "(" in operation else operation
+    op_name = str((msg.get("source") or {}).get("operation") or base_op).strip() or base_op
+
+    inp = extract_raw_metadata_input(raw_event)
+    if not inp and enriched:
+        meta = ((enriched.get("subject") or {}).get("metadata") or {}).get("input")
+        if isinstance(meta, dict):
+            inp = meta
+
+    result = extract_raw_metadata_result(raw_event)
+    gql_response: dict[str, Any] = {}
+    replay_mode = "input_only"
+    if result:
+        gql_response = {op_name: result}
+        replay_mode = "metadata.result"
+    elif project_root is not None and inp:
+        live_data = _replay_graphql_live(base_op, inp, project_root=project_root)
+        if live_data:
+            gql_response = live_data
+            replay_mode = "live_replay"
+
+    source = msg.get("source") if isinstance(msg.get("source"), dict) else {}
+    cid = str(msg.get("xCorrelationId") or (enriched or {}).get("xCorrelationId") or "")
+
+    ctx = build_trigger_context(
+        operation=op_name,
+        correlation_id=cid,
+        graphql_response=gql_response,
+        graphql_input=inp,
+        user_agent=str(source.get("actorUserAgent") or "") or None,
+    )
+    for key in (
+        "operation",
+        "service",
+        "platform",
+        "platformEnvironment",
+        "platformVersion",
+        "actorUserAgent",
+        "operationState",
+        "operationIndex",
+        "type",
+    ):
+        if key in source and source[key] not in (None, "", [], {}):
+            ctx["source"][key] = source[key]
+    if cid:
+        ctx["xCorrelationId"] = cid
+        ctx["correlation_id"] = cid
+    for key in ("eventId", "eventVersion", "occurredAt", "routingKey"):
+        val = msg.get(key)
+        if val not in (None, "", [], {}):
+            ctx[key] = val
+    ctx["replay_mode"] = replay_mode
+    return ctx

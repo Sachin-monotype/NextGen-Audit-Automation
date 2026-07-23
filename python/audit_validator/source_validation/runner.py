@@ -1406,6 +1406,7 @@ def run_source_validation(
     def _compare_one(op: str) -> tuple[str, list[ComparisonRow], OperationSourceResult]:
         enriched = samples[op]
         live = dict(live_by_op.get(op, {}))
+        raw_ev = None
         # GraphQL mutation response + trigger context captured at generate time
         gql_path = cfg.project_root / "payload" / "graphql" / f"{op}.json"
         if gql_path.is_file():
@@ -1413,24 +1414,34 @@ def run_source_validation(
                 live["graphql_response"] = json.loads(gql_path.read_text(encoding="utf-8"))
             except Exception:
                 pass
-        # The paired raw event (same xCorrelationId as enriched) is the authoritative
-        # source for envelope/metadata fields — platformEnvironment, platform,
-        # actorUserAgent, xCorrelationId, etc. Using it fixes the app-vs-web mismatch
-        # where those were compared against a re-fired GraphQL curl (env=web).
         raw_path = cfg.project_root / "payload" / "raw" / f"{op}.json"
         if raw_path.is_file():
             try:
-                live["raw_event"] = json.loads(raw_path.read_text(encoding="utf-8"))
+                raw_ev = json.loads(raw_path.read_text(encoding="utf-8"))
             except Exception:
-                pass
+                raw_ev = None
         try:
-            from audit_validator.simulation.trigger_context import load_trigger_context
             from audit_validator.auth import jwt_identity, resolve_our_profile_id
+            from audit_validator.simulation.trigger_context import (
+                build_trigger_from_captured_event,
+                load_trigger_context,
+            )
 
-            trigger = load_trigger_context(cfg.project_root, op)
+            trigger = None
+            if isinstance(raw_ev, dict):
+                trigger = build_trigger_from_captured_event(
+                    op,
+                    raw_ev,
+                    enriched,
+                    project_root=cfg.project_root,
+                )
+            if not trigger:
+                trigger = load_trigger_context(cfg.project_root, op)
             if trigger:
                 live["trigger"] = trigger
-                if not live.get("graphql_response") and isinstance(trigger.get("graphql_response"), dict):
+                if not live.get("graphql_response") and isinstance(
+                    trigger.get("graphql_response"), dict
+                ):
                     live["graphql_response"] = trigger["graphql_response"]
                 if isinstance(trigger.get("jwt_identity"), dict) and trigger["jwt_identity"]:
                     live["jwt_identity"] = trigger["jwt_identity"]
@@ -1441,6 +1452,8 @@ def run_source_validation(
                 live["our_profile_id"] = pid
         except Exception:
             pass
+        # Raw envelope is for pairing only — comparison sources GraphQL trigger/response.
+        live.pop("raw_event", None)
         paths = (field_paths_by_op or {}).get(op) if field_paths_by_op else None
         rows = build_comparison_rows(
             op, enriched, live=live, field_paths=paths
