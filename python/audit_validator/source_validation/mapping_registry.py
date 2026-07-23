@@ -638,7 +638,9 @@ _EXPORT_OPS = frozenset({
     "exportTeams",
     "exportUsers",
 })
-_ROLE_OPS = frozenset({"createRole", "updateRole", "deleteRoles"})
+_ROLE_OPS = frozenset({"createRole", "updateRole"})
+_DELETE_ROLE_OPS = frozenset({"deleteRoles"})
+_DELETE_TEAM_OPS = frozenset({"deleteTeams"})
 _ASSET_OPS = frozenset({
     "createProject", "publishProject", "createAsset", "updateAsset", "createWebProject",
 })
@@ -684,6 +686,61 @@ def _export_batch_fields(operation: str) -> list[MappingField]:
     return fields
 
 
+def _delete_teams_fields() -> list[MappingField]:
+    fields = _event_header_fields("deleteTeams")
+    fields.extend(
+        [
+            MappingField(
+                "subject", "id", "", "",
+                "Source: GraphQL mutation input ids", "", "Y",
+                "subject.id", "GraphQL", "mutation input ids", "subject",
+            ),
+            MappingField(
+                "subject", "type", "", "",
+                "Source: GraphQL mutation subject.type", "", "Y",
+                "subject.type", "GraphQL", "mutation response", "subject",
+            ),
+            MappingField(
+                "subject.enrichedSnapshot", "teams", "id", "",
+                "Source: GraphQL mutation input ids (teamIds)", "", "Y",
+                "subject.enrichedSnapshot.teams[0].id", "GraphQL", "mutation input ids", "subject",
+            ),
+        ]
+    )
+    fields.extend(_actor_fields())
+    return fields
+
+
+def _delete_roles_fields() -> list[MappingField]:
+    fields = _event_header_fields("deleteRoles")
+    fields.extend(
+        [
+            MappingField(
+                "subject", "id", "", "",
+                "Source: GraphQL mutation input ids", "", "Y",
+                "subject.id", "GraphQL", "mutation input ids", "subject",
+            ),
+            MappingField(
+                "subject", "type", "", "",
+                "Source: GraphQL mutation subject.type", "", "Y",
+                "subject.type", "GraphQL", "mutation response", "subject",
+            ),
+            MappingField(
+                "subject.enrichedSnapshot", "role", "id", "",
+                "Source: GraphQL mutation input ids (deleted role)", "", "Y",
+                "subject.enrichedSnapshot.role.id", "GraphQL", "mutation input ids", "subject",
+            ),
+            MappingField(
+                "subject.enrichedSnapshot", "roles", "id", "",
+                "Source: GraphQL mutation input ids (deleted role)", "", "Y",
+                "subject.enrichedSnapshot.roles[0].id", "GraphQL", "mutation input ids", "subject",
+            ),
+        ]
+    )
+    fields.extend(_actor_fields())
+    return fields
+
+
 def _builtin_mapping(operation: str) -> list[MappingField]:
     if operation in _EXPORT_OPS:
         return _export_batch_fields(operation)
@@ -691,6 +748,10 @@ def _builtin_mapping(operation: str) -> list[MappingField]:
         return _font_envelope_fields(operation)
     if operation == "activateList":
         return _font_envelope_fields(operation) + _asset_fields(operation)
+    if operation in _DELETE_TEAM_OPS:
+        return _delete_teams_fields()
+    if operation in _DELETE_ROLE_OPS:
+        return _delete_roles_fields()
     if operation in _ROLE_OPS:
         return _role_fields(operation)
     if operation == "createTeam":

@@ -106,9 +106,19 @@ def scan_enriched_fields(enriched: JsonDict) -> list[tuple[str, object]]:
     return sorted(seen.items(), key=lambda x: x[0])
 
 
-def infer_source_system(path: str) -> tuple[str, str]:
+_DELETE_SNAPSHOT_ID_RE = re.compile(
+    r"^subject\.enrichedsnapshot\.(?:teams|roles)\[\d+\]\.id$",
+    re.IGNORECASE,
+)
+
+
+def infer_source_system(path: str, operation: str | None = None) -> tuple[str, str]:
     """Best-effort source label when registry has no mapping row."""
     p = path.lower()
+    base_op = (operation or "").split("(", 1)[0].strip()
+    if base_op in {"deleteTeams", "deleteRoles"}:
+        if _DELETE_SNAPSHOT_ID_RE.match(path) or path == "subject.enrichedsnapshot.role.id":
+            return "GraphQL", "mutation input ids (deleted entity)"
     # Subject envelope — validated against the GraphQL mutation response we sent.
     if p == "subject.type":
         return "GraphQL", "mutation response / subject.type"

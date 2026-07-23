@@ -178,14 +178,94 @@ def build_trigger_from_captured_event(
 
     cid = str(msg.get("xCorrelationId") or (enriched or {}).get("xCorrelationId") or "")
 
+    published_source: dict[str, Any] = {}
+    for root in (enriched, msg):
+        if not isinstance(root, dict):
+            continue
+        src = root.get("source")
+        if isinstance(src, dict) and src:
+            published_source = src
+            break
+
+    pub_state = published_source.get("operationState")
+    pub_success: bool | None = None
+    if pub_state == "success":
+        pub_success = True
+    elif pub_state == "failure":
+        pub_success = False
+
     ctx = build_trigger_context(
         operation=op_name,
         correlation_id=cid,
         graphql_response=gql_response,
         graphql_input=inp,
+        user_agent=published_source.get("actorUserAgent"),
+        success=pub_success,
     )
     if cid:
         ctx["xCorrelationId"] = cid
         ctx["correlation_id"] = cid
     ctx["replay_mode"] = replay_mode
+    _overlay_published_envelope(ctx, msg, enriched)
     return ctx
+
+
+def _overlay_published_envelope(
+    ctx: dict[str, Any],
+    raw_msg: dict[str, Any],
+    enriched: dict[str, Any] | None,
+) -> None:
+    """Use the published event envelope for trigger fields that must match enriched.
+
+    Live GraphQL replay and env defaults (Chrome UA, replay success:false after delete)
+    disagree with the UI/CasePilot trigger that actually published the audit event.
+    """
+    published_source: dict[str, Any] = {}
+    for root in (enriched, raw_msg):
+        if not isinstance(root, dict):
+            continue
+        src = root.get("source")
+        if isinstance(src, dict) and src:
+            published_source = src
+            break
+    if not published_source:
+        return
+
+    ctx_source = ctx.setdefault("source", {})
+    req = ctx.setdefault("request", {})
+    for key in (
+        "operation",
+        "service",
+        "platform",
+        "platformEnvironment",
+        "platformVersion",
+        "actorUserAgent",
+        "operationState",
+        "operationIndex",
+        "type",
+    ):
+        val = published_source.get(key)
+        if val in (None, "", [], {}):
+            continue
+        ctx_source[key] = val
+        if key == "actorUserAgent":
+            req["userAgent"] = val
+            req["user-agent"] = val
+        elif key in req or key in {
+            "operationState",
+            "operation",
+            "service",
+            "platform",
+            "platformEnvironment",
+            "platformVersion",
+            "operationIndex",
+        }:
+            req[key] = val
+
+    for root in (enriched, raw_msg):
+        if not isinstance(root, dict):
+            continue
+        for key in ("eventId", "eventVersion", "occurredAt", "routingKey"):
+            val = root.get(key)
+            if val not in (None, "", [], {}):
+                ctx[key] = val

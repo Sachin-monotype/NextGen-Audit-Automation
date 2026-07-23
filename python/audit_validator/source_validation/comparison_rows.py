@@ -673,6 +673,12 @@ def _resolve_source_value(
 ) -> tuple[object, str]:
     path = spec.enriched_path
 
+    delete_id = _delete_snapshot_id_value(
+        path, enriched, live.get("trigger") if isinstance(live.get("trigger"), dict) else None
+    )
+    if delete_id is not None:
+        return delete_id, "GraphQL mutation input ids (deleted entity)"
+
     # Raw envelope family IDs — not style document ids from Typesense
     if path.startswith("subject.id"):
         return _raw_subject_id(enriched, path), ""
@@ -859,6 +865,10 @@ def _trigger_value(path: str, trigger: dict, enriched: JsonDict) -> object:
             return req.get("userAgent") or req.get("user-agent")
         return None
 
+    delete_id = _delete_snapshot_id_value(path, enriched, trigger)
+    if delete_id is not None:
+        return delete_id
+
     # Subject join keys / mutation response body
     gql = trigger.get("graphql_response")
     if isinstance(gql, dict) and gql:
@@ -929,6 +939,42 @@ def _graphql_response_value(
             arr = node.get(key)
             if isinstance(arr, list) and 0 <= idx < len(arr):
                 return arr[idx]
+    return None
+
+
+def _delete_snapshot_id_value(
+    path: str,
+    enriched: JsonDict,
+    trigger: dict | None = None,
+) -> object | None:
+    """IDs on delete* subject snapshots come from mutation input / subject.id, not UMS."""
+    import re
+
+    m = re.match(r"subject\.enrichedSnapshot\.(?:teams|roles)\[(\d+)\]\.id$", path)
+    idx = 0
+    if m:
+        idx = int(m.group(1))
+    elif path != "subject.enrichedSnapshot.role.id":
+        return None
+
+    subject = enriched.get("subject") or {}
+    sid = subject.get("id")
+    if isinstance(sid, list) and 0 <= idx < len(sid):
+        return sid[idx]
+    if isinstance(sid, (str, int)) and idx == 0:
+        return sid
+
+    inp: dict | None = None
+    if trigger and isinstance(trigger.get("graphql_input"), dict):
+        inp = trigger["graphql_input"]
+    if not inp:
+        meta = subject.get("metadata") if isinstance(subject.get("metadata"), dict) else {}
+        cand = meta.get("input")
+        inp = cand if isinstance(cand, dict) else None
+    if isinstance(inp, dict):
+        ids = inp.get("ids")
+        if isinstance(ids, list) and 0 <= idx < len(ids):
+            return ids[idx]
     return None
 
 
@@ -1012,7 +1058,7 @@ def _spec_for_path(
     if norm in mapping_by_path:
         return mapping_by_path[norm]
     field, node, sub = display_node_subnode(norm)
-    src_sys, src_api = infer_source_system(norm)
+    src_sys, src_api = infer_source_system(norm, operation)
     # Envelope fields on the QA sheet are Validation=N unless we have an explicit
     # registry row — avoid false SKIP when trigger context is missing.
     validate = "Y"

@@ -1186,6 +1186,69 @@
       "operation": "updatePrivateTag",
       "touchpoint": "Manage>Tags",
       "key": "updatePrivateTag::Manage>Tags"
+    },
+    {
+      "case_id": 73309144,
+      "title": "Verify exportFontAssets — Export (global)",
+      "operation": "exportFontAssets",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportFontAssets::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73309145,
+      "title": "Verify exportFontProjects — Export (global)",
+      "operation": "exportFontProjects",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportFontProjects::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73309146,
+      "title": "Verify exportFontUsers — Export (global)",
+      "operation": "exportFontUsers",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportFontUsers::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73309147,
+      "title": "Verify exportFontWebkits — Export (global)",
+      "operation": "exportFontWebkits",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportFontWebkits::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73309148,
+      "title": "Verify exportImportedFonts — Export (global)",
+      "operation": "exportImportedFonts",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportImportedFonts::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73309149,
+      "title": "Verify exportMyLibrary — Export (global)",
+      "operation": "exportMyLibrary",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportMyLibrary::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73309150,
+      "title": "Verify exportNotifications — Export (global)",
+      "operation": "exportNotifications",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportNotifications::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73309151,
+      "title": "Verify exportRoles — Export (global)",
+      "operation": "exportRoles",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportRoles::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73309152,
+      "title": "Verify exportTags — Export (global)",
+      "operation": "exportTags",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportTags::Discovery/Browse (global)"
     }
   ],
   "by_key": {
@@ -1357,6 +1420,15 @@
     "updateAsset::Mylibrary>Assets": 73303609,
     "bulkMoveAssets::Mylibrary>Assets": 73303604,
     "updateAssets::Discovery/Browse (global)": 73303565,
-    "updatePrivateTag::Manage>Tags": 73303600
+    "updatePrivateTag::Manage>Tags": 73303600,
+    "exportFontAssets::Discovery/Browse (global)": 73309144,
+    "exportFontProjects::Discovery/Browse (global)": 73309145,
+    "exportFontUsers::Discovery/Browse (global)": 73309146,
+    "exportFontWebkits::Discovery/Browse (global)": 73309147,
+    "exportImportedFonts::Discovery/Browse (global)": 73309148,
+    "exportMyLibrary::Discovery/Browse (global)": 73309149,
+    "exportNotifications::Discovery/Browse (global)": 73309150,
+    "exportRoles::Discovery/Browse (global)": 73309151,
+    "exportTags::Discovery/Browse (global)": 73309152
   }
 }
