@@ -2558,6 +2558,12 @@ button.primary.sm {
   padding: 14px 16px 18px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
 }
+.scenario-compare-modal {
+  width: min(1200px, 100%);
+}
+.result-field-search input {
+  min-width: 180px;
+}
 .modal-head {
   display: flex;
   align-items: center;

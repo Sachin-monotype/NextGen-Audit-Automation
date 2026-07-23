@@ -165,16 +165,17 @@ def build_trigger_from_captured_event(
     result = extract_raw_metadata_result(raw_event)
     gql_response: dict[str, Any] = {}
     replay_mode = "input_only"
-    if result:
-        gql_response = {op_name: result}
-        replay_mode = "metadata.result"
-    elif project_root is not None and inp:
+    # Prefer a live GraphQL replay from captured mutation input — not the published
+    # raw envelope (source block / metadata echo).
+    if project_root is not None and inp:
         live_data = _replay_graphql_live(base_op, inp, project_root=project_root)
         if live_data:
             gql_response = live_data
             replay_mode = "live_replay"
+    if not gql_response and result:
+        gql_response = {op_name: result}
+        replay_mode = "metadata.result"
 
-    source = msg.get("source") if isinstance(msg.get("source"), dict) else {}
     cid = str(msg.get("xCorrelationId") or (enriched or {}).get("xCorrelationId") or "")
 
     ctx = build_trigger_context(
@@ -182,27 +183,9 @@ def build_trigger_from_captured_event(
         correlation_id=cid,
         graphql_response=gql_response,
         graphql_input=inp,
-        user_agent=str(source.get("actorUserAgent") or "") or None,
     )
-    for key in (
-        "operation",
-        "service",
-        "platform",
-        "platformEnvironment",
-        "platformVersion",
-        "actorUserAgent",
-        "operationState",
-        "operationIndex",
-        "type",
-    ):
-        if key in source and source[key] not in (None, "", [], {}):
-            ctx["source"][key] = source[key]
     if cid:
         ctx["xCorrelationId"] = cid
         ctx["correlation_id"] = cid
-    for key in ("eventId", "eventVersion", "occurredAt", "routingKey"):
-        val = msg.get(key)
-        if val not in (None, "", [], {}):
-            ctx[key] = val
     ctx["replay_mode"] = replay_mode
     return ctx

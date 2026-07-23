@@ -245,6 +245,12 @@ export async function fetchLatestResults() {
   }>;
 }
 
+export async function fetchEnrichedSample(operation: string) {
+  const res = await fetch(`${API}/api/results/enriched-sample/${encodeURIComponent(operation)}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{ operation: string; enriched: Record<string, unknown> }>;
+}
+
 export async function deleteLatestResult(operation: string) {
   const res = await fetch(`${API}/api/results/latest/${encodeURIComponent(operation)}`, {
     method: "DELETE",

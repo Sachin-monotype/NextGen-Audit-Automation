@@ -240,7 +240,7 @@ def latest_comparison_results() -> dict[str, Any]:
     return list_latest(settings.audit_project_root)
 
 
-@app.get("/api/results/latest/{operation}")
+@app.get("/api/results/latest/{operation:path}")
 def latest_comparison_operation(operation: str) -> dict[str, Any]:
     from .comparison_store import get_latest_operation
 
@@ -248,6 +248,19 @@ def latest_comparison_operation(operation: str) -> dict[str, Any]:
     if not item:
         raise HTTPException(404, f"No stored comparison for {operation}")
     return item
+
+
+@app.get("/api/results/enriched-sample/{operation:path}")
+def enriched_sample_for_operation(operation: str) -> dict[str, Any]:
+    """Staged enriched JSON for a compared operation (scenario variants included)."""
+    from audit_validator.source_validation.config import load_source_validation_config
+    from audit_validator.source_validation.runner import _load_enriched_sample
+
+    cfg = load_source_validation_config(settings.audit_project_root)
+    enriched = _load_enriched_sample(cfg, operation, sample_source="fresh")
+    if not enriched:
+        raise HTTPException(404, f"No staged enriched sample for {operation}")
+    return {"operation": operation, "enriched": enriched}
 
 
 @app.delete("/api/results/latest/{operation:path}")

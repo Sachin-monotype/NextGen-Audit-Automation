@@ -24,6 +24,50 @@ def _load(path: Path) -> dict[str, Any]:
         return {}
 
 
+_GQL_SOURCE_API = "GraphQL curl / event trigger"
+_GQL_NOTE_LIVE = "GraphQL mutation response (live replay from captured input)"
+_GQL_NOTE_META = "GraphQL mutation response (subject.metadata.result)"
+
+
+def _clean_legacy_raw_envelope_rows(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], bool]:
+    """Relabel rows that still point at the old raw-envelope source of truth."""
+    out: list[dict[str, Any]] = []
+    changed = False
+    for r in rows:
+        fp = str(r.get("field_path") or "")
+        sys = str(r.get("source_system") or "")
+        api = str(r.get("source_api") or "")
+        notes = str(r.get("notes") or "")
+        legacy = (
+            sys == "Raw"
+            or "raw event" in notes.lower()
+            or "published envelope" in notes.lower()
+            or "published envelope" in api.lower()
+        )
+        if legacy and (
+            fp.startswith("source.")
+            or fp
+            in {
+                "xCorrelationId",
+                "eventId",
+                "eventVersion",
+                "occurredAt",
+                "routingKey",
+            }
+        ):
+            r = {
+                **r,
+                "source_system": "Trigger",
+                "source_api": _GQL_SOURCE_API,
+                "notes": _GQL_NOTE_LIVE if "live replay" in notes.lower() else _GQL_NOTE_META
+                if "metadata.result" in notes.lower()
+                else _GQL_NOTE_LIVE,
+            }
+            changed = True
+        out.append(r)
+    return out, changed
+
+
 def _clean_scope_rows(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], bool]:
     """Reconcile stored enrichment-scope rows with current validator behaviour.
 
@@ -144,8 +188,10 @@ def reconcile_scope_rows(project_root: Path) -> dict[str, int]:
         data = _load(path)
         ops_touched = 0
         for op, item in data.items():
-            cleaned, changed = _clean_scope_rows(item.get("rows") or [])
-            if changed:
+            rows = item.get("rows") or []
+            cleaned, changed_scope = _clean_scope_rows(rows)
+            cleaned, changed_raw = _clean_legacy_raw_envelope_rows(cleaned)
+            if changed_scope or changed_raw:
                 ops_touched += 1
                 item["rows"] = cleaned
                 item["summary"] = _summary_for_rows(cleaned)
@@ -164,8 +210,10 @@ def list_latest(project_root: Path) -> dict[str, Any]:
     # Clean legacy enrichment-scope SKIP rows on read so the Result view matches
     # current validator behaviour even before the one-time migration runs.
     for item in data.values():
-        cleaned, changed = _clean_scope_rows(item.get("rows") or [])
-        if changed:
+        rows = item.get("rows") or []
+        cleaned, changed_scope = _clean_scope_rows(rows)
+        cleaned, changed_raw = _clean_legacy_raw_envelope_rows(cleaned)
+        if changed_scope or changed_raw:
             item["rows"] = cleaned
             item["summary"] = _summary_for_rows(cleaned)
     # Keep bare base ops and scenario variants side by side (e.g. activateFamily + activateFamily(global)).

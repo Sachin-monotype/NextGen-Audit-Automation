@@ -5,6 +5,7 @@ import {
   fetchCategories,
   fetchComparableOperations,
   fetchFailureSummary,
+  fetchEnrichedSample,
   fetchJob,
   fetchJobs,
   fetchLatestResults,
@@ -17,6 +18,12 @@ import {
   type Job,
   type LatestComparisonItem,
 } from "../api";
+import {
+  compareScenarioStructure,
+  compareScenarioValues,
+  type ScenarioStructureRow,
+  type ScenarioValueRow,
+} from "../utils/scenarioCompare";
 
 type Props = {
   initialJobId: string | null;
@@ -148,10 +155,14 @@ function groupBySnapshotBranch(rows: ComparisonRow[]): { branch: string; rows: C
   return [...map.entries()].map(([branch, branchRows]) => ({ branch, rows: branchRows }));
 }
 
+type ScenarioCompareMode = "values" | "structure";
+
 /** Short resource / "table" name from the source_api path for the Result label. */
 function sourceResource(row: ComparisonRow): string {
   const api = (row.source_api || "").toLowerCase();
-  if (!api) return "";
+  const sys = (row.source_system || "").toLowerCase();
+  if (!api && !sys) return "";
+  if (sys === "graphql" || sys === "trigger" || api.includes("graphql")) return "mutation";
   if (api.includes("/users") || api.includes("idpuserid")) return "users";
   if (api.includes("/profiles") || api.includes("profiles")) return "profiles";
   if (api.includes("/roles") || api.includes("role")) return "roles";
@@ -161,7 +172,7 @@ function sourceResource(row: ComparisonRow): string {
   if (api.includes("/styles") || api.includes("styles")) return "styles";
   if (api.includes("/asset") || api.includes("ams") || api.includes("assets")) return "assets";
   if (api.includes("jwt") || api.includes("bearer") || api.includes("token")) return "jwt";
-  if (api.includes("raw")) return "raw";
+  if (api.includes("raw event") || api.startsWith("raw>") || sys === "raw") return "raw";
   if (api.includes("resolver") || api.includes("enricher") || api.includes("derived")) return "resolver";
   // Fallback: last path segment that looks like a resource
   const parts = api.replace(/\?.*$/, "").split("/").filter(Boolean);
@@ -172,8 +183,21 @@ function sourceResource(row: ComparisonRow): string {
 
 function sourceLabel(row: ComparisonRow): string {
   const resource = sourceResource(row);
-  if (resource) return `Source (${row.source_system}) · ${resource}`;
-  return `Source (${row.source_system})`;
+  const sys = row.source_system === "Trigger" ? "GraphQL" : row.source_system;
+  if (resource) return `Source (${sys}) · ${resource}`;
+  return `Source (${sys})`;
+}
+
+function rowMatchesFieldSearch(row: ComparisonRow, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    row.field_path.toLowerCase().includes(q) ||
+    (row.field || "").toLowerCase().includes(q) ||
+    (row.value_in_enriched || "").toLowerCase().includes(q) ||
+    (row.value_in_source || "").toLowerCase().includes(q) ||
+    (row.notes || "").toLowerCase().includes(q)
+  );
 }
 
 function formatComparedAt(iso: string): string {
@@ -249,6 +273,14 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const [failureLog, setFailureLog] = useState<FailureSummary | null>(null);
   const [failureLogBusy, setFailureLogBusy] = useState(false);
   const [showFailureLog, setShowFailureLog] = useState(false);
+  const [fieldSearch, setFieldSearch] = useState("");
+  const [scenarioCompareOps, setScenarioCompareOps] = useState<string[] | null>(null);
+  const [scenarioCompareMode, setScenarioCompareMode] = useState<ScenarioCompareMode>("values");
+  const [scenarioCompareBusy, setScenarioCompareBusy] = useState(false);
+  const [scenarioCompareError, setScenarioCompareError] = useState("");
+  const [scenarioValueRows, setScenarioValueRows] = useState<ScenarioValueRow[]>([]);
+  const [scenarioStructureRows, setScenarioStructureRows] = useState<ScenarioStructureRow[]>([]);
+  const [scenarioStructureFilter, setScenarioStructureFilter] = useState("");
 
   async function openFailureLog() {
     setFailureLogBusy(true);
@@ -486,6 +518,32 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     });
   }
 
+  async function openScenarioCompare(ops: string[]) {
+    if (ops.length < 2 || !latest?.items) return;
+    setScenarioCompareOps(ops);
+    setScenarioCompareMode("values");
+    setScenarioCompareError("");
+    setScenarioCompareBusy(true);
+    setScenarioValueRows(compareScenarioValues(ops, latest.items));
+    try {
+      const enrichedByOp: Record<string, unknown> = {};
+      for (const op of ops) {
+        try {
+          const sample = await fetchEnrichedSample(op);
+          enrichedByOp[op] = sample.enriched;
+        } catch {
+          enrichedByOp[op] = null;
+        }
+      }
+      setScenarioStructureRows(compareScenarioStructure(ops, enrichedByOp));
+    } catch (e) {
+      setScenarioCompareError(String(e));
+      setScenarioStructureRows([]);
+    } finally {
+      setScenarioCompareBusy(false);
+    }
+  }
+
   const coverageCounts = useMemo(() => {
     let pass = 0;
     let failed = 0;
@@ -548,15 +606,21 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   }
 
   function sortedOpRows(opRows: ComparisonRow[]): ComparisonRow[] {
-    return [...opRows].sort((a, b) =>
+    const q = fieldSearch.trim();
+    const filtered = q ? opRows.filter((r) => rowMatchesFieldSearch(r, q)) : opRows;
+    return [...filtered].sort((a, b) =>
       enrichPathSortKey(a.field_path).localeCompare(enrichPathSortKey(b.field_path)),
     );
   }
 
   function renderFieldCards(opRows: ComparisonRow[]) {
+    const rows = sortedOpRows(opRows);
+    if (!rows.length) {
+      return <p className="muted">No fields match your search.</p>;
+    }
     return (
       <div className="result-fields">
-        {groupByEnvelope(opRows).map((section) => {
+        {groupByEnvelope(rows).map((section) => {
           const useBranches =
             section.key === "subject.enrichedSnapshot" ||
             section.key === "actor.enrichedSnapshot";
@@ -611,6 +675,9 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
 
   function renderFieldList(opRows: ComparisonRow[]) {
     const rows = sortedOpRows(opRows);
+    if (!rows.length) {
+      return <p className="muted">No fields match your search.</p>;
+    }
     return (
       <div className="result-table-wrap result-list-wrap">
         <table className="result-table result-list-table">
@@ -663,6 +730,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   function clearFilters() {
     setFilterOp("");
     setFilterStatus("all");
+    setFieldSearch("");
     setCoverageOutcome("all");
     setFilterCategory("all");
     setFilterEnv([]);
@@ -874,6 +942,143 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
         </div>
       )}
 
+      {scenarioCompareOps && scenarioCompareOps.length >= 2 && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setScenarioCompareOps(null)}
+          role="presentation"
+        >
+          <div
+            className="modal-card scenario-compare-modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+          >
+            <div className="modal-head">
+              <strong>Scenario comparison</strong>
+              <span className="muted"> · {scenarioCompareOps.join(" vs ")}</span>
+              <button type="button" className="link-btn" onClick={() => setScenarioCompareOps(null)}>
+                close ✕
+              </button>
+            </div>
+            <div className="result-view-toggle" role="group" aria-label="Scenario compare mode">
+              <button
+                type="button"
+                className={scenarioCompareMode === "values" ? "active" : ""}
+                onClick={() => setScenarioCompareMode("values")}
+              >
+                Values
+              </button>
+              <button
+                type="button"
+                className={scenarioCompareMode === "structure" ? "active" : ""}
+                onClick={() => setScenarioCompareMode("structure")}
+              >
+                JSON structure
+              </button>
+            </div>
+            {scenarioCompareError && <p className="error">{scenarioCompareError}</p>}
+            {scenarioCompareBusy && <p className="muted">Loading enriched JSON for structure diff…</p>}
+            {scenarioCompareMode === "values" ? (
+              <div className="result-table-wrap compact-table-wrap">
+                <table className="result-table">
+                  <thead>
+                    <tr>
+                      <th>Field path</th>
+                      {scenarioCompareOps.map((op) => (
+                        <th key={op}>{op}</th>
+                      ))}
+                      <th>Match</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scenarioValueRows
+                      .filter((r) => !r.same || !fieldSearch.trim() || rowMatchesFieldSearch(
+                        {
+                          operation: "",
+                          field: "",
+                          field_path: r.field_path,
+                          node: "",
+                          sub_node: "",
+                          layer: "",
+                          source_system: "",
+                          value_in_source: "",
+                          value_in_enriched: Object.values(r.values).join(" "),
+                          match_status: r.same ? "PASS" : "FAIL",
+                          notes: "",
+                          routing_key: "",
+                        },
+                        fieldSearch,
+                      ))
+                      .map((r) => (
+                        <tr key={r.field_path} className={r.same ? "pass" : "fail"}>
+                          <td><code>{r.field_path}</code></td>
+                          {scenarioCompareOps.map((op) => (
+                            <td key={op} className="result-list-value"><code>{r.values[op]}</code></td>
+                          ))}
+                          <td><span className={`badge ${r.same ? "pass" : "fail"}`}>{r.same ? "SAME" : "DIFF"}</span></td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <>
+                <label className="filter-field" style={{ marginBottom: 8 }}>
+                  <span>filter paths</span>
+                  <input
+                    value={scenarioStructureFilter}
+                    onChange={(e) => setScenarioStructureFilter(e.target.value)}
+                    placeholder="json path…"
+                  />
+                </label>
+                <div className="result-table-wrap compact-table-wrap">
+                  <table className="result-table">
+                    <thead>
+                      <tr>
+                        <th>JSON path</th>
+                        {scenarioCompareOps.map((op) => (
+                          <th key={op}>{op}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scenarioStructureRows
+                        .filter((r) => {
+                          const q = scenarioStructureFilter.trim().toLowerCase();
+                          if (!q) return true;
+                          return r.path.toLowerCase().includes(q);
+                        })
+                        .filter((r) => {
+                          const present = Object.values(r.presence).filter(Boolean).length;
+                          return present > 0 && present < scenarioCompareOps.length;
+                        })
+                        .slice(0, 500)
+                        .map((r) => (
+                          <tr key={r.path}>
+                            <td><code>{r.path}</code></td>
+                            {scenarioCompareOps.map((op) => (
+                              <td key={op}>
+                                {r.presence[op] ? (
+                                  <span className="badge pass">yes</span>
+                                ) : (
+                                  <span className="badge na">—</span>
+                                )}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="muted">
+                  Showing paths that differ between scenarios (max 500). Use filter to narrow.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {allCoverageRows.length > 0 && (
         <div className="coverage-panel" ref={coverageListRef}>
           <div className="coverage-head">
@@ -942,6 +1147,15 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
               />
               <span className="muted">select shown</span>
             </label>
+            {selectedOps.size >= 2 && (
+              <button
+                type="button"
+                className="primary outline"
+                onClick={() => void openScenarioCompare([...selectedOps])}
+              >
+                Compare {selectedOps.size} scenarios
+              </button>
+            )}
           </div>
           <div className="result-table-wrap compact-table-wrap">
             <table className="result-table coverage-table">
@@ -1071,6 +1285,14 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                 Field details for <strong>{filterOp}</strong>
               </span>
               <div className="result-detail-bar-actions">
+                <label className="filter-field result-field-search">
+                  <span>search</span>
+                  <input
+                    value={fieldSearch}
+                    onChange={(e) => setFieldSearch(e.target.value)}
+                    placeholder="attribute or value…"
+                  />
+                </label>
                 <button
                   type="button"
                   className="primary outline"

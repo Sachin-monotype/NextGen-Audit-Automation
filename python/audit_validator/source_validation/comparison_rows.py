@@ -380,6 +380,16 @@ def _row(
     remark = notes
     if not remark and status in {"SKIP", "FAIL"}:
         remark = spec.notes or ("Source not fetched" if status == "SKIP" else "")
+    src_sys = spec.source_system
+    src_api = spec.source_api
+    if remark and "graphql" in remark.lower():
+        src_sys = "GraphQL"
+        if "live replay" in remark.lower():
+            src_api = "GraphQL mutation response (live replay)"
+        elif "metadata.result" in remark.lower():
+            src_api = "GraphQL mutation response (metadata.result)"
+        else:
+            src_api = "GraphQL mutation response"
     return ComparisonRow(
         operation=operation,
         layer=spec.layer,
@@ -387,8 +397,8 @@ def _row(
         field=spec.field,
         node=spec.node,
         sub_node=spec.sub_node,
-        source_system=spec.source_system,
-        source_api=spec.source_api,
+        source_system=src_sys,
+        source_api=src_api,
         value_in_source=sv[:500],
         value_in_enriched=ev[:500],
         match_status=status,
