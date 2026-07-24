@@ -629,6 +629,31 @@ class UmsDbClient:
                 }
         return mapped
 
+    def get_invitation_by_id(
+        self,
+        invitation_id: str,
+        *,
+        correlation_id: str = "",
+    ) -> dict[str, Any] | None:
+        """``user_management.user_invitation`` row by numeric Id."""
+        del correlation_id
+        iid = str(invitation_id or "").strip()
+        if not iid or not iid.isdigit():
+            return None
+        row = select_one(
+            """
+            SELECT *
+            FROM user_management.user_invitation
+            WHERE Id = %s
+            LIMIT 1
+            """,
+            (int(iid),),
+            cfg=self._mysql,
+        )
+        if not row:
+            return None
+        return self._invitation_to_api(row)
+
     @staticmethod
     def _profile_to_api(row: dict[str, Any]) -> dict[str, Any]:
         role_id = _pick(row, "role_id_uuid", "role_id", "roleId")

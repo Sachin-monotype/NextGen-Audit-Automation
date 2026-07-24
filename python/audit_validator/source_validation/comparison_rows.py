@@ -345,13 +345,17 @@ def _row(
             elif ".teams[" in spec.enriched_path and not live.get("ums_actor_teams"):
                 status = "SKIP"
                 notes = notes or "Actor teams not fetched from UMS GET /teams for source validation"
-            elif "invitation" in spec.enriched_path.lower() and "subject.enrichedSnapshot" in spec.enriched_path:
+            elif "invitation" in spec.enriched_path.lower() and "invitations[" in spec.enriched_path:
                 if live.get("ums_invitation"):
                     status = "FAIL"
-                    notes = notes or "UMS invitation row missing field (enriched has value)"
+                    notes = notes or "MySQL invitation row missing field (enriched has value)"
                 else:
                     status = "SKIP"
-                    notes = notes or "Invitation entity not fetched from UMS for source validation"
+                    notes = (
+                        notes
+                        or live.get("ums_invitation_error")
+                        or "Invitation not fetched from user_management.user_invitation"
+                    )
             else:
                 status = "FAIL"
                 notes = notes or "UMS response missing field (enriched has value)"
@@ -820,11 +824,11 @@ def _resolve_source_value(
             ums_invitation=live.get("ums_invitation"),
         )
         if val is not None:
-            # Value came from a successful UMS response — never decorate with a
-            # leftover error from a different UMS call on the same event.
             note = ""
         else:
             note = _remark_for_source(live, "UMS", status="SKIP")
+            if live.get("ums_invitation_error") and "invitations[" in path:
+                note = str(live.get("ums_invitation_error"))
             if live.get("ums_role_missing") and ".role." in path:
                 note = str(live.get("ums_role_missing"))
         return val, note

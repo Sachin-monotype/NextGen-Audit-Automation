@@ -686,6 +686,9 @@ def _prefetch_identity_sources_inner(
     return cache
 
 
+_INVITATION_OPS = frozenset({"createUserInvitations", "updateUserInvitations"})
+
+
 def _live_context_for_operation(
     operation: str,
     enriched: JsonDict,
@@ -705,6 +708,7 @@ def _live_context_for_operation(
     ums_team_by = ident.get("ums_team_by_id") or {}
     ams_by = ident.get("ams_by_id") or {}
     cid = str(enriched.get("xCorrelationId") or "source-validation")
+    base_op = operation.split("(", 1)[0].strip() if "(" in operation else operation
     actor = enriched.get("actor") or {}
     customer_id = str(actor.get("globalCustomerId") or cfg.gcid or "")
     global_user_id = str(actor.get("globalUserId") or "")
@@ -754,7 +758,7 @@ def _live_context_for_operation(
                 except Exception as exc:  # noqa: BLE001
                     ctx["ums_role_error"] = f"UMS role lookup failed: {exc}"
         subject_pid = _subject_profile_id_from_enriched(enriched)
-        if subject_pid and subject_pid != pid:
+        if subject_pid and subject_pid != pid and base_op not in _INVITATION_OPS:
             try:
                 ctx["ums_subject_profile"] = ums_prof_by.get(subject_pid) or ums.get_profile_by_id(
                     subject_pid, customer_id, correlation_id=cid
@@ -878,18 +882,16 @@ def _live_context_for_operation(
             except Exception as exc:
                 ctx["ams_error"] = f"AMS lookup failed: {exc}"
 
-    base_op = operation.split("(", 1)[0].strip() if "(" in operation else operation
-    if base_op in {"createUserInvitations", "updateUserInvitations"} and ums and cfg.ums_ready:
-        invite_email = _invitation_email_from_enriched(enriched)
-        if invite_email:
-            fetch_inv = getattr(ums, "get_invitation_by_email", None)
-            if callable(fetch_inv):
-                try:
-                    ctx["ums_invitation"] = fetch_inv(
-                        invite_email, customer_id, correlation_id=cid
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    ctx.setdefault("ums_error", f"UMS invitation lookup failed: {exc}")
+    if base_op in _INVITATION_OPS:
+        from .invitation_source import fetch_invitation_for_enriched
+
+        inv, err = fetch_invitation_for_enriched(
+            enriched, customer_id=customer_id, cfg=cfg
+        )
+        if inv:
+            ctx["ums_invitation"] = inv
+        if err:
+            ctx["ums_invitation_error"] = err
 
     if base_op in {"updatePrivateTag", "createPrivateTags", "updatePrivateTagAssociations"}:
         tag_id = _private_tag_id_from_enriched(enriched)
@@ -1064,6 +1066,8 @@ def _subject_customer_id_from_enriched(enriched: JsonDict) -> str | None:
 def _subject_profile_id_from_enriched(enriched: JsonDict) -> str | None:
     subject = enriched.get("subject") or {}
     snap = subject.get("enrichedSnapshot") or {}
+    if snap.get("invitations"):
+        return None
     user = snap.get("user") or {}
     prof = user.get("profile") or {}
     if isinstance(prof, dict) and prof.get("id"):
@@ -1090,29 +1094,9 @@ def _subject_user_role_id_from_enriched(enriched: JsonDict) -> str | None:
 
 
 def _invitation_email_from_enriched(enriched: JsonDict) -> str | None:
-    subject = enriched.get("subject") or {}
-    meta = subject.get("metadata") or {}
-    inp = meta.get("input") if isinstance(meta, dict) else {}
-    if isinstance(inp, dict):
-        data = inp.get("data") or []
-        if isinstance(data, list):
-            for item in data:
-                if not isinstance(item, dict):
-                    continue
-                emails = item.get("emails")
-                if isinstance(emails, list) and emails:
-                    return str(emails[0]).strip()
-                if item.get("email"):
-                    return str(item["email"]).strip()
-    snap = subject.get("enrichedSnapshot") or {}
-    invs = snap.get("invitations") or []
-    if isinstance(invs, list):
-        for inv in invs:
-            if isinstance(inv, dict) and inv.get("email"):
-                return str(inv["email"]).strip()
-    if subject.get("email"):
-        return str(subject["email"]).strip()
-    return None
+    from .invitation_source import invitation_email_from_enriched
+
+    return invitation_email_from_enriched(enriched)
 
 
 def _private_tag_id_from_enriched(enriched: JsonDict) -> str | None:
