@@ -683,6 +683,30 @@ def _resolve_source_value(
     if path.startswith("subject.id"):
         return _raw_subject_id(enriched, path), ""
 
+    if path.startswith("subject.metadata.input.") or path.startswith("subject.metadata.result."):
+        trigger = live.get("trigger")
+        if isinstance(trigger, dict) and trigger:
+            from_trigger = _trigger_value(path, trigger, enriched)
+            if from_trigger is not None:
+                note = "GraphQL mutation input (subject.metadata.input)"
+                if path.startswith("subject.metadata.result."):
+                    note = "GraphQL mutation response (subject.metadata.result)"
+                return from_trigger, note
+        gql = live.get("graphql_response")
+        if isinstance(gql, dict) and gql and path.startswith("subject.metadata.result."):
+            from_gql = _graphql_response_value(path, gql, enriched)
+            if from_gql is not None:
+                return from_gql, "GraphQL mutation response (subject.metadata.result)"
+        if path.startswith("subject.metadata.input."):
+            subject = enriched.get("subject") or {}
+            meta = subject.get("metadata") if isinstance(subject.get("metadata"), dict) else {}
+            inp = meta.get("input") if isinstance(meta.get("input"), dict) else {}
+            rel = path[len("subject.metadata.input.") :]
+            val = dig_once(inp, rel)
+            if val is not None:
+                return val, "GraphQL mutation input (subject.metadata.input)"
+        return None, "GraphQL mutation input/response not captured for this run"
+
     if spec.source_system == "Typesense":
         style_hits = live.get("style_hits") or []
         variation_hits = live.get("variation_hits") or []
@@ -869,6 +893,32 @@ def _trigger_value(path: str, trigger: dict, enriched: JsonDict) -> object:
     if delete_id is not None:
         return delete_id
 
+    if path.startswith("subject.metadata.input."):
+        rel = path[len("subject.metadata.input.") :]
+        inp = trigger.get("graphql_input")
+        if isinstance(inp, dict):
+            val = dig_once(inp, rel)
+            if val is not None:
+                return val
+        subject = enriched.get("subject") or {}
+        meta = subject.get("metadata") if isinstance(subject.get("metadata"), dict) else {}
+        inp2 = meta.get("input") if isinstance(meta.get("input"), dict) else {}
+        return dig_once(inp2, rel)
+
+    if path.startswith("subject.metadata.result."):
+        rel = path[len("subject.metadata.result.") :]
+        gql = trigger.get("graphql_response")
+        if isinstance(gql, dict) and gql:
+            for node in gql.values():
+                if isinstance(node, dict):
+                    val = dig_once(node, rel)
+                    if val is not None:
+                        return val
+        subject = enriched.get("subject") or {}
+        meta = subject.get("metadata") if isinstance(subject.get("metadata"), dict) else {}
+        res = meta.get("result") if isinstance(meta.get("result"), dict) else {}
+        return dig_once(res, rel)
+
     # Subject join keys / mutation response body
     gql = trigger.get("graphql_response")
     if isinstance(gql, dict) and gql:
@@ -901,6 +951,14 @@ def _graphql_response_value(
     on the request; when the response echoes IDs we prefer those.
     """
     import re
+
+    if path.startswith("subject.metadata.result."):
+        rel = path[len("subject.metadata.result.") :]
+        for node in gql_response.values():
+            if isinstance(node, dict):
+                val = dig_once(node, rel)
+                if val is not None:
+                    return val
 
     # Flatten: try dig on each top-level mutation result node
     for _mut, node in gql_response.items():

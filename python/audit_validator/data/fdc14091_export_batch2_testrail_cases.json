@@ -1,0 +1,211 @@
+{
+  "version": 1,
+  "jira": "FDC-14091",
+  "suite": 22395,
+  "suite_section": 4066542,
+  "batch": 2,
+  "notes": "NEW export batch-2 cases (6 ops). Push with local/scripts/push_export_testrail_cases.py --pack batch2. Does not modify existing TestRail case ids.",
+  "preconditions_template": "1. NextGen PP/QA is reachable; log in if not already signed in.\n2. Prefer reuse of existing data on the page (no rebuild unless empty).\n3. Capture response header correlation-id (not x-correlation-id) from GraphQL.\n4. Follow plain-English steps; emit AUDIT_RESULT with real UUID after the export mutation.\n5. Reporting exports: accept the export confirmation popup when shown.\n6. exportActiveFonts: UI export may be stubbed until API wires exportActiveFonts — capture when mutation fires.\n7. Jira: FDC-14091.",
+  "operations": [
+    "exportReportingUsers",
+    "exportReportingFonts",
+    "exportCompanyLibrary",
+    "exportActiveFonts",
+    "exportUsers",
+    "exportTeams"
+  ],
+  "cases": [
+    {
+      "title": "Verify exportReportingUsers — Export (global)",
+      "operation": "exportReportingUsers",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportReportingUsers(global)",
+      "key": "exportReportingUsers::Discovery/Browse (global)",
+      "url_hint": "/manage/usage-activity/users",
+      "export_button": "Export all data",
+      "gql_export": "EXPORT_REPORTING_USERS",
+      "gql_mutation": "exportReportingUsers",
+      "custom_preconds": "1. NextGen PP/QA is reachable; log in if not already signed in.\n2. Prefer reuse of existing data on the page (no rebuild unless empty).\n3. Capture response header correlation-id (not x-correlation-id) from GraphQL.\n4. Follow plain-English steps; emit AUDIT_RESULT with real UUID after the export mutation.\n5. Reporting exports: accept the export confirmation popup when shown.\n6. exportActiveFonts: UI export may be stubbed until API wires exportActiveFonts — capture when mutation fires.\n7. Jira: FDC-14091.",
+      "custom_steps_separated": [
+        {
+          "content": "Go to Manage → Reporting & analytics.",
+          "expected": "Page loaded; Export all data is visible when applicable."
+        },
+        {
+          "content": "Open the Users tab.",
+          "expected": "Page loaded; Export all data is visible when applicable."
+        },
+        {
+          "content": "Click Export all data and accept the export confirmation popup.",
+          "expected": "Page loaded; Export all data is visible when applicable."
+        },
+        {
+          "content": "Network filter operationName=ExportReportingUsers → copy response header correlation-id (NOT x-correlation-id) → emit AUDIT_RESULT.",
+          "expected": "GraphQL exportReportingUsers fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091"
+    },
+    {
+      "title": "Verify exportReportingFonts — Export (global)",
+      "operation": "exportReportingFonts",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportReportingFonts(global)",
+      "key": "exportReportingFonts::Discovery/Browse (global)",
+      "url_hint": "/manage/usage-activity/fonts",
+      "export_button": "Export all data",
+      "gql_export": "EXPORT_REPORTING_FONTS",
+      "gql_mutation": "exportReportingFonts",
+      "custom_preconds": "1. NextGen PP/QA is reachable; log in if not already signed in.\n2. Prefer reuse of existing data on the page (no rebuild unless empty).\n3. Capture response header correlation-id (not x-correlation-id) from GraphQL.\n4. Follow plain-English steps; emit AUDIT_RESULT with real UUID after the export mutation.\n5. Reporting exports: accept the export confirmation popup when shown.\n6. exportActiveFonts: UI export may be stubbed until API wires exportActiveFonts — capture when mutation fires.\n7. Jira: FDC-14091.",
+      "custom_steps_separated": [
+        {
+          "content": "Go to Manage → Reporting & analytics.",
+          "expected": "Page loaded; Export all data is visible when applicable."
+        },
+        {
+          "content": "Open the Fonts tab.",
+          "expected": "Page loaded; Export all data is visible when applicable."
+        },
+        {
+          "content": "Click Export all data and accept the export confirmation popup.",
+          "expected": "Page loaded; Export all data is visible when applicable."
+        },
+        {
+          "content": "Network filter operationName=ExportReportingFonts → copy response header correlation-id (NOT x-correlation-id) → emit AUDIT_RESULT.",
+          "expected": "GraphQL exportReportingFonts fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091"
+    },
+    {
+      "title": "Verify exportCompanyLibrary — Export (global)",
+      "operation": "exportCompanyLibrary",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportCompanyLibrary(global)",
+      "key": "exportCompanyLibrary::Discovery/Browse (global)",
+      "url_hint": "/manage/company-assets/company-library",
+      "export_button": "Export All Data",
+      "gql_export": "EXPORT_COMPANY_LIBRARY",
+      "gql_mutation": "exportCompanyLibrary",
+      "custom_preconds": "1. NextGen PP/QA is reachable; log in if not already signed in.\n2. Prefer reuse of existing data on the page (no rebuild unless empty).\n3. Capture response header correlation-id (not x-correlation-id) from GraphQL.\n4. Follow plain-English steps; emit AUDIT_RESULT with real UUID after the export mutation.\n5. Reporting exports: accept the export confirmation popup when shown.\n6. exportActiveFonts: UI export may be stubbed until API wires exportActiveFonts — capture when mutation fires.\n7. Jira: FDC-14091.",
+      "custom_steps_separated": [
+        {
+          "content": "Go to Manage → Company assets → Company Library.",
+          "expected": "Page loaded; Export All Data is visible when applicable."
+        },
+        {
+          "content": "Wait for the library table to load.",
+          "expected": "Page loaded; Export All Data is visible when applicable."
+        },
+        {
+          "content": "Click Export All Data.",
+          "expected": "Page loaded; Export All Data is visible when applicable."
+        },
+        {
+          "content": "Network filter operationName=ExportCompanyLibrary → copy response header correlation-id (NOT x-correlation-id) → emit AUDIT_RESULT.",
+          "expected": "GraphQL exportCompanyLibrary fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091"
+    },
+    {
+      "title": "Verify exportActiveFonts — Export (global)",
+      "operation": "exportActiveFonts",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportActiveFonts(global)",
+      "key": "exportActiveFonts::Discovery/Browse (global)",
+      "url_hint": "/manage/company-assets/active-fonts",
+      "export_button": "Export all data",
+      "gql_export": "EXPORT_ACTIVE_FONTS",
+      "gql_mutation": "exportActiveFonts",
+      "custom_preconds": "1. NextGen PP/QA is reachable; log in if not already signed in.\n2. Prefer reuse of existing data on the page (no rebuild unless empty).\n3. Capture response header correlation-id (not x-correlation-id) from GraphQL.\n4. Follow plain-English steps; emit AUDIT_RESULT with real UUID after the export mutation.\n5. Reporting exports: accept the export confirmation popup when shown.\n6. exportActiveFonts: UI export may be stubbed until API wires exportActiveFonts — capture when mutation fires.\n7. Jira: FDC-14091.",
+      "custom_steps_separated": [
+        {
+          "content": "Go to Manage → Company assets → Active fonts.",
+          "expected": "Page loaded; Export all data is visible when applicable."
+        },
+        {
+          "content": "Wait for the active fonts table to load.",
+          "expected": "Page loaded; Export all data is visible when applicable."
+        },
+        {
+          "content": "Click Export all data.",
+          "expected": "Page loaded; Export all data is visible when applicable."
+        },
+        {
+          "content": "Network filter operationName=ExportActiveFonts → copy response header correlation-id (NOT x-correlation-id) → emit AUDIT_RESULT.",
+          "expected": "GraphQL exportActiveFonts fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091"
+    },
+    {
+      "title": "Verify exportUsers — Export (global)",
+      "operation": "exportUsers",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportUsers(global)",
+      "key": "exportUsers::Discovery/Browse (global)",
+      "url_hint": "/manage/users-and-teams/users",
+      "export_button": "Export all data",
+      "gql_export": "EXPORT_USERS",
+      "gql_mutation": "exportUsers",
+      "custom_preconds": "1. NextGen PP/QA is reachable; log in if not already signed in.\n2. Prefer reuse of existing data on the page (no rebuild unless empty).\n3. Capture response header correlation-id (not x-correlation-id) from GraphQL.\n4. Follow plain-English steps; emit AUDIT_RESULT with real UUID after the export mutation.\n5. Reporting exports: accept the export confirmation popup when shown.\n6. exportActiveFonts: UI export may be stubbed until API wires exportActiveFonts — capture when mutation fires.\n7. Jira: FDC-14091.",
+      "custom_steps_separated": [
+        {
+          "content": "Go to Manage → Users & teams.",
+          "expected": "Page loaded; Export all data is visible when applicable."
+        },
+        {
+          "content": "Open the Users tab.",
+          "expected": "Page loaded; Export all data is visible when applicable."
+        },
+        {
+          "content": "Click Export all data (or Export filtered data when filters are applied).",
+          "expected": "Page loaded; Export all data is visible when applicable."
+        },
+        {
+          "content": "Network filter operationName=ExportUsers → copy response header correlation-id (NOT x-correlation-id) → emit AUDIT_RESULT.",
+          "expected": "GraphQL exportUsers fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091"
+    },
+    {
+      "title": "Verify exportTeams — Export (global)",
+      "operation": "exportTeams",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportTeams(global)",
+      "key": "exportTeams::Discovery/Browse (global)",
+      "url_hint": "/manage/users-and-teams/teams",
+      "export_button": "Export all data",
+      "gql_export": "EXPORT_TEAMS",
+      "gql_mutation": "exportTeams",
+      "custom_preconds": "1. NextGen PP/QA is reachable; log in if not already signed in.\n2. Prefer reuse of existing data on the page (no rebuild unless empty).\n3. Capture response header correlation-id (not x-correlation-id) from GraphQL.\n4. Follow plain-English steps; emit AUDIT_RESULT with real UUID after the export mutation.\n5. Reporting exports: accept the export confirmation popup when shown.\n6. exportActiveFonts: UI export may be stubbed until API wires exportActiveFonts — capture when mutation fires.\n7. Jira: FDC-14091.",
+      "custom_steps_separated": [
+        {
+          "content": "Go to Manage → Users & teams.",
+          "expected": "Page loaded; Export all data is visible when applicable."
+        },
+        {
+          "content": "Open the Teams tab.",
+          "expected": "Page loaded; Export all data is visible when applicable."
+        },
+        {
+          "content": "Click Export all data.",
+          "expected": "Page loaded; Export all data is visible when applicable."
+        },
+        {
+          "content": "Network filter operationName=ExportTeams → copy response header correlation-id (NOT x-correlation-id) → emit AUDIT_RESULT.",
+          "expected": "GraphQL exportTeams fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091"
+    }
+  ]
+}

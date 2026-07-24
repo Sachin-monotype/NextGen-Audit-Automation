@@ -133,6 +133,42 @@
         "Open the Users tab.",
         "Click Export all data (or Export filtered data when filters are applied)."
       ]
+    },
+    "exportReportingUsers": {
+      "touchpoint": "Discovery/Browse (global)",
+      "url_hint": "/manage/usage-activity/users",
+      "button": "Export all data",
+      "gql_export": "EXPORT_REPORTING_USERS",
+      "accept_popup": true,
+      "steps": [
+        "Go to Manage → Reporting & analytics.",
+        "Open the Users tab.",
+        "Click Export all data and accept the export confirmation popup."
+      ]
+    },
+    "exportReportingFonts": {
+      "touchpoint": "Discovery/Browse (global)",
+      "url_hint": "/manage/usage-activity/fonts",
+      "button": "Export all data",
+      "gql_export": "EXPORT_REPORTING_FONTS",
+      "accept_popup": true,
+      "steps": [
+        "Go to Manage → Reporting & analytics.",
+        "Open the Fonts tab.",
+        "Click Export all data and accept the export confirmation popup."
+      ]
+    },
+    "exportActiveFonts": {
+      "touchpoint": "Discovery/Browse (global)",
+      "url_hint": "/manage/company-assets/active-fonts",
+      "button": "Export all data",
+      "gql_export": "EXPORT_ACTIVE_FONTS",
+      "steps": [
+        "Go to Manage → Company assets → Active fonts.",
+        "Wait for the active fonts table to load.",
+        "Click Export all data."
+      ],
+      "notes": "UI export wired; audit mutation exportActiveFonts anticipated (same export-initiated enricher pattern)."
     }
   }
 }

@@ -223,6 +223,7 @@
   "EXPORT_REPORTING_FONTS": "mutation ExportReportingFonts($input: ExportReportingFontsInput!) { exportReportingFonts(input: $input) { success batchId status errors { code message } } }",
   "EXPORT_REPORTING_USERS": "mutation ExportReportingUsers($input: ExportReportingUsersInput!) { exportReportingUsers(input: $input) { success batchId status errors { code message } } }",
   "EXPORT_REPORTING_WEBKITS": "mutation ExportReportingWebkits($input: ExportReportingWebkitsInput!) { exportReportingWebkits(input: $input) { success batchId status errors { code message } } }",
+  "EXPORT_ACTIVE_FONTS": "mutation ExportActiveFonts($input: ExportActiveFontsInput!) { exportActiveFonts(input: $input) { batchId status message } }",
   "EXPORT_USER_ASSETS": "mutation ExportUserAssets($input: ExportUserAssetsInput!) { exportUserAssets(input: $input) { success batchId status errors { code message } } }",
   "EXPORT_USER_FONTS": "mutation ExportUserFonts($input: ExportUserFontsInput!) { exportUserFonts(input: $input) { success batchId status errors { code message } } }",
   "EXPORT_USER_PROJECTS": "mutation ExportUserProjects($input: ExportUserProjectsInput!) { exportUserProjects(input: $input) { success batchId status errors { code message } } }",

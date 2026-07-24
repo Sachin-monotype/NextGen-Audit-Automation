@@ -3,7 +3,7 @@
   "jira": "FDC-14091",
   "suite": 22395,
   "suite_section": 4066542,
-  "notes": "NEW export batch cases only. Push with scripts/push_export_testrail_cases.py — does not update fdc14091_testrail_map.json or existing TestRail case ids.",
+  "notes": "NEW export batch cases only. Push with local/scripts/push_export_testrail_cases.py — does not update fdc14091_testrail_map.json or existing TestRail case ids.",
   "preconditions_template": "1. NextGen PP/QA is reachable; log in if not already signed in.\n2. Prefer reuse of existing data on the page (no rebuild unless empty).\n3. Capture response header correlation-id (not x-correlation-id) from GraphQL.\n4. Follow plain-English steps; emit AUDIT_RESULT with real UUID after the export mutation.\n5. Jira: FDC-14091.",
   "operations": [
     "exportFontAssets",

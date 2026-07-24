@@ -1249,6 +1249,48 @@
       "operation": "exportTags",
       "touchpoint": "Discovery/Browse (global)",
       "key": "exportTags::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73309221,
+      "title": "Verify exportReportingUsers — Export (global)",
+      "operation": "exportReportingUsers",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportReportingUsers::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73309222,
+      "title": "Verify exportReportingFonts — Export (global)",
+      "operation": "exportReportingFonts",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportReportingFonts::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73309223,
+      "title": "Verify exportCompanyLibrary — Export (global)",
+      "operation": "exportCompanyLibrary",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportCompanyLibrary::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73309224,
+      "title": "Verify exportActiveFonts — Export (global)",
+      "operation": "exportActiveFonts",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportActiveFonts::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73309225,
+      "title": "Verify exportUsers — Export (global)",
+      "operation": "exportUsers",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportUsers::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73309226,
+      "title": "Verify exportTeams — Export (global)",
+      "operation": "exportTeams",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportTeams::Discovery/Browse (global)"
     }
   ],
   "by_key": {
@@ -1429,6 +1471,12 @@
     "exportMyLibrary::Discovery/Browse (global)": 73309149,
     "exportNotifications::Discovery/Browse (global)": 73309150,
     "exportRoles::Discovery/Browse (global)": 73309151,
-    "exportTags::Discovery/Browse (global)": 73309152
+    "exportTags::Discovery/Browse (global)": 73309152,
+    "exportReportingUsers::Discovery/Browse (global)": 73309221,
+    "exportReportingFonts::Discovery/Browse (global)": 73309222,
+    "exportCompanyLibrary::Discovery/Browse (global)": 73309223,
+    "exportActiveFonts::Discovery/Browse (global)": 73309224,
+    "exportUsers::Discovery/Browse (global)": 73309225,
+    "exportTeams::Discovery/Browse (global)": 73309226
   }
 }

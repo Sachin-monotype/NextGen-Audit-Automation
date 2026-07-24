@@ -172,6 +172,7 @@
   "exportReportingFonts": "export.reporting_fonts.initiated",
   "exportReportingUsers": "export.reporting_users.initiated",
   "exportReportingWebkits": "export.reporting_webkits.initiated",
+  "exportActiveFonts": "export.active_fonts.initiated",
   "exportUserAssets": "export.user_assets.initiated",
   "exportUserFonts": "export.user_fonts.initiated",
   "exportUserProjects": "export.user_projects.initiated",

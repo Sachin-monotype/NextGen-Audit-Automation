@@ -9,10 +9,17 @@ from ..models import JsonDict
 from .enriched_path_resolver import dig_enriched, normalize_enriched_path
 
 _SKIP_PREFIXES = (
-    "subject.metadata",
     "subject.enrichedSnapshot.asset.children",
     "subject.enrichedSnapshot.sharingInfo",
     "actor.enrichedSnapshot.user.profile.meta",
+)
+
+# Deep GraphQL response trees under metadata.result — compare input + summary counts only.
+_METADATA_RESULT_SKIP_PREFIXES = (
+    "subject.metadata.result.families.nodes",
+    "subject.metadata.result.styles",
+    "subject.metadata.result.batch",
+    "subject.metadata.result.asset",
 )
 
 _SCALAR_TYPES = (str, int, float, bool)
@@ -28,6 +35,8 @@ def _is_scalar(val: object) -> bool:
 
 def _walk(obj: object, prefix: str, out: list[tuple[str, object]]) -> None:
     if prefix and any(prefix.startswith(p) for p in _SKIP_PREFIXES):
+        return
+    if prefix and any(prefix.startswith(p) for p in _METADATA_RESULT_SKIP_PREFIXES):
         return
     if _is_scalar(obj):
         out.append((prefix, obj))
@@ -50,6 +59,28 @@ def _walk(obj: object, prefix: str, out: list[tuple[str, object]]) -> None:
             return
         # Single indexed slot is enough for validation rows
         return
+
+
+def _walk_metadata_result_summary(result: object, out: list[tuple[str, object]]) -> None:
+    """Scalar summary fields from GraphQL mutation result — skip deep family/style trees."""
+    if not isinstance(result, dict):
+        return
+    for key, val in result.items():
+        if key == "families" and isinstance(val, dict):
+            for sk, sv in val.items():
+                if sk == "nodes":
+                    continue
+                if _is_scalar(sv):
+                    out.append((f"subject.metadata.result.families.{sk}", sv))
+            continue
+        if key in {"errors", "nodes", "styles", "variations", "batch", "asset"}:
+            continue
+        path = f"subject.metadata.result.{key}"
+        if _is_scalar(val):
+            out.append((path, val))
+        elif isinstance(val, list) and val and all(_is_scalar(x) for x in val):
+            for idx, item in enumerate(val[:3]):
+                out.append((f"{path}[{idx}]", item))
 
 
 def scan_enriched_fields(enriched: JsonDict) -> list[tuple[str, object]]:
@@ -93,6 +124,14 @@ def scan_enriched_fields(enriched: JsonDict) -> list[tuple[str, object]]:
             for idx, val in enumerate(ids[:3]):
                 if _is_scalar(val):
                     out.append((f"subject.id[{idx}]", val))
+        meta = subject.get("metadata")
+        if isinstance(meta, dict):
+            inp = meta.get("input")
+            if isinstance(inp, dict):
+                _walk(inp, "subject.metadata.input", out)
+            res = meta.get("result")
+            if isinstance(res, dict):
+                _walk_metadata_result_summary(res, out)
         snap = subject.get("enrichedSnapshot")
         if isinstance(snap, dict) and snap:
             _walk(snap, "subject.enrichedSnapshot", out)
@@ -124,6 +163,10 @@ def infer_source_system(path: str, operation: str | None = None) -> tuple[str, s
         return "GraphQL", "mutation response / subject.type"
     if p.startswith("subject.id"):
         return "GraphQL", "mutation response subject.id (mutation target)"
+    if p.startswith("subject.metadata.input."):
+        return "GraphQL", "mutation input (subject.metadata.input)"
+    if p.startswith("subject.metadata.result."):
+        return "GraphQL", "mutation response (subject.metadata.result)"
     # Actor identity (globalUserId / globalCustomerId / orgId) is carried by the
     # Bearer token (JWT) that triggered the event — it isn't fetched from an external
     # source. Label it as such so the Result view shows "Bearer token" instead of "-".

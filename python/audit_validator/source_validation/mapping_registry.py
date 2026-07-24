@@ -262,6 +262,13 @@ def _font_envelope_fields(operation: str) -> list[MappingField]:
         ("subject.enrichedSnapshot", "fontDetails[0]", "family.foundry.name_en", "", "Discovery mtc_foundries_data.name_en", "Y"),
         ("subject.enrichedSnapshot", "fontDetails[0]", "styles[0].id", "", "Discovery style document id", "Y"),
         ("subject.enrichedSnapshot", "fontDetails[0]", "styles[0].variations[0].catalog.md5", "", "Discovery GET /v1/variations md5", "Y"),
+        ("subject.metadata", "input", "familyIds[0]", "", "Source: GraphQL mutation input familyIds", "Y"),
+        ("subject.metadata", "input", "listIds[0]", "", "Source: GraphQL mutation input listIds (touchpoint)", "Y"),
+        ("subject.metadata", "input", "listType", "", "Source: GraphQL mutation input listType (FONTLIST/PROJECT)", "Y"),
+        ("subject.metadata", "input", "projectIds[0]", "", "Source: GraphQL mutation input projectIds (touchpoint)", "Y"),
+        ("subject.metadata", "input", "activationType", "", "Source: GraphQL mutation input activationType", "Y"),
+        ("subject.metadata", "input", "activationMode", "", "Source: GraphQL mutation input activationMode", "Y"),
+        ("subject.metadata", "result", "families.totalCount", "", "Source: GraphQL mutation response families.totalCount", "Y"),
     ]
     if operation in {"bulkActivateStyles", "bulkDeactivateStyles"}:
         base.extend([
@@ -637,6 +644,9 @@ _EXPORT_OPS = frozenset({
     "exportCompanyLibrary",
     "exportTeams",
     "exportUsers",
+    "exportReportingFonts",
+    "exportReportingUsers",
+    "exportActiveFonts",
 })
 _ROLE_OPS = frozenset({"createRole", "updateRole"})
 _DELETE_ROLE_OPS = frozenset({"deleteRoles"})

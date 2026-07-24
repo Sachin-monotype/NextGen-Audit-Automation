@@ -115,6 +115,7 @@
     "duplicateProject",
     "editWebProject",
     "exportCompanyLibrary",
+    "exportActiveFonts",
     "exportCompleted",
     "exportFailed",
     "exportFontAssets",

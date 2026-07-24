@@ -19,8 +19,10 @@ import {
   type LatestComparisonItem,
 } from "../api";
 import {
+  compareScenarioDiscriminators,
   compareScenarioStructure,
   compareScenarioValues,
+  structureDiffSummary,
   type ScenarioStructureRow,
   type ScenarioValueRow,
 } from "../utils/scenarioCompare";
@@ -155,7 +157,7 @@ function groupBySnapshotBranch(rows: ComparisonRow[]): { branch: string; rows: C
   return [...map.entries()].map(([branch, branchRows]) => ({ branch, rows: branchRows }));
 }
 
-type ScenarioCompareMode = "values" | "structure";
+type ScenarioCompareMode = "values" | "structure" | "discriminators";
 
 /** Short resource / "table" name from the source_api path for the Result label. */
 function sourceResource(row: ComparisonRow): string {
@@ -280,7 +282,9 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const [scenarioCompareError, setScenarioCompareError] = useState("");
   const [scenarioValueRows, setScenarioValueRows] = useState<ScenarioValueRow[]>([]);
   const [scenarioStructureRows, setScenarioStructureRows] = useState<ScenarioStructureRow[]>([]);
+  const [scenarioDiscriminatorRows, setScenarioDiscriminatorRows] = useState<ScenarioStructureRow[]>([]);
   const [scenarioStructureFilter, setScenarioStructureFilter] = useState("");
+  const [scenarioShowAllDiffs, setScenarioShowAllDiffs] = useState(false);
 
   async function openFailureLog() {
     setFailureLogBusy(true);
@@ -521,12 +525,13 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   async function openScenarioCompare(ops: string[]) {
     if (ops.length < 2 || !latest?.items) return;
     setScenarioCompareOps(ops);
-    setScenarioCompareMode("values");
+    setScenarioCompareMode("discriminators");
     setScenarioCompareError("");
     setScenarioCompareBusy(true);
-    setScenarioValueRows(compareScenarioValues(ops, latest.items));
+    setScenarioShowAllDiffs(false);
+    setScenarioStructureFilter("");
     try {
-      const enrichedByOp: Record<string, unknown> = {};
+      const enrichedByOp: Record<string, unknown | null> = {};
       for (const op of ops) {
         try {
           const sample = await fetchEnrichedSample(op);
@@ -535,10 +540,14 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
           enrichedByOp[op] = null;
         }
       }
-      setScenarioStructureRows(compareScenarioStructure(ops, enrichedByOp));
+      setScenarioValueRows(compareScenarioValues(ops, latest.items, enrichedByOp));
+      setScenarioStructureRows(compareScenarioStructure(ops, enrichedByOp as Record<string, unknown>));
+      setScenarioDiscriminatorRows(compareScenarioDiscriminators(ops, enrichedByOp));
     } catch (e) {
       setScenarioCompareError(String(e));
+      setScenarioValueRows([]);
       setScenarioStructureRows([]);
+      setScenarioDiscriminatorRows([]);
     } finally {
       setScenarioCompareBusy(false);
     }
@@ -963,10 +972,17 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
             <div className="result-view-toggle" role="group" aria-label="Scenario compare mode">
               <button
                 type="button"
+                className={scenarioCompareMode === "discriminators" ? "active" : ""}
+                onClick={() => setScenarioCompareMode("discriminators")}
+              >
+                Scenario keys
+              </button>
+              <button
+                type="button"
                 className={scenarioCompareMode === "values" ? "active" : ""}
                 onClick={() => setScenarioCompareMode("values")}
               >
-                Values
+                All values
               </button>
               <button
                 type="button"
@@ -977,61 +993,155 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
               </button>
             </div>
             {scenarioCompareError && <p className="error">{scenarioCompareError}</p>}
-            {scenarioCompareBusy && <p className="muted">Loading enriched JSON for structure diff…</p>}
-            {scenarioCompareMode === "values" ? (
-              <div className="result-table-wrap compact-table-wrap">
-                <table className="result-table">
-                  <thead>
-                    <tr>
-                      <th>Field path</th>
-                      {scenarioCompareOps.map((op) => (
-                        <th key={op}>{op}</th>
-                      ))}
-                      <th>Match</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scenarioValueRows
-                      .filter((r) => !r.same)
-                      .filter((r) => !fieldSearch.trim() || rowMatchesFieldSearch(
-                        {
-                          operation: "",
-                          field: "",
-                          field_path: r.field_path,
-                          node: "",
-                          sub_node: "",
-                          layer: "",
-                          source_system: "",
-                          value_in_source: "",
-                          value_in_enriched: Object.values(r.values).join(" "),
-                          match_status: r.same ? "PASS" : "FAIL",
-                          notes: "",
-                          routing_key: "",
-                        },
-                        fieldSearch,
-                      ))
-                      .map((r) => (
-                        <tr key={r.field_path} className={r.same ? "pass" : "fail"}>
-                          <td><code>{r.field_path}</code></td>
-                          {scenarioCompareOps.map((op) => (
-                            <td key={op} className="result-list-value"><code>{r.values[op]}</code></td>
-                          ))}
-                          <td><span className={`badge ${r.same ? "pass" : "fail"}`}>{r.same ? "SAME" : "DIFF"}</span></td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
+            {scenarioCompareBusy && <p className="muted">Loading enriched JSON for scenario diff…</p>}
+            {!scenarioCompareBusy && scenarioCompareMode === "discriminators" && (
               <>
-                <label className="filter-field" style={{ marginBottom: 8 }}>
+                <p className="muted" style={{ marginBottom: 8 }}>
+                  Touchpoint-specific fields from <code>subject.metadata.input</code> (listIds, listType,
+                  projectIds, …) — what makes list vs global vs project different.
+                  {scenarioDiscriminatorRows.length > 0
+                    ? ` ${scenarioDiscriminatorRows.length} difference(s).`
+                    : " No differences found — check enriched samples loaded."}
+                </p>
+                <div className="result-table-wrap compact-table-wrap">
+                  <table className="result-table">
+                    <thead>
+                      <tr>
+                        <th>Metadata input path</th>
+                        {scenarioCompareOps.map((op) => (
+                          <th key={op}>{op}</th>
+                        ))}
+                        <th>Diff</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scenarioDiscriminatorRows.length === 0 ? (
+                        <tr>
+                          <td colSpan={scenarioCompareOps.length + 2} className="muted">
+                            No scenario-key differences — enriched samples may be missing metadata.input.
+                          </td>
+                        </tr>
+                      ) : (
+                        scenarioDiscriminatorRows.map((r) => (
+                          <tr key={r.path} className={r.kind === "value" ? "fail" : "skip"}>
+                            <td><code>{r.path}</code></td>
+                            {scenarioCompareOps.map((op) => (
+                              <td key={op} className="result-list-value">
+                                {r.presence[op] ? (
+                                  <code>{r.values[op]}</code>
+                                ) : (
+                                  <span className="badge na">—</span>
+                                )}
+                              </td>
+                            ))}
+                            <td>
+                              <span className={`badge ${r.kind === "value" ? "fail" : "skip"}`}>
+                                {r.kind === "value" ? "VALUE" : "ONLY ONE"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+            {!scenarioCompareBusy && scenarioCompareMode === "values" ? (
+              <>
+                <label className="filter-field" style={{ marginBottom: 8, display: "flex", gap: 12, alignItems: "center" }}>
+                  <span>filter</span>
+                  <input
+                    value={fieldSearch}
+                    onChange={(e) => setFieldSearch(e.target.value)}
+                    placeholder="attribute or value…"
+                  />
+                  <label style={{ display: "flex", gap: 6, alignItems: "center", whiteSpace: "nowrap" }}>
+                    <input
+                      type="checkbox"
+                      checked={scenarioShowAllDiffs}
+                      onChange={(e) => setScenarioShowAllDiffs(e.target.checked)}
+                    />
+                    show matching rows too
+                  </label>
+                </label>
+                <div className="result-table-wrap compact-table-wrap">
+                  <table className="result-table">
+                    <thead>
+                      <tr>
+                        <th>Field path</th>
+                        {scenarioCompareOps.map((op) => (
+                          <th key={op}>{op}</th>
+                        ))}
+                        <th>Match</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scenarioValueRows
+                        .filter((r) => scenarioShowAllDiffs || !r.same)
+                        .filter((r) => !fieldSearch.trim() || rowMatchesFieldSearch(
+                          {
+                            operation: "",
+                            field: "",
+                            field_path: r.field_path,
+                            node: "",
+                            sub_node: "",
+                            layer: "",
+                            source_system: "",
+                            value_in_source: "",
+                            value_in_enriched: Object.values(r.values).join(" "),
+                            match_status: r.same ? "PASS" : "FAIL",
+                            notes: "",
+                            routing_key: "",
+                          },
+                          fieldSearch,
+                        ))
+                        .map((r) => (
+                          <tr key={r.field_path} className={r.same ? "pass" : "fail"}>
+                            <td>
+                              <code>{r.field_path}</code>
+                              {r.discriminator && (
+                                <span className="badge skip" style={{ marginLeft: 6 }}>KEY</span>
+                              )}
+                            </td>
+                            {scenarioCompareOps.map((op) => (
+                              <td key={op} className="result-list-value"><code>{r.values[op]}</code></td>
+                            ))}
+                            <td><span className={`badge ${r.same ? "pass" : "fail"}`}>{r.same ? "SAME" : "DIFF"}</span></td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : null}
+            {!scenarioCompareBusy && scenarioCompareMode === "structure" ? (
+              <>
+                <label className="filter-field" style={{ marginBottom: 8, display: "flex", gap: 12, alignItems: "center" }}>
                   <span>filter paths</span>
                   <input
                     value={scenarioStructureFilter}
                     onChange={(e) => setScenarioStructureFilter(e.target.value)}
-                    placeholder="e.g. activationType, catalog.md5…"
+                    placeholder="e.g. metadata.input.listIds…"
                   />
+                  <label style={{ display: "flex", gap: 6, alignItems: "center", whiteSpace: "nowrap" }}>
+                    <input
+                      type="checkbox"
+                      checked={!scenarioShowAllDiffs}
+                      onChange={(e) => setScenarioShowAllDiffs(!e.target.checked)}
+                    />
+                    scenario keys only
+                  </label>
                 </label>
+                {(() => {
+                  const summary = structureDiffSummary(scenarioStructureRows);
+                  return (
+                    <p className="muted" style={{ marginBottom: 8 }}>
+                      {scenarioStructureRows.length} structural diff(s) · {summary.discriminators} scenario
+                      key(s) · deep metadata.result trees hidden
+                    </p>
+                  );
+                })()}
                 <div className="result-table-wrap compact-table-wrap">
                   <table className="result-table">
                     <thead>
@@ -1046,6 +1156,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                     <tbody>
                       {scenarioStructureRows
                         .filter((r) => {
+                          if (!scenarioShowAllDiffs && !r.discriminator) return false;
                           const q = scenarioStructureFilter.trim().toLowerCase();
                           if (!q) return true;
                           return r.path.toLowerCase().includes(q);
@@ -1053,7 +1164,12 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                         .slice(0, 500)
                         .map((r) => (
                           <tr key={r.path} className={r.kind === "value" ? "fail" : "skip"}>
-                            <td><code>{r.path}</code></td>
+                            <td>
+                              <code>{r.path}</code>
+                              {r.discriminator && (
+                                <span className="badge skip" style={{ marginLeft: 6 }}>KEY</span>
+                              )}
+                            </td>
                             {scenarioCompareOps.map((op) => (
                               <td key={op} className="result-list-value">
                                 {r.presence[op] ? (
@@ -1074,12 +1190,11 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                   </table>
                 </div>
                 <p className="muted">
-                  Only real differences: normalized paths (array indexes collapsed to [*]), scalar arrays
-                  like catalog.md5 compared as whole lists, and metadata.input aliases synced with
-                  subject.activationType. Max 500 rows — filter to narrow.
+                  Normalized paths ([*] indexes). Deep GQL response trees under metadata.result.families.nodes
+                  are hidden — use Scenario keys tab for listIds / listType / projectIds.
                 </p>
               </>
-            )}
+            ) : null}
           </div>
         </div>
       )}

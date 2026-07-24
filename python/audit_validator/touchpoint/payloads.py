@@ -1160,6 +1160,7 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
         "exportWebkitDomains": lambda: export_webkit_scoped(seed),
         "exportWebkitFonts": lambda: export_webkit_scoped(seed),
         "exportCompanyLibrary": lambda: export_csv_only(),
+        "exportActiveFonts": lambda: export_csv_only(),
         "exportMyLibrary": lambda: export_csv_only(),
         "exportImportedFonts": lambda: export_csv_only(),
         "exportLeavingSoonFonts": lambda: export_csv_only(),
