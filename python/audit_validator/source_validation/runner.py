@@ -400,6 +400,12 @@ def _collect_identity_keys(samples: dict[str, JsonDict]) -> dict[str, set[str]]:
             srid = str(subj_role.get("id") or "").strip()
             if srid:
                 roles.add(srid)
+        subj_user = subj_snap.get("user") or {}
+        subj_user_role = subj_user.get("role") if isinstance(subj_user, dict) else {}
+        if isinstance(subj_user_role, dict):
+            urid = str(subj_user_role.get("id") or "").strip()
+            if urid:
+                roles.add(urid)
         meta = subject.get("metadata") or {}
         result = meta.get("result") or {}
         role_from_result = None
@@ -757,11 +763,13 @@ def _live_context_for_operation(
                 # Keep actor profile results — only note subject-profile failure.
                 ctx.setdefault("ums_error", f"UMS subject profile lookup failed: {exc}")
         if not ctx.get("ums_subject_role"):
-            sub_role_id = _role_id_from_enriched(enriched)
+            sub_role_id = _subject_user_role_id_from_enriched(enriched) or _role_id_from_enriched(
+                enriched
+            )
             if not sub_role_id:
                 sub_prof = ctx.get("ums_subject_profile")
                 if isinstance(sub_prof, dict):
-                    sub_role_id = (sub_prof.get("role") or {}).get("id")
+                    sub_role_id = ((sub_prof.get("role") or {}).get("id"))
             if sub_role_id:
                 try:
                     ctx["ums_subject_role"] = ums_role_by.get(str(sub_role_id)) or ums.get_role_by_id(
@@ -869,6 +877,31 @@ def _live_context_for_operation(
                     ctx["ams_error"] = f"AMS asset {asset_id} not found"
             except Exception as exc:
                 ctx["ams_error"] = f"AMS lookup failed: {exc}"
+
+    base_op = operation.split("(", 1)[0].strip() if "(" in operation else operation
+    if base_op in {"createUserInvitations", "updateUserInvitations"} and ums and cfg.ums_ready:
+        invite_email = _invitation_email_from_enriched(enriched)
+        if invite_email:
+            fetch_inv = getattr(ums, "get_invitation_by_email", None)
+            if callable(fetch_inv):
+                try:
+                    ctx["ums_invitation"] = fetch_inv(
+                        invite_email, customer_id, correlation_id=cid
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    ctx.setdefault("ums_error", f"UMS invitation lookup failed: {exc}")
+
+    if base_op in {"updatePrivateTag", "createPrivateTags", "updatePrivateTagAssociations"}:
+        tag_id = _private_tag_id_from_enriched(enriched)
+        if tag_id and cfg.discovery_ready:
+            try:
+                disc = DiscoveryClient(cfg)
+                ctx["discovery_private_tag"] = disc.fetch_private_tag_by_id(
+                    tag_id, correlation_id=cid
+                )
+            except Exception as exc:  # noqa: BLE001
+                ctx["discovery_error"] = f"Private tag lookup failed: {exc}"
+
     return ctx
 
 
@@ -1039,6 +1072,68 @@ def _subject_profile_id_from_enriched(enriched: JsonDict) -> str | None:
     if isinstance(ids, list) and ids:
         return str(ids[0])
     if ids:
+        return str(ids)
+    return None
+
+
+def _subject_user_role_id_from_enriched(enriched: JsonDict) -> str | None:
+    """Role on ``subject.enrichedSnapshot.user`` (bulkUpdateProfiles target user)."""
+    subject = enriched.get("subject") or {}
+    snap = subject.get("enrichedSnapshot") or {}
+    user = snap.get("user") or {}
+    if not isinstance(user, dict):
+        return None
+    role = user.get("role") or {}
+    if isinstance(role, dict) and role.get("id"):
+        return str(role["id"])
+    return None
+
+
+def _invitation_email_from_enriched(enriched: JsonDict) -> str | None:
+    subject = enriched.get("subject") or {}
+    meta = subject.get("metadata") or {}
+    inp = meta.get("input") if isinstance(meta, dict) else {}
+    if isinstance(inp, dict):
+        data = inp.get("data") or []
+        if isinstance(data, list):
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+                emails = item.get("emails")
+                if isinstance(emails, list) and emails:
+                    return str(emails[0]).strip()
+                if item.get("email"):
+                    return str(item["email"]).strip()
+    snap = subject.get("enrichedSnapshot") or {}
+    invs = snap.get("invitations") or []
+    if isinstance(invs, list):
+        for inv in invs:
+            if isinstance(inv, dict) and inv.get("email"):
+                return str(inv["email"]).strip()
+    if subject.get("email"):
+        return str(subject["email"]).strip()
+    return None
+
+
+def _private_tag_id_from_enriched(enriched: JsonDict) -> str | None:
+    subject = enriched.get("subject") or {}
+    snap = subject.get("enrichedSnapshot") or {}
+    tags = snap.get("tags") or snap.get("privateTags") or []
+    if isinstance(tags, list):
+        for tag in tags:
+            if isinstance(tag, dict) and tag.get("id") not in (None, ""):
+                return str(tag["id"])
+    meta = subject.get("metadata") or {}
+    inp = meta.get("input") if isinstance(meta, dict) else {}
+    if isinstance(inp, dict):
+        for key in ("id", "tagId", "privateTagId"):
+            val = inp.get(key)
+            if val not in (None, "", []):
+                return str(val)
+    ids = subject.get("id")
+    if isinstance(ids, list) and ids:
+        return str(ids[0])
+    if ids not in (None, ""):
         return str(ids)
     return None
 

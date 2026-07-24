@@ -568,6 +568,65 @@ class UmsDbClient:
         return None
 
     @staticmethod
+    def _invitation_to_api(row: dict[str, Any]) -> dict[str, Any]:
+        role_id = _pick(row, "RoleId", "role_id", "roleId")
+        gcid = _pick(row, "GlobalCustomerId", "global_customer_id", "globalCustomerId")
+        inv_id = _pick(row, "Id", "id", "invitationId")
+        role_obj: dict[str, Any] = {}
+        if role_id:
+            role_obj = {"id": _str(role_id)}
+        return {
+            "invitationId": inv_id,
+            "id": inv_id,
+            "email": _pick(row, "Email", "email"),
+            "status": _pick(row, "Status", "status"),
+            "roleId": _str(role_id) if role_id else None,
+            "role": role_obj,
+            "globalCustomerId": _str(gcid) if gcid else None,
+            "createdAt": _iso(_pick(row, "CreatedOn", "created_on", "createdAt")),
+            "emailLocale": _pick(row, "EmailLocale", "email_locale", "emailLocale"),
+            "teamIds": _parse_json(_pick(row, "TeamIds", "team_ids", "teamIds")),
+            "_source": "mysql:user_management.user_invitation",
+        }
+
+    def get_invitation_by_email(
+        self,
+        email: str,
+        customer_id: str = "",
+        *,
+        correlation_id: str = "",
+    ) -> dict[str, Any] | None:
+        """``user_management.user_invitation`` row for the invited email."""
+        del correlation_id, customer_id
+        em = str(email or "").strip()
+        if not em:
+            return None
+        row = select_one(
+            """
+            SELECT *
+            FROM user_management.user_invitation
+            WHERE email = %s
+            LIMIT 1
+            """,
+            (em,),
+            cfg=self._mysql,
+        )
+        if not row:
+            return None
+        mapped = self._invitation_to_api(row)
+        role_id = mapped.get("roleId")
+        if role_id:
+            hydrated = self.get_role_by_id(str(role_id), customer_id or "", correlation_id="db")
+            if hydrated:
+                mapped["role"] = {
+                    "id": hydrated.get("id"),
+                    "displayName": hydrated.get("displayName"),
+                    "name": hydrated.get("displayName"),
+                    "permissions": hydrated.get("permissions"),
+                }
+        return mapped
+
+    @staticmethod
     def _profile_to_api(row: dict[str, Any]) -> dict[str, Any]:
         role_id = _pick(row, "role_id_uuid", "role_id", "roleId")
         role_name = _pick(row, "role_name", "roleName")

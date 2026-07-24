@@ -386,13 +386,13 @@ def _tag_fields() -> list[MappingField]:
     return [
         MappingField(
             "subject.enrichedSnapshot", "tags[0]", "id", "",
-            "Source: UMS/Search private tags", "", "Y",
-            "subject.enrichedSnapshot.tags[0].id", "UMS/Search", "private tags index", "subject",
+            "Source: Discovery GET /v1/privateTag/{id}", "", "Y",
+            "subject.enrichedSnapshot.tags[0].id", "UMS/Search", "GET /v1/privateTag/{id}", "subject",
         ),
         MappingField(
             "subject.enrichedSnapshot", "tags[0]", "name", "",
-            "Source: UMS/Search private tags", "", "Y",
-            "subject.enrichedSnapshot.tags[0].name", "UMS/Search", "private tags index", "subject",
+            "Source: Discovery GET /v1/privateTag/{id}", "", "Y",
+            "subject.enrichedSnapshot.tags[0].name", "UMS/Search", "GET /v1/privateTag/{id}", "subject",
         ),
     ]
 

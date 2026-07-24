@@ -165,16 +165,17 @@ def build_trigger_from_captured_event(
     result = extract_raw_metadata_result(raw_event)
     gql_response: dict[str, Any] = {}
     replay_mode = "input_only"
-    # Prefer a live GraphQL replay from captured mutation input — not the published
-    # raw envelope (source block / metadata echo).
-    if project_root is not None and inp:
+    # Prefer the mutation response captured at publish time (metadata.result).
+    # Live replay creates new batchIds/timestamps and can return success:false when
+    # the resource is already favourited/tagged — that falsely FAILs Compare.
+    if result:
+        gql_response = {op_name: result}
+        replay_mode = "metadata.result"
+    elif project_root is not None and inp:
         live_data = _replay_graphql_live(base_op, inp, project_root=project_root)
         if live_data:
             gql_response = live_data
             replay_mode = "live_replay"
-    if not gql_response and result:
-        gql_response = {op_name: result}
-        replay_mode = "metadata.result"
 
     cid = str(msg.get("xCorrelationId") or (enriched or {}).get("xCorrelationId") or "")
 

@@ -203,6 +203,47 @@ class DiscoveryClient:
         resp.raise_for_status()
         return _unwrap_discovery_hits(resp.json())
 
+    def fetch_private_tag_by_id(
+        self,
+        tag_id: str,
+        *,
+        correlation_id: str,
+    ) -> dict[str, Any] | None:
+        """GET/POST ``/v1/privateTag/{id}`` — private tag document (Typesense middleware)."""
+        tid = str(tag_id or "").strip()
+        if not tid:
+            return None
+        url = f"{self._cfg.discovery_base_url}/v1/privateTag/{tid}"
+        cid = _correlation_id(correlation_id)
+        headers = {
+            "Authorization": self._cfg.discovery_auth_header,
+            "accept": "application/json",
+            "accept-language": "en",
+            "x-correlation-id": cid,
+            "Content-Type": "application/json",
+        }
+        resp = self._session.post(
+            url,
+            json={"page": 1, "per_page": 10},
+            headers=headers,
+            timeout=60,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        if not isinstance(payload, dict):
+            return None
+        results = payload.get("results")
+        if isinstance(results, dict):
+            data = results.get("data")
+            if isinstance(data, list) and data and isinstance(data[0], dict):
+                return data[0]
+        data = payload.get("data")
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            return data[0]
+        if payload.get("id"):
+            return payload
+        return None
+
 
 class UmsClient:
     def __init__(self, cfg: SourceValidationConfig) -> None:
@@ -340,6 +381,31 @@ class UmsClient:
                     return val
             if inner.get("idpUserId") or inner.get("userId"):
                 return inner
+        return None
+
+    def get_invitation_by_email(
+        self,
+        email: str,
+        customer_id: str = "",
+        *,
+        correlation_id: str = "",
+    ) -> dict[str, Any] | None:
+        """Lookup invitation row by email (MySQL when configured)."""
+        del correlation_id
+        em = str(email or "").strip()
+        if not em:
+            return None
+        try:
+            from .db.connection import load_mysql_config, mysql_ready
+            from .db.clients import UmsDbClient
+
+            mysql = load_mysql_config()
+            if mysql_ready(mysql):
+                return UmsDbClient(mysql).get_invitation_by_email(
+                    em, customer_id, correlation_id=correlation_id
+                )
+        except Exception:
+            pass
         return None
 
     def get_profiles_by_ids(

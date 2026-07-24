@@ -346,8 +346,12 @@ def _row(
                 status = "SKIP"
                 notes = notes or "Actor teams not fetched from UMS GET /teams for source validation"
             elif "invitation" in spec.enriched_path.lower() and "subject.enrichedSnapshot" in spec.enriched_path:
-                status = "SKIP"
-                notes = notes or "Invitation entity not fetched from UMS for source validation"
+                if live.get("ums_invitation"):
+                    status = "FAIL"
+                    notes = notes or "UMS invitation row missing field (enriched has value)"
+                else:
+                    status = "SKIP"
+                    notes = notes or "Invitation entity not fetched from UMS for source validation"
             else:
                 status = "FAIL"
                 notes = notes or "UMS response missing field (enriched has value)"
@@ -503,6 +507,46 @@ def _cms_value(path: str, cms: dict) -> object:
     return cms.get(leaf)
 
 
+def _invitation_value(path: str, invitation: dict) -> object | None:
+    import re
+
+    m = re.search(r"invitations\[(\d+)\](?:\.(.+))?$", path)
+    rel = m.group(2) if m else path.rsplit(".", 1)[-1]
+    if not rel:
+        return invitation
+    rel = rel.split("[")[0]
+    if ".role." in path:
+        role = invitation.get("role") or {}
+        if isinstance(role, dict):
+            return dig_once(role, path.split(".role.", 1)[1])
+    aliases = {
+        "invitationId": ("invitationId", "id", "Id"),
+        "email": ("email", "Email"),
+        "status": ("status", "Status"),
+        "roleId": ("roleId", "RoleId"),
+        "globalCustomerId": ("globalCustomerId", "GlobalCustomerId"),
+        "createdAt": ("createdAt", "CreatedOn", "created_on"),
+        "emailLocale": ("emailLocale", "EmailLocale"),
+    }
+    leaf = rel.rsplit(".", 1)[-1]
+    for key in aliases.get(leaf, (leaf,)):
+        val = invitation.get(key)
+        if val not in (None, "", [], {}):
+            return val
+    return dig_once(invitation, rel)
+
+
+def _private_tag_value(path: str, tag: dict) -> object | None:
+    import re
+
+    m = re.search(r"tags\[(\d+)\](?:\.(.+))?$", path)
+    rel = m.group(2) if m else path.rsplit(".", 1)[-1]
+    if not rel:
+        return tag
+    rel = rel.split("[")[0]
+    return dig_once(tag, rel)
+
+
 def _ums_actor_teams_value(path: str, ums_actor_teams: list | None) -> object | None:
     """Resolve ``actor.enrichedSnapshot.user.teams[i].*`` from UMS GET /teams."""
     if not ums_actor_teams or ".teams[" not in path:
@@ -534,6 +578,7 @@ def _ums_value(
     ums_subject_role: dict | None = None,
     ums_user: dict | None = None,
     ums_actor_teams: list | None = None,
+    ums_invitation: dict | None = None,
 ) -> object:
     # deleteProfiles enrichedSnapshot.deletedProfiles[*].user.* — resolved via
     # UMS GET /api/v3/users?idpUserId=… after the profile row itself is gone.
@@ -573,11 +618,17 @@ def _ums_value(
             return ums_team.get(key)
         return None
     if "subject.enrichedSnapshot" in path and "invitation" in path.lower():
+        if ums_invitation:
+            val = _invitation_value(path, ums_invitation)
+            if val is not None:
+                return val
         return None
     if ums_role and "actor.enrichedSnapshot.user.role." in path:
         rel = path.split(".role.", 1)[1]
         return dig_once(ums_role, rel)
     if ums_role and ".role." in path and "actor.enrichedSnapshot.user" not in path:
+        if "subject.enrichedSnapshot.user.role." in path:
+            return None
         key = path.split(".")[-1].replace("[0]", "")
         if key == "id":
             return ums_role.get("id")
@@ -679,6 +730,22 @@ def _resolve_source_value(
     if delete_id is not None:
         return delete_id, "GraphQL mutation input ids (deleted entity)"
 
+    if ".tags[" in path or ".privatetag" in path.lower():
+        tag = live.get("discovery_private_tag")
+        if isinstance(tag, dict):
+            val = _private_tag_value(path, tag)
+            if val is not None:
+                return val, "Discovery GET /v1/privateTag/{id}"
+
+    if "invitations[" in path or (
+        "invitation" in path.lower() and "subject.enrichedSnapshot" in path
+    ):
+        inv = live.get("ums_invitation")
+        if isinstance(inv, dict):
+            val = _invitation_value(path, inv)
+            if val is not None:
+                return val, "mysql:user_management.user_invitation (by invite email)"
+
     # Raw envelope family IDs — not style document ids from Typesense
     if path.startswith("subject.id"):
         return _raw_subject_id(enriched, path), ""
@@ -692,6 +759,15 @@ def _resolve_source_value(
                 if path.startswith("subject.metadata.result."):
                     note = "GraphQL mutation response (subject.metadata.result)"
                 return from_trigger, note
+        # Fall back to enriched envelope result (same publish-time response).
+        if path.startswith("subject.metadata.result."):
+            subject = enriched.get("subject") or {}
+            meta = subject.get("metadata") if isinstance(subject.get("metadata"), dict) else {}
+            res = meta.get("result") if isinstance(meta.get("result"), dict) else {}
+            rel = path[len("subject.metadata.result.") :]
+            val = dig_once(res, rel)
+            if val is not None:
+                return val, "GraphQL mutation response (subject.metadata.result)"
         gql = live.get("graphql_response")
         if isinstance(gql, dict) and gql and path.startswith("subject.metadata.result."):
             from_gql = _graphql_response_value(path, gql, enriched)
@@ -708,6 +784,12 @@ def _resolve_source_value(
         return None, "GraphQL mutation input/response not captured for this run"
 
     if spec.source_system == "Typesense":
+        if ".tags[" in path or ".privatetag" in path.lower():
+            tag = live.get("discovery_private_tag")
+            if isinstance(tag, dict):
+                val = _private_tag_value(path, tag)
+                if val is not None:
+                    return val, "Discovery GET /v1/privateTag/{id}"
         style_hits = live.get("style_hits") or []
         variation_hits = live.get("variation_hits") or []
         if style_hits or variation_hits:
@@ -731,6 +813,7 @@ def _resolve_source_value(
             ums_subject_role=live.get("ums_subject_role"),
             ums_user=live.get("ums_user"),
             ums_actor_teams=live.get("ums_actor_teams"),
+            ums_invitation=live.get("ums_invitation"),
         )
         if val is not None:
             # Value came from a successful UMS response — never decorate with a
