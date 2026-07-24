@@ -521,10 +521,12 @@ def _invitation_value(path: str, invitation: dict) -> object | None:
             return dig_once(role, path.split(".role.", 1)[1])
     aliases = {
         "invitationId": ("invitationId", "id", "Id"),
+        "id": ("id", "invitationId", "Id"),
         "email": ("email", "Email"),
         "status": ("status", "Status"),
         "roleId": ("roleId", "RoleId"),
-        "globalCustomerId": ("globalCustomerId", "GlobalCustomerId"),
+        "globalCustomerId": ("globalCustomerId", "GlobalCustomerId", "customerId"),
+        "customerId": ("customerId", "globalCustomerId", "GlobalCustomerId"),
         "createdAt": ("createdAt", "CreatedOn", "created_on"),
         "emailLocale": ("emailLocale", "EmailLocale"),
     }
@@ -745,6 +747,8 @@ def _resolve_source_value(
             val = _invitation_value(path, inv)
             if val is not None:
                 return val, "mysql:user_management.user_invitation (by invite email)"
+        if path.startswith("subject.enrichedSnapshot") and "invitations[" in path:
+            return None, "Invitation row not found — check MYSQL_* and invite email"
 
     # Raw envelope family IDs — not style document ids from Typesense
     if path.startswith("subject.id"):

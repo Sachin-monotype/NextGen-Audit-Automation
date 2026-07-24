@@ -575,6 +575,7 @@ class UmsDbClient:
         role_obj: dict[str, Any] = {}
         if role_id:
             role_obj = {"id": _str(role_id)}
+        gcid_str = _str(gcid) if gcid else None
         return {
             "invitationId": inv_id,
             "id": inv_id,
@@ -582,7 +583,8 @@ class UmsDbClient:
             "status": _pick(row, "Status", "status"),
             "roleId": _str(role_id) if role_id else None,
             "role": role_obj,
-            "globalCustomerId": _str(gcid) if gcid else None,
+            "globalCustomerId": gcid_str,
+            "customerId": gcid_str,
             "createdAt": _iso(_pick(row, "CreatedOn", "created_on", "createdAt")),
             "emailLocale": _pick(row, "EmailLocale", "email_locale", "emailLocale"),
             "teamIds": _parse_json(_pick(row, "TeamIds", "team_ids", "teamIds")),
@@ -597,7 +599,7 @@ class UmsDbClient:
         correlation_id: str = "",
     ) -> dict[str, Any] | None:
         """``user_management.user_invitation`` row for the invited email."""
-        del correlation_id, customer_id
+        del correlation_id
         em = str(email or "").strip()
         if not em:
             return None
@@ -615,8 +617,9 @@ class UmsDbClient:
             return None
         mapped = self._invitation_to_api(row)
         role_id = mapped.get("roleId")
-        if role_id:
-            hydrated = self.get_role_by_id(str(role_id), customer_id or "", correlation_id="db")
+        gcid = customer_id or mapped.get("globalCustomerId") or mapped.get("customerId") or ""
+        if role_id and gcid:
+            hydrated = self.get_role_by_id(str(role_id), str(gcid), correlation_id="db")
             if hydrated:
                 mapped["role"] = {
                     "id": hydrated.get("id"),
