@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "jira": "FDC-14091",
+  "suite": 22395,
+  "suite_section": 4066542,
+  "batch": 3,
+  "notes": "NEW UI action cases (5 ops). Push with push_test_cases_to_testrail MCP or local script. Merge-map only — does not update existing TestRail case ids.",
+  "preconditions_template": "1. NextGen PP/QA is reachable; log in if not already signed in.\n2. Prefer reuse of existing data on the page (no rebuild unless empty).\n3. Capture response header correlation-id (not x-correlation-id) from GraphQL.\n4. Follow plain-English steps; emit AUDIT_RESULT with real UUID after the mutation.\n5. Jira: FDC-14091.",
+  "operations": [
+    "regenerateToken",
+    "publishProject",
+    "updateAssetsSharingInfo",
+    "bulkUpdatePreferences",
+    "createUploadSession"
+  ],
+  "cases": [
+    {
+      "title": "Verify regenerateToken — Manage Servers",
+      "operation": "regenerateToken",
+      "touchpoint": "Manage > Users and Teams > Servers",
+      "label": "regenerateToken(user_access)",
+      "key": "regenerateToken::Manage > Users and Teams > Servers",
+      "gql_mutation": "RegenerateToken",
+      "custom_steps_separated": [
+        {
+          "content": "Go to Manage → Users and Teams → Servers.",
+          "expected": "Servers page is open."
+        },
+        {
+          "content": "If no server exists, create one; otherwise right-click an existing server → Generate token → accept.",
+          "expected": "Token regenerated; RegenerateToken mutation captured."
+        },
+        {
+          "content": "Network filter operationName=RegenerateToken → copy response header correlation-id (NOT x-correlation-id) → emit AUDIT_RESULT.",
+          "expected": "GraphQL regenerateToken fires; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify publishProject — Project navigation",
+      "operation": "publishProject",
+      "touchpoint": "Project",
+      "label": "publishProject(project)",
+      "key": "publishProject::Project",
+      "gql_mutation": "PublishProject",
+      "custom_steps_separated": [
+        {
+          "content": "Create a project if none exists (or open one you can access).",
+          "expected": "Project is available in left navigation."
+        },
+        {
+          "content": "Right-click the project in the left navigation → Publish project → confirm.",
+          "expected": "Project published; publishProject mutation captured."
+        },
+        {
+          "content": "Network filter operationName=PublishProject → copy response header correlation-id → emit AUDIT_RESULT.",
+          "expected": "GraphQL publishProject fires; AUDIT_RESULT emitted with real UUID."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify updateAssetsSharingInfo — Share list",
+      "operation": "updateAssetsSharingInfo",
+      "touchpoint": "List (FONTLIST)",
+      "label": "updateAssetsSharingInfo(list)",
+      "key": "updateAssetsSharingInfo::List (FONTLIST)",
+      "gql_mutation": "UpdateAssetsSharingInfo",
+      "custom_steps_separated": [
+        {
+          "content": "Create a font list if none exists, or open an existing list.",
+          "expected": "Font list is visible in My Library."
+        },
+        {
+          "content": "Right-click the list → Share list → set Who has access to Only invited → share with any user → confirm.",
+          "expected": "List sharing updated; updateAssetsSharingInfo mutation captured."
+        },
+        {
+          "content": "Network filter operationName=UpdateAssetsSharingInfo → copy response header correlation-id → emit AUDIT_RESULT.",
+          "expected": "GraphQL updateAssetsSharingInfo fires; AUDIT_RESULT emitted with real UUID."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify bulkUpdatePreferences — Notification settings",
+      "operation": "bulkUpdatePreferences",
+      "touchpoint": "Notifications",
+      "label": "bulkUpdatePreferences(notifications)",
+      "key": "bulkUpdatePreferences::Notifications",
+      "gql_mutation": "BulkUpdatePreferences",
+      "custom_steps_separated": [
+        {
+          "content": "Click the bell icon → open Notification settings.",
+          "expected": "Notification settings panel is open."
+        },
+        {
+          "content": "Toggle any notification checkbox and click Save changes.",
+          "expected": "Preferences saved; bulkUpdatePreferences mutation captured."
+        },
+        {
+          "content": "Network filter operationName=BulkUpdatePreferences → copy response header correlation-id → emit AUDIT_RESULT.",
+          "expected": "GraphQL bulkUpdatePreferences fires; AUDIT_RESULT emitted with real UUID."
+        }
+      ],
+      "estimate": "10m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify createUploadSession — Scan document PDF upload",
+      "operation": "createUploadSession",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "createUploadSession(global)",
+      "key": "createUploadSession::Discovery/Browse (global)",
+      "gql_mutation": "CreateUploadSession",
+      "custom_steps_separated": [
+        {
+          "content": "Open Scan document (document upload flow).",
+          "expected": "Upload session UI is visible."
+        },
+        {
+          "content": "Upload any random PDF document and wait for the session to be created.",
+          "expected": "Upload session created; createUploadSession mutation captured."
+        },
+        {
+          "content": "Network filter operationName=CreateUploadSession → copy response header correlation-id → emit AUDIT_RESULT.",
+          "expected": "GraphQL createUploadSession fires; AUDIT_RESULT emitted with real UUID."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    }
+  ]
+}

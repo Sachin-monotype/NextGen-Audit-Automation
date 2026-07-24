@@ -1291,6 +1291,41 @@
       "operation": "exportTeams",
       "touchpoint": "Discovery/Browse (global)",
       "key": "exportTeams::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73303539,
+      "title": "Verify regenerateToken — Manage Servers",
+      "operation": "regenerateToken",
+      "touchpoint": "Manage > Users and Teams > Servers",
+      "key": "regenerateToken::Manage > Users and Teams > Servers"
+    },
+    {
+      "case_id": 73304715,
+      "title": "Verify publishProject — Project navigation",
+      "operation": "publishProject",
+      "touchpoint": "Project",
+      "key": "publishProject::Project"
+    },
+    {
+      "case_id": 73304691,
+      "title": "Verify updateAssetsSharingInfo — Share list",
+      "operation": "updateAssetsSharingInfo",
+      "touchpoint": "List (FONTLIST)",
+      "key": "updateAssetsSharingInfo::List (FONTLIST)"
+    },
+    {
+      "case_id": 73309245,
+      "title": "Verify bulkUpdatePreferences — Notification settings",
+      "operation": "bulkUpdatePreferences",
+      "touchpoint": "Notifications",
+      "key": "bulkUpdatePreferences::Notifications"
+    },
+    {
+      "case_id": 73309246,
+      "title": "Verify createUploadSession — Scan document PDF upload",
+      "operation": "createUploadSession",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "createUploadSession::Discovery/Browse (global)"
     }
   ],
   "by_key": {
@@ -1477,6 +1512,11 @@
     "exportCompanyLibrary::Discovery/Browse (global)": 73309223,
     "exportActiveFonts::Discovery/Browse (global)": 73309224,
     "exportUsers::Discovery/Browse (global)": 73309225,
-    "exportTeams::Discovery/Browse (global)": 73309226
+    "exportTeams::Discovery/Browse (global)": 73309226,
+    "regenerateToken::Manage > Users and Teams > Servers": 73303539,
+    "publishProject::Project": 73304715,
+    "updateAssetsSharingInfo::List (FONTLIST)": 73304691,
+    "bulkUpdatePreferences::Notifications": 73309245,
+    "createUploadSession::Discovery/Browse (global)": 73309246
   }
 }

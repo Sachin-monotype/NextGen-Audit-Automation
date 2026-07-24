@@ -499,6 +499,13 @@ def _cms_value(path: str, cms: dict) -> object:
         val = dig_once(cms, rel)
         if val is not None:
             return val
+        if "customLogo" in path:
+            meta = cms.get("metaData") or cms.get("metadata") or {}
+            if isinstance(meta, dict):
+                leaf = path.rsplit(".", 1)[-1]
+                for key in (leaf, leaf.replace("UploadedAt", "_uploaded_at")):
+                    if meta.get(key) not in (None, "", [], {}):
+                        return meta.get(key)
         if "language" in rel.lower():
             return _cms_pick_language(cms)
         return None
@@ -727,8 +734,33 @@ def _resolve_source_value(
     enriched: JsonDict,
     *,
     live: dict[str, Any],
+    operation: str = "",
 ) -> tuple[object, str]:
     path = spec.enriched_path
+    base_op = _base_operation(operation)
+
+    if path == "xCorrelationId":
+        from .operation_rules import published_x_correlation_id
+
+        published = published_x_correlation_id(enriched, live)
+        if published:
+            return published, "Published event xCorrelationId (same audit envelope)"
+
+    if base_op == "getPackageId" and (
+        path.startswith("subject.id") or path.rsplit(".", 1)[-1].lower() == "packageid"
+    ):
+        from .operation_rules import package_id_echo
+
+        echo = package_id_echo(enriched)
+        if echo is not None:
+            return echo, "GraphQL getPackageId response packageId (same event envelope)"
+
+    if "customLogo" in path and ".customer." in path:
+        cms = live.get("cms_customer")
+        if isinstance(cms, dict) and cms:
+            val = _cms_value(path, cms)
+            if val is not None:
+                return val, "CMS GET /api/v2/customers/{gcid} (metaData.customLogo*)"
 
     delete_id = _delete_snapshot_id_value(
         path, enriched, live.get("trigger") if isinstance(live.get("trigger"), dict) else None
@@ -1218,7 +1250,7 @@ def _spec_for_path(
         validate = "N"
     if norm == "xCorrelationId":
         validate = "Y"
-        src_sys, src_api = "Trigger", "GraphQL curl / event trigger"
+        src_sys, src_api = "Trigger", "Published event envelope (xCorrelationId)"
     return MappingField(
         field=field or norm.rsplit(".", 1)[-1],
         node=node,
@@ -1430,7 +1462,7 @@ def build_comparison_rows(
             continue
 
         ev = enriched_val if enriched_val is not None else _dig(enriched, norm)
-        sv, note = _resolve_source_value(spec, enriched, live=live)
+        sv, note = _resolve_source_value(spec, enriched, live=live, operation=operation)
         row = _row(operation, spec, sv, ev, notes=note, live=live)
         if not note and row.match_status == "SKIP":
             note = _remark_for_source(live, spec.source_system, status="SKIP")

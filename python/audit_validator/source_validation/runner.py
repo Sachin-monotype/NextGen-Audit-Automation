@@ -334,23 +334,13 @@ def _prefetch_discovery(
     return cache
 
 
-def _asset_ref_from_enriched(enriched: JsonDict) -> tuple[str | None, str | None]:
-    """Asset id + type for the AMS lookup (subject snapshot → subject id fallback)."""
-    subject = enriched.get("subject") or {}
-    snap = subject.get("enrichedSnapshot") or {}
-    asset = snap.get("asset") or {}
-    if isinstance(asset, dict):
-        aid = asset.get("id")
-        atype = asset.get("assetType")
-        if aid:
-            return str(aid), (str(atype) if atype else None)
-    # delete-* / no-snapshot ops carry the id on the subject envelope.
-    ids = subject.get("id")
-    if isinstance(ids, list) and ids:
-        return str(ids[0]), (str(asset.get("assetType")) if isinstance(asset, dict) and asset.get("assetType") else None)
-    if isinstance(ids, str) and ids:
-        return ids, None
-    return None, None
+def _asset_ref_from_enriched(
+    enriched: JsonDict,
+    operation: str | None = None,
+) -> tuple[str | None, str | None]:
+    from .operation_rules import asset_ref_for_operation
+
+    return asset_ref_for_operation(enriched, operation)
 
 
 def _actor_team_ids_from_enriched(enriched: JsonDict) -> list[str]:
@@ -377,7 +367,7 @@ def _collect_identity_keys(samples: dict[str, JsonDict]) -> dict[str, set[str]]:
     assets: set[str] = set()  # "assetId|assetType|gcid"
     # "gcid|teamId" — actor teams need UMS GET /teams (not profile.team UUID)
     teams: set[str] = set()
-    for enriched in samples.values():
+    for op_name, enriched in samples.items():
         actor = enriched.get("actor") or {}
         gcid = str(actor.get("globalCustomerId") or "").strip()
         if gcid:
@@ -423,7 +413,8 @@ def _collect_identity_keys(samples: dict[str, JsonDict]) -> dict[str, set[str]]:
         subject_pid = _subject_profile_id_from_enriched(enriched)
         if subject_pid:
             profiles.add(str(subject_pid))
-        aid, atype = _asset_ref_from_enriched(enriched)
+        op_name = str(op_name or enriched.get("source", {}).get("operation") or "")
+        aid, atype = _asset_ref_from_enriched(enriched, op_name)
         if aid:
             assets.add(f"{aid}|{atype or ''}|{gcid}")
     return {
@@ -730,11 +721,28 @@ def _live_context_for_operation(
                         ctx["ums_role_missing"] = f"Role {rid} not found in UMS"
                 except Exception as exc:  # noqa: BLE001
                     ctx["ums_role_error"] = f"UMS subject role lookup failed: {exc}"
+        from .operation_rules import should_fetch_service_profile
+
         pid = _profile_id_from_enriched(enriched)
         if pid:
             try:
+                service_actor = should_fetch_service_profile(base_op)
+                if service_actor and pid not in ums_prof_by:
+                    bulk_svc = getattr(ums, "get_profiles_by_ids", None)
+                    if callable(bulk_svc):
+                        rows = bulk_svc(
+                            [pid],
+                            customer_id,
+                            correlation_id=cid,
+                            user_type="service",
+                        )
+                        if rows and isinstance(rows[0], dict):
+                            ums_prof_by[pid] = rows[0]
                 profile = ums_prof_by.get(pid) or ums.get_profile_by_id(
-                    pid, customer_id, correlation_id=cid
+                    pid,
+                    customer_id,
+                    correlation_id=cid,
+                    user_type="service" if service_actor else None,
                 )
                 ctx["ums_profile"] = profile
             except Exception as exc:  # noqa: BLE001
@@ -845,7 +853,7 @@ def _live_context_for_operation(
 
     # Asset Management — resolver uses POST /v2/assets/bulk (type-agnostic), not only typed GET.
     if ams and cfg.ams_ready:
-        asset_id, asset_type = _asset_ref_from_enriched(enriched)
+        asset_id, asset_type = _asset_ref_from_enriched(enriched, base_op)
         if asset_id:
             try:
                 cached_ams = ams_by.get(asset_id)
@@ -870,9 +878,20 @@ def _live_context_for_operation(
                         )
                         ctx["ams_asset"] = bulk_rows.get(asset_id)
                 if not ctx.get("ams_asset"):
+                    ams_type = asset_type or (
+                        "WebProject" if base_op in {"downloadWebProject", "publishProject"} else "Folder"
+                    )
                     ctx["ams_asset"] = ams.get_asset_by_id(
                         asset_id,
-                        asset_type or "Folder",
+                        ams_type,
+                        correlation_id=cid,
+                        global_user_id=global_user_id,
+                        global_customer_id=customer_id,
+                    )
+                if not ctx.get("ams_asset") and asset_type and asset_type != "Folder":
+                    ctx["ams_asset"] = ams.get_asset_by_id(
+                        asset_id,
+                        "Folder",
                         correlation_id=cid,
                         global_user_id=global_user_id,
                         global_customer_id=customer_id,

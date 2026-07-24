@@ -162,7 +162,11 @@ def infer_source_system(path: str, operation: str | None = None) -> tuple[str, s
     if p == "subject.type":
         return "GraphQL", "mutation response / subject.type"
     if p.startswith("subject.id"):
+        if (operation or "").split("(", 1)[0].strip() == "getPackageId":
+            return "Trigger", "GraphQL getPackageId response packageId (same event)"
         return "GraphQL", "mutation response subject.id (mutation target)"
+    if "customlogo" in p and ".customer." in p:
+        return "CMS", "GET /api/v2/customers/{gcid} (metaData.customLogo*)"
     if p.startswith("subject.metadata.input."):
         return "GraphQL", "mutation input (subject.metadata.input)"
     if p.startswith("subject.metadata.result."):

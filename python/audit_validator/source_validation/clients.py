@@ -329,12 +329,17 @@ class UmsClient:
         customer_id: str,
         *,
         correlation_id: str,
+        user_type: str | None = None,
     ) -> dict[str, Any] | None:
         """Fetch a single profile via POST-as-GET with a ``profile.id`` filter."""
         if not profile_id:
             return None
         profiles = self._profiles_post_as_get(
-            customer_id, [profile_id], correlation_id=correlation_id, limit=1
+            customer_id,
+            [profile_id],
+            correlation_id=correlation_id,
+            limit=1,
+            user_type=user_type,
         )
         pid = profile_id.strip().lower()
         for row in profiles:

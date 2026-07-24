@@ -266,6 +266,15 @@ def _overlay_published_envelope(
     for root in (enriched, raw_msg):
         if not isinstance(root, dict):
             continue
+        pub_cid = str(root.get("xCorrelationId") or "").strip()
+        if pub_cid:
+            ctx["xCorrelationId"] = pub_cid
+            ctx["correlation_id"] = pub_cid
+            break
+
+    for root in (enriched, raw_msg):
+        if not isinstance(root, dict):
+            continue
         for key in ("eventId", "eventVersion", "occurredAt", "routingKey"):
             val = root.get(key)
             if val not in (None, "", [], {}):

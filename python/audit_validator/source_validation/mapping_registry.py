@@ -497,6 +497,18 @@ def _actor_fields() -> list[MappingField]:
             "Source: CMS GET customer", "", "Y",
             "actor.enrichedSnapshot.customer.displayName", "CMS", "GET customer", "actor",
         ),
+        MappingField(
+            "actor.enrichedSnapshot", "customer", "metaData.customLogoUrl", "",
+            "Source: CMS GET customer metaData.customLogoUrl", "", "Y",
+            "actor.enrichedSnapshot.customer.metaData.customLogoUrl", "CMS",
+            "GET /api/v2/customers/{gcid} (metaData)", "actor",
+        ),
+        MappingField(
+            "actor.enrichedSnapshot", "customer", "metaData.customLogoUploadedAt", "",
+            "Source: CMS GET customer metaData.customLogoUploadedAt", "", "Y",
+            "actor.enrichedSnapshot.customer.metaData.customLogoUploadedAt", "CMS",
+            "GET /api/v2/customers/{gcid} (metaData)", "actor",
+        ),
     ]
 
 
@@ -652,7 +664,8 @@ _ROLE_OPS = frozenset({"createRole", "updateRole"})
 _DELETE_ROLE_OPS = frozenset({"deleteRoles"})
 _DELETE_TEAM_OPS = frozenset({"deleteTeams"})
 _ASSET_OPS = frozenset({
-    "createProject", "publishProject", "createAsset", "updateAsset", "createWebProject",
+    "createProject", "publishProject", "createWebProject", "createAsset", "updateAsset",
+    "downloadWebProject", "updateAssetsSharingInfo",
 })
 _EXCEL_SHEET_BY_OP = {
     "activateFamily": "ActivateFamily",

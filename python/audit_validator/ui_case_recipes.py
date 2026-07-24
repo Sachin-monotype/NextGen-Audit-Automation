@@ -955,6 +955,78 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
             op=op,
             touch=touch_canon,
         )
+    if op == "regenerateToken":
+        return _S(
+            _row(
+                "Go to Manage → Users and Teams → Servers.",
+                "Servers page is open.",
+            ),
+            _row(
+                "If no server exists, create one; otherwise right-click an existing server "
+                "→ Generate token → accept the confirmation.",
+                "Token regenerated; RegenerateToken mutation captured.",
+            ),
+            _capture(op, "user_access"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "publishProject":
+        return _S(
+            _row(
+                "Create a project if none exists (or open one you can access).",
+                "Project is available in left navigation.",
+            ),
+            _row(
+                "Right-click the project in the left navigation → Publish project → confirm.",
+                "Project published; publishProject mutation captured.",
+            ),
+            _capture(op, "project"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "updateAssetsSharingInfo":
+        return _S(
+            _row(
+                "Create a font list if none exists, or open an existing list.",
+                "Font list is visible in My Library.",
+            ),
+            _row(
+                "Right-click the list → Share list → set Who has access to Only invited → "
+                "share with any user → confirm.",
+                "List sharing updated; updateAssetsSharingInfo mutation captured.",
+            ),
+            _capture(op, "list"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "bulkUpdatePreferences":
+        return _S(
+            _row(
+                "Click the bell icon → open Notification settings.",
+                "Notification settings panel is open.",
+            ),
+            _row(
+                "Toggle any notification checkbox and click Save changes.",
+                "Preferences saved; bulkUpdatePreferences mutation captured.",
+            ),
+            _capture(op, "notifications"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "createUploadSession":
+        return _S(
+            _row(
+                "Open Scan document (document upload flow).",
+                "Upload session UI is visible.",
+            ),
+            _row(
+                "Upload any random PDF document and wait for the session to be created.",
+                "Upload session created; createUploadSession mutation captured.",
+            ),
+            _capture(op, "global"),
+            op=op,
+            touch=touch_canon,
+        )
     if op == "bulkUpdateProfiles":
         return _S(
             _row(
