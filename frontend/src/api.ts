@@ -848,6 +848,34 @@ export async function startCompare(
   return res.json() as Promise<Job>;
 }
 
+/** Compare all pairable operations (~300+). */
+export async function startCompareAll() {
+  const res = await fetch(`${API}/api/jobs/compare-all`, { method: "POST" });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json() as { count: number; job: Job };
+  return data.job;
+}
+
+/** Merge missing ops from completed compare jobs into comparison-latest.json. */
+export async function restoreResultsFromJobs() {
+  const res = await fetch(`${API}/api/results/restore-from-jobs`, { method: "POST" });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{
+    ok?: boolean;
+    days?: number;
+    total_operations?: number;
+    jobs?: { restored?: number; updated?: number; merged?: number };
+    generate?: { compared?: number; candidates?: number; missing?: number };
+    error?: string;
+  }>;
+}
+
+export async function fetchComparisonOperations() {
+  const res = await fetch(`${API}/api/results/operations`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{ count: number; operations: Record<string, string> }>;
+}
+
 /** Re-compare operations shown in Results (updates comparison-latest.json in place). */
 export async function refreshStoredComparisons(operations?: string[]) {
   const res = await fetch(`${API}/api/results/refresh`, {

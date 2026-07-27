@@ -1,0 +1,6 @@
+{
+  "_comment": "Audit preprod reference machine (Monotype Connect → About). Override via INGRESS_MACHINE_ID / INGRESS_UNIQUE_ID in .env or INGRESS_DEVICE_FILE.",
+  "machineId": "Z0DGQF85CNYAKYPVJCW51JTSM291MED8E60NC9YDXCVZWD605Y60",
+  "uniqueId": "7DC9A6DE16142DF572607138",
+  "appVersion": "2.2.2"
+}

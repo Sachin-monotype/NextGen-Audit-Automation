@@ -22,7 +22,7 @@ reports/
 # Local-only maintenance scripts (TestRail push, pack builders, generators)
 # See local/README.md — tracked core scripts stay in scripts/ (dev.sh, ingest.sh, playwright.sh)
 local/scripts/
-.token_cache.json
+ingress-device.local.json
 !payload/raw/.gitkeep
 !payload/enrich/.gitkeep
 !payload/trigger/.gitkeep

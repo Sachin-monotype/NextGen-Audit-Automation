@@ -11,6 +11,8 @@ import {
   fetchLatestResults,
   deleteLatestResult,
   exportComparisonExcel,
+  restoreResultsFromJobs,
+  startCompare,
   type CategoryReport,
   type ComparableOperation,
   type ComparisonRow,
@@ -304,12 +306,32 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
       .catch(() => setLatest(null));
   }, []);
 
+  const verifyOperation = useCallback(
+    async (operation: string) => {
+      setVerifyBusyOp(operation);
+      setRefreshError("");
+      try {
+        const job = await startCompare([operation]);
+        setRefreshJobId(job.id);
+        setActiveId(job.id);
+        setSourceMode("latest");
+      } catch (e) {
+        setRefreshError(String(e));
+      } finally {
+        setVerifyBusyOp(null);
+      }
+    },
+    [],
+  );
+
   const [deletingOp, setDeletingOp] = useState<string | null>(null);
   /** Bulk-select operations in the coverage table for deletion. */
   const [selectedOps, setSelectedOps] = useState<Set<string>>(new Set());
   const [exportBusy, setExportBusy] = useState(false);
   const [refreshJobId, setRefreshJobId] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState("");
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [verifyBusyOp, setVerifyBusyOp] = useState<string | null>(null);
   /** When Compare hands us the compared ops, limit the coverage list to those. */
   const [highlightActive, setHighlightActive] = useState(false);
   const highlightSet = useMemo(
@@ -424,7 +446,31 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     const direct = metaByOp.get(operation);
     if (direct) return direct;
     const base = operation.includes("(") ? operation.split("(", 1)[0] : operation;
-    return metaByOp.get(base);
+    const fromBase = metaByOp.get(base);
+    if (fromBase) return fromBase;
+    return metaByOp.get(`${base}(BE)`) ?? metaByOp.get(`${base}(UI)`);
+  }
+
+  /** Drop ``op(BE)`` when bare ``op`` is also in the coverage list (ingress dupes). */
+  function dedupeCoverageRows<T extends { operation: string; environment: string; service: string }>(
+    rows: T[],
+  ): T[] {
+    const score = (r: T) =>
+      (r.environment && r.environment !== "—" ? 2 : 0) +
+      (r.service && r.service !== "—" ? 1 : 0);
+    const byBase = new Map<string, T>();
+    for (const row of rows) {
+      const be = row.operation.match(/^(.+)\(BE\)$/);
+      const base = be ? be[1] : row.operation;
+      const prev = byBase.get(base);
+      if (!prev) {
+        byBase.set(base, row);
+        continue;
+      }
+      if (score(row) > score(prev)) byBase.set(base, row);
+      else if (!be && /\(BE\)$/.test(prev.operation)) byBase.set(base, row);
+    }
+    return [...byBase.values()];
   }
 
   function categoryForOperation(operation: string): string {
@@ -479,7 +525,8 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
       list.push(row);
       map.set(row.operation, list);
     }
-    return [...map.entries()]
+    return dedupeCoverageRows(
+      [...map.entries()]
       .map(([operation, opRows]) => {
         const summary = summarizeOp(opRows);
         const meta = metaForOperation(operation);
@@ -498,7 +545,8 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
       .sort((a, b) => {
         const byDate = (b.comparedAt || "").localeCompare(a.comparedAt || "");
         return byDate !== 0 ? byDate : a.operation.localeCompare(b.operation);
-      });
+      }),
+    );
   }, [scopedRows, metaByOp, byOperation, comparedAtByOp, track]);
 
   const coverageRows = useMemo(() => {
@@ -761,21 +809,18 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
           <p>Field-level source vs enriched validation.</p>
         </div>
         <div className="result-head-actions">
-          {filterOp && (
-            <div className="filter-actions inline-actions">
-              <button type="button" onClick={() => setExpanded(new Set(grouped.map(([op]) => op)))}>
-                Expand all
-              </button>
-              <button type="button" onClick={() => setExpanded(new Set())}>
-                Collapse all
-              </button>
-            </div>
-          )}
-          {filtered.length > 0 && (
+          {(coverageRows.length > 0 || filtered.length > 0) && (
             <button
               type="button"
               className="primary"
               disabled={exportBusy}
+              title={
+                selectedOps.size > 0
+                  ? `Export ${selectedOps.size} selected operation(s) — one sheet each`
+                  : filterOp
+                    ? `Export ${filterOp}`
+                    : "Export all visible operations — one sheet per operation"
+              }
               onClick={() => {
                 setExportBusy(true);
                 const ops =
@@ -789,8 +834,22 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                   .finally(() => setExportBusy(false));
               }}
             >
-              {exportBusy ? "Exporting…" : "Download Excel"}
+              {exportBusy
+                ? "Exporting…"
+                : selectedOps.size > 0
+                  ? `Download Excel (${selectedOps.size})`
+                  : "Download Excel"}
             </button>
+          )}
+          {filterOp && (
+            <div className="filter-actions inline-actions">
+              <button type="button" onClick={() => setExpanded(new Set(grouped.map(([op]) => op)))}>
+                Expand all
+              </button>
+              <button type="button" onClick={() => setExpanded(new Set())}>
+                Collapse all
+              </button>
+            </div>
           )}
         </div>
       </header>
@@ -867,6 +926,34 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
             <> Run Compare from the Compare tab; results appear here automatically.</>
           )}
         </p>
+      )}
+
+      {sourceMode === "latest" && (latest?.count ?? 0) < 100 && (
+        <div className="banner warn" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span>
+            Only <strong>{latest?.count ?? 0}</strong> stored comparison
+            {(latest?.count ?? 0) === 1 ? "" : "s"} — restore rehydrates completed compare jobs from the last 7 days.
+          </span>
+          <button
+            type="button"
+            className="primary outline"
+            disabled={restoreBusy}
+            onClick={() => {
+              setRestoreBusy(true);
+              setRefreshError("");
+              void restoreResultsFromJobs()
+                .then((r) => {
+                  if (r.error) setRefreshError(r.error);
+                  else loadLatest();
+                })
+                .catch((e) => setRefreshError(String(e)))
+                .finally(() => setRestoreBusy(false));
+            }}
+          >
+            {restoreBusy ? "Restoring…" : "Restore last 7 days"}
+          </button>
+          <span className="muted">For 300+ ops use Compare → Compare all pairable.</span>
+        </div>
       )}
 
       {refreshError && <p className="error">{refreshError}</p>}
@@ -1214,6 +1301,15 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
               </p>
             </div>
             <div className="coverage-outcome-filters" role="group" aria-label="Coverage outcome filter">
+              <label className="filter-field coverage-op-search">
+                <span>search</span>
+                <input
+                  value={filterOp}
+                  onChange={(e) => setFilterOp(e.target.value)}
+                  placeholder="Filter by operation name…"
+                  aria-label="Search operations in coverage table"
+                />
+              </label>
               {(
                 [
                   ["all", `All (${coverageCounts.all})`],
@@ -1267,6 +1363,21 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
               />
               <span className="muted">select shown</span>
             </label>
+            {selectedOps.size >= 1 && (
+              <button
+                type="button"
+                className="primary outline"
+                disabled={exportBusy}
+                onClick={() => {
+                  setExportBusy(true);
+                  void exportComparisonExcel([...selectedOps])
+                    .catch((e) => setRefreshError(String(e)))
+                    .finally(() => setExportBusy(false));
+                }}
+              >
+                {exportBusy ? "Exporting…" : `Excel (${selectedOps.size})`}
+              </button>
+            )}
             {selectedOps.size >= 2 && (
               <button
                 type="button"
@@ -1290,13 +1401,14 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                   <th>PASS</th>
                   <th>FAIL</th>
                   <th>SKIP</th>
+                  <th title="Run or re-run source comparison for this operation">Verify</th>
                   <th className="coverage-col-narrow" title="Review status">✓</th>
                 </tr>
               </thead>
               <tbody>
                 {coverageRows.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="muted">
+                    <td colSpan={11} className="muted">
                       No operations match this coverage filter.
                     </td>
                   </tr>
@@ -1357,6 +1469,32 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                       >
                         <span className={`badge ${r.skipped ? "skip" : "na"}`}>{r.skipped}</span>
                       </button>
+                    </td>
+                    <td className="coverage-verify-cell">
+                      {r.comparedAt ? (
+                        <span style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                          <span className="badge pass" title={`Compared ${r.comparedAt}`}>
+                            ✓ Compared
+                          </span>
+                          <button
+                            type="button"
+                            className="link-btn"
+                            disabled={verifyBusyOp === r.operation || Boolean(refreshJobId)}
+                            onClick={() => void verifyOperation(r.operation)}
+                          >
+                            {verifyBusyOp === r.operation ? "Starting…" : "Reverify"}
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="link-btn"
+                          disabled={verifyBusyOp === r.operation || Boolean(refreshJobId)}
+                          onClick={() => void verifyOperation(r.operation)}
+                        >
+                          {verifyBusyOp === r.operation ? "Starting…" : "Verify"}
+                        </button>
+                      )}
                     </td>
                     <td className="coverage-col-narrow">
                       <details className="coverage-track-menu">

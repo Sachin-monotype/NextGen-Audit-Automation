@@ -38,3 +38,24 @@ def ingress_rabbitmq_url(base_url: str | None = None) -> str:
     if url.rstrip("/").endswith("/mt-connect"):
         return url.rsplit("/", 1)[0] + "/mt-connect-preprod"
     return url
+
+
+def ingress_settle_seconds() -> float:
+    """Seconds to wait after the last ingress POST before checking raw+enrich.
+
+    Plugin / FontBridge / desktop ingress events can take ~5 minutes to land in
+    Mongo and on the automation tap queues.
+    """
+    return float(os.getenv("INGRESS_SETTLE_SEC", "300"))
+
+
+def ingress_operation_names() -> frozenset[str]:
+    """GraphQL ``source.operation`` values sent via the Ingress API catalog."""
+    try:
+        from .payloads import load_ingress_cases
+
+        return frozenset(
+            c.operation for c in load_ingress_cases() if getattr(c, "operation", "")
+        )
+    except Exception:
+        return frozenset()

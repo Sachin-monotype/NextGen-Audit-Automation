@@ -165,6 +165,22 @@ def _chunk_ids(ids: list[str], size: int = _DISCOVERY_ID_CHUNK) -> list[list[str
     return [ids[i : i + size] for i in range(0, len(ids), size)]
 
 
+def _style_ids_in_hits(hits: list[dict]) -> set[str]:
+    out: set[str] = set()
+    for hit in hits:
+        if not isinstance(hit, dict):
+            continue
+        sid = str(hit.get("id") or hit.get("style_id") or "").strip()
+        if sid:
+            out.add(sid)
+    return out
+
+
+def _missing_style_ids(style_hits: list[dict], style_id_list: list[str]) -> list[str]:
+    covered = _style_ids_in_hits(style_hits)
+    return [s for s in style_id_list if s not in covered]
+
+
 def _merge_style_hits(*groups: list[dict] | None) -> list[dict]:
     merged: list[dict] = []
     seen: set[str] = set()
@@ -230,9 +246,29 @@ def _prefetch_discovery(
     key_parts = ["discovery", cache_key]
     cached = load_pickle(cfg.project_root, "discovery", key_parts)
     if isinstance(cached, dict) and cached.get("style_hits") is not None:
-        cached["cache_key"] = cache_key
-        cached["from_disk_cache"] = True
-        return cached
+        from .discovery_resolver import synthesize_style_hits_from_variations
+
+        style_hits = list(cached.get("style_hits") or [])
+        # Ignore stale cache entries that saved zero style docs despite font ids to fetch.
+        if not style_hits and (ids or style_id_list):
+            cached = None
+        else:
+            synth = synthesize_style_hits_from_variations(cached.get("variation_hits") or [])
+            if synth:
+                style_hits = _merge_style_hits(style_hits, synth)
+            missing = _missing_style_ids(style_hits, style_id_list)
+            if missing and style_id_list:
+                log.info(
+                    "Discovery cache missing %d/%d style id(s) — refetching",
+                    len(missing),
+                    len(style_id_list),
+                )
+                cached = None
+            else:
+                cached["style_hits"] = style_hits
+                cached["cache_key"] = cache_key
+                cached["from_disk_cache"] = True
+                return cached
 
     try:
         style_hits: list[dict] = []
@@ -242,6 +278,28 @@ def _prefetch_discovery(
                 ids,
                 correlation_id="source-validation-batch",
             )
+        # Resolver also uses POST /v1/family/{id}/styles when bulk familyIds returns empty.
+        covered_families: set[str] = set()
+        for hit in style_hits:
+            fam = hit.get("mtc_families_data") if isinstance(hit, dict) else None
+            if isinstance(fam, dict) and fam.get("id") is not None:
+                covered_families.add(str(fam["id"]))
+        for fid in ids:
+            if fid in covered_families:
+                continue
+            if not budget.can_call():
+                break
+            route_fn = getattr(discovery, "fetch_styles_by_family_route", None)
+            if not callable(route_fn):
+                break
+            try:
+                budget.record(f"POST /v1/family/{fid}/styles")
+                route_hits = route_fn(fid, correlation_id="source-validation-family-route")
+                if route_hits:
+                    style_hits = _merge_style_hits(style_hits, route_hits)
+                    covered_families.add(fid)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("Discovery family route %s failed: %s", fid, exc)
         style_batches = _chunk_ids(style_id_list)
 
         def _styles_batch(batch: list[str]) -> list[dict]:
@@ -326,8 +384,36 @@ def _prefetch_discovery(
         cache["variation_hits"] = _merge_variation_hits(variation_hits, *by_md5_groups)
         if not cache["variation_hits"] and not budget.can_call():
             cache["discovery_note"] = "Discovery budget exhausted before variations fetch"
+
+        from .discovery_resolver import synthesize_style_hits_from_variations
+
+        covered_styles = {
+            str(h.get("id") or h.get("style_id") or "").strip()
+            for h in style_hits
+            if isinstance(h, dict) and str(h.get("id") or h.get("style_id") or "").strip()
+        }
+        synth = synthesize_style_hits_from_variations(cache.get("variation_hits") or [])
+        if synth:
+            missing_before = [s for s in style_id_list if s not in covered_styles]
+            style_hits = _merge_style_hits(style_hits, synth)
+            if missing_before:
+                log.info(
+                    "Discovery synthesized %d style doc(s) from variation mtc_styles_data",
+                    len(synth),
+                )
+        cache["style_hits"] = style_hits
+        if (ids or style_id_list) and not style_hits:
+            cache["discovery_note"] = (
+                "Typesense returned no style documents for requested family/style ids"
+            )
         cache["cache_key"] = cache_key
-        save_pickle(cfg.project_root, "discovery", key_parts, cache)
+        missing = _missing_style_ids(style_hits, style_id_list)
+        if missing and style_id_list:
+            cache["discovery_note"] = (
+                f"Typesense missing {len(missing)}/{len(style_id_list)} requested style id(s)"
+            )
+        if style_hits and not missing:
+            save_pickle(cfg.project_root, "discovery", key_parts, cache)
     except Exception as exc:
         cache["discovery_error"] = f"Discovery/Typesense error: {exc}"
         log.warning("Discovery prefetch failed: %s", exc)

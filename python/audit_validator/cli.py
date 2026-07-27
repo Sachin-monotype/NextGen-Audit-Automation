@@ -536,7 +536,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--settle-sec",
         type=float,
         default=None,
-        help="Seconds to wait for queue capture after POST (default: INGRESS_SETTLE_SEC or 45)",
+        help="Seconds to wait after last ingress POST before checking raw+enrich (default: INGRESS_SETTLE_SEC or 300)",
     )
     p_ingress.add_argument(
         "--purge",

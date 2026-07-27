@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import copy
 import json
-import os
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 from ..models import JsonDict
+from .runtime_context import apply_ingress_runtime_context
 
 _INGRESS_DIR = Path(__file__).resolve().parent.parent / "data" / "ingress_payloads"
 
@@ -30,43 +30,19 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
-def _default_gcid() -> str | None:
-    for key in (
-        "INGRESS_DEFAULT_GCID",
-        "CRON_DEFAULT_GCID",
-        "GRAPHQL_CONTEXT_CUSTOMER_ID",
-        "GLOBAL_CUSTOMER_ID",
-        "OAUTH_GCID",
-    ):
-        val = (os.getenv(key) or "").strip()
-        if val:
-            return val
-    return None
-
-
-def _default_user_id() -> str | None:
-    for key in ("INGRESS_DEFAULT_USER_ID", "NOTIFICATION_CLEANUP_USER_ID"):
-        val = (os.getenv(key) or "").strip()
-        if val:
-            return val
-    return None
+def apply_ingress_runtime_identity(payload: JsonDict, *, now_iso: str | None = None) -> None:
+    """In-place: actor/source/device fields from JWT + host + Monotype app prefs."""
+    apply_ingress_runtime_context(payload)
 
 
 def normalize_ingress_payload(payload: JsonDict, *, case_id: str) -> JsonDict:
-    """Fresh ids/timestamp; patch actor ids from env when configured."""
+    """Fresh ids/timestamp; dynamic actor/source/device context before POST."""
     out = copy.deepcopy(payload)
+    now_iso = _now_iso()
     out["xCorrelationId"] = str(uuid.uuid4())
     out["eventId"] = str(uuid.uuid4())
-    out["occurredAt"] = _now_iso()
-
-    gcid = _default_gcid()
-    uid = _default_user_id()
-    actor = out.setdefault("actor", {})
-    if isinstance(actor, dict):
-        if gcid and not actor.get("globalCustomerId"):
-            actor["globalCustomerId"] = gcid
-        if uid and not actor.get("globalUserId"):
-            actor["globalUserId"] = uid
+    out["occurredAt"] = now_iso
+    apply_ingress_runtime_context(out)
     return out
 
 

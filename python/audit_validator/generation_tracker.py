@@ -29,8 +29,63 @@ _DEFAULT_REL = Path("reports") / "generated-correlations.json"
 
 
 def _path(project_root: Path | None = None) -> Path:
-    root = project_root or Path.cwd()
+    if project_root is not None:
+        root = project_root
+    else:
+        from .project_root import find_project_root
+
+        root = find_project_root()
     return root / _DEFAULT_REL
+
+
+def merge_legacy_correlation_store(*, project_root: Path | None = None) -> int:
+    """Merge ``backend/reports/generated-correlations.json`` into the canonical store.
+
+    Uvicorn's cwd is often ``backend/``, so ingress/cron sends were recorded under
+    ``backend/reports/`` while Mongo verify reads ``<repo>/reports/``.
+    """
+    from .project_root import find_project_root
+
+    root = project_root or find_project_root()
+    canonical = _path(root)
+    legacy = root / "backend" / "reports" / "generated-correlations.json"
+    if not legacy.is_file():
+        return 0
+    try:
+        legacy_data = json.loads(legacy.read_text(encoding="utf-8"))
+    except Exception:
+        return 0
+    legacy_ops = legacy_data.get("by_operation") or {}
+    if not isinstance(legacy_ops, dict) or not legacy_ops:
+        return 0
+
+    canonical.parent.mkdir(parents=True, exist_ok=True)
+    with _LOCK:
+        data: dict[str, Any] = {}
+        if canonical.is_file():
+            try:
+                data = json.loads(canonical.read_text(encoding="utf-8"))
+            except Exception:
+                data = {}
+        by_op = data.setdefault("by_operation", {})
+        merged = 0
+        for op, entry in legacy_ops.items():
+            if not isinstance(entry, dict):
+                continue
+            cur = by_op.get(op) if isinstance(by_op.get(op), dict) else {}
+            cur_ts = str(cur.get("generated_at") or "")
+            new_ts = str(entry.get("generated_at") or "")
+            if not cur or (new_ts and new_ts >= cur_ts):
+                by_op[op] = entry
+                merged += 1
+        if merged:
+            data["updated_at"] = _now()
+            data["legacy_merge_from"] = str(legacy)
+            canonical.write_text(
+                json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+    return merged
 
 
 def _now() -> str:

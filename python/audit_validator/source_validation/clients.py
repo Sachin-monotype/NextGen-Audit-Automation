@@ -124,6 +124,43 @@ class DiscoveryClient:
         resp.raise_for_status()
         return _unwrap_discovery_hits(resp.json())
 
+    def fetch_styles_by_family_route(
+        self,
+        family_id: str,
+        *,
+        correlation_id: str,
+    ) -> list[dict[str, Any]]:
+        """Resolver route: POST /v1/family/{familyId}/styles (bulk /v1/styles often returns empty)."""
+        fid = str(family_id or "").strip()
+        if not fid:
+            return []
+        url = f"{self._cfg.discovery_base_url}/v1/family/{fid}/styles?skipInventoryCheck=true"
+        cid = _correlation_id(correlation_id)
+        headers = {
+            "Authorization": self._cfg.discovery_auth_header,
+            "accept": "application/json",
+            "accept-language": "en",
+            "x-correlation-id": cid,
+            "Content-Type": "application/json",
+        }
+        all_hits: list[dict[str, Any]] = []
+        page = 1
+        while page <= 20:
+            body = {"page": page, "per_page": 250}
+            resp = self._session.post(url, json=body, headers=headers, timeout=60)
+            if resp.status_code >= 400:
+                if page == 1:
+                    log.warning("Discovery family styles %s → %s", fid, resp.status_code)
+                break
+            hits = _unwrap_discovery_hits(resp.json())
+            if not hits:
+                break
+            all_hits.extend(hits)
+            if len(hits) < 250:
+                break
+            page += 1
+        return all_hits
+
     def fetch_variations_by_family_ids(
         self,
         family_ids: list[str],
@@ -140,7 +177,7 @@ class DiscoveryClient:
         }
         params = {
             "familyIds": ",".join(family_ids[:10]),
-            "includeStyle": "false",
+            "includeStyle": "true",
             "skipInventoryCheck": "true",
             "page": 1,
             "perPage": 250,

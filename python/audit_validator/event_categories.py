@@ -263,6 +263,12 @@ def known_operations() -> frozenset[str]:
             pass
     ops.update(OPERATION_TO_ROUTING_KEY.keys())
     ops.update(_CRON_ROUTING_KEYS.keys())
+    try:
+        from .ingress.catalog_meta import ingress_catalog_by_operation
+
+        ops.update(ingress_catalog_by_operation().keys())
+    except Exception:
+        pass
     return frozenset(o for o in ops if o)
 
 

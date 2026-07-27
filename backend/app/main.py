@@ -140,6 +140,26 @@ def comparable_operations() -> dict[str, Any]:
     except Exception:
         pass
 
+    def _apply_catalog_meta(row: dict[str, Any]) -> None:
+        from audit_validator.event_categories import resolve_category
+        from audit_validator.ingress.catalog_meta import ingress_meta_for_operation
+
+        op = str(row.get("operation") or "")
+        base = op.split("(", 1)[0] if "(" in op else op
+        ing = ingress_meta_for_operation(op)
+        if ing:
+            if not row.get("category"):
+                row["category"] = ing.get("category") or resolve_category(base)
+            if not row.get("service"):
+                row["service"] = ing.get("service") or ""
+            if not row.get("environment"):
+                row["environment"] = ing.get("environment") or ""
+        elif not row.get("category"):
+            row["category"] = resolve_category(op) or resolve_category(base)
+
+    for row in items:
+        _apply_catalog_meta(row)
+
     seen = {i["operation"] for i in items}
 
     # Also surface touchpoint variants (activateFamily(global), (list), …) that were
@@ -167,6 +187,7 @@ def comparable_operations() -> dict[str, Any]:
                 }
             )
             seen.add(op)
+            _apply_catalog_meta(items[-1])
     except Exception:
         pass
 
@@ -192,6 +213,9 @@ def comparable_operations() -> dict[str, Any]:
             )
             if not label or label in seen:
                 continue
+            # Ingress/cron stores comparisons under bare names — skip redundant (BE) label.
+            if label.endswith("(BE)") and bare in seen:
+                continue
             # Only add if base op is comparable in Mongo
             if bare not in seen and bare not in {i["operation"].split("(", 1)[0] for i in items}:
                 continue
@@ -208,16 +232,53 @@ def comparable_operations() -> dict[str, Any]:
                 }
             )
             seen.add(label)
+            _apply_catalog_meta(items[-1])
+    except Exception:
+        pass
+
+    # Ingress / cron compares stored under bare op names — ensure catalog metadata
+    # even when Mongo has not yet paired raw+enriched for that operation.
+    try:
+        from audit_validator.event_categories import resolve_category
+        from audit_validator.ingress.catalog_meta import ingress_catalog_by_operation
+
+        from .comparison_store import list_latest
+
+        stored = list_latest(settings.audit_project_root)
+        for op in stored.get("operations") or []:
+            op = str(op)
+            if not op or op in seen:
+                continue
+            base = op.split("(", 1)[0] if "(" in op else op
+            ing = ingress_catalog_by_operation().get(base)
+            if not ing:
+                continue
+            items.append(
+                {
+                    "operation": op,
+                    "category": ing.get("category") or resolve_category(base),
+                    "environment": ing.get("environment", ""),
+                    "service": ing.get("service", ""),
+                    "occurred_at": None,
+                    "ingress": True,
+                }
+            )
+            seen.add(op)
+            _apply_catalog_meta(items[-1])
     except Exception:
         pass
 
     # Hide the bare base op when scenario variants exist (e.g. drop "activateFamily"
     # once "activateFamily(global)" / "activateFamily(UI)" are present) so the list
-    # is maintained purely by scenario.
+    # is maintained purely by scenario. Channel labels ``(BE)`` / ``(UI)`` are not
+    # scenario variants — ingress compares store under bare operation names.
+    def _is_channel_label(op: str) -> bool:
+        return op.endswith("(BE)") or op.endswith("(UI)")
+
     bases_with_variants = {
         str(i["operation"]).split("(", 1)[0]
         for i in items
-        if "(" in str(i["operation"])
+        if "(" in str(i["operation"]) and not _is_channel_label(str(i["operation"]))
     }
     items = [
         i
@@ -272,6 +333,23 @@ def delete_comparison_operation(operation: str) -> dict[str, Any]:
     if not deleted:
         raise HTTPException(404, f"No stored comparison for {operation}")
     return {"deleted": operation, "ok": True}
+
+
+@app.post("/api/results/restore-from-jobs")
+def restore_comparison_from_jobs() -> dict[str, Any]:
+    """Rehydrate comparison-latest.json from completed compare jobs (last 7 days)."""
+    from .comparison_restore import restore_recent_comparisons
+
+    return restore_recent_comparisons(settings.audit_project_root, days=7, compare_missing=False)
+
+
+@app.get("/api/results/operations")
+def list_comparison_operations() -> dict[str, Any]:
+    """Stored comparison operations for Generate / Results badges."""
+    from .comparison_restore import stored_operation_index
+
+    index = stored_operation_index(settings.audit_project_root)
+    return {"count": len(index), "operations": index}
 
 
 @app.delete("/api/results/latest")
@@ -739,12 +817,43 @@ def coverage() -> dict[str, Any]:
 def categories() -> dict[str, Any]:
     """Event categories (in-app notification groups) + operation → category map."""
     try:
-        from audit_validator.event_categories import category_report
-        from audit_validator.operation_registry import tracked_operations
+        from audit_validator.event_categories import category_report, known_operations
 
-        return category_report(tracked_operations())
+        return category_report(list(known_operations()))
     except Exception as exc:
         return {"categories": [], "by_operation": {}, "counts": {}, "error": str(exc)}
+
+
+@app.get("/api/meta/gql-ui-testcase-gaps")
+def gql_ui_testcase_gaps() -> dict[str, Any]:
+    """GraphQL Generate catalog items missing TestRail case ids."""
+    try:
+        from audit_validator.operation_sources import operation_source_report
+        from audit_validator.ui_testrail_map import case_id_for_selection_item
+
+        operation_source_report.cache_clear()
+        catalog = operation_source_report().get("catalog") or []
+        missing = []
+        for item in catalog:
+            if item.get("kind") != "graphql":
+                continue
+            if not case_id_for_selection_item(item):
+                missing.append(
+                    {
+                        "id": item.get("id"),
+                        "operation": item.get("operation"),
+                        "touchpoint": item.get("touchpoint"),
+                        "label": item.get("label"),
+                    }
+                )
+        return {
+            "graphql_catalog": len([c for c in catalog if c.get("kind") == "graphql"]),
+            "missing_count": len(missing),
+            "missing": missing,
+            "ok": len(missing) == 0,
+        }
+    except Exception as exc:
+        return {"missing_count": -1, "missing": [], "ok": False, "error": str(exc)}
 
 
 @app.get("/api/meta/operation-sources")
@@ -805,6 +914,25 @@ def token_status() -> dict[str, Any]:
         return st
     except Exception as exc:
         return {"present": False, "error": str(exc)}
+
+
+@app.get("/api/meta/ingress-runtime")
+def ingress_runtime_meta() -> dict[str, Any]:
+    """Resolved ingress envelope context (JWT actor, host OS, device ids)."""
+    try:
+        from audit_validator.ingress.runtime_context import resolve_ingress_runtime_context
+
+        ctx = resolve_ingress_runtime_context()
+        out = ctx.as_dict()
+        out["machine_id_present"] = bool(ctx.machine_id)
+        out["unique_id_present"] = bool(ctx.unique_id)
+        if not ctx.machine_id:
+            out["machine_id_hint"] = (
+                "Copy Device ID from Monotype Connect → Preferences → About into INGRESS_MACHINE_ID"
+            )
+        return out
+    except Exception as exc:
+        return {"error": str(exc)}
 
 
 @app.post("/api/token/refresh")
@@ -1106,6 +1234,17 @@ def cancel_job(job_id: str) -> dict[str, Any]:
     if not job:
         raise HTTPException(404, "Job not found")
     return {"ok": True, "job": _job_payload(job)}
+
+
+@app.post("/api/jobs/compare-all")
+def start_compare_all() -> dict[str, Any]:
+    """Compare every pairable operation (~300+ tracked scenarios)."""
+    items = comparable_operations().get("items") or []
+    ops = [str(i.get("operation") or "") for i in items if i.get("operation")]
+    if not ops:
+        raise HTTPException(400, "No pairable operations to compare")
+    job = bridge.start_compare(ops, "fresh")
+    return {"ok": True, "count": len(ops), "job": _job_payload(job)}
 
 
 @app.post("/api/jobs/compare")

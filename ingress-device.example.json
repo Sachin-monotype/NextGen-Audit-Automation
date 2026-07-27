@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy to ingress-device.local.json (gitignored) or set INGRESS_DEVICE_FILE to this path. Values from Monotype Connect → Preferences → About.",
+  "machineId": "Z0DGQF85CNYAKYPVJCW51JTSM291MED8E60NC9YDXCVZWD605Y60",
+  "uniqueId": "7DC9A6DE16142DF572607138",
+  "appVersion": "2.2.2"
+}

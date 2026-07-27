@@ -77,13 +77,13 @@ def load_ingestion_config(
     """
     raw_queue = _env(
         "INGEST_RAW_QUEUE",
-        _env("RABBITMQ_RAW_QUEUE", "mt.platform,resolver.raw_events_test_queue"),
+        _env("RABBITMQ_RAW_QUEUE", "mtraw-automation(DO NOT DELETE)"),
     )
     enriched_queue = _env(
         "INGEST_ENRICHED_QUEUE",
         _env(
             "RABBITMQ_ENRICHED_QUEUE",
-            "mt.platform,resolver.enriched_events_test_queue",
+            "mtenrich-automation(DO NOT DELETE)",
         ),
     )
     dlq_queue = _env(

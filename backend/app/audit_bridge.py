@@ -44,7 +44,7 @@ class JobStore:
     backend reloads). Keeps the last N jobs so Compare/Generate can restore logs.
     """
 
-    def __init__(self, persist_path: Path | None = None, *, max_jobs: int = 40) -> None:
+    def __init__(self, persist_path: Path | None = None, *, max_jobs: int = 150) -> None:
         self._jobs: dict[str, JobRecord] = {}
         self._lock = threading.Lock()
         self._persist_path = persist_path
@@ -408,6 +408,10 @@ class AuditBridge:
     def _verify_mongo(self, job_id: str, operations: list[str]) -> dict[str, Any]:
         """Poll owned correlations until they land in raw + enriched (or timeout)."""
         from audit_validator.generate_run_report import save_generate_run, verify_owned_queue_landing
+        from audit_validator.generation_tracker import merge_legacy_correlation_store
+        from audit_validator.ingress.config import ingress_operation_names, ingress_settle_seconds
+
+        merge_legacy_correlation_store(project_root=self.project_root)
 
         checked = list(operations or [])
         if not checked and self.db:
@@ -427,10 +431,23 @@ class AuditBridge:
                 "enriched_queue": os.getenv("ENRICHED_EVENTS_QUEUE", ""),
             }
 
+        ingress_ops = ingress_operation_names()
+        has_ingress = any(op in ingress_ops for op in checked)
+        verify_timeout: float | None = None
+        if has_ingress:
+            buffer = float(os.getenv("INGRESS_VERIFY_BUFFER_SEC", "30"))
+            verify_timeout = ingress_settle_seconds() + buffer
+            self.store.append_log(
+                job_id,
+                f"▸ Ingress/plugin/font-bridge ops in scope — Mongo verify timeout "
+                f"{verify_timeout:.0f}s (post-ingress landing delay)",
+            )
+
         report = verify_owned_queue_landing(
             self.db,
             checked,
             project_root=self.project_root,
+            timeout_sec=verify_timeout,
             progress=lambda msg: self.store.append_log(job_id, msg),
         )
         report["job_id"] = job_id
@@ -1030,12 +1047,46 @@ class AuditBridge:
 
     def _run_ingress_cases(self, job_id: str, case_ids: list[str]) -> int:
         """Send the selected desktop/plugin payloads through the resolver Ingress API."""
+        from audit_validator.ingress.config import ingress_settle_seconds
         from audit_validator.ingress.runner import run_ingress_validation
         from audit_validator.report_paths import ingress_results_json
 
-        settle_sec = float(os.getenv("TARGETED_SETTLE_SEC", "60"))
+        # Re-read bearer + identity from .env (token may have been refreshed in UI).
+        try:
+            from dotenv import dotenv_values
+
+            disk = dotenv_values(self.project_root / ".env") or {}
+            for key in (
+                "BEARER_TOKEN",
+                "NEXTGEN_BEARER_TOKEN",
+                "BEARER_TOKEN_PP",
+                "OAUTH_GCID",
+                "OAUTH_ORG",
+                "OAUTH_USERNAME",
+                "INGRESS_MACHINE_ID",
+                "INGRESS_UNIQUE_ID",
+                "INGRESS_APP_VERSION",
+                "INGRESS_OS_VERSION",
+                "INGRESS_CPU_ARCH",
+                "INGRESS_DEVICE_FILE",
+            ):
+                if key in disk:
+                    os.environ[key] = str(disk.get(key) or "")
+            from audit_validator.ingress.runtime_context import clear_ingress_runtime_context_cache
+
+            clear_ingress_runtime_context_cache()
+        except Exception:  # noqa: BLE001
+            pass
+
+        settle_sec = ingress_settle_seconds()
         self.store.append_log(
-            job_id, f"▸ Sending {len(case_ids)} ingress event(s) to the Ingress API…"
+            job_id,
+            f"▸ Sending {len(case_ids)} ingress event(s) to the Ingress API…",
+        )
+        self.store.append_log(
+            job_id,
+            f"  ⏳ Will wait {settle_sec:.0f}s after the last POST before checking "
+            f"raw+enrich via queue tap + Mongo (plugin / font-bridge delay)",
         )
         run = run_ingress_validation(
             project_root=self.project_root,
@@ -1043,6 +1094,7 @@ class AuditBridge:
             report_path=ingress_results_json(self.project_root),
             settle_sec=settle_sec,
             purge_before=False,
+            db=self.db,
         )
         self.store.append_log(
             job_id,
@@ -1318,6 +1370,26 @@ class AuditBridge:
                         f"  ✓ Paired {op} (pinned xCorrelationId={cid}) from Mongo",
                     )
                     continue
+                r2, e2 = self.db.latest_pair(
+                    base_touch_op,
+                    require_pair=False,
+                    correlation_id=owned_cid,
+                    actor_global_user_id=our_profile or None,
+                )
+                if e2 and not r2:
+                    cid = e2.get("xCorrelationId", "") or owned_cid
+                    (enriched_dir / f"{op}.json").write_text(
+                        json_util.dumps(e2, indent=2, ensure_ascii=False),
+                        encoding="utf-8",
+                    )
+                    staged.append(op)
+                    owned_hits += 1
+                    self.store.append_log(
+                        job_id,
+                        f"  ✓ Staged {op} (enriched only; raw missing — non-blocking) "
+                        f"xCorrelationId={cid}",
+                    )
+                    continue
             if "(" in op and op.endswith(")") and not owned_cid:
                 staged_file = enriched_dir / f"{op}.json"
                 if staged_file.is_file():
@@ -1372,6 +1444,18 @@ class AuditBridge:
                         owned_hits += 1
                     self.store.append_log(
                         job_id, f"  ✓ Paired {op} (owned xCorrelationId={cid}) from Mongo"
+                    )
+                    continue
+                if t_enriched and not t_raw:
+                    cid = t_enriched.get("xCorrelationId", "") or (owned_cid or "")
+                    (enriched_dir / f"{op}.json").write_text(
+                        json_util.dumps(t_enriched, indent=2, ensure_ascii=False), encoding="utf-8"
+                    )
+                    staged.append(op)
+                    self.store.append_log(
+                        job_id,
+                        f"  ✓ Staged {op} (enriched only; raw missing — non-blocking) "
+                        f"xCorrelationId={cid}",
                     )
                     continue
                 self.store.append_log(
@@ -1450,9 +1534,22 @@ class AuditBridge:
             if not (raw and enriched):
                 missing_pair.append(op)
                 # Explain why: is it enriched-only, raw-only, or neither?
-                raw_only, enr_only = self.db.latest_pair(op, require_pair=False)
+                raw_only, enr_only = self.db.latest_pair(
+                    op, require_pair=False, correlation_id=owned_cid or None
+                )
                 if enr_only and not raw_only:
-                    reason = "enriched present but no matching raw"
+                    cid = enr_only.get("xCorrelationId", "") or (owned_cid or "")
+                    (enriched_dir / f"{op}.json").write_text(
+                        json_util.dumps(enr_only, indent=2, ensure_ascii=False), encoding="utf-8"
+                    )
+                    staged.append(op)
+                    missing_pair.pop()
+                    self.store.append_log(
+                        job_id,
+                        f"  ✓ Staged {op} (enriched only; raw missing — non-blocking) "
+                        f"xCorrelationId={cid}",
+                    )
+                    continue
                 elif raw_only and not enr_only:
                     reason = "raw present but no matching enriched (dead-lettered?)"
                 elif raw_only and enr_only:

@@ -529,7 +529,7 @@ button, input, select {
 }
 
 .op-dropdown-item .kind-tag {
-  margin-left: auto;
+  margin-left: 0;
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -547,6 +547,14 @@ button, input, select {
   color: #6d28d9;
   border-color: #cbb6f2;
   background: rgba(124, 58, 237, 0.08);
+}
+
+.op-compare-status {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-style: italic;
 }
 
 .op-dropdown-group {
@@ -1952,6 +1960,17 @@ button:disabled {
   min-width: 0;
   text-align: left;
   align-items: flex-start;
+}
+
+.op-row-verify {
+  flex-shrink: 0;
+  margin-left: auto;
+  text-align: right;
+}
+
+.coverage-verify-cell {
+  min-width: 96px;
+  vertical-align: top;
 }
 
 .op-row-name {

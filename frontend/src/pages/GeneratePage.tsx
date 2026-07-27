@@ -27,6 +27,7 @@ import {
   sendCustomPayload,
   startCompare,
   startGenerate,
+  fetchComparisonOperations,
   verifyGenerateInUi,
   type CategoryReport,
   type CoverageReport,
@@ -41,7 +42,7 @@ import {
   type TokenStatus,
   type UiTriggerJob,
 } from "../api";
-
+import { operationHasStoredResult } from "../utils/operationMatch";
 const SOURCE_KINDS = [
   { id: "graphql", label: "GraphQL" },
   { id: "ingress", label: "Ingress" },
@@ -56,6 +57,23 @@ const DEFAULT_TARGETS = [
 
 const JOB_KEY = "audit-generate-job";
 const UI_JOB_KEY = "audit-generate-ui-job";
+const GENERATION_STATUS_KEY = "audit-generation-status-visible";
+
+async function restoreGenerationStatus(
+  setLastRun: (r: GenerateRunReport | null) => void,
+  setShowLastRun: (v: boolean) => void,
+) {
+  try {
+    const res = await fetchLastGenerateRun();
+    if (res.ok && res.report) {
+      setLastRun(res.report);
+      setShowLastRun(true);
+      localStorage.setItem(GENERATION_STATUS_KEY, "1");
+    }
+  } catch {
+    /* ignore — no saved report yet */
+  }
+}
 
 type DropdownItem = {
   id: string;
@@ -252,6 +270,7 @@ function OpListModal({
 type OperationDropdownProps = {
   options: DropdownItem[];
   selected: Set<string>;
+  comparisonOps: Record<string, string>;
   onToggle: (id: string) => void;
   onSelectAll: () => void;
   onClear: () => void;
@@ -264,7 +283,19 @@ type OpGroup = {
   children: DropdownItem[];
 };
 
-function OperationDropdown({ options, selected, onToggle, onSelectAll, onClear }: OperationDropdownProps) {
+function compareStatusLabel(item: DropdownItem, stored: Record<string, string>): "Reverify" | "Verify" {
+  const key = item.label || item.id;
+  return operationHasStoredResult(key, stored) ? "Reverify" : "Verify";
+}
+
+function OperationDropdown({
+  options,
+  selected,
+  comparisonOps,
+  onToggle,
+  onSelectAll,
+  onClear,
+}: OperationDropdownProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -422,6 +453,7 @@ function OperationDropdown({ options, selected, onToggle, onSelectAll, onClear }
                             onChange={() => onToggle(o.id)}
                           />
                           <span>{shortTouchpoint(o.touchpoint) || o.touchpoint || o.label}</span>
+                          <span className="op-compare-status">{compareStatusLabel(o, comparisonOps)}</span>
                           {(o.steps?.length ?? 0) > 1 && (
                             <span className="muted steps-hint" title={o.steps?.join(" → ")}>
                               {o.steps!.length} steps
@@ -442,6 +474,7 @@ function OperationDropdown({ options, selected, onToggle, onSelectAll, onClear }
                   onChange={() => onToggle(o.id)}
                 />
                 <span>{o.label}</span>
+                <span className="op-compare-status">{compareStatusLabel(o, comparisonOps)}</span>
                 {o.kind !== "graphql" && <span className={`kind-tag ${o.kind}`}>{o.kind}</span>}
               </label>
             ))}
@@ -698,6 +731,12 @@ export default function GeneratePage({
   const [enrichPick, setEnrichPick] = useState<string[]>([]);
   const [exportPick, setExportPick] = useState<string[]>([]);
   const [compareBusy, setCompareBusy] = useState(false);
+  const [comparisonOps, setComparisonOps] = useState<Record<string, string>>({});
+  const loadComparisonOps = useCallback(() => {
+    fetchComparisonOperations()
+      .then((r) => setComparisonOps(r.operations || {}))
+      .catch(() => setComparisonOps({}));
+  }, []);
   const [enrichDiff, setEnrichDiff] = useState<{
     labelA: string;
     labelB: string;
@@ -725,7 +764,10 @@ export default function GeneratePage({
     fetchCategories().then(setCategories).catch(() => {});
     fetchOperationSources().then(setSources).catch(() => {});
     fetchOperationStats().then(setOpStats).catch(() => {});
-  }, []);
+    // Restore Generation Status from reports/generate-runs/last.json after refresh.
+    void restoreGenerationStatus(setLastRun, setShowLastRun);
+    loadComparisonOps();
+  }, [loadComparisonOps]);
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
@@ -966,15 +1008,7 @@ export default function GeneratePage({
           if (uiPollRef.current) clearInterval(uiPollRef.current);
           uiPollRef.current = null;
           setUiBusy(false);
-          try {
-            const last = await fetchLastGenerateRun();
-            if (last.ok && last.report) {
-              setLastRun(last.report);
-              setShowLastRun(true);
-            }
-          } catch {
-            /* ignore */
-          }
+          await restoreGenerationStatus(setLastRun, setShowLastRun);
           return;
         }
         if (res.job.status === "failed" || res.job.status === "cancelled") {
@@ -993,8 +1027,12 @@ export default function GeneratePage({
     const savedId = localStorage.getItem(UI_JOB_KEY);
     if (!savedId) return;
     fetchGenerateInUi(savedId)
-      .then((j) => {
+      .then(async (j) => {
         setUiJob(j);
+        if (j.verification?.generate_run_saved) {
+          await restoreGenerationStatus(setLastRun, setShowLastRun);
+          return;
+        }
         if (
           j.status === "queued" ||
           j.status === "running" ||
@@ -1045,9 +1083,7 @@ export default function GeneratePage({
       const verified = await verifyGenerateInUi(uiJob.id);
       activateUiJob(verified.job);
       if (verified.ok) {
-        const last = await fetchLastGenerateRun();
-        setLastRun(last.ok && last.report ? last.report : null);
-        setShowLastRun(true);
+        await restoreGenerationStatus(setLastRun, setShowLastRun);
       }
     } catch (e) {
       setError(String(e));
@@ -1071,9 +1107,8 @@ export default function GeneratePage({
         return;
       }
       // Same Generation Status panel as API generate
+      await restoreGenerationStatus(setLastRun, setShowLastRun);
       const last = await fetchLastGenerateRun();
-      setLastRun(last.ok && last.report ? last.report : null);
-      setShowLastRun(true);
       if (!last.ok) {
         setError(last.detail || "Verification finished but Generation Status report missing");
       }
@@ -1142,8 +1177,13 @@ export default function GeneratePage({
     setShowLastRun(true);
     try {
       const res = await fetchLastGenerateRun();
-      setLastRun(res.ok && res.report ? res.report : null);
-      if (!res.ok) setError(res.detail || "No generation status yet — run Generate first");
+      if (res.ok && res.report) {
+        setLastRun(res.report);
+        localStorage.setItem(GENERATION_STATUS_KEY, "1");
+      } else {
+        setError(res.detail || "No generation status yet — run Generate first");
+        setLastRun(null);
+      }
     } catch (e) {
       setError(String(e));
       setLastRun(null);
@@ -1152,7 +1192,10 @@ export default function GeneratePage({
     }
   }
 
-  const runReport = showLastRun && lastRun ? lastRun : mongo;
+  const runReport = lastRun ?? mongo;
+  const showGenerationStatus =
+    Boolean(runReport) &&
+    (showLastRun || Boolean(lastRun) || job?.status === "completed" || job?.status === "failed");
   const isValidateMode = Boolean(
     runReport?.validate ?? (showLastRun ? lastRun?.validate : job?.params?.validate),
   );
@@ -1232,6 +1275,39 @@ export default function GeneratePage({
     return { pass, fail, na, total: statusRows.length };
   }, [statusRows]);
   const scenariosWithLanding = statusRows.filter((s) => s.raw || s.enriched).length;
+
+  async function compareRowsFromStatus(keys: string[]) {
+    const keySet = new Set(keys.filter(Boolean));
+    const pool = statusRows.filter((s) => keySet.has(s.key));
+    const ops = [...new Set(pool.map((s) => s.key).filter(Boolean))];
+    const correlationByOp: Record<string, string> = {};
+    for (const s of pool) {
+      const cid = s.xCorrelationId?.trim();
+      if (s.key && cid) correlationByOp[s.key] = cid;
+    }
+    if (!ops.length) {
+      setError("No rows to compare.");
+      return;
+    }
+    setCompareBusy(true);
+    setError("");
+    try {
+      const job = await startCompare(
+        ops,
+        undefined,
+        Object.keys(correlationByOp).length ? correlationByOp : undefined,
+      );
+      if (onCompareRequested) {
+        onCompareRequested(job.id);
+      } else {
+        onCompareCompleted?.(job.id, ops);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCompareBusy(false);
+    }
+  }
 
   const enrichCandidates = useMemo(() => {
     return statusRows
@@ -1321,13 +1397,7 @@ export default function GeneratePage({
       if (picked.size && !picked.has(s.key)) return false;
       return s.status === "PASS" && (s.raw || s.enriched);
     });
-    // Compare per scenario (activateFamily(global)), not bare operation (activateFamily).
     const ops = [...new Set(pool.map((s) => s.key).filter(Boolean))];
-    const correlationByOp: Record<string, string> = {};
-    for (const s of pool) {
-      const cid = s.xCorrelationId?.trim();
-      if (s.key && cid) correlationByOp[s.key] = cid;
-    }
     if (!ops.length) {
       setError(
         picked.size
@@ -1336,23 +1406,7 @@ export default function GeneratePage({
       );
       return;
     }
-    setCompareBusy(true);
-    setError("");
-    try {
-      const job = await startCompare(
-        ops,
-        undefined,
-        Object.keys(correlationByOp).length ? correlationByOp : undefined,
-      );
-      // Land on the Compare page (live) so the user sees progress, instead of
-      // jumping straight to Result and having to navigate back.
-      if (onCompareRequested) onCompareRequested(job.id);
-      else onCompareCompleted?.(job.id, ops);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setCompareBusy(false);
-    }
+    await compareRowsFromStatus(ops);
   }
 
   function openAllCoverage() {
@@ -1597,6 +1651,7 @@ export default function GeneratePage({
           <OperationDropdown
             options={visibleOperations}
             selected={selected}
+            comparisonOps={comparisonOps}
             onToggle={toggle}
             onSelectAll={() => setSelected(new Set(visibleOperations.map((i) => i.id)))}
             onClear={() => setSelected(new Set())}
@@ -1850,7 +1905,7 @@ export default function GeneratePage({
         </details>
       )}
 
-      {runReport && (job?.status === "completed" || job?.status === "failed" || showLastRun) && (
+      {showGenerationStatus && (
         <div className="generate-run-status">
           <details className="operation-summary-details" open>
             <summary>
@@ -1859,13 +1914,13 @@ export default function GeneratePage({
               {isValidateMode && (
                 <>
                   {" · "}
-                  PASS: {scenarioSummary?.pass ?? runReport.summary?.pass ?? runReport.summary?.success ?? 0}
+                  PASS: {scenarioSummary?.pass ?? runReport?.summary?.pass ?? runReport?.summary?.success ?? 0}
                   {" · "}
-                  FAIL: {scenarioSummary?.fail ?? runReport.summary?.fail ?? runReport.summary?.needs_work ?? 0}
+                  FAIL: {scenarioSummary?.fail ?? runReport?.summary?.fail ?? runReport?.summary?.needs_work ?? 0}
                   {" · "}
-                  N/A: {scenarioSummary?.na ?? runReport.summary?.na ?? 0}
-                  {(scenarioSummary?.total ?? runReport.summary?.total) != null &&
-                    ` / ${scenarioSummary?.total ?? runReport.summary?.total}`}
+                  N/A: {scenarioSummary?.na ?? runReport?.summary?.na ?? 0}
+                  {(scenarioSummary?.total ?? runReport?.summary?.total) != null &&
+                    ` / ${scenarioSummary?.total ?? runReport?.summary?.total}`}
                 </>
               )}
               {!isValidateMode && (

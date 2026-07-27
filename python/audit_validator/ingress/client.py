@@ -27,6 +27,7 @@ class IngressClientConfig:
     app_version: str = "1.0.0.0"
     os_platform: str = "MAC"
     os_version: str = "26.5.0"
+    cpu_arch: str = "arm64"
     request_source: str = "MT_CONNECT_BS"
 
     @property
@@ -35,27 +36,31 @@ class IngressClientConfig:
 
 
 def resolve_ingress_bearer_token() -> str:
-    for key in ("INGRESS_BEARER_TOKEN", "BEARER_TOKEN_PP", "BEARER_TOKEN"):
-        val = (os.getenv(key) or "").strip()
-        if val:
-            return _strip_bearer(val)
-    return ""
+    """Same bearer chain as NextGen UI / GraphQL (NEXTGEN_BEARER_TOKEN first)."""
+    explicit = _strip_bearer(os.getenv("INGRESS_BEARER_TOKEN", ""))
+    if explicit:
+        return explicit
+    from ..auth import resolve_nextgen_bearer_token
+
+    return resolve_nextgen_bearer_token() or ""
 
 
 def load_ingress_client_config() -> IngressClientConfig:
+    from .runtime_context import resolve_ingress_runtime_context
+
     token = resolve_ingress_bearer_token()
-    machine_id = (os.getenv("INGRESS_MACHINE_ID") or "").strip()
-    unique_id = (os.getenv("INGRESS_UNIQUE_ID") or "").strip()
+    ctx = resolve_ingress_runtime_context()
     return IngressClientConfig(
         base_url=(os.getenv("INGRESS_API_URL") or _DEFAULT_URL).rstrip("/"),
         bearer_token=token,
-        machine_id=machine_id,
-        unique_id=unique_id,
+        machine_id=ctx.machine_id,
+        unique_id=ctx.unique_id,
         user_agent=(os.getenv("INGRESS_USER_AGENT") or "mt-audit-log-automation/1.0").strip(),
-        app_version=(os.getenv("INGRESS_APP_VERSION") or "1.0.0.0").strip(),
-        os_platform=(os.getenv("INGRESS_OS_PLATFORM") or "MAC").strip(),
-        os_version=(os.getenv("INGRESS_OS_VERSION") or "26.5.0").strip(),
+        app_version=ctx.app_version,
+        os_platform=ctx.os_platform,
+        os_version=ctx.os_version,
         request_source=(os.getenv("INGRESS_REQUEST_SOURCE") or "MT_CONNECT_BS").strip(),
+        cpu_arch=ctx.cpu_arch,
     )
 
 
@@ -66,7 +71,7 @@ def _headers(cfg: IngressClientConfig, payload: JsonDict) -> dict[str, str]:
     ua = cfg.user_agent
     if machine_id and unique_id and "NGAPP-BS" not in ua:
         ua = (
-            f"NGAPP-BS/{cfg.app_version}; (mac {cfg.os_version.lower()}; arm64 "
+            f"NGAPP-BS/{cfg.app_version}; (mac {cfg.os_version.lower()}; {cfg.cpu_arch} "
             f"{machine_id}; {unique_id})"
         )
     headers = {

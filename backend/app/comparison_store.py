@@ -172,6 +172,8 @@ def save_batch_results(
                 "summary": (summaries or {}).get(op) or _summary_for_rows(op_rows),
                 "rows": op_rows,
             }
+        if len(data) >= 20:
+            _backup_store(path)
         path.write_text(
             json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n",
             encoding="utf-8",
@@ -203,10 +205,40 @@ def reconcile_scope_rows(project_root: Path) -> dict[str, int]:
     return {"operations_touched": ops_touched}
 
 
+def _dedupe_bare_be_variants(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """Drop ``op(BE)`` when bare ``op`` exists (ingress generate labels).
+
+    GraphQL touchpoints like ``activateFamily(global)(BE)`` are kept — only a
+    single ``(BE)`` suffix with no inner parens is considered a duplicate.
+    """
+    import re
+
+    be_only = re.compile(r"^(.+)\(BE\)$")
+    to_drop: list[str] = []
+    for op in data:
+        m = be_only.match(str(op))
+        if not m:
+            continue
+        bare = m.group(1)
+        if bare in data and bare != op:
+            to_drop.append(op)
+    if not to_drop:
+        return data, False
+    for op in to_drop:
+        data.pop(op, None)
+    return data, True
+
+
 def list_latest(project_root: Path) -> dict[str, Any]:
     """All operations with a stored latest comparison, newest first."""
     path = _store_path(project_root)
     data = _load(path)
+    data, deduped = _dedupe_bare_be_variants(data)
+    if deduped:
+        path.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n",
+            encoding="utf-8",
+        )
     # Clean legacy enrichment-scope SKIP rows on read so the Result view matches
     # current validator behaviour even before the one-time migration runs.
     for item in data.values():
@@ -251,12 +283,33 @@ def delete_operation_result(project_root: Path, operation: str) -> bool:
     return True
 
 
+def _backup_store(path: Path) -> Path | None:
+    """Copy comparison-latest.json before destructive writes."""
+    if not path.is_file() or path.stat().st_size < 32:
+        return None
+    backup = path.with_name(f"{path.stem}.backup.json")
+    try:
+        backup.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+        return backup
+    except Exception:
+        return None
+
+
+def restore_from_jobs(project_root: Path, *, jobs_path: Path | None = None) -> dict[str, Any]:
+    """Merge newest per-operation compare rows from jobs-state (legacy 7-day restore)."""
+    from .comparison_restore import restore_from_jobs as _restore
+
+    return _restore(project_root, jobs_path=jobs_path, days=7, update_existing=True)
+
+
 def clear_all_results(project_root: Path) -> int:
     """Delete every stored comparison. Returns the number of operations removed."""
     path = _store_path(project_root)
     with _lock:
         data = _load(path)
         count = len(data)
+        if count:
+            _backup_store(path)
         path.write_text("{}\n", encoding="utf-8")
     return count
 

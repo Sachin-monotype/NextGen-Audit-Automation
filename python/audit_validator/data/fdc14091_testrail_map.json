@@ -1326,6 +1326,503 @@
       "operation": "createUploadSession",
       "touchpoint": "Discovery/Browse (global)",
       "key": "createUploadSession::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311022,
+      "title": "Verify addStyleComment — Discovery/Browse (global)",
+      "operation": "addStyleComment",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "addStyleComment::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311023,
+      "title": "Verify addStylesToWebProject — Discovery/Browse (global)",
+      "operation": "addStylesToWebProject",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "addStylesToWebProject::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311024,
+      "title": "Verify approveFontAccess — Discovery/Browse (global)",
+      "operation": "approveFontAccess",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "approveFontAccess::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311025,
+      "title": "Verify bulkAddPairsToFavorite — Discovery/Browse (global)",
+      "operation": "bulkAddPairsToFavorite",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "bulkAddPairsToFavorite::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311026,
+      "title": "Verify bulkAddStylesToFavourites — Discovery/Browse (global)",
+      "operation": "bulkAddStylesToFavourites",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "bulkAddStylesToFavourites::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311027,
+      "title": "Verify bulkMarkAsProductionFont — Discovery/Browse (global)",
+      "operation": "bulkMarkAsProductionFont",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "bulkMarkAsProductionFont::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311028,
+      "title": "Verify bulkMarkAsProductionFontsRequest — Discovery/Browse (global)",
+      "operation": "bulkMarkAsProductionFontsRequest",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "bulkMarkAsProductionFontsRequest::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311029,
+      "title": "Verify bulkNotificationAction — Discovery/Browse (global)",
+      "operation": "bulkNotificationAction",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "bulkNotificationAction::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311030,
+      "title": "Verify bulkRemovePairsFromFavorite — Discovery/Browse (global)",
+      "operation": "bulkRemovePairsFromFavorite",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "bulkRemovePairsFromFavorite::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311031,
+      "title": "Verify bulkUnmarkProductionFont — Discovery/Browse (global)",
+      "operation": "bulkUnmarkProductionFont",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "bulkUnmarkProductionFont::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311032,
+      "title": "Verify completeUploadSession — Discovery/Browse (global)",
+      "operation": "completeUploadSession",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "completeUploadSession::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311033,
+      "title": "Verify createAssetAttachmentUpload — Discovery/Browse (global)",
+      "operation": "createAssetAttachmentUpload",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "createAssetAttachmentUpload::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311034,
+      "title": "Verify createBYOFBatchAndCheckDuplicates — Discovery/Browse (global)",
+      "operation": "createBYOFBatchAndCheckDuplicates",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "createBYOFBatchAndCheckDuplicates::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311035,
+      "title": "Verify createCompanyLogoUploadUrl — Discovery/Browse (global)",
+      "operation": "createCompanyLogoUploadUrl",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "createCompanyLogoUploadUrl::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311036,
+      "title": "Verify createSsoMapping — Discovery/Browse (global)",
+      "operation": "createSsoMapping",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "createSsoMapping::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311037,
+      "title": "Verify createStyleDocumentsUploadUrl — Discovery/Browse (global)",
+      "operation": "createStyleDocumentsUploadUrl",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "createStyleDocumentsUploadUrl::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311038,
+      "title": "Verify deleteAllPrivateTags — Discovery/Browse (global)",
+      "operation": "deleteAllPrivateTags",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "deleteAllPrivateTags::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311039,
+      "title": "Verify deleteAssetAttachment — Discovery/Browse (global)",
+      "operation": "deleteAssetAttachment",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "deleteAssetAttachment::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311040,
+      "title": "Verify deleteCompanyLogo — Discovery/Browse (global)",
+      "operation": "deleteCompanyLogo",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "deleteCompanyLogo::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311041,
+      "title": "Verify deleteContracts — Discovery/Browse (global)",
+      "operation": "deleteContracts",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "deleteContracts::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311042,
+      "title": "Verify deleteImportedFonts — Discovery/Browse (global)",
+      "operation": "deleteImportedFonts",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "deleteImportedFonts::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311043,
+      "title": "Verify deletePrivateTags — Discovery/Browse (global)",
+      "operation": "deletePrivateTags",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "deletePrivateTags::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311044,
+      "title": "Verify deleteSsoMappings — Discovery/Browse (global)",
+      "operation": "deleteSsoMappings",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "deleteSsoMappings::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311045,
+      "title": "Verify deleteStyleComment — Discovery/Browse (global)",
+      "operation": "deleteStyleComment",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "deleteStyleComment::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311046,
+      "title": "Verify deleteStyleDocument — Discovery/Browse (global)",
+      "operation": "deleteStyleDocument",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "deleteStyleDocument::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311047,
+      "title": "Verify denyIntentForProduction — Discovery/Browse (global)",
+      "operation": "denyIntentForProduction",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "denyIntentForProduction::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311048,
+      "title": "Verify editWebProject — Discovery/Browse (global)",
+      "operation": "editWebProject",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "editWebProject::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311049,
+      "title": "Verify exportFontTemplate — Discovery/Browse (global)",
+      "operation": "exportFontTemplate",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportFontTemplate::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311050,
+      "title": "Verify exportLeavingSoonFonts — Discovery/Browse (global)",
+      "operation": "exportLeavingSoonFonts",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportLeavingSoonFonts::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311051,
+      "title": "Verify exportReportingWebkits — Discovery/Browse (global)",
+      "operation": "exportReportingWebkits",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportReportingWebkits::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311052,
+      "title": "Verify exportServiceAccount — Discovery/Browse (global)",
+      "operation": "exportServiceAccount",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportServiceAccount::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311053,
+      "title": "Verify exportSsoMappings — Discovery/Browse (global)",
+      "operation": "exportSsoMappings",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportSsoMappings::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311054,
+      "title": "Verify exportUnassignedImportedFontsTemplate — Discovery/Browse (global)",
+      "operation": "exportUnassignedImportedFontsTemplate",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportUnassignedImportedFontsTemplate::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311055,
+      "title": "Verify exportUserAssets — Discovery/Browse (global)",
+      "operation": "exportUserAssets",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportUserAssets::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311056,
+      "title": "Verify exportUserFonts — Discovery/Browse (global)",
+      "operation": "exportUserFonts",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportUserFonts::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311057,
+      "title": "Verify exportUserProjects — Discovery/Browse (global)",
+      "operation": "exportUserProjects",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportUserProjects::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311058,
+      "title": "Verify exportWebkitDomains — Discovery/Browse (global)",
+      "operation": "exportWebkitDomains",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportWebkitDomains::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311059,
+      "title": "Verify exportWebkitFonts — Discovery/Browse (global)",
+      "operation": "exportWebkitFonts",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "exportWebkitFonts::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311060,
+      "title": "Verify finalizeAssetAttachments — Discovery/Browse (global)",
+      "operation": "finalizeAssetAttachments",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "finalizeAssetAttachments::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311061,
+      "title": "Verify globalEmailOptOut — Discovery/Browse (global)",
+      "operation": "globalEmailOptOut",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "globalEmailOptOut::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311062,
+      "title": "Verify importFontTemplate — Discovery/Browse (global)",
+      "operation": "importFontTemplate",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "importFontTemplate::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311063,
+      "title": "Verify keepInProduction — Discovery/Browse (global)",
+      "operation": "keepInProduction",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "keepInProduction::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311064,
+      "title": "Verify linkContractToStyles — Discovery/Browse (global)",
+      "operation": "linkContractToStyles",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "linkContractToStyles::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311065,
+      "title": "Verify linkDocumentToProject — Discovery/Browse (global)",
+      "operation": "linkDocumentToProject",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "linkDocumentToProject::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311066,
+      "title": "Verify linkDocumentsToContract — Discovery/Browse (global)",
+      "operation": "linkDocumentsToContract",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "linkDocumentsToContract::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311067,
+      "title": "Verify markAllNotificationsRead — Discovery/Browse (global)",
+      "operation": "markAllNotificationsRead",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "markAllNotificationsRead::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311068,
+      "title": "Verify markCompanyLogoUploadSuccess — Discovery/Browse (global)",
+      "operation": "markCompanyLogoUploadSuccess",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "markCompanyLogoUploadSuccess::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311069,
+      "title": "Verify markProductionFonts — Discovery/Browse (global)",
+      "operation": "markProductionFonts",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "markProductionFonts::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311070,
+      "title": "Verify markSessionFileUploaded — Discovery/Browse (global)",
+      "operation": "markSessionFileUploaded",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "markSessionFileUploaded::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311071,
+      "title": "Verify publishAddOn — Discovery/Browse (global)",
+      "operation": "publishAddOn",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "publishAddOn::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311072,
+      "title": "Verify rejectFontAccess — Discovery/Browse (global)",
+      "operation": "rejectFontAccess",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "rejectFontAccess::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311073,
+      "title": "Verify removeFontProjectFamilies — Discovery/Browse (global)",
+      "operation": "removeFontProjectFamilies",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "removeFontProjectFamilies::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311074,
+      "title": "Verify removeStylesFromWebProject — Discovery/Browse (global)",
+      "operation": "removeStylesFromWebProject",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "removeStylesFromWebProject::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311075,
+      "title": "Verify reorderSsoMappings — Discovery/Browse (global)",
+      "operation": "reorderSsoMappings",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "reorderSsoMappings::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311076,
+      "title": "Verify requestFontAccess — Discovery/Browse (global)",
+      "operation": "requestFontAccess",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "requestFontAccess::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311077,
+      "title": "Verify resetPreferences — Discovery/Browse (global)",
+      "operation": "resetPreferences",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "resetPreferences::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311078,
+      "title": "Verify saveDocumentMetadata — Discovery/Browse (global)",
+      "operation": "saveDocumentMetadata",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "saveDocumentMetadata::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311079,
+      "title": "Verify submitFontUsageReport — Discovery/Browse (global)",
+      "operation": "submitFontUsageReport",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "submitFontUsageReport::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311080,
+      "title": "Verify unlinkDocumentFromProject — Discovery/Browse (global)",
+      "operation": "unlinkDocumentFromProject",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "unlinkDocumentFromProject::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311081,
+      "title": "Verify unlinkDocumentsFromContract — Discovery/Browse (global)",
+      "operation": "unlinkDocumentsFromContract",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "unlinkDocumentsFromContract::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311082,
+      "title": "Verify unlinkStyleFromContract — Discovery/Browse (global)",
+      "operation": "unlinkStyleFromContract",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "unlinkStyleFromContract::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311083,
+      "title": "Verify updateAssetSharing — Discovery/Browse (global)",
+      "operation": "updateAssetSharing",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updateAssetSharing::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311084,
+      "title": "Verify updateCompanySsoStatus — Discovery/Browse (global)",
+      "operation": "updateCompanySsoStatus",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updateCompanySsoStatus::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311085,
+      "title": "Verify updateContract — Discovery/Browse (global)",
+      "operation": "updateContract",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updateContract::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311086,
+      "title": "Verify updateCustomer — Discovery/Browse (global)",
+      "operation": "updateCustomer",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updateCustomer::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311087,
+      "title": "Verify updateFontsForReview — Discovery/Browse (global)",
+      "operation": "updateFontsForReview",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updateFontsForReview::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311088,
+      "title": "Verify updatePreference — Discovery/Browse (global)",
+      "operation": "updatePreference",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updatePreference::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311089,
+      "title": "Verify updateProductionFont — Discovery/Browse (global)",
+      "operation": "updateProductionFont",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updateProductionFont::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311090,
+      "title": "Verify updateSsoMapping — Discovery/Browse (global)",
+      "operation": "updateSsoMapping",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updateSsoMapping::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311091,
+      "title": "Verify updateStyleComment — Discovery/Browse (global)",
+      "operation": "updateStyleComment",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updateStyleComment::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311092,
+      "title": "Verify updateSubToggle — Discovery/Browse (global)",
+      "operation": "updateSubToggle",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "updateSubToggle::Discovery/Browse (global)"
     }
   ],
   "by_key": {
@@ -1517,6 +2014,77 @@
     "publishProject::Project": 73304715,
     "updateAssetsSharingInfo::List (FONTLIST)": 73304691,
     "bulkUpdatePreferences::Notifications": 73309245,
-    "createUploadSession::Discovery/Browse (global)": 73309246
+    "createUploadSession::Discovery/Browse (global)": 73309246,
+    "addStyleComment::Discovery/Browse (global)": 73311022,
+    "addStylesToWebProject::Discovery/Browse (global)": 73311023,
+    "approveFontAccess::Discovery/Browse (global)": 73311024,
+    "bulkAddPairsToFavorite::Discovery/Browse (global)": 73311025,
+    "bulkAddStylesToFavourites::Discovery/Browse (global)": 73311026,
+    "bulkMarkAsProductionFont::Discovery/Browse (global)": 73311027,
+    "bulkMarkAsProductionFontsRequest::Discovery/Browse (global)": 73311028,
+    "bulkNotificationAction::Discovery/Browse (global)": 73311029,
+    "bulkRemovePairsFromFavorite::Discovery/Browse (global)": 73311030,
+    "bulkUnmarkProductionFont::Discovery/Browse (global)": 73311031,
+    "completeUploadSession::Discovery/Browse (global)": 73311032,
+    "createAssetAttachmentUpload::Discovery/Browse (global)": 73311033,
+    "createBYOFBatchAndCheckDuplicates::Discovery/Browse (global)": 73311034,
+    "createCompanyLogoUploadUrl::Discovery/Browse (global)": 73311035,
+    "createSsoMapping::Discovery/Browse (global)": 73311036,
+    "createStyleDocumentsUploadUrl::Discovery/Browse (global)": 73311037,
+    "deleteAllPrivateTags::Discovery/Browse (global)": 73311038,
+    "deleteAssetAttachment::Discovery/Browse (global)": 73311039,
+    "deleteCompanyLogo::Discovery/Browse (global)": 73311040,
+    "deleteContracts::Discovery/Browse (global)": 73311041,
+    "deleteImportedFonts::Discovery/Browse (global)": 73311042,
+    "deletePrivateTags::Discovery/Browse (global)": 73311043,
+    "deleteSsoMappings::Discovery/Browse (global)": 73311044,
+    "deleteStyleComment::Discovery/Browse (global)": 73311045,
+    "deleteStyleDocument::Discovery/Browse (global)": 73311046,
+    "denyIntentForProduction::Discovery/Browse (global)": 73311047,
+    "editWebProject::Discovery/Browse (global)": 73311048,
+    "exportFontTemplate::Discovery/Browse (global)": 73311049,
+    "exportLeavingSoonFonts::Discovery/Browse (global)": 73311050,
+    "exportReportingWebkits::Discovery/Browse (global)": 73311051,
+    "exportServiceAccount::Discovery/Browse (global)": 73311052,
+    "exportSsoMappings::Discovery/Browse (global)": 73311053,
+    "exportUnassignedImportedFontsTemplate::Discovery/Browse (global)": 73311054,
+    "exportUserAssets::Discovery/Browse (global)": 73311055,
+    "exportUserFonts::Discovery/Browse (global)": 73311056,
+    "exportUserProjects::Discovery/Browse (global)": 73311057,
+    "exportWebkitDomains::Discovery/Browse (global)": 73311058,
+    "exportWebkitFonts::Discovery/Browse (global)": 73311059,
+    "finalizeAssetAttachments::Discovery/Browse (global)": 73311060,
+    "globalEmailOptOut::Discovery/Browse (global)": 73311061,
+    "importFontTemplate::Discovery/Browse (global)": 73311062,
+    "keepInProduction::Discovery/Browse (global)": 73311063,
+    "linkContractToStyles::Discovery/Browse (global)": 73311064,
+    "linkDocumentToProject::Discovery/Browse (global)": 73311065,
+    "linkDocumentsToContract::Discovery/Browse (global)": 73311066,
+    "markAllNotificationsRead::Discovery/Browse (global)": 73311067,
+    "markCompanyLogoUploadSuccess::Discovery/Browse (global)": 73311068,
+    "markProductionFonts::Discovery/Browse (global)": 73311069,
+    "markSessionFileUploaded::Discovery/Browse (global)": 73311070,
+    "publishAddOn::Discovery/Browse (global)": 73311071,
+    "rejectFontAccess::Discovery/Browse (global)": 73311072,
+    "removeFontProjectFamilies::Discovery/Browse (global)": 73311073,
+    "removeStylesFromWebProject::Discovery/Browse (global)": 73311074,
+    "reorderSsoMappings::Discovery/Browse (global)": 73311075,
+    "requestFontAccess::Discovery/Browse (global)": 73311076,
+    "resetPreferences::Discovery/Browse (global)": 73311077,
+    "saveDocumentMetadata::Discovery/Browse (global)": 73311078,
+    "submitFontUsageReport::Discovery/Browse (global)": 73311079,
+    "unlinkDocumentFromProject::Discovery/Browse (global)": 73311080,
+    "unlinkDocumentsFromContract::Discovery/Browse (global)": 73311081,
+    "unlinkStyleFromContract::Discovery/Browse (global)": 73311082,
+    "updateAssetSharing::Discovery/Browse (global)": 73311083,
+    "updateCompanySsoStatus::Discovery/Browse (global)": 73311084,
+    "updateContract::Discovery/Browse (global)": 73311085,
+    "updateCustomer::Discovery/Browse (global)": 73311086,
+    "updateFontsForReview::Discovery/Browse (global)": 73311087,
+    "updatePreference::Discovery/Browse (global)": 73311088,
+    "updateProductionFont::Discovery/Browse (global)": 73311089,
+    "updateSsoMapping::Discovery/Browse (global)": 73311090,
+    "updateStyleComment::Discovery/Browse (global)": 73311091,
+    "updateSubToggle::Discovery/Browse (global)": 73311092
   }
 }

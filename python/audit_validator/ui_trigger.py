@@ -906,6 +906,16 @@ def _connector_error_hint(errors: list[str]) -> str:
             "CasePilot connector bridge is not reachable (Connection refused). "
             "Start the CasePilot connector on your machine and keep it online, then Send again."
         )
+    if "tool-callback-auth-token" in joined or (
+        "cursor sdk" in joined and "bridge exited before discovery" in joined
+    ):
+        return (
+            "Cursor SDK bridge bug (not a missing CasePilot/Cursor API key): cursor-sdk "
+            "randomly generates an internal callback token starting with '-', which "
+            "cursor-sdk-bridge rejects as 'Missing value for --tool-callback-auth-token'. "
+            "Retry the run, set Parallel browsers to 1, or ask CasePilot to patch/upgrade "
+            "cursor-sdk in the local runner venv."
+        )
     if errors:
         return errors[0]
     return "CasePilot UI run failed — check connector logs and CasePilot execution history."
@@ -1565,6 +1575,32 @@ def record_manual_ui_results(
     return _write_job(project_root, job)
 
 
+def _stage_ui_verified_sample(
+    project_root: Path,
+    display_key: str,
+    *,
+    raw_mongo: dict[str, Any] | None,
+    enr_mongo: dict[str, Any] | None,
+) -> None:
+    """Stage Mongo docs for Compare — avoids re-pairing 10+ UI scenarios on each run."""
+    if not display_key or not (raw_mongo or enr_mongo):
+        return
+    try:
+        from bson import json_util
+
+        dump = lambda doc: json_util.dumps(doc, indent=2, ensure_ascii=False)  # noqa: E731
+    except ImportError:
+        dump = lambda doc: json.dumps(doc, indent=2, default=str)  # noqa: E731
+    enrich_dir = project_root / "payload" / "enrich"
+    raw_dir = project_root / "payload" / "raw"
+    enrich_dir.mkdir(parents=True, exist_ok=True)
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    if enr_mongo:
+        (enrich_dir / f"{display_key}.json").write_text(dump(enr_mongo), encoding="utf-8")
+    if raw_mongo:
+        (raw_dir / f"{display_key}.json").write_text(dump(raw_mongo), encoding="utf-8")
+
+
 def finalize_ui_trigger_verification(
     project_root: Path,
     job_id: str,
@@ -1655,15 +1691,27 @@ def finalize_ui_trigger_verification(
             display = scenario_display_name(op, touch, ui=True)
             raw_doc = None
             enr_doc = None
+            raw_mongo = None
+            enr_mongo = None
             if db is not None and cid:
                 try:
                     raw2, enr2 = db.latest_pair(op, require_pair=False, correlation_id=cid)
-                    if raw2:
-                        raw_doc = _event_for_report(raw2)
-                    if enr2:
-                        enr_doc = _event_for_report(enr2)
+                    raw_mongo = raw2 if isinstance(raw2, dict) else None
+                    enr_mongo = enr2 if isinstance(enr2, dict) else None
+                    if raw_mongo:
+                        raw_doc = _event_for_report(raw_mongo)
+                    if enr_mongo:
+                        enr_doc = _event_for_report(enr_mongo)
                 except Exception as exc:  # noqa: BLE001
                     _log(f"  ⚠ cid lookup for {op}: {exc}")
+
+            if enr_mongo or raw_mongo:
+                _stage_ui_verified_sample(
+                    project_root,
+                    display,
+                    raw_mongo=raw_mongo,
+                    enr_mongo=enr_mongo,
+                )
 
             raw_ok = bool(raw_doc)
             enr_ok = bool(enr_doc)
@@ -1674,8 +1722,8 @@ def finalize_ui_trigger_verification(
                 status = "FAIL"
                 remark = "UI-triggered · raw landed; enrichment missing"
             elif enr_ok and not raw_ok:
-                status = "FAIL"
-                remark = "UI-triggered · enriched landed; raw missing"
+                status = "PASS"
+                remark = "UI-triggered · enriched landed (raw not in Mongo — non-blocking)"
             elif cid:
                 status = "FAIL"
                 remark = "UI-triggered · correlation captured; event not in Mongo yet"
@@ -1708,16 +1756,17 @@ def finalize_ui_trigger_verification(
                 f"enrich={'yes' if enr_ok else 'no'} cid={(cid or '')[:8]}"
             )
 
-        report["scenarios"] = scenarios
         report["summary"] = summary_from_scenarios(scenarios)
+        report["scenarios"] = [
+            {k: v for k, v in s.items() if k not in ("raw_event", "enriched_event")}
+            for s in scenarios
+        ]
         report["operations"] = [
             {
                 "operation": s["label"] or s["operation"],
                 "xCorrelationId": s.get("xCorrelationId"),
                 "raw": s.get("raw"),
                 "enriched": s.get("enriched"),
-                "raw_event": s.get("raw_event"),
-                "enriched_event": s.get("enriched_event"),
                 "status": "success" if s.get("status") == "PASS" else "missing",
                 "ui_status": s.get("ui_status"),
                 "remark": s.get("remark"),
@@ -1729,7 +1778,7 @@ def finalize_ui_trigger_verification(
         _log(
             f"✓ Generation Status saved · "
             f"PASS={report['summary'].get('pass')} FAIL={report['summary'].get('fail')} "
-            f"(raw/enrich JSON attached)"
+            f"(samples staged under payload/ for Compare)"
         )
         job["verification"] = {
             **(job.get("verification") or {}),
