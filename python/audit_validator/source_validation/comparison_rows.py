@@ -518,6 +518,38 @@ def _cms_value(path: str, cms: dict) -> object:
     return cms.get(leaf)
 
 
+def _cms_jwt_fallback(path: str, live: dict[str, Any]) -> object | None:
+    """Map JWT claims onto actor.customer leaves missing from MySQL CMS."""
+    if ".customer." not in path:
+        return None
+    rel = path.split(".customer.", 1)[1].split("[")[0]
+    leaf = rel.rsplit(".", 1)[-1]
+    ident = live.get("jwt_identity") if isinstance(live.get("jwt_identity"), dict) else None
+    if not ident:
+        try:
+            from audit_validator.auth import jwt_identity
+
+            ident = jwt_identity()
+        except Exception:
+            ident = {}
+    low = leaf.lower()
+    if low in {"displayname", "name"}:
+        return ident.get("org_name") or None
+    if low in {"payingcustomer", "paying_customer"}:
+        raw = ident.get("paying_customer")
+        if raw in (None, ""):
+            return None
+        # Enriched often stores boolean; JWT claim is "yes"/"no".
+        if isinstance(raw, str) and raw.strip().lower() in {"yes", "true", "1"}:
+            return True
+        if isinstance(raw, str) and raw.strip().lower() in {"no", "false", "0"}:
+            return False
+        return raw
+    if low in {"parentid", "parentcustomerid"}:
+        return ident.get("parent_customer_id") or None
+    return None
+
+
 def _invitation_value(path: str, invitation: dict) -> object | None:
     import re
 
@@ -675,6 +707,20 @@ def _ums_value(
         if isinstance(role, dict):
             rel = path.split(".role.", 1)[1]
             return dig_once(role, rel)
+    # actor.enrichedSnapshot.user.firstName / email / … — prefer nested user, else profile root
+    if "actor.enrichedSnapshot.user." in path and ".role." not in path and ".profile." not in path:
+        rel = path.split("actor.enrichedSnapshot.user.", 1)[1].split("[")[0]
+        nested = ums_profile.get("user") if isinstance(ums_profile.get("user"), dict) else None
+        if nested:
+            val = dig_once(nested, rel)
+            if val is not None:
+                return val
+        root = _ums_profile_root(ums_profile) or ums_profile
+        val = dig_once(root, rel)
+        if val is not None:
+            return val
+        leaf = rel.rsplit(".", 1)[-1]
+        return root.get(leaf)
     if "role.displayName" in path:
         role = ums_profile.get("role") or {}
         return role.get("displayName") if isinstance(role, dict) else None
@@ -870,9 +916,22 @@ def _resolve_source_value(
         # For create/updateCustomer the subject is the *target* customer, not the actor.
         if "subject.enrichedSnapshot.customer" in path and live.get("cms_subject_customer"):
             cms = live.get("cms_subject_customer")
+        note = _remark_for_source(live, "CMS", status="" if cms else "SKIP")
+        if live.get("cms_note"):
+            note = str(live.get("cms_note"))
         if cms:
-            return _cms_value(path, cms), _remark_for_source(live, "CMS", status="")
-        return None, _remark_for_source(live, "CMS", status="SKIP")
+            val = _cms_value(path, cms)
+            if val is not None:
+                return val, note
+            # QA CMS schema is thinner than PP; some actor.customer leaves come from JWT.
+            jwt_fb = _cms_jwt_fallback(path, live)
+            if jwt_fb is not None:
+                return jwt_fb, "JWT claim (CMS field absent in MySQL)"
+            return None, note
+        jwt_fb = _cms_jwt_fallback(path, live)
+        if jwt_fb is not None:
+            return jwt_fb, "JWT claim (CMS customer miss)"
+        return None, note
 
     if spec.source_system == "AMS":
         ams = live.get("ams_asset")
@@ -954,7 +1013,10 @@ def _jwt_actor_value(
     }
     if low in mapping:
         val = (ident or {}).get(mapping[low])
-        return val, "JWT claim (decrypt Bearer)"
+        note = "JWT claim (decrypt Bearer)"
+        if live.get("jwt_identity_note"):
+            note = str(live.get("jwt_identity_note"))
+        return val, note
     if low == "globaluserid":
         # Profile UUID is not in JWT — prefer UMS resolution via email/idp.
         pid = live.get("our_profile_id") or live.get("actor_profile_id")

@@ -553,8 +553,15 @@ button, input, select {
   margin-left: auto;
   flex-shrink: 0;
   font-size: 0.68rem;
-  color: var(--muted);
   font-style: italic;
+}
+
+.op-compare-status.verify {
+  color: #b45309;
+}
+
+.op-compare-status.reverify {
+  color: #15803d;
 }
 
 .op-dropdown-group {

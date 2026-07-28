@@ -921,6 +921,26 @@ def _live_context_for_operation(
             ctx["cms_customer"] = cms_by.get(customer_id) or cms.get_customer_by_id(
                 customer_id, correlation_id=cid
             )
+            # QA Auth0 gcid can disagree with CMS/UMS customer id. Prefer the
+            # UMS profile's customerId when the JWT/actor gcid misses in CMS.
+            if not ctx.get("cms_customer"):
+                alt = ""
+                for key in ("ums_profile", "ums_subject_profile"):
+                    prof = ctx.get(key)
+                    if isinstance(prof, dict):
+                        alt = str(prof.get("customerId") or "").strip()
+                        if alt:
+                            break
+                if alt and alt != str(customer_id):
+                    ctx["cms_customer"] = cms_by.get(alt) or cms.get_customer_by_id(
+                        alt, correlation_id=cid
+                    )
+                    if ctx.get("cms_customer"):
+                        ctx["cms_customer_id_resolved"] = alt
+                        ctx["cms_note"] = (
+                            f"CMS miss for actor gcid {customer_id}; "
+                            f"resolved via UMS profile.customerId={alt}"
+                        )
         except Exception as exc:
             ctx["cms_error"] = f"CMS lookup failed: {exc}"
     elif cms and cfg.cms_ready and not customer_id:
@@ -1605,21 +1625,45 @@ def run_source_validation(
             except Exception:
                 raw_ev = None
         try:
-            from audit_validator.auth import jwt_identity, resolve_our_profile_id
+            from audit_validator.auth import (
+                _identity_is_user,
+                jwt_identity,
+                jwt_identity_from_actor,
+                resolve_our_profile_id,
+            )
             from audit_validator.simulation.trigger_context import (
                 build_trigger_from_captured_event,
                 load_trigger_context,
             )
 
-            trigger = None
-            if isinstance(raw_ev, dict):
+            trigger = load_trigger_context(cfg.project_root, op)
+            ui_capture = (
+                isinstance(trigger, dict)
+                and str(trigger.get("replay_mode") or "") == "casepilot_ui"
+                and isinstance(trigger.get("graphql_response"), dict)
+                and bool(trigger.get("graphql_response"))
+            )
+            enrich_cid = str(enriched.get("xCorrelationId") or "").strip()
+            raw_cid = str((raw_ev or {}).get("xCorrelationId") or "").strip()
+            raw_mismatch = bool(
+                enrich_cid and raw_cid and enrich_cid != raw_cid
+            )
+            if not ui_capture and isinstance(raw_ev, dict) and not raw_mismatch:
                 trigger = build_trigger_from_captured_event(
                     op,
                     raw_ev,
                     enriched,
                     project_root=cfg.project_root,
                 )
-            if not trigger:
+            elif not ui_capture and raw_mismatch:
+                # Stale payload/raw on disk (common for UI runs: enrich updates, raw does not).
+                trigger = build_trigger_from_captured_event(
+                    op,
+                    enriched,
+                    enriched,
+                    project_root=cfg.project_root,
+                )
+            elif not trigger:
                 trigger = load_trigger_context(cfg.project_root, op)
             if trigger:
                 live["trigger"] = trigger
@@ -1631,6 +1675,19 @@ def run_source_validation(
                     live["jwt_identity"] = trigger["jwt_identity"]
             if "jwt_identity" not in live:
                 live["jwt_identity"] = jwt_identity()
+            # QA M2M tokens have no user claims — fall back to actor stamps on the event
+            # so JWT Compare rows are not Source=none against a populated enriched actor.
+            ident = live.get("jwt_identity") if isinstance(live.get("jwt_identity"), dict) else {}
+            if not _identity_is_user(ident):
+                from_actor = jwt_identity_from_actor(
+                    enriched.get("actor") if isinstance(enriched.get("actor"), dict) else {}
+                )
+                if _identity_is_user(from_actor):
+                    live["jwt_identity"] = from_actor
+                    live["jwt_identity_note"] = (
+                        "JWT claims taken from enriched actor "
+                        "(active Bearer is M2M / has no user claims)"
+                    )
             pid = resolve_our_profile_id(project_root=cfg.project_root)
             if pid:
                 live["our_profile_id"] = pid

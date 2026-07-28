@@ -42,6 +42,7 @@ _SHORT_TOUCH = {
     "list": "list",
     "project": "project",
     "project_list": "project_list",
+    "global_app": "global_app",
 }
 
 
@@ -123,6 +124,8 @@ def canonicalize_touchpoint(touch: str | None) -> str | None:
     """Collapse Search/Family/Discovery → Discovery/Browse (global)."""
     if not touch:
         return touch
+    if normalize_touchpoint(touch) == "global_app":
+        return touch.strip()
     key = " ".join(touch.lower().replace("/", " ").split())
     compact = touch.strip().lower()
     if compact in _GLOBAL_ALIASES or key in {

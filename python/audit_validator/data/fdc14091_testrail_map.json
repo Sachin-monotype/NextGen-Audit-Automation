@@ -796,11 +796,11 @@
       "key": "createPrivateTags::Discovery/Browse (global)"
     },
     {
-      "case_id": 73303539,
-      "title": "Verify createRole — Discovery/Browse (global)",
+      "case_id": 0,
+      "title": "Verify createRole — User & Access (no TestRail case yet — enter id manually)",
       "operation": "createRole",
-      "touchpoint": "Discovery/Browse (global)",
-      "key": "createRole::Discovery/Browse (global)"
+      "touchpoint": "User & Access",
+      "key": "createRole::User & Access"
     },
     {
       "case_id": 73303541,
@@ -1823,6 +1823,20 @@
       "operation": "updateSubToggle",
       "touchpoint": "Discovery/Browse (global)",
       "key": "updateSubToggle::Discovery/Browse (global)"
+    },
+    {
+      "case_id": 73311305,
+      "title": "UI: Monotype Connect login → Preferences → change mac performance mode",
+      "operation": "appSettingsPerformanceModeChanged",
+      "touchpoint": "Desktop UI",
+      "key": "appSettingsPerformanceModeChanged::Desktop UI"
+    },
+    {
+      "case_id": 73311306,
+      "title": "UI: Activate family from global search in Monotype Connect app",
+      "operation": "activateFamily",
+      "touchpoint": "App (global)",
+      "key": "activateFamily::App (global)"
     }
   ],
   "by_key": {
@@ -1939,7 +1953,6 @@
     "activateStyle::Search/ Family / Discovery": 73303514,
     "createWebProject::Discovery/Browse (global)": 73303537,
     "createPrivateTags::Discovery/Browse (global)": 73303538,
-    "createRole::Discovery/Browse (global)": 73303539,
     "createCustomer::Discovery/Browse (global)": 73303541,
     "createTeam::Discovery/Browse (global)": 73303543,
     "deleteProfiles::Discovery/Browse (global)": 73303544,
@@ -2085,6 +2098,9 @@
     "updateProductionFont::Discovery/Browse (global)": 73311089,
     "updateSsoMapping::Discovery/Browse (global)": 73311090,
     "updateStyleComment::Discovery/Browse (global)": 73311091,
-    "updateSubToggle::Discovery/Browse (global)": 73311092
+    "updateSubToggle::Discovery/Browse (global)": 73311092,
+    "appSettingsPerformanceModeChanged::Desktop UI": 73311305,
+    "ingress:app_settings_performance_mode_changed": 73311305,
+    "activateFamily::App (global)": 73311306
   }
 }

@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .connection import MysqlConfig, load_mysql_config, select_all, select_one
+from .schemas import ams_schema, cms_schema, ums_schema
 
 log = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ def _is_uuid(value: Any) -> bool:
 
 
 def _iso(value: Any) -> Any:
-    """Serialize datetime-like values so JSON / Compare never choke.
+    f"""Serialize datetime-like values so JSON / Compare never choke.
 
     Mirror CMS/AMS API style: ``2026-06-29T06:34:38.855Z`` (ms, not µs).
     """
@@ -185,9 +186,9 @@ class CmsDbClient:
         if not customer_id:
             return None
         row = select_one(
-            """
+            f"""
             SELECT *
-            FROM customer_management.customers
+            FROM {cms_schema()}.customers
             WHERE id = %s
             LIMIT 1
             """,
@@ -210,9 +211,9 @@ class CmsDbClient:
         rows = select_all(
             f"""
             SELECT *
-            FROM customer_management.customers
+            FROM {cms_schema()}.customers
             WHERE id IN ({placeholders})
-            """,
+            f""",
             tuple(ids),
             cfg=self._mysql,
         )
@@ -237,7 +238,7 @@ class CmsDbClient:
             rows = select_all(
                 f"""
                 SELECT *
-                FROM customer_management.customer_subscription
+                FROM {cms_schema()}.customer_subscription
                 WHERE customer_id IN ({placeholders})
                   AND (is_deleted = 0 OR is_deleted IS NULL)
                 ORDER BY id DESC
@@ -286,11 +287,11 @@ class CmsDbClient:
             "isTestDemo": _as_bool(_pick(row, "is_test_demo", "isTestDemo")),
             "createdAt": _iso(_pick(row, "created_on", "created_at", "createdAt")),
             "modifiedAt": _iso(_pick(row, "modified_on", "modified_at", "modifiedAt")),
-            "_source": "mysql:customer_management.customers",
+            "_source": f"mysql:{cms_schema()}.customers",
         }
         if subscription:
             out["subscription"] = subscription
-            out["_source"] = "mysql:customer_management.customers+customer_subscription"
+            out["_source"] = f"mysql:{cms_schema()}.customers+customer_subscription"
         return out
 
 
@@ -303,7 +304,7 @@ class UmsDbClient:
 
     def _uses_view(self) -> bool:
         if self._has_view is None:
-            self._has_view = _table_exists("user_management", "vw_profile_details", cfg=self._mysql)
+            self._has_view = _table_exists(ums_schema(), "vw_profile_details", cfg=self._mysql)
         return self._has_view
 
     def get_profile_by_id(
@@ -319,9 +320,9 @@ class UmsDbClient:
 
         row: dict[str, Any] | None = None
         if self._uses_view():
-            sql = """
+            sql = f"""
                 SELECT *
-                FROM user_management.vw_profile_details
+                FROM {ums_schema()}.vw_profile_details
                 WHERE profile_Id_uuid = %s
                   AND (is_deleted = 0 OR is_deleted IS NULL)
             """
@@ -333,9 +334,9 @@ class UmsDbClient:
             row = select_one(sql, tuple(params), cfg=self._mysql)
             if not row and customer_id:
                 row = select_one(
-                    """
+                    f"""
                     SELECT *
-                    FROM user_management.vw_profile_details
+                    FROM {ums_schema()}.vw_profile_details
                     WHERE profile_Id_uuid = %s
                       AND (is_deleted = 0 OR is_deleted IS NULL)
                     LIMIT 1
@@ -346,7 +347,7 @@ class UmsDbClient:
         if not row:
             # Legacy binary(16) profiles table — same pattern as MTConnectAutomation helper.
             row = select_one(
-                """
+                f"""
                 SELECT
                   LOWER(BIN_TO_UUID(id)) AS profile_Id_uuid,
                   LOWER(BIN_TO_UUID(user_id)) AS user_id_uuid,
@@ -357,7 +358,7 @@ class UmsDbClient:
                   created_on,
                   modified_on,
                   meta_data AS meta
-                FROM user_management.profiles
+                FROM {ums_schema()}.profiles
                 WHERE id = UUID_TO_BIN(%s)
                 LIMIT 1
                 """,
@@ -392,7 +393,7 @@ class UmsDbClient:
         correlation_id: str = "",
         user_type: str = "service",
     ) -> list[dict[str, Any]]:
-        """Bulk profile fetch — one SQL ``IN`` (critical for Compare prefetch)."""
+        f"""Bulk profile fetch — one SQL ``IN`` (critical for Compare prefetch)."""
         del correlation_id, user_type, customer_id
         ids = [str(p).strip() for p in profile_ids if str(p or "").strip()]
         if not ids:
@@ -402,7 +403,7 @@ class UmsDbClient:
             rows = select_all(
                 f"""
                 SELECT *
-                FROM user_management.vw_profile_details
+                FROM {ums_schema()}.vw_profile_details
                 WHERE profile_Id_uuid IN ({placeholders})
                   AND (is_deleted = 0 OR is_deleted IS NULL)
                 """,
@@ -425,7 +426,7 @@ class UmsDbClient:
         *,
         correlation_id: str = "",
     ) -> dict[str, dict[str, Any]]:
-        """Bulk roles — one SQL ``IN`` → id → role dict (with permissions)."""
+        f"""Bulk roles — one SQL ``IN`` → id → role dict (with permissions)."""
         del correlation_id, customer_id
         ids = [str(r).strip() for r in role_ids if str(r or "").strip()]
         if not ids:
@@ -443,7 +444,7 @@ class UmsDbClient:
               type_id,
               description,
               LOWER(BIN_TO_UUID(customer_id)) AS customer_id
-            FROM user_management.roles
+            FROM {ums_schema()}.roles
             WHERE id IN ({placeholders})
             """,
             tuple(ids),
@@ -461,12 +462,12 @@ class UmsDbClient:
                 "typeId": _pick(row, "type_id", "typeId"),
                 "description": _pick(row, "description"),
                 "permissions": perms_by_role.get(rid) or [],
-                "_source": "mysql:user_management.roles",
+                "_source": f"mysql:{ums_schema()}.roles",
             }
         return out
 
     def _permissions_for_roles(self, role_ids: list[str]) -> dict[str, list[dict[str, int]]]:
-        """Mirror CMS API shape: permissions: [{id: 1}, {id: 2}, …]."""
+        f"""Mirror CMS API shape: permissions: [{id: 1}, {id: 2}, …]."""
         ids = [str(r).strip() for r in role_ids if _is_uuid(r)]
         if not ids:
             return {}
@@ -477,7 +478,7 @@ class UmsDbClient:
                 SELECT
                   LOWER(BIN_TO_UUID(role_id)) AS role_id,
                   permission_id
-                FROM user_management.role_permissions_mapping
+                FROM {ums_schema()}.role_permissions_mapping
                 WHERE role_id IN ({placeholders})
                 ORDER BY permission_id
                 """,
@@ -520,9 +521,9 @@ class UmsDbClient:
             return None
         if self._uses_view():
             rows = select_all(
-                """
+                f"""
                 SELECT *
-                FROM user_management.vw_profile_details
+                FROM {ums_schema()}.vw_profile_details
                 WHERE idp_user_id = %s
                   AND (is_deleted = 0 OR is_deleted IS NULL)
                 LIMIT 20
@@ -541,13 +542,13 @@ class UmsDbClient:
                     "profiles": [
                         {"id": p.get("id"), "customerId": p.get("customerId")} for p in profiles
                     ],
-                    "_source": "mysql:user_management.vw_profile_details",
+                    "_source": f"mysql:{ums_schema()}.vw_profile_details",
                 }
         try:
             row = select_one(
-                """
+                f"""
                 SELECT *
-                FROM user_management.deleted_profiles
+                FROM {ums_schema()}.deleted_profiles
                 WHERE idp_user_id = %s
                 LIMIT 1
                 """,
@@ -563,7 +564,7 @@ class UmsDbClient:
                 "lastName": _pick(row, "last_name", "lastName"),
                 "email": _pick(row, "email"),
                 "profiles": [],
-                "_source": "mysql:user_management.deleted_profiles",
+                "_source": f"mysql:{ums_schema()}.deleted_profiles",
             }
         return None
 
@@ -588,7 +589,7 @@ class UmsDbClient:
             "createdAt": _iso(_pick(row, "CreatedOn", "created_on", "createdAt")),
             "emailLocale": _pick(row, "EmailLocale", "email_locale", "emailLocale"),
             "teamIds": _parse_json(_pick(row, "TeamIds", "team_ids", "teamIds")),
-            "_source": "mysql:user_management.user_invitation",
+            "_source": f"mysql:{ums_schema()}.user_invitation",
         }
 
     def get_invitation_by_email(
@@ -604,9 +605,9 @@ class UmsDbClient:
         if not em:
             return None
         row = select_one(
-            """
+            f"""
             SELECT *
-            FROM user_management.user_invitation
+            FROM {ums_schema()}.user_invitation
             WHERE email = %s
             LIMIT 1
             """,
@@ -641,9 +642,9 @@ class UmsDbClient:
         if not iid or not iid.isdigit():
             return None
         row = select_one(
-            """
+            f"""
             SELECT *
-            FROM user_management.user_invitation
+            FROM {ums_schema()}.user_invitation
             WHERE Id = %s
             LIMIT 1
             """,
@@ -667,21 +668,34 @@ class UmsDbClient:
             if role_desc:
                 role_obj["description"] = role_desc
         meta = _parse_json(_pick(row, "meta", "meta_data", "metaData"))
+        first = _pick(row, "first_name", "firstName")
+        last = _pick(row, "last_name", "lastName")
+        email = _pick(row, "email")
+        idp = _pick(row, "idp_user_id", "idpUserId")
+        user_id = _pick(row, "user_id_uuid", "user_id", "userId")
         return {
             "id": _str(_pick(row, "profile_Id_uuid", "id", "profile_id")),
             "customerId": _str(_pick(row, "customer_id_uuid", "customer_id", "customerId")),
             "isActive": _as_bool(_pick(row, "is_active", "isActive")),
-            "firstName": _pick(row, "first_name", "firstName"),
-            "lastName": _pick(row, "last_name", "lastName"),
-            "email": _pick(row, "email"),
-            "idpUserId": _pick(row, "idp_user_id", "idpUserId"),
-            "userId": _pick(row, "user_id_uuid", "user_id", "userId"),
+            "firstName": first,
+            "lastName": last,
+            "email": email,
+            "idpUserId": idp,
+            "userId": user_id,
             "externalUserId": _pick(row, "externaluser_id", "externalUserId"),
             "createdAt": _iso(_pick(row, "created_on", "createdAt")),
+            # Mirror HTTP UMS shape used by enriched actor.enrichedSnapshot.user.*
+            "user": {
+                "id": _str(user_id) if user_id else None,
+                "firstName": first,
+                "lastName": last,
+                "email": email,
+                "idpUserId": idp,
+            },
             "role": role_obj,
             "team": {},
             "meta": meta if isinstance(meta, dict) else {},
-            "_source": "mysql:user_management.vw_profile_details",
+            "_source": f"mysql:{ums_schema()}.vw_profile_details",
         }
 
     def get_teams_by_ids(
@@ -708,7 +722,7 @@ class UmsDbClient:
               name,
               description,
               LOWER(BIN_TO_UUID(customer_id)) AS customerId
-            FROM user_management.teams
+            FROM {ums_schema()}.teams
             WHERE id IN ({placeholders})
         """
         if customer_id:
@@ -727,7 +741,7 @@ class UmsDbClient:
                     "name": _pick(row, "name"),
                     "description": _pick(row, "description"),
                     "customerId": _str(_pick(row, "customerId", "customer_id")),
-                    "_source": "mysql:user_management.teams",
+                    "_source": f"mysql:{ums_schema()}.teams",
                 }
             )
         return out
@@ -772,9 +786,9 @@ class AmsDbClient:
         del correlation_id
         if not asset_id:
             return None
-        sql = """
+        sql = f"""
             SELECT *
-            FROM asset_management.assets
+            FROM {ams_schema()}.assets
             WHERE asset_id = %s
         """
         params: list[Any] = [asset_id]
@@ -789,7 +803,7 @@ class AmsDbClient:
         row = select_one(sql, tuple(params), cfg=self._mysql)
         if not row and (ams_type or global_customer_id):
             row = select_one(
-                "SELECT * FROM asset_management.assets WHERE asset_id = %s LIMIT 1",
+                f"SELECT * FROM {ams_schema()}.assets WHERE asset_id = %s LIMIT 1",
                 (asset_id,),
                 cfg=self._mysql,
             )
@@ -805,7 +819,7 @@ class AmsDbClient:
         global_user_id: str = "",
         global_customer_id: str = "",
     ) -> dict[str, dict[str, Any]]:
-        """Type-agnostic bulk lookup — mirrors HTTP ``POST /v2/assets/bulk``."""
+        f"""Type-agnostic bulk lookup — mirrors HTTP ``POST /v2/assets/bulk``."""
         del correlation_id, global_customer_id
         return self.get_assets_by_ids(asset_ids, global_user_id=global_user_id)
 
@@ -822,7 +836,7 @@ class AmsDbClient:
         rows = select_all(
             f"""
             SELECT *
-            FROM asset_management.assets
+            FROM {ams_schema()}.assets
             WHERE asset_id IN ({placeholders})
             """,
             tuple(ids),
@@ -866,9 +880,9 @@ class AmsDbClient:
                   END AS parent_id,
                   created_at,
                   updated_at
-                FROM asset_management.projects
+                FROM {ams_schema()}.projects
                 WHERE id IN ({placeholders})
-                """,
+                f""",
                 tuple(ids),
                 cfg=self._mysql,
             )
@@ -892,7 +906,7 @@ class AmsDbClient:
         path_rows = select_all(
             f"""
             SELECT asset_id, asset_path, asset_type
-            FROM asset_management.assets
+            FROM {ams_schema()}.assets
             WHERE asset_id IN ({placeholders})
             """,
             tuple(ids),
@@ -917,10 +931,10 @@ class AmsDbClient:
                 acc_rows = select_all(
                     f"""
                     SELECT asset_id, access_id
-                    FROM asset_management.asset_user_access
+                    FROM {ams_schema()}.asset_user_access
                     WHERE user_id = %s
                       AND asset_id IN ({ph})
-                    """,
+                    f""",
                     (global_user_id, *node_list),
                     cfg=self._mysql,
                 )
@@ -957,9 +971,9 @@ class AmsDbClient:
             self._super_admin_by_type = {}
             try:
                 rows = select_all(
-                    """
+                    f"""
                     SELECT id, asset_type
-                    FROM asset_management.access
+                    FROM {ams_schema()}.access
                     WHERE name = 'SuperAdmin'
                     """,
                     cfg=self._mysql,
@@ -975,9 +989,9 @@ class AmsDbClient:
             return False
         try:
             row = select_one(
-                """
+                f"""
                 SELECT role_name
-                FROM user_management.vw_profile_details
+                FROM {ums_schema()}.vw_profile_details
                 WHERE profile_Id_uuid = %s
                 LIMIT 1
                 """,
@@ -1023,7 +1037,7 @@ class AmsDbClient:
             "depth": _pick(row, "asset_level", "depth", "assetLevel"),
             "accessIds": list(access_ids or []),
             "metaData": meta if isinstance(meta, dict) else {},
-            "_source": "mysql:asset_management.assets+projects",
+            "_source": f"mysql:{ams_schema()}.assets+projects",
         }
         return out
 

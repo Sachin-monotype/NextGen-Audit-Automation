@@ -18,6 +18,14 @@ def short_touch(touch: str) -> str:
     t = " ".join(t.split())
     if "project" in t and "list" in t:
         return "project_list"
+    if ("app" in t or "desktop" in t or "connect" in t) and (
+        "global" in t or "discover" in t or "search" in t
+    ):
+        return "global_app"
+    if "desktop" in t and "ui" in t:
+        return "desktop_ui"
+    if "performance_mode" in t or t == "app settings performance mode changed":
+        return "desktop_ui"
     if "favourite" in t or "favorite" in t:
         return "favourite"
     if "user" in t and "access" in t:
@@ -43,16 +51,33 @@ def short_touch(touch: str) -> str:
 
 def audit_emit(op: str, touch_short: str) -> str:
     return (
-        f"Network filter operationName={op} → copy response header correlation-id "
-        f"(NOT x-correlation-id) → emit exactly: "
-        f"AUDIT_RESULT|operation={op}|correlation_id=<real-uuid>|touchpoint={touch_short}"
+        f"Network filter operationName={op} → open the matching GraphQL request in DevTools → "
+        f"copy (1) response header correlation-id (NOT x-correlation-id), "
+        f"(2) request variables.input JSON, (3) response body data.{op} JSON → emit exactly two lines:\n"
+        f"AUDIT_RESULT|operation={op}|correlation_id=<real-uuid>|touchpoint={touch_short}\n"
+        f'AUDIT_GRAPHQL {{"input":<variables.input object>,"response":{{"{op}":<data.{op} object>}}}}'
     )
 
 
 def audit_expected(op: str) -> str:
     return (
-        f"GraphQL {op} fires; response has correlation-id; "
-        "AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        f"GraphQL {op} fires; correlation-id header captured; AUDIT_RESULT + AUDIT_GRAPHQL "
+        f"(input + data.{op} response) emitted with real UUID; trigger context saved for Compare."
+    )
+
+
+def audit_emit_ingress(op: str, touch_short: str) -> str:
+    return (
+        f"After the desktop action, capture the ingress audit xCorrelationId "
+        f"(resolver ingress POST or app audit trace) → emit exactly:\n"
+        f"AUDIT_RESULT|operation={op}|correlation_id=<real-uuid>|touchpoint={touch_short}|source=ingress"
+    )
+
+
+def audit_expected_ingress(op: str) -> str:
+    return (
+        f"Ingress event {op} fires from Monotype Connect; xCorrelationId captured; "
+        f"AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
     )
 
 
@@ -88,14 +113,65 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
     ts = short_touch(touch)
     touch_canon = touch or {
         "global": "Discovery/Browse (global)",
+        "global_app": "App (global)",
         "list": "List (FONTLIST)",
         "favourite": "Favourite",
         "project": "Project",
         "project_list": "Project > List",
+        "desktop_ui": "Desktop UI",
     }.get(ts, touch)
     label = label or f"{op}({ts})"
 
+    # ── Ingress — Monotype Connect desktop UI ──
+    if op == "appSettingsPerformanceModeChanged" and ts == "desktop_ui":
+        return _S(
+            _row(
+                "Launch Monotype Connect desktop app on macOS.",
+                "App opens to login or home.",
+            ),
+            _row(
+                "Log in with the configured test credentials (OAUTH_USERNAME / OAUTH_PASSWORD).",
+                "User is authenticated; main UI visible.",
+            ),
+            _row(
+                "Open Preferences (Monotype Connect menu → Preferences / Settings).",
+                "Preferences window is open.",
+            ),
+            _row(
+                "Go to General → Performance mode and select a different mode "
+                "(e.g. Max capacity or Balanced).",
+                "Performance mode changes; appSettingsPerformanceModeChanged ingress event fires.",
+            ),
+            _row(
+                audit_emit_ingress(op, "desktop_ui"),
+                audit_expected_ingress(op),
+            ),
+            op=op,
+            touch="Desktop UI",
+        )
+
     # ── activateFamily — plain English (matches C73306719 / C73306718) ──
+    if op == "activateFamily" and ts == "global_app":
+        return _S(
+            _row(
+                "Launch Monotype Connect desktop app and log in with test credentials.",
+                "App home / Discover view is visible.",
+            ),
+            _row(
+                "Open Discover or Search and find a family that is not activated.",
+                "Family card shows inactive state.",
+            ),
+            _row(
+                "Activate the family from the global discover/search view "
+                "(family card Activate toggle). Capture ActivateFamily GraphQL mutation "
+                "with family id and correlation-id header from the app network trace.",
+                "Family activated from app; mutation and correlation-id captured.",
+            ),
+            _row(audit_emit(op, "global_app"), audit_expected(op)),
+            op=op,
+            touch="App (global)",
+        )
+
     if op == "activateFamily" and ts == "global":
         return _S(
             _row(

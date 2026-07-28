@@ -90,6 +90,14 @@
     ],
     "remarks": "QA-automated: test_activate_family_enables_all_style_cards"
   },
+  "activateFamily": {
+    "section": "Font sync & activation",
+    "navigation": [
+      "Desktop app > Discover / Search > Family card > Activate toggle (App global)",
+      "NextGen web > Discover Fonts > Search > Family card > Activate toggle (Web global)"
+    ],
+    "remarks": "Touchpoint App (global) = Monotype Connect desktop; Discovery/Browse (global) = NextGen web"
+  },
   "activateFontProject": {
     "section": "Font sync & activation",
     "navigation": [

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 from pathlib import Path
 from typing import Any
@@ -10,8 +11,43 @@ from typing import Any
 _lock = threading.Lock()
 
 
-def _store_path(project_root: Path) -> Path:
+def _active_target() -> str:
+    raw = (os.getenv("AUDIT_TARGET") or "pp").strip().lower()
+    return raw if raw in {"pp", "qa", "uat", "everest"} else "pp"
+
+
+def _store_path(project_root: Path, target: str | None = None) -> Path:
+    """Per-environment store so PP/QA Results never mix."""
+    t = (target or _active_target()).strip().lower()
+    if t not in {"pp", "qa", "uat", "everest"}:
+        t = "pp"
+    path = project_root / "reports" / f"comparison-latest-{t}.json"
+    return path
+
+
+def _legacy_store_path(project_root: Path) -> Path:
     return project_root / "reports" / "comparison-latest.json"
+
+
+def store_audit_target(project_root: Path | None = None, target: str | None = None) -> str:
+    return (target or _active_target()).strip().lower() or "pp"
+
+
+def _load_for_target(project_root: Path, target: str | None = None) -> dict[str, Any]:
+    t = store_audit_target(project_root, target)
+    path = _store_path(project_root, t)
+    data = _load(path)
+    # Migrate legacy shared file into pp store on first read.
+    if not data and t == "pp":
+        legacy = _load(_legacy_store_path(project_root))
+        if legacy:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(legacy, indent=2, ensure_ascii=False, default=str) + "\n",
+                encoding="utf-8",
+            )
+            return legacy
+    return data
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -161,6 +197,10 @@ def save_batch_results(
     path.parent.mkdir(parents=True, exist_ok=True)
     with _lock:
         data = _load(path)
+        if not data:
+            # Prefer migrating legacy shared store when writing the first pp batch.
+            if store_audit_target(project_root) == "pp":
+                data = _load(_legacy_store_path(project_root))
         for op, op_rows in grouped.items():
             if not op_rows:
                 continue
@@ -229,10 +269,11 @@ def _dedupe_bare_be_variants(data: dict[str, Any]) -> tuple[dict[str, Any], bool
     return data, True
 
 
-def list_latest(project_root: Path) -> dict[str, Any]:
+def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, Any]:
     """All operations with a stored latest comparison, newest first."""
-    path = _store_path(project_root)
-    data = _load(path)
+    audit_target = store_audit_target(project_root, target)
+    path = _store_path(project_root, audit_target)
+    data = _load_for_target(project_root, audit_target)
     data, deduped = _dedupe_bare_be_variants(data)
     if deduped:
         path.write_text(
@@ -248,6 +289,7 @@ def list_latest(project_root: Path) -> dict[str, Any]:
         if changed_scope or changed_raw:
             item["rows"] = cleaned
             item["summary"] = _summary_for_rows(cleaned)
+        item["audit_target"] = audit_target
     # Keep bare base ops and scenario variants side by side (e.g. activateFamily + activateFamily(global)).
     visible_ops = list(data.keys())
     items = [data[op] for op in visible_ops]
@@ -260,6 +302,8 @@ def list_latest(project_root: Path) -> dict[str, Any]:
         "items": items,
         "rows": merged_rows,
         "count": len(visible_ops),
+        "audit_target": audit_target,
+        "available_targets": ["pp", "qa", "uat"],
     }
 
 

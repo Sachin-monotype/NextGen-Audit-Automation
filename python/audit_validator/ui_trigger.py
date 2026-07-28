@@ -41,6 +41,7 @@ _AUDIT_RESULT_RE = re.compile(
     re.IGNORECASE,
 )
 _KV_RE = re.compile(r"(?P<k>[A-Za-z0-9_]+)\s*=\s*(?P<v>[^|\s]+)")
+_AUDIT_GRAPHQL_MARKER = "AUDIT_GRAPHQL"
 _CID_LINE_RE = re.compile(
     r"(?:AUDIT_CORRELATION_ID|correlation[-_ ]?id)\s*[:=]\s*[\"']?(?P<cid>[A-Za-z0-9\-_]{8,})",
     re.IGNORECASE,
@@ -156,6 +157,82 @@ def _selection_by_case_id(job: dict[str, Any]) -> dict[int, dict[str, Any]]:
     return out
 
 
+def _extract_json_after_marker(text: str, marker: str) -> dict[str, Any] | None:
+    """Parse a JSON object immediately following ``marker`` (brace-balanced)."""
+    idx = text.find(marker)
+    if idx < 0:
+        return None
+    start = idx + len(marker)
+    while start < len(text) and text[start] in " \t\n\r":
+        start += 1
+    if start >= len(text) or text[start] != "{":
+        return None
+    depth = 0
+    for i in range(start, len(text)):
+        ch = text[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                try:
+                    data = json.loads(text[start : i + 1])
+                except json.JSONDecodeError:
+                    return None
+                return data if isinstance(data, dict) else None
+    return None
+
+
+def _normalize_graphql_capture(
+    operation: str,
+    payload: dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return (graphql_input, graphql_response) from an AUDIT_GRAPHQL blob."""
+    if not isinstance(payload, dict):
+        return {}, {}
+    op = (operation or str(payload.get("operation") or "")).strip()
+    inp = payload.get("input")
+    if not isinstance(inp, dict):
+        inp = payload.get("graphql_input")
+    inp = inp if isinstance(inp, dict) else {}
+
+    resp = payload.get("response")
+    if not isinstance(resp, dict):
+        resp = payload.get("graphql_response")
+    if not isinstance(resp, dict):
+        resp = {}
+    # Accept bare mutation node: {"success": true, ...} → wrap as {operation: node}
+    if resp and op and op not in resp and "input" not in resp and "response" not in resp:
+        if any(k in resp for k in ("success", "errors", "__typename", "nodes", "families")):
+            resp = {op: resp}
+    return inp, resp
+
+
+def _parse_audit_graphql_blocks(text: str) -> list[dict[str, Any]]:
+    """Find every AUDIT_GRAPHQL JSON block in CasePilot notes."""
+    out: list[dict[str, Any]] = []
+    search_from = 0
+    while True:
+        idx = text.find(_AUDIT_GRAPHQL_MARKER, search_from)
+        if idx < 0:
+            break
+        blob = _extract_json_after_marker(text[idx:], _AUDIT_GRAPHQL_MARKER)
+        if blob:
+            out.append(blob)
+        search_from = idx + len(_AUDIT_GRAPHQL_MARKER)
+    return out
+
+
+def _graphql_extra_after_marker(after_text: str, operation: str) -> dict[str, Any]:
+    blob = _extract_json_after_marker(after_text, _AUDIT_GRAPHQL_MARKER)
+    if not blob:
+        return {}
+    inp, resp = _normalize_graphql_capture(operation, blob)
+    if not inp and not resp:
+        return {}
+    return {"graphql_input": inp, "graphql_response": resp}
+
+
 def _match_selection_item(
     selection: list[dict[str, Any]],
     *,
@@ -247,6 +324,8 @@ def extract_audit_details_from_casepilot_result(
                 "issue_key": run_status.get("issue_key"),
                 "case_id": extra.get("case_id"),
                 "recorded_at": _now(),
+                "graphql_input": extra.get("graphql_input"),
+                "graphql_response": extra.get("graphql_response"),
             }
         )
 
@@ -285,7 +364,29 @@ def extract_audit_details_from_casepilot_result(
             source="audit_result_marker",
             raw_marker=m.group(0)[:240],
             case_id=node_case_id,
+            **_graphql_extra_after_marker(
+                text[m.end() :],
+                kvs.get("operation") or kvs.get("op") or node_op,
+            ),
         )
+
+    # Standalone AUDIT_GRAPHQL blocks (when agent emits GraphQL without a paired line)
+    for blob in _parse_audit_graphql_blocks(text):
+        op_g = str(blob.get("operation") or "").strip() or node_op
+        inp, resp = _normalize_graphql_capture(op_g, blob)
+        if not inp and not resp:
+            continue
+        cid_g = str(blob.get("correlation_id") or blob.get("correlation-id") or "").strip()
+        if cid_g:
+            _add(
+                cid_g,
+                operation=op_g,
+                touchpoint=str(blob.get("touchpoint") or node_touch or "").strip(),
+                source="audit_graphql_block",
+                case_id=node_case_id,
+                graphql_input=inp,
+                graphql_response=resp,
+            )
 
     for m in _CID_LINE_RE.finditer(text):
         _add(
@@ -488,12 +589,19 @@ def apply_extracted_results(
             "issue_key": item.get("issue_key"),
             "raw_marker": item.get("raw_marker"),
             "recorded_at": item.get("recorded_at") or _now(),
+            "graphql_input": item.get("graphql_input"),
+            "graphql_response": item.get("graphql_response"),
         }
         results.append(row)
         existing.add(cid)
+        gql_note = (
+            " + GraphQL input/response"
+            if item.get("graphql_input") or item.get("graphql_response")
+            else ""
+        )
         _append_log(
             job,
-            f"✓ captured correlation_id={cid} op={op or '?'} touch={touch or '-'}",
+            f"✓ captured correlation_id={cid} op={op or '?'} touch={touch or '-'}{gql_note}",
         )
         if record_generation and op:
             try:
@@ -525,12 +633,39 @@ def apply_extracted_results(
                 _append_log(job, f"⚠ could not record_generation: {exc}")
         if build_trigger_context and save_trigger_context and op:
             try:
+                from audit_validator.touchpoint.scenarios import scenario_display_name
+
+                display = scenario_display_name(op, touch, ui=True)
+                gql_inp = item.get("graphql_input") if isinstance(item.get("graphql_input"), dict) else {}
+                gql_resp = (
+                    item.get("graphql_response") if isinstance(item.get("graphql_response"), dict) else {}
+                )
                 ctx = build_trigger_context(
                     operation=op,
                     correlation_id=cid,
+                    graphql_input=gql_inp,
+                    graphql_response=gql_resp,
                     success=True,
                 )
-                save_trigger_context(project_root, op, ctx)
+                if gql_inp or gql_resp:
+                    ctx["capture_source"] = "casepilot_ui"
+                    ctx["replay_mode"] = "casepilot_ui"
+                else:
+                    ctx["capture_source"] = "casepilot_minimal"
+                    ctx["replay_mode"] = "pending_raw"
+                for name in {op, display}:
+                    if not name:
+                        continue
+                    save_trigger_context(project_root, name, ctx)
+                if gql_resp:
+                    gql_dir = project_root / "payload" / "graphql"
+                    gql_dir.mkdir(parents=True, exist_ok=True)
+                    for name in {op, display}:
+                        if name:
+                            (gql_dir / f"{name}.json").write_text(
+                                json.dumps(gql_resp, indent=2, default=str),
+                                encoding="utf-8",
+                            )
             except Exception as exc:  # noqa: BLE001
                 _append_log(job, f"⚠ could not save trigger context: {exc}")
 
@@ -899,7 +1034,124 @@ def _summarize_casepilot_runs(
     return {"ok": ok, "failed": fail, "pending": pending, "errors": errors}
 
 
-def _connector_error_hint(errors: list[str]) -> str:
+def casepilot_batch_pending(job: dict[str, Any] | None) -> int:
+    """CasePilot jobs still queued/running — batch not finished yet."""
+    if not isinstance(job, dict):
+        return 0
+    agent = job.get("agent") if isinstance(job.get("agent"), dict) else {}
+    summary = agent.get("run_summary") if isinstance(agent.get("run_summary"), dict) else {}
+    return int(summary.get("pending") or 0)
+
+
+def _active_ui_jobs(
+    project_root: Path,
+    *,
+    exclude_job_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Handoffs still queued/running on CasePilot (another batch blocks the connector)."""
+    out: list[dict[str, Any]] = []
+    for job in list_ui_trigger_jobs(project_root, limit=50):
+        jid = str(job.get("id") or "")
+        if exclude_job_id and jid == exclude_job_id:
+            continue
+        st = str(job.get("status") or "").lower()
+        if st not in {"queued", "running", "pending_agent"}:
+            continue
+        agent = job.get("agent") if isinstance(job.get("agent"), dict) else {}
+        batch_id = str(agent.get("casepilot_batch_id") or "").strip()
+        cp_ids = agent.get("casepilot_job_ids") or []
+        if batch_id or cp_ids:
+            out.append(job)
+    return out
+
+
+def _stop_casepilot_for_job(
+    job: dict[str, Any],
+    client: CasePilotMcpClient,
+    *,
+    log_line: str,
+) -> bool:
+    """Best-effort CasePilot stop for one handoff; returns True if stop was attempted."""
+    agent = dict(job.get("agent") or {})
+    batch_id = str(agent.get("casepilot_batch_id") or "").strip()
+    cp_ids = [
+        int(x)
+        for x in (agent.get("casepilot_job_ids") or [])
+        if str(x).isdigit() or isinstance(x, int)
+    ]
+    if not batch_id and not cp_ids:
+        return False
+    stop_args: dict[str, Any] = {}
+    if batch_id:
+        stop_args["batch_id"] = batch_id
+    if len(cp_ids) == 1:
+        stop_args["job_id"] = cp_ids[0]
+    if not stop_args:
+        stop_args["batch_id"] = batch_id
+    try:
+        stop_resp = client.stop_ui_execution(**stop_args)
+        agent["stop_response"] = {
+            k: stop_resp.get(k)
+            for k in ("ok", "batch_id", "job_id", "cancelled", "message", "status")
+            if k in stop_resp
+        }
+    except CasePilotMcpError as exc:
+        _append_log(job, f"⚠ CasePilot stop failed: {exc}")
+        return False
+    agent["pending_case_ids"] = []
+    agent["send_status"] = "superseded"
+    agent["last_error"] = "Superseded by a newer Generate-in-UI batch"
+    job["agent"] = agent
+    job["status"] = "cancelled"
+    job["verification"] = {
+        **(job.get("verification") or {}),
+        "auto_verify_pending": False,
+        "cancelled": True,
+        "superseded": True,
+        "note": "Stopped automatically — a newer Generate-in-UI run took over the connector.",
+    }
+    _append_log(job, log_line)
+    return True
+
+
+def _stop_other_active_ui_jobs(
+    project_root: Path,
+    except_job_id: str,
+    client: CasePilotMcpClient,
+) -> list[str]:
+    """Stop queued/running CasePilot batches from other handoffs before dispatching."""
+    stopped: list[str] = []
+    for other in _active_ui_jobs(project_root, exclude_job_id=except_job_id):
+        oid = str(other.get("id") or "")
+        if not oid:
+            continue
+        if _stop_casepilot_for_job(
+            other,
+            client,
+            log_line=(
+                f"⏹ Superseded by Generate-in-UI job {except_job_id[:8]} — "
+                "connector released for the new batch"
+            ),
+        ):
+            _write_job(project_root, other)
+            stopped.append(oid)
+    return stopped
+
+
+def _connector_error_hint(
+    errors: list[str],
+    *,
+    statuses: list[dict[str, Any]] | None = None,
+) -> str:
+    if statuses:
+        states = [str(s.get("status") or "").lower() for s in statuses if isinstance(s, dict)]
+        if states and all(s in {"cancelled", "canceled"} for s in states):
+            return (
+                "All CasePilot jobs were cancelled before UI steps ran. "
+                "Usually another Generate-in-UI Send replaced this batch, Close session was clicked, "
+                "or the connector was busy. Close any open UI session, wait for the connector to finish, "
+                "then Send once with Parallel browsers = 1."
+            )
     joined = " ".join(errors).lower()
     if "connection refused" in joined or "bridge request failed" in joined:
         return (
@@ -977,8 +1229,8 @@ def _build_context(
             summary = f"Trigger {primary.get('label') or primary_op} once, emit AUDIT_RESULT, stop"
         else:
             summary = (
-                f"Trigger {len(items)} NextGen audit events in one browser session — "
-                "one AUDIT_RESULT each, reuse existing UI state, do not rebuild projects every time"
+                f"Run {len(items)} NextGen audit TestRail cases serially — "
+                "one AUDIT_RESULT (+ AUDIT_GRAPHQL) per case; reuse login/state where possible"
             )
     description = "\n".join(
         [
@@ -1007,10 +1259,14 @@ def _build_context(
             "",
             "## Correlation",
             "- Header: correlation-id (never x-correlation-id).",
-            "- Format: AUDIT_RESULT|operation=<op>|correlation_id=<real-uuid>|touchpoint=<short>",
+            "- Line 1: AUDIT_RESULT|operation=<op>|correlation_id=<real-uuid>|touchpoint=<short>",
+            "- Line 2: AUDIT_GRAPHQL {\"input\":<request variables.input>,\"response\":{\"<op>\":<response data.<op>>}}",
+            "- Copy variables.input and data.<op> from DevTools Network → GraphQL request/response JSON.",
+            "- Compare uses AUDIT_GRAPHQL for join keys — do not skip the second line.",
             "- Filter Network by operationName matching the mutation (ignore search/browse queries).",
             "- Real UUIDs only — never YOUR-UUID or <uuid> literals.",
-            f"- Example: AUDIT_RESULT|operation={primary_op}|correlation_id=<uuid>|touchpoint={primary_touch}",
+            f"- Example line 1: AUDIT_RESULT|operation={primary_op}|correlation_id=<uuid>|touchpoint={primary_touch}",
+            f'- Example line 2: AUDIT_GRAPHQL {{"input":{{}},"response":{{"{primary_op}":{{}}}}}}',
         ]
     )
     per_notes = []
@@ -1032,6 +1288,10 @@ def _build_context(
         "audit_result_format": (
             f"AUDIT_RESULT|operation={primary_op}|correlation_id=<real-uuid>|touchpoint={primary_touch}"
         ),
+        "audit_graphql_format": (
+            f'AUDIT_GRAPHQL {{"input":<variables.input>,"response":{{"{primary_op}":<data.{primary_op}>}}}}'
+        ),
+        "prefer_graphql_capture": "true",
         "capture_intermediate_mutations": "false" if len(items) > 3 else "true",
         "product": "NextGen",
         "source": "nextgen-audit-automation",
@@ -1173,7 +1433,17 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
             job,
             f"▸ Browser mode: {'headless' if ui_cfg.get('headless') else 'headed (visible)'}",
         )
-        if max_parallel == 1:
+        if len(case_ids) > 1:
+            mode = (
+                f"parallel (max_parallel={max_parallel})"
+                if max_parallel and max_parallel > 1
+                else "serial (max_parallel=1)"
+            )
+            _append_log(
+                job,
+                f"▸ Multi-event batch ({len(case_ids)} TestRail cases) — {mode}",
+            )
+        elif max_parallel == 1:
             _append_log(job, "▸ Parallelism: serial (max_parallel=1)")
         elif max_parallel and max_parallel > 1:
             _append_log(
@@ -1184,6 +1454,13 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
             _append_log(job, "▸ Parallelism: CasePilot PP default (full connector cap)")
 
         client = CasePilotMcpClient(cfg)
+        stopped = _stop_other_active_ui_jobs(project_root, job_id, client)
+        if stopped:
+            _append_log(
+                job,
+                f"▸ Stopped {len(stopped)} prior Generate-in-UI batch(es) on connector "
+                f"({', '.join(s[:8] for s in stopped)}) — only one UI run at a time",
+            )
         # Preview cases first (surface not_found early)
         preview = client.fetch_testrail_cases(case_ids)
         if preview.get("not_found"):
@@ -1223,9 +1500,21 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
         run: dict[str, Any] = {}
         cp_jobs: list[int] = []
         run_tries = max(1, int(os.getenv("CASEPILOT_RUN_RETRIES", "3") or "3"))
+        # Queue every TestRail case with max_parallel=1 so CasePilot runs them serially.
+        # A single queued case only runs that case's TestRail steps — the EVENT checklist
+        # in context is not enough for the agent to fire all mutations in one session.
+        queue_case_ids = list(case_ids)
+        if len(case_ids) > 1:
+            agent["all_testrail_case_ids"] = case_ids
+            agent["expected_event_count"] = len(case_ids)
+            _append_log(
+                job,
+                f"▸ Multi-event: queuing {len(case_ids)} TestRail cases serially "
+                f"(max_parallel=1, ~3 min each — CasePilot runs C{case_ids[0]} … C{case_ids[-1]})",
+            )
         for attempt in range(run_tries):
             run = client.run_testrail_ui_tests(
-                case_ids,
+                queue_case_ids,
                 ui_config=ui_cfg,
                 context_summary=summary,
                 context_description=description + env_block,
@@ -1364,6 +1653,105 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
         return _write_job(project_root, job)
 
 
+def _ui_batch_stale_minutes(agent: dict[str, Any], selection_count: int) -> int:
+    """Scale stale timeout for multi-case serial queues (~8 min/job)."""
+    base = max(5, int(os.getenv("CASEPILOT_UI_STALE_MINUTES", "20") or "20"))
+    sel_n = int(agent.get("expected_event_count") or 0) or selection_count or 1
+    if sel_n <= 1:
+        return base
+    per_job = max(6, int(os.getenv("CASEPILOT_UI_MINUTES_PER_JOB", "8") or "8"))
+    mp = max(1, int(agent.get("max_parallel") or 1))
+    if mp <= 1:
+        return max(base, per_job * sel_n)
+    waves = (sel_n + mp - 1) // mp
+    return max(base, per_job * waves + 5)
+
+
+def _ui_batch_stale_elapsed_seconds(
+    dispatched_at: str,
+    *,
+    stale_min: int | None = None,
+) -> float | None:
+    """Seconds past stale budget since dispatch, or None if not stale."""
+    budget = stale_min if stale_min is not None else max(
+        5, int(os.getenv("CASEPILOT_UI_STALE_MINUTES", "20") or "20")
+    )
+    dt = _parse_iso(dispatched_at)
+    if not dt:
+        return None
+    elapsed = (datetime.now(timezone.utc) - dt).total_seconds()
+    over = elapsed - budget * 60
+    return over if over > 0 else None
+
+
+def _apply_casepilot_extraction(
+    project_root: Path,
+    job: dict[str, Any],
+    statuses: list[dict[str, Any]],
+    *,
+    dispatched_at: str,
+    default_op: str,
+    default_touch: str,
+    pending_count: int,
+    fail_runs: int,
+    progress_suffix: str = "",
+) -> tuple[dict[str, Any], int]:
+    """Extract AUDIT_RESULT from terminal runs; merge into job.results incrementally."""
+    extracted = extract_audit_details_from_casepilot_statuses(
+        statuses,
+        default_operation=default_op,
+        default_touchpoint=default_touch,
+        job=job,
+        dispatched_at=dispatched_at,
+    )
+    before = len(job.get("results") or [])
+    if extracted:
+        job = apply_extracted_results(project_root, job, extracted)
+    added = len(job.get("results") or []) - before
+    if added > 0:
+        total = len(job.get("results") or [])
+        sel_n = len([s for s in (job.get("selection") or []) if isinstance(s, dict)]) or total
+        suffix = progress_suffix or (
+            f" — {pending_count} CasePilot job(s) still queued" if pending_count > 0 else ""
+        )
+        _append_log(
+            job,
+            f"✓ Captured {added} new correlation_id(s) ({total}/{sel_n} events{suffix})",
+        )
+        job["verification"] = {
+            **(job.get("verification") or {}),
+            "ready": True,
+            "auto_verify_pending": pending_count == 0,
+            "partial": pending_count > 0 or fail_runs > 0,
+            **({"failed_runs": fail_runs} if fail_runs > 0 else {}),
+        }
+    return job, added
+
+
+def _mark_terminal_jobs_extracted(
+    agent: dict[str, Any],
+    statuses: list[dict[str, Any]],
+) -> None:
+    """Track terminal CasePilot job ids so refresh skips slow MCP re-fetch."""
+    seen = {
+        int(x)
+        for x in (agent.get("extracted_casepilot_job_ids") or [])
+        if str(x).isdigit() or isinstance(x, int)
+    }
+    for st in statuses:
+        if not isinstance(st, dict):
+            continue
+        state = str(st.get("status") or "").lower()
+        if state not in _TERMINAL_CP:
+            continue
+        try:
+            seen.add(int(st.get("job_id") or st.get("id")))
+        except (TypeError, ValueError):
+            pass
+    if seen:
+        agent["extracted_casepilot_job_ids"] = sorted(seen)
+
+
 def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] | None:
     """Poll CasePilot get_run_status, extract correlation_id, keep log open for verify."""
     job = get_ui_trigger_job(project_root, job_id)
@@ -1374,13 +1762,15 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
         "cancelled"
     ):
         return job
-    # Pending cases are NOT re-queued on Refresh — retries disabled by design.
-    pending = [int(c) for c in (agent.get("pending_case_ids") or []) if str(c).isdigit() or isinstance(c, int)]
-    if pending:
+    # Cases that failed to queue at dispatch — NOT re-queued on Refresh.
+    pending_unqueued = [
+        int(c) for c in (agent.get("pending_case_ids") or []) if str(c).isdigit() or isinstance(c, int)
+    ]
+    if pending_unqueued:
         _append_log(
             job,
-            f"ℹ {len(pending)} case(s) were not queued earlier — retries disabled "
-            f"(re-Send a new Generate-in-UI job if needed): {pending[:12]}",
+            f"⚠ {len(pending_unqueued)} TestRail case(s) never reached the connector at dispatch "
+            f"(re-Send for these): {pending_unqueued[:12]}",
         )
         agent["pending_case_ids"] = []
         job["agent"] = agent
@@ -1408,8 +1798,22 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
         # here; that blocks until jobs finish and urllib times out on long UI runs.
         statuses = client.batch_run_status(cp_ids)
         dispatched_at = str(agent.get("dispatched_at") or "")
-        # REST /jobs/status can omit step notes — merge full MCP payload when jobs look terminal.
+        poll_err = next(
+            (str(s.get("error") or "").strip() for s in statuses if str(s.get("error") or "").strip()),
+            "",
+        )
+        if poll_err and all(str(s.get("status") or "").lower() in {"", "pending"} for s in statuses):
+            agent["last_error"] = poll_err
+            _append_log(job, f"⚠ CasePilot status poll failed: {poll_err[:200]}")
+            job["agent"] = agent
+            return _write_job(project_root, job)
+        # REST /jobs/status can omit step notes — merge MCP payload for terminal jobs only.
         finals_now = {str(s.get("status") or "").lower() for s in statuses}
+        extracted_job_ids = {
+            int(x)
+            for x in (agent.get("extracted_casepilot_job_ids") or [])
+            if str(x).isdigit() or isinstance(x, int)
+        }
         if finals_now & {"completed", "passed", "pass", "success", "failed", "error"}:
             enriched: list[dict[str, Any]] = []
             for st in statuses:
@@ -1419,14 +1823,18 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
                 except (TypeError, ValueError):
                     enriched.append(st)
                     continue
-                try:
-                    full = client.get_run_status(jid_int)
-                    if isinstance(full, dict):
-                        merged = {**st, **full, "job_id": jid_int}
-                        enriched.append(merged)
-                    else:
+                state = str(st.get("status") or "").lower()
+                need_notes = state in _TERMINAL_CP and jid_int not in extracted_job_ids
+                if need_notes:
+                    try:
+                        full = client.get_run_status(jid_int)
+                        if isinstance(full, dict):
+                            enriched.append({**st, **full, "job_id": jid_int})
+                        else:
+                            enriched.append(st)
+                    except CasePilotMcpError:
                         enriched.append(st)
-                except CasePilotMcpError:
+                else:
                     enriched.append(st)
             statuses = enriched or statuses
 
@@ -1439,17 +1847,97 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
         fail_runs = int(summary.get("failed") or 0)
         run_errors = list(summary.get("errors") or [])
 
+        # Always extract finished runs — do not wait for the whole batch (11 serial browsers = hours).
+        job, _added = _apply_casepilot_extraction(
+            project_root,
+            job,
+            statuses,
+            dispatched_at=dispatched_at,
+            default_op=default_op,
+            default_touch=default_touch,
+            pending_count=pending,
+            fail_runs=fail_runs,
+        )
+        _mark_terminal_jobs_extracted(agent, statuses)
+
+        sel_n = int(agent.get("expected_event_count") or 0) or len(selection) or 1
+        stale_min = _ui_batch_stale_minutes(agent, sel_n)
+        stale_over = (
+            _ui_batch_stale_elapsed_seconds(dispatched_at, stale_min=stale_min)
+            if pending > 0
+            else None
+        )
+        if pending > 0 and stale_over is not None:
+            _append_log(
+                job,
+                f"⚠ CasePilot batch exceeded {stale_min}m — stopping remaining jobs and "
+                f"finalizing {len(job.get('results') or [])} captured correlation_id(s)",
+            )
+            batch_id = str(agent.get("casepilot_batch_id") or "").strip()
+            if batch_id or cp_ids:
+                try:
+                    stop_args: dict[str, Any] = {}
+                    if batch_id:
+                        stop_args["batch_id"] = batch_id
+                    if len(cp_ids) == 1:
+                        stop_args["job_id"] = cp_ids[0]
+                    if stop_args:
+                        client.stop_ui_execution(**stop_args)
+                except CasePilotMcpError as exc:
+                    _append_log(job, f"⚠ stop_ui_execution on stale batch: {exc}")
+            pending = 0
+            ok_runs = int(summary.get("ok") or 0)
+            fail_runs = int(summary.get("failed") or 0)
+            job["status"] = "completed"
+            agent["send_status"] = "partial"
+            agent["stale_timeout"] = True
+            job["verification"] = {
+                **(job.get("verification") or {}),
+                "ready": bool(job.get("results")),
+                "auto_verify_pending": bool(job.get("results")),
+                "partial": True,
+                "stale_timeout": True,
+                "note": (
+                    f"Batch timed out after {stale_min}m — use Continue verification with "
+                    "captured correlation_ids; re-send failed events only."
+                ),
+            }
+            job["agent"] = agent
+            return _write_job(project_root, job)
+
         if pending > 0:
             job["status"] = "running"
             agent["send_status"] = "running"
-            if prev not in {"running", "queued"}:
-                _append_log(job, f"▸ CasePilot running… {ok_runs} ok · {fail_runs} failed · {pending} pending")
+            captured = len(job.get("results") or [])
+            sel_n = int(agent.get("expected_event_count") or 0) or len(selection) or captured
+            last_prog = _parse_iso(str(agent.get("last_progress_at") or ""))
+            now_dt = datetime.now(timezone.utc)
+            if (
+                _added > 0
+                or not last_prog
+                or (now_dt - last_prog).total_seconds() >= 30
+            ):
+                agent["last_progress_at"] = _now()
+                _append_log(
+                    job,
+                    f"▸ CasePilot progress: {ok_runs} passed · {fail_runs} failed · "
+                    f"{pending} queued/running · {captured}/{sel_n} captured "
+                    f"(timeout {stale_min}m for {sel_n}-case batch)",
+                )
+            elif prev not in {"running", "queued"}:
+                _append_log(
+                    job,
+                    f"▸ CasePilot running… {ok_runs} ok · {fail_runs} failed · "
+                    f"{pending} pending · {captured}/{sel_n} captured",
+                )
             elif prev == "queued":
                 _append_log(job, "▸ CasePilot running on connector (UI browser open)")
+            job["agent"] = agent
+            return _write_job(project_root, job)
         elif fail_runs > 0 and ok_runs == 0:
             job["status"] = "failed"
             agent["send_status"] = "failed"
-            hint = _connector_error_hint(run_errors)
+            hint = _connector_error_hint(run_errors, statuses=statuses)
             agent["last_error"] = hint
             if prev != "failed":
                 _append_log(job, f"✖ CasePilot UI run failed ({fail_runs}/{fail_runs + ok_runs} case(s))")
@@ -1462,54 +1950,30 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
         elif fail_runs > 0 and ok_runs > 0:
             job["status"] = "completed"
             agent["send_status"] = "partial"
-            if prev != "completed":
+            if prev != "completed" and _added == 0:
                 _append_log(
                     job,
                     f"⚠ CasePilot partial run · {ok_runs} passed · {fail_runs} failed — "
                     "extracting correlation_id from successful case(s) only",
                 )
-            extracted = extract_audit_details_from_casepilot_statuses(
-                statuses,
-                default_operation=default_op,
-                default_touchpoint=default_touch,
-                job=job,
-                dispatched_at=dispatched_at,
-            )
-            before = len(job.get("results") or [])
-            job = apply_extracted_results(project_root, job, extracted)
-            after = len(job.get("results") or [])
-            if after == before:
+            if _added == 0 and not (job.get("results") or []):
                 _append_log(job, "⚠ No AUDIT_RESULT from successful runs — paste correlation_id manually")
-            else:
-                _append_log(
-                    job,
-                    f"✓ Captured {after - before} new correlation_id(s) ({after} total) from {ok_runs} run(s)",
-                )
                 job["verification"] = {
                     **(job.get("verification") or {}),
-                    "ready": True,
-                    "auto_verify_pending": True,
-                    "partial": True,
-                    "failed_runs": fail_runs,
+                    "ready": False,
+                    "auto_verify_pending": False,
                 }
             if run_errors:
                 _append_log(job, f"  failed: {run_errors[0][:200]}")
         else:
+            sel_n = int(agent.get("expected_event_count") or 0) or len(selection) or 1
+            captured = len(job.get("results") or [])
+            partial_batch = sel_n > 1 and captured < sel_n
             job["status"] = "completed"
-            agent["send_status"] = "completed"
-            if prev != "completed":
+            agent["send_status"] = "partial" if partial_batch else "completed"
+            if prev != "completed" and _added == 0:
                 _append_log(job, "✓ CasePilot UI run completed — extracting correlation_id…")
-            extracted = extract_audit_details_from_casepilot_statuses(
-                statuses,
-                default_operation=default_op,
-                default_touchpoint=default_touch,
-                job=job,
-                dispatched_at=dispatched_at,
-            )
-            before = len(job.get("results") or [])
-            job = apply_extracted_results(project_root, job, extracted)
-            after = len(job.get("results") or [])
-            if after == before:
+            if _added == 0 and not (job.get("results") or []):
                 _append_log(
                     job,
                     "⚠ No AUDIT_RESULT/correlation_id found in CasePilot notes — "
@@ -1520,18 +1984,25 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
                     "ready": False,
                     "auto_verify_pending": False,
                 }
-            else:
-                added = after - before
-                _append_log(
-                    job,
-                    f"✓ Captured {added} new correlation_id(s) ({after} total) — "
-                    "auto-verifying raw/enrich…",
-                )
+            elif partial_batch:
+                if prev != "completed":
+                    _append_log(
+                        job,
+                        f"⚠ Partial batch: {captured}/{sel_n} correlation_ids captured — "
+                        "re-Send missing touchpoints or paste IDs manually",
+                    )
                 job["verification"] = {
                     **(job.get("verification") or {}),
-                    "ready": True,
-                    "auto_verify_pending": True,
+                    "ready": bool(captured),
+                    "auto_verify_pending": bool(captured),
+                    "partial": True,
+                    "note": (
+                        f"Only {captured}/{sel_n} events captured. "
+                        "Re-send failed scenarios or paste correlation_ids."
+                    ),
                 }
+            elif _added > 0:
+                _append_log(job, "✓ All CasePilot jobs finished — auto-verifying raw/enrich…")
         job["agent"] = agent
         return _write_job(project_root, job)
     except Exception as exc:
@@ -1620,6 +2091,20 @@ def finalize_ui_trigger_verification(
             "✖ Continue verification blocked — no correlation_id yet "
             "(paste from DevTools or wait for CasePilot AUDIT_RESULT)",
         )
+        return _write_job(project_root, job)
+
+    cp_pending = casepilot_batch_pending(job)
+    if cp_pending > 0:
+        _append_log(
+            job,
+            f"▸ CasePilot batch still running ({cp_pending} job(s) queued) — "
+            f"finalize deferred until all {len(job.get('results') or [])} captured event(s) finish",
+        )
+        if str(job.get("status") or "").lower() == "completed":
+            job["status"] = "running"
+            agent = dict(job.get("agent") or {})
+            agent["send_status"] = "running"
+            job["agent"] = agent
         return _write_job(project_root, job)
 
     ops = sorted({str(r.get("operation") or "").strip() for r in results if r.get("operation")})

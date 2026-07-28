@@ -28,7 +28,6 @@ class IngestionManager:
         config = load_ingestion_config(
             rabbitmq_url=os.getenv("INGEST_RABBITMQ_URL") or os.getenv("RABBITMQ_URL"),
             mongo_url=self._settings.mongo_url,
-            mongo_db=self._settings.mongo_db,
             mongo_raw=self._settings.mongo_raw,
             mongo_enriched=self._settings.mongo_enriched,
             mongo_dlq=self._settings.mongo_dlq,

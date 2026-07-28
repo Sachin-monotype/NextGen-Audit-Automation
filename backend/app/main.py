@@ -294,11 +294,15 @@ def comparable_operations() -> dict[str, Any]:
 
 
 @app.get("/api/results/latest")
-def latest_comparison_results() -> dict[str, Any]:
-    """Latest stored comparison per operation (merged rows for the Result view)."""
+def latest_comparison_results(target: str | None = None) -> dict[str, Any]:
+    """Latest stored comparison per operation (merged rows for the Result view).
+
+    Optional ``target`` (pp|qa|uat) selects which environment's store to read;
+    defaults to the active ``AUDIT_TARGET``.
+    """
     from .comparison_store import list_latest
 
-    return list_latest(settings.audit_project_root)
+    return list_latest(settings.audit_project_root, target=target)
 
 
 @app.get("/api/results/latest/{operation:path}")
@@ -677,6 +681,8 @@ def pipeline_config() -> dict[str, Any]:
     try:
         from audit_validator.config import load_config
         from audit_validator.env_profiles import get_audit_profile
+        from audit_validator.ingestion.config import load_ingest_lanes
+        from audit_validator.ingestion.targets import ingest_mongo_databases, ingest_target_names
         from urllib.parse import quote, urlparse
 
         cfg = load_config(settings.audit_project_root)
@@ -711,6 +717,13 @@ def pipeline_config() -> dict[str, Any]:
             ],
             "graphql_endpoint": __import__("os").getenv("NEXTGEN_GRAPHQL_ENDPOINT", ""),
             "mongo_db": settings.mongo_db,
+            "mongo_databases": ingest_mongo_databases(),
+            "ingest_targets": ingest_target_names(),
+            "ingestion_lanes": [
+                {"target": lane.target, "vhost": lane.vhost, "mongo_db": lane.mongo_db}
+                for lane in load_ingest_lanes()
+            ],
+            "ingestion_multi_target": len(ingest_mongo_databases()) > 1,
             "mongo_url_host": (urlparse(settings.mongo_url).hostname or ""),
             "raw_queue": cfg.rabbitmq.raw_queue,
             "raw_queue_url": queue_url(cfg.rabbitmq.raw_queue),
@@ -739,6 +752,7 @@ def set_pipeline_target(req: PipelineTargetRequest) -> dict[str, Any]:
         import os
         from dotenv import set_key
         from audit_validator.env_profiles import apply_audit_profile, mongo_db_for_profile
+        from audit_validator.ingestion.targets import multi_target_ingestion_enabled
 
         os.environ["AUDIT_TARGET"] = target
         set_key(str(settings.audit_project_root / ".env"), "AUDIT_TARGET", target)
@@ -759,7 +773,8 @@ def set_pipeline_target(req: PipelineTargetRequest) -> dict[str, Any]:
             )
         settings.mongo_db = mongo_name
         db.use_database(mongo_name)
-        ingestion.reconfigure()
+        if not multi_target_ingestion_enabled():
+            ingestion.reconfigure()
         return pipeline_config()
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -774,14 +789,17 @@ def set_pipeline_queues(req: PipelineQueuesRequest) -> dict[str, Any]:
         if not q:
             raise HTTPException(status_code=400, detail="raw_queue cannot be empty")
         updates["RAW_EVENTS_QUEUE"] = q
+        updates["INGEST_RAW_QUEUE"] = q
     if req.enriched_queue is not None:
         q = req.enriched_queue.strip()
         if not q:
             raise HTTPException(status_code=400, detail="enriched_queue cannot be empty")
         updates["ENRICHED_EVENTS_QUEUE"] = q
+        updates["INGEST_ENRICHED_QUEUE"] = q
     if req.dlq is not None:
         q = req.dlq.strip()
         updates["DEAD_LETTER_QUEUE"] = q
+        updates["INGEST_DLQ_QUEUE"] = q
     if not updates:
         raise HTTPException(status_code=400, detail="provide raw_queue and/or enriched_queue")
     try:
@@ -947,8 +965,8 @@ def token_refresh() -> dict[str, Any]:
 
 
 class TokenCredentialsRequest(BaseModel):
-    username: str
-    password: str
+    username: str = ""
+    password: str = ""
     org: str = ""
     gcid: str = ""
 
@@ -1132,6 +1150,7 @@ def refresh_generate_ui(job_id: str) -> dict[str, Any]:
     """Poll CasePilot run status; auto-verify raw/enrich when correlations are ready."""
     try:
         from audit_validator.ui_trigger import (
+            casepilot_batch_pending,
             finalize_ui_trigger_verification,
             get_ui_trigger_job,
             refresh_casepilot_status,
@@ -1144,11 +1163,13 @@ def refresh_generate_ui(job_id: str) -> dict[str, Any]:
         has_cids = bool(ver.get("auto_verify_pending") and (job or {}).get("results"))
         already = bool(ver.get("generate_run_saved"))
         status = str((job or {}).get("status") or "").lower()
+        cp_pending = casepilot_batch_pending(job)
         if (
             job
             and has_cids
             and not already
-            and status not in {"failed", "cancelled"}
+            and cp_pending == 0
+            and status == "completed"
             and (job.get("results") or [])
         ):
             job = finalize_ui_trigger_verification(

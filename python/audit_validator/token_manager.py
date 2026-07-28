@@ -28,9 +28,12 @@ from .auth import (
     _set_env_var,
     _strip_bearer,
     fetch_oauth_token,
+    fetch_oauth_token_client_credentials,
     jwt_expires_in_hours,
     jwt_is_expired,
     jwt_payload,
+    oauth_grant_type,
+    resolve_oauth_config,
 )
 from .project_root import find_project_root
 
@@ -119,24 +122,55 @@ def _oauth_credentials(project_root: Path, token: str) -> dict[str, str]:
 
 
 def _oauth_common() -> dict[str, str]:
-    return {
-        "token_url": os.getenv("OAUTH_TOKEN_URL", DEFAULT_OAUTH["token_url"]),
-        "client_id": os.getenv("OAUTH_CLIENT_ID", DEFAULT_OAUTH["client_id"]),
-        "client_secret": os.getenv("OAUTH_CLIENT_SECRET", DEFAULT_OAUTH["client_secret"]),
-        "audience": os.getenv("OAUTH_AUDIENCE", DEFAULT_OAUTH["audience"]),
-    }
+    return resolve_oauth_config()
+
+
+def _fetch_fresh_token(
+    *,
+    username: str = "",
+    password: str = "",
+    org: str = "",
+    gcid: str = "",
+) -> str:
+    common = _oauth_common()
+    if common.get("grant_type") == "client_credentials":
+        return fetch_oauth_token_client_credentials(
+            token_url=common.get("token_url"),
+            client_id=common.get("client_id"),
+            client_secret=common.get("client_secret"),
+            audience=common.get("audience"),
+        )
+    if not username or not password:
+        raise RuntimeError("Username and password are required for OAuth password grant.")
+    return fetch_oauth_token(
+        username=username,
+        password=password,
+        org=org,
+        gcid=gcid,
+        **common,
+    )
 
 
 def _persist_bearer(project_root: Path, token: str, *, var: str = "BEARER_TOKEN") -> None:
     env_path = project_root / ".env"
     text = env_path.read_text(encoding="utf-8") if env_path.is_file() else ""
     text = _set_env_var(text, var, token)
+    # M2M tokens must not clobber NEXTGEN_BEARER_TOKEN (user SSO / password JWT).
+    if (
+        var == "BEARER_TOKEN"
+        and oauth_grant_type() == "client_credentials"
+        and ("NEXTGEN_BEARER_TOKEN=" in text or os.getenv("NEXTGEN_BEARER_TOKEN"))
+    ):
+        # Keep existing NEXTGEN value; only refresh the OAuth machine token slot.
+        pass
     env_path.write_text(text, encoding="utf-8")
     os.environ[var] = token
 
 
 def _generate(project_root: Path, token: str) -> str:
     creds = _oauth_credentials(project_root, token)
+    if oauth_grant_type() == "client_credentials":
+        return _fetch_fresh_token()
     missing = [k for k in ("username", "password", "org", "gcid") if not creds.get(k)]
     if missing:
         raise RuntimeError(
@@ -144,12 +178,11 @@ def _generate(project_root: Path, token: str) -> str:
             f"{', '.join(missing)}. Set OAUTH_USERNAME / OAUTH_PASSWORD in .env "
             "(org & gcid are auto-read from the pasted token when possible)."
         )
-    return fetch_oauth_token(
+    return _fetch_fresh_token(
         username=creds["username"],
         password=creds["password"],
         org=creds["org"],
         gcid=creds["gcid"],
-        **_oauth_common(),
     )
 
 
@@ -159,7 +192,10 @@ def bearer_status(project_root: Path | None = None, *, min_ttl_hours: float = 0.
     load_dotenv(root / ".env")
     raw = _strip_bearer(os.getenv("BEARER_TOKEN", ""))
     creds = _oauth_credentials(root, raw)
-    can_regen = bool(creds.get("username") and creds.get("password") and creds.get("org") and creds.get("gcid"))
+    grant = oauth_grant_type()
+    can_regen = grant == "client_credentials" or bool(
+        creds.get("username") and creds.get("password") and creds.get("org") and creds.get("gcid")
+    )
 
     st = TokenStatus(present=bool(raw), can_regenerate=can_regen)
     if not raw:
@@ -257,23 +293,21 @@ def apply_credentials(
     load_dotenv(root / ".env")
     user = (username or "").strip()
     pwd = (password or "").strip()
-    if not user or not pwd:
+    org_val = (org or "").strip()
+    gcid_val = (gcid or "").strip()
+    grant = oauth_grant_type()
+
+    if grant != "client_credentials" and (not user or not pwd):
         st = TokenStatus(present=False, can_regenerate=False)
         st.message = "Username and password are required."
         return st
 
-    # org / gcid are OPTIONAL — when omitted we let Auth0 resolve the user's default
-    # organisation and read the real t_organization / gcid from the returned JWT.
-    org_val = (org or "").strip()
-    gcid_val = (gcid or "").strip()
-
     try:
-        fresh = fetch_oauth_token(
+        fresh = _fetch_fresh_token(
             username=user,
             password=pwd,
             org=org_val,
             gcid=gcid_val,
-            **_oauth_common(),
         )
     except Exception as exc:  # noqa: BLE001
         st = TokenStatus(present=False, can_regenerate=True)
@@ -282,26 +316,30 @@ def apply_credentials(
 
     # Read the identity the token actually resolved to (source of truth).
     fresh_claims = token_metadata(fresh)
-    org_val = org_val or fresh_claims.get("org", "")
+    org_val = org_val or fresh_claims.get("org", "") or _oauth_common().get("organization", "")
     gcid_val = gcid_val or fresh_claims.get("gcid", "")
 
     if persist:
         env_path = root / ".env"
         text = env_path.read_text(encoding="utf-8") if env_path.is_file() else ""
-        text = _set_env_var(text, "OAUTH_USERNAME", user)
-        text = _set_env_var(text, "OAUTH_PASSWORD", pwd)
-        text = _set_env_var(text, "OAUTH_ORG", org_val)
-        text = _set_env_var(text, "OAUTH_GCID", gcid_val)
+        if grant != "client_credentials":
+            text = _set_env_var(text, "OAUTH_USERNAME", user)
+            text = _set_env_var(text, "OAUTH_PASSWORD", pwd)
+            text = _set_env_var(text, "OAUTH_ORG", org_val)
+            text = _set_env_var(text, "OAUTH_GCID", gcid_val)
+            os.environ["OAUTH_USERNAME"] = user
+            os.environ["OAUTH_PASSWORD"] = pwd
+            os.environ["OAUTH_ORG"] = org_val
+            os.environ["OAUTH_GCID"] = gcid_val
         text = _set_env_var(text, "BEARER_TOKEN", fresh)
-        if "NEXTGEN_BEARER_TOKEN=" in text or os.getenv("NEXTGEN_BEARER_TOKEN"):
-            text = _set_env_var(text, "NEXTGEN_BEARER_TOKEN", fresh)
+        # Never overwrite a user/browser JWT with M2M client_credentials — Compare
+        # JWT rows need gcid/email/org claims that M2M tokens do not carry.
+        if grant != "client_credentials":
+            if "NEXTGEN_BEARER_TOKEN=" in text or os.getenv("NEXTGEN_BEARER_TOKEN"):
+                text = _set_env_var(text, "NEXTGEN_BEARER_TOKEN", fresh)
+            os.environ["NEXTGEN_BEARER_TOKEN"] = fresh
         env_path.write_text(text, encoding="utf-8")
-        os.environ["OAUTH_USERNAME"] = user
-        os.environ["OAUTH_PASSWORD"] = pwd
-        os.environ["OAUTH_ORG"] = org_val
-        os.environ["OAUTH_GCID"] = gcid_val
         os.environ["BEARER_TOKEN"] = fresh
-        os.environ["NEXTGEN_BEARER_TOKEN"] = fresh
 
     fresh_meta = token_metadata(fresh)
     return TokenStatus(
@@ -325,7 +363,11 @@ def current_oauth_form_defaults(project_root: Path | None = None) -> dict[str, s
     meta = token_metadata(raw) if raw else {"email": "", "org": "", "gcid": ""}
     return {
         "username": os.getenv("OAUTH_USERNAME", "").strip() or meta.get("email", ""),
-        "org": os.getenv("OAUTH_ORG", "").strip() or meta.get("org", ""),
+        "org": (
+            os.getenv("OAUTH_ORG", "").strip()
+            or meta.get("org", "")
+            or _oauth_common().get("organization", "")
+        ),
         "gcid": (
             os.getenv("OAUTH_GCID", "").strip()
             or os.getenv("GRAPHQL_CONTEXT_CUSTOMER_ID", "").strip()
@@ -333,6 +375,8 @@ def current_oauth_form_defaults(project_root: Path | None = None) -> dict[str, s
         ),
         "email": meta.get("email", ""),
         "has_password": "1" if os.getenv("OAUTH_PASSWORD", "").strip() else "0",
+        "grant_type": oauth_grant_type(),
+        "token_url": _oauth_common().get("token_url", ""),
     }
 
 

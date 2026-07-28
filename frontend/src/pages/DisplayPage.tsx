@@ -207,6 +207,9 @@ function IngestionPanel() {
         {status && (
           <span className="ingestion-metrics muted">
             {status.totals.inserted} inserted · {status.totals.consumed} consumed
+            {status.multi_target && status.ingest_lanes?.length
+              ? ` · ${status.ingest_lanes.map((l) => `${l.target}@${l.vhost}`).join(", ")}`
+              : ""}
           </span>
         )}
         {notice && <span className="muted">{notice}</span>}
@@ -224,12 +227,29 @@ function IngestionPanel() {
         <div className="ingestion-details">
           <p className="muted">
             Retains latest {status.max_docs_per_operation ?? "?"} docs per operation · Mongo{" "}
-            {status.mongo_connected ? "connected" : "offline"} · pruned {status.cleanup_deleted ?? 0}
+            {status.mongo_connected ? "connected" : "offline"}
+            {status.mongo_databases?.length
+              ? ` (${status.mongo_databases.join(", ")})`
+              : ""}{" "}
+            · pruned {status.cleanup_deleted ?? 0}
+            {status.auto_purge_enabled
+              ? ` · auto-purge every ${Math.round((status.auto_purge_interval_sec ?? 3600) / 60)}m (≥${status.auto_purge_min_ready ?? 500} ready)`
+              : ""}
+            {status.auto_purge_total ? ` · purged ${status.auto_purge_total} total` : ""}
           </p>
+          {status.ingest_lanes && status.ingest_lanes.length > 1 && (
+            <p className="muted">
+              Lanes:{" "}
+              {status.ingest_lanes
+                .map((l) => `${l.target} (${l.vhost} → ${l.mongo_db})`)
+                .join(" · ")}
+            </p>
+          )}
           {connError && <p className="error">{connError}</p>}
           <table className="ingestion-table">
             <thead>
               <tr>
+                <th>Lane</th>
                 <th>Queue</th>
                 <th>→ Collection</th>
                 <th>Conn</th>
@@ -240,6 +260,7 @@ function IngestionPanel() {
             <tbody>
               {status.consumers.map((c) => (
                 <tr key={c.name}>
+                  <td className="mono">{c.target ? `${c.target}@${c.vhost}` : c.name}</td>
                   <td className="mono">{c.queue}</td>
                   <td className="mono">{c.collection}</td>
                   <td>{c.connected ? "✓" : "—"}</td>

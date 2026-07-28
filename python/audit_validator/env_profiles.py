@@ -8,6 +8,35 @@ from urllib.parse import urlparse, urlunparse
 
 
 @dataclass(frozen=True)
+class OAuthProfile:
+    token_url: str
+    client_id: str
+    client_secret: str
+    audience: str
+    organization: str = ""
+    grant_type: str = "password"
+
+
+PP_OAUTH = OAuthProfile(
+    token_url="https://secure-pp.monotype.com/oauth/token",
+    client_id="0bnAznyuRQfeaCg9qXxWKeoSZtqorUpD",
+    client_secret="W-UEo0Zaa0bsNcTbYFtg-31U-8kzp9gyHiZQ2VeJU_9phYITuztKnxWJ0poxhUlc",
+    audience="https://nextgen.monotype.com",
+    organization="",
+    grant_type="password",
+)
+
+QA_OAUTH = OAuthProfile(
+    token_url="https://secure.monotype-pp.com/v2/oauth/token",
+    client_id="LhfeUMNRvHeb0pbefR5YlvRUeV6Fk100",
+    client_secret="I9ycmyvb4ztc_1s_9AgmjzGSOzAG2uEH5TzY2GtNKUiehXv3YjLZzX9h4W0UN07v",
+    audience="https://api.monotype.com",
+    organization="org_N6FdVIbUd6dYuJwM",
+    grant_type="client_credentials",
+)
+
+
+@dataclass(frozen=True)
 class AuditTargetProfile:
     name: str
     label: str
@@ -30,6 +59,7 @@ class AuditTargetProfile:
     seed_family_id: str
     seed_deactivate_family_id: str
     mongo_db_name: str = ""  # empty → derived as AuditLogs{NAME}
+    oauth: OAuthProfile = PP_OAUTH
 
 
 PP_PREPROD = AuditTargetProfile(
@@ -92,7 +122,7 @@ QA = AuditTargetProfile(
     nextgen_origin="https://nextgen-qa.monotype-pp.com",
     nextgen_referer="https://nextgen-qa.monotype-pp.com/discover-fonts/all",
     simulation_prefer_pp_bearer=True,
-    rabbitmq_vhost="mt-connect-preprod",
+    rabbitmq_vhost="mt-connect-qa",
     raw_events_queue="mtraw-automation(DO NOT DELETE)",
     enriched_events_queue="mtenrich-automation(DO NOT DELETE)",
     consume_dead_letter_queue=False,
@@ -100,10 +130,11 @@ QA = AuditTargetProfile(
     ingress_api_url="https://mt-audit-log-resolver-service-preprod.monotype-pp.com/v1/audit-events",
     ingress_raw_queue="mtraw-automation(DO NOT DELETE)",
     ingress_enriched_queue="mtenrich-automation(DO NOT DELETE)",
-    ingress_rabbitmq_vhost="mt-connect-preprod",
+    ingress_rabbitmq_vhost="mt-connect-qa",
     seed_family_id="794981",
     seed_deactivate_family_id="8kL8ZM64",
     mongo_db_name="AuditLogsQA",
+    oauth=QA_OAUTH,
 )
 
 EVEREST_DEV = AuditTargetProfile(
@@ -161,6 +192,18 @@ _PROFILE_KEYS: frozenset[str] = frozenset(
         "SEED_FAMILY_ID",
         "SEED_DEACTIVATE_FAMILY_ID",
         "MONGO_DB_NAME",
+        "OAUTH_TOKEN_URL",
+        "OAUTH_CLIENT_ID",
+        "OAUTH_CLIENT_SECRET",
+        "OAUTH_AUDIENCE",
+        "OAUTH_GRANT_TYPE",
+        "OAUTH_ORG",
+        "AUTH0_TOKEN_URL",
+        "AUTH0_CLIENT_ID",
+        "AUTH0_CLIENT_SECRET",
+        "AUTH0_AUDIENCE",
+        "AUTH0_ORGANIZATION",
+        "AUTH0_GRANT_TYPE",
     }
 )
 
@@ -234,6 +277,18 @@ def apply_audit_profile(*, project_root=None) -> AuditTargetProfile:
         "SEED_FAMILY_ID": profile.seed_family_id,
         "SEED_DEACTIVATE_FAMILY_ID": profile.seed_deactivate_family_id,
         "MONGO_DB_NAME": mongo_db_for_profile(profile),
+        "OAUTH_TOKEN_URL": profile.oauth.token_url,
+        "OAUTH_CLIENT_ID": profile.oauth.client_id,
+        "OAUTH_CLIENT_SECRET": profile.oauth.client_secret,
+        "OAUTH_AUDIENCE": profile.oauth.audience,
+        "OAUTH_GRANT_TYPE": profile.oauth.grant_type,
+        "OAUTH_ORG": profile.oauth.organization,
+        "AUTH0_TOKEN_URL": profile.oauth.token_url,
+        "AUTH0_CLIENT_ID": profile.oauth.client_id,
+        "AUTH0_CLIENT_SECRET": profile.oauth.client_secret,
+        "AUTH0_AUDIENCE": profile.oauth.audience,
+        "AUTH0_ORGANIZATION": profile.oauth.organization,
+        "AUTH0_GRANT_TYPE": profile.oauth.grant_type,
     }
     for key, value in mapping.items():
         if key in _PROFILE_KEYS:

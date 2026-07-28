@@ -20,6 +20,46 @@ DEFAULT_OAUTH = {
 }
 
 
+def resolve_oauth_config() -> dict[str, str]:
+    """Active OAuth client settings (OAUTH_* with AUTH0_* aliases)."""
+    return {
+        "token_url": (
+            os.getenv("OAUTH_TOKEN_URL")
+            or os.getenv("AUTH0_TOKEN_URL")
+            or DEFAULT_OAUTH["token_url"]
+        ),
+        "client_id": (
+            os.getenv("OAUTH_CLIENT_ID")
+            or os.getenv("AUTH0_CLIENT_ID")
+            or DEFAULT_OAUTH["client_id"]
+        ),
+        "client_secret": (
+            os.getenv("OAUTH_CLIENT_SECRET")
+            or os.getenv("AUTH0_CLIENT_SECRET")
+            or DEFAULT_OAUTH["client_secret"]
+        ),
+        "audience": (
+            os.getenv("OAUTH_AUDIENCE")
+            or os.getenv("AUTH0_AUDIENCE")
+            or DEFAULT_OAUTH["audience"]
+        ),
+        "grant_type": (
+            os.getenv("OAUTH_GRANT_TYPE")
+            or os.getenv("AUTH0_GRANT_TYPE")
+            or "password"
+        ).strip().lower(),
+        "organization": (
+            os.getenv("OAUTH_ORG")
+            or os.getenv("AUTH0_ORGANIZATION")
+            or ""
+        ).strip(),
+    }
+
+
+def oauth_grant_type() -> str:
+    return resolve_oauth_config()["grant_type"]
+
+
 def _strip_bearer(value: str) -> str:
     token = value.strip()
     if token.lower().startswith("bearer "):
@@ -43,21 +83,7 @@ def jwt_payload(token: str) -> dict:
         return {}
 
 
-def jwt_identity(token: str | None = None) -> dict[str, Any]:
-    """Extract the identity claims we use for CMS/UMS/AMS and actor assertions.
-
-    Mirrors the ActivateFamily QA sheet:
-    - ``gcid`` ← ``https://api.monotype.com/gcid``
-    - ``org_id`` ← ``org_id`` / namespaced claim
-    - ``email`` ← ``https://api.monotype.com/email`` (UMS lookups use this)
-    - ``parent_customer_id`` ← ``https://secure.monotype.com/info.parentCustomerId``
-    - ``inventories`` ← ``https://api.monotype.com/inventories``
-    - ``xCorrelationId`` is **not** here — minted per request from this user.
-    """
-    tok = token or resolve_nextgen_bearer_token() or resolve_bearer_token()
-    if not tok:
-        return {}
-    p = jwt_payload(tok)
+def _identity_from_payload(p: dict[str, Any]) -> dict[str, Any]:
     gcid = str(p.get("https://api.monotype.com/gcid") or "").strip()
     org = str(
         p.get("https://api.monotype.com/org_id")
@@ -85,6 +111,97 @@ def jwt_identity(token: str | None = None) -> dict[str, Any]:
         "idp_user_id": idp,
         "parent_customer_id": parent or gcid,
         "inventories": inventories if inventories is not None else [],
+        "org_name": str(p.get("https://api.monotype.com/org_name") or "").strip(),
+        "paying_customer": str(p.get("https://api.monotype.com/paying_customer") or "").strip(),
+    }
+
+
+def _identity_is_user(ident: dict[str, Any]) -> bool:
+    """True when claims look like a user JWT (not M2M client_credentials)."""
+    if ident.get("gcid") or ident.get("email"):
+        return True
+    idp = str(ident.get("idp_user_id") or "")
+    return bool(idp) and not idp.endswith("@clients")
+
+
+def jwt_identity(token: str | None = None) -> dict[str, Any]:
+    """Extract the identity claims we use for CMS/UMS/AMS and actor assertions.
+
+    Mirrors the ActivateFamily QA sheet:
+    - ``gcid`` ← ``https://api.monotype.com/gcid``
+    - ``org_id`` ← ``org_id`` / namespaced claim
+    - ``email`` ← ``https://api.monotype.com/email`` (UMS lookups use this)
+    - ``parent_customer_id`` ← ``https://secure.monotype.com/info.parentCustomerId``
+    - ``inventories`` ← ``https://api.monotype.com/inventories``
+    - ``xCorrelationId`` is **not** here — minted per request from this user.
+
+    Prefer a user JWT over M2M ``client_credentials`` tokens (common on QA),
+    which lack gcid/email and make JWT Compare rows look empty.
+    """
+    if token:
+        return _identity_from_payload(jwt_payload(token))
+
+    candidates: list[str] = []
+    for key in (
+        "NEXTGEN_BEARER_TOKEN",
+        "BEARER_TOKEN_PP",
+        "DISCOVERY_BEARER_TOKEN",
+        "BEARER_TOKEN",
+    ):
+        tok = _strip_bearer(os.getenv(key, ""))
+        if tok and tok not in candidates:
+            candidates.append(tok)
+    # Fresh OAuth last — on QA this is often M2M without user claims.
+    for resolver in (resolve_nextgen_bearer_token, resolve_bearer_token):
+        try:
+            tok = resolver()
+        except Exception:
+            tok = ""
+        if tok and tok not in candidates:
+            candidates.append(tok)
+
+    best: dict[str, Any] = {}
+    for tok in candidates:
+        ident = _identity_from_payload(jwt_payload(tok))
+        if _identity_is_user(ident):
+            return ident
+        if not best:
+            best = ident
+    return best
+
+
+def jwt_identity_from_actor(actor: dict[str, Any] | None) -> dict[str, Any]:
+    """Build JWT-shaped identity from an enriched ``actor`` (event already JWT-stamped).
+
+    Used on QA when only an M2M ``client_credentials`` token is available — that
+    token has no gcid/email/org claims, so Compare would otherwise show Source=none.
+    """
+    if not isinstance(actor, dict):
+        return {}
+    snap = actor.get("enrichedSnapshot") if isinstance(actor.get("enrichedSnapshot"), dict) else {}
+    user = snap.get("user") if isinstance(snap.get("user"), dict) else {}
+    customer = snap.get("customer") if isinstance(snap.get("customer"), dict) else {}
+    gcid = str(actor.get("globalCustomerId") or "").strip()
+    parent = str(actor.get("parentCustomerId") or "").strip()
+    inventories = actor.get("inventories")
+    if inventories is None and isinstance(actor.get("info"), dict):
+        inventories = actor["info"].get("inventories")
+    org_name = str(
+        customer.get("displayName")
+        or customer.get("name")
+        or actor.get("orgName")
+        or ""
+    ).strip()
+    return {
+        "gcid": gcid,
+        "org_id": str(actor.get("orgId") or "").strip(),
+        "email": str(user.get("email") or actor.get("email") or "").strip(),
+        "idp_user_id": str(user.get("idpUserId") or actor.get("idpUserId") or "").strip(),
+        "parent_customer_id": parent or gcid,
+        "inventories": inventories if inventories is not None else [],
+        "org_name": org_name,
+        "paying_customer": "",
+        "_source": "enriched-actor",
     }
 
 
@@ -322,6 +439,48 @@ def customer_context_header_id(
     return ""
 
 
+
+def fetch_oauth_token_client_credentials(
+    *,
+    token_url: str | None = None,
+    client_id: str | None = None,
+    client_secret: str | None = None,
+    audience: str | None = None,
+    organization: str = "",
+) -> str:
+    """Machine-to-machine token (QA Auth0 client_credentials grant)."""
+    cfg = resolve_oauth_config()
+    url = token_url or cfg["token_url"]
+    fields = [
+        ("grant_type", "client_credentials"),
+        ("client_id", client_id or cfg["client_id"]),
+        ("client_secret", client_secret or cfg["client_secret"]),
+        ("audience", audience or cfg["audience"]),
+    ]
+    org = (organization or "").strip()
+    if not org and os.getenv("OAUTH_CLIENT_CREDENTIALS_INCLUDE_ORG", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        org = cfg["organization"]
+    if org:
+        fields.append(("organization", org))
+    body = urllib.parse.urlencode(fields, encoding="utf-8")
+    resp = requests.post(
+        url,
+        data=body,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    token = resp.json().get("access_token")
+    if not token or len(str(token).split(".")) != 3:
+        raise RuntimeError(f"OAuth client_credentials request to {url} did not return a JWT")
+    return str(token)
+
+
 def fetch_oauth_token(
     *,
     username: str,
@@ -333,12 +492,13 @@ def fetch_oauth_token(
     client_secret: str | None = None,
     audience: str | None = None,
 ) -> str:
-    url = token_url or DEFAULT_OAUTH["token_url"]
+    cfg = resolve_oauth_config()
+    url = token_url or cfg["token_url"]
     fields = [
         ("grant_type", "password"),
-        ("client_id", client_id or DEFAULT_OAUTH["client_id"]),
-        ("client_secret", client_secret or DEFAULT_OAUTH["client_secret"]),
-        ("audience", audience or DEFAULT_OAUTH["audience"]),
+        ("client_id", client_id or cfg["client_id"]),
+        ("client_secret", client_secret or cfg["client_secret"]),
+        ("audience", audience or cfg["audience"]),
         ("username", username),
         ("password", password),
         ("scope", "openid profile email offline_access"),
@@ -383,31 +543,30 @@ def refresh_env_tokens(project_root: Path) -> dict[str, str]:
     password = os.getenv("OAUTH_PASSWORD", "").strip()
     org = os.getenv("OAUTH_ORG", "").strip()
     gcid = os.getenv("OAUTH_GCID", "").strip()
-    if not all([username, password, org, gcid]):
-        raise RuntimeError(
-            "Set OAUTH_USERNAME, OAUTH_PASSWORD, OAUTH_ORG, and OAUTH_GCID in .env"
+
+    common = resolve_oauth_config()
+    if common["grant_type"] == "client_credentials":
+        primary = fetch_oauth_token_client_credentials(**common)
+        secondary = ""
+    else:
+        if not all([username, password, org, gcid]):
+            raise RuntimeError(
+                "Set OAUTH_USERNAME, OAUTH_PASSWORD, OAUTH_ORG, and OAUTH_GCID in .env"
+            )
+        primary = fetch_oauth_token(
+            username=username, password=password, org=org, gcid=gcid, **common
         )
-
-    common = {
-        "token_url": os.getenv("OAUTH_TOKEN_URL", DEFAULT_OAUTH["token_url"]),
-        "client_id": os.getenv("OAUTH_CLIENT_ID", DEFAULT_OAUTH["client_id"]),
-        "client_secret": os.getenv("OAUTH_CLIENT_SECRET", DEFAULT_OAUTH["client_secret"]),
-        "audience": os.getenv("OAUTH_AUDIENCE", DEFAULT_OAUTH["audience"]),
-    }
-
-    primary = fetch_oauth_token(username=username, password=password, org=org, gcid=gcid, **common)
-    time.sleep(1)
-
-    secondary_user = os.getenv("OAUTH_SECONDARY_USERNAME", "").strip()
-    secondary = ""
-    if secondary_user:
-        secondary = fetch_oauth_token(
-            username=secondary_user,
-            password=os.getenv("OAUTH_SECONDARY_PASSWORD", password),
-            org=org,
-            gcid=gcid,
-            **common,
-        )
+        time.sleep(1)
+        secondary_user = os.getenv("OAUTH_SECONDARY_USERNAME", "").strip()
+        secondary = ""
+        if secondary_user:
+            secondary = fetch_oauth_token(
+                username=secondary_user,
+                password=os.getenv("OAUTH_SECONDARY_PASSWORD", password),
+                org=org,
+                gcid=gcid,
+                **common,
+            )
 
     text = env_path.read_text(encoding="utf-8") if env_path.is_file() else ""
     text = _set_env_var(text, "BEARER_TOKEN", primary)

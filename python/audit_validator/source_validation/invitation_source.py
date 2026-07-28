@@ -73,6 +73,7 @@ def fetch_invitation_for_enriched(
     """Return (invitation row, error note). Uses MySQL when MYSQL_* is configured."""
     from .db.clients import UmsDbClient
     from .db.connection import load_mysql_config, mysql_ready
+    from .db.schemas import ums_schema
 
     if cfg is None:
         from .config import load_source_validation_config
@@ -103,4 +104,4 @@ def fetch_invitation_for_enriched(
     except Exception as exc:  # noqa: BLE001
         return None, f"MySQL user_invitation lookup failed: {exc}"
 
-    return None, f"No row in user_management.user_invitation for email={email!r} id={inv_id!r}"
+    return None, f"No row in {ums_schema()}.user_invitation for email={email!r} id={inv_id!r}"

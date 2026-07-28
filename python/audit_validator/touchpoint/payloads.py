@@ -1300,6 +1300,7 @@ def assert_add_font_list_families_shape(variables: dict[str, Any]) -> None:
 FLOW_DEFS: dict[str, dict[str, list[str]]] = {
     "activateFamily": {
         "Discovery/Browse (global)": ["deactivateFamilies", "activateFamily"],
+        "App (global)": ["deactivateFamilies", "activateFamily"],
         "List (FONTLIST)": [
             "createAsset",
             "addFontListFamilies",
@@ -1329,6 +1330,7 @@ FLOW_DEFS: dict[str, dict[str, list[str]]] = {
     },
     "deactivateFamilies": {
         "Discovery/Browse (global)": ["activateFamily", "deactivateFamilies"],
+        "App (global)": ["activateFamily", "deactivateFamilies"],
         "List (FONTLIST)": [
             "createAsset",
             "addFontListFamilies",

@@ -75,6 +75,11 @@ async function restoreGenerationStatus(
   }
 }
 
+function casepilotPending(job: UiTriggerJob | null | undefined): number {
+  const rs = (job?.agent as { run_summary?: { pending?: number } } | undefined)?.run_summary;
+  return rs?.pending ?? 0;
+}
+
 type DropdownItem = {
   id: string;
   label: string;
@@ -288,6 +293,10 @@ function compareStatusLabel(item: DropdownItem, stored: Record<string, string>):
   return operationHasStoredResult(key, stored) ? "Reverify" : "Verify";
 }
 
+function compareStatusClass(item: DropdownItem, stored: Record<string, string>): string {
+  return compareStatusLabel(item, stored) === "Reverify" ? "reverify" : "verify";
+}
+
 function OperationDropdown({
   options,
   selected,
@@ -453,7 +462,9 @@ function OperationDropdown({
                             onChange={() => onToggle(o.id)}
                           />
                           <span>{shortTouchpoint(o.touchpoint) || o.touchpoint || o.label}</span>
-                          <span className="op-compare-status">{compareStatusLabel(o, comparisonOps)}</span>
+                          <span className={`op-compare-status ${compareStatusClass(o, comparisonOps)}`}>
+                            {compareStatusLabel(o, comparisonOps)}
+                          </span>
                           {(o.steps?.length ?? 0) > 1 && (
                             <span className="muted steps-hint" title={o.steps?.join(" → ")}>
                               {o.steps!.length} steps
@@ -474,7 +485,9 @@ function OperationDropdown({
                   onChange={() => onToggle(o.id)}
                 />
                 <span>{o.label}</span>
-                <span className="op-compare-status">{compareStatusLabel(o, comparisonOps)}</span>
+                <span className={`op-compare-status ${compareStatusClass(o, comparisonOps)}`}>
+                  {compareStatusLabel(o, comparisonOps)}
+                </span>
                 {o.kind !== "graphql" && <span className={`kind-tag ${o.kind}`}>{o.kind}</span>}
               </label>
             ))}
@@ -732,6 +745,8 @@ export default function GeneratePage({
   const [exportPick, setExportPick] = useState<string[]>([]);
   const [compareBusy, setCompareBusy] = useState(false);
   const [comparisonOps, setComparisonOps] = useState<Record<string, string>>({});
+  /** Filter catalog by stored source-compare result (Verify vs Reverify). */
+  const [compareFilter, setCompareFilter] = useState<"all" | "needs_verify" | "has_result">("all");
   const loadComparisonOps = useCallback(() => {
     fetchComparisonOperations()
       .then((r) => setComparisonOps(r.operations || {}))
@@ -795,8 +810,42 @@ export default function GeneratePage({
       const catById = new Map(sources.catalog.map((c) => [c.id, c.operation]));
       items = items.filter((i) => categories.by_operation[catById.get(i.id) ?? i.id] === category);
     }
+    if (compareFilter === "needs_verify") {
+      items = items.filter(
+        (i) => !operationHasStoredResult(i.label || i.id, comparisonOps),
+      );
+    } else if (compareFilter === "has_result") {
+      items = items.filter((i) => operationHasStoredResult(i.label || i.id, comparisonOps));
+    }
     return items;
-  }, [available, category, categories, sourceKinds, sources]);
+  }, [available, category, categories, compareFilter, comparisonOps, sourceKinds, sources]);
+
+  const compareFilterCounts = useMemo(() => {
+    let base: DropdownItem[] =
+      sources?.catalog?.map((c) => ({
+        id: c.id,
+        label: c.label,
+        kind: c.kind,
+        operation: c.operation,
+        touchpoint: c.touchpoint,
+        steps: c.steps,
+      })) ?? [];
+    if (!base.length) base = available.map((op) => ({ id: op, label: op, kind: "graphql", operation: op }));
+    if (sourceKinds.size) {
+      base = base.filter((i) => sourceKinds.has(i.kind));
+    }
+    if (category !== "all" && categories && sources) {
+      const catById = new Map(sources.catalog.map((c) => [c.id, c.operation]));
+      base = base.filter((i) => categories.by_operation[catById.get(i.id) ?? i.id] === category);
+    }
+    let hasResult = 0;
+    let needsVerify = 0;
+    for (const i of base) {
+      if (operationHasStoredResult(i.label || i.id, comparisonOps)) hasResult += 1;
+      else needsVerify += 1;
+    }
+    return { total: base.length, hasResult, needsVerify };
+  }, [available, category, categories, comparisonOps, sourceKinds, sources]);
 
   const labelById = useMemo(() => {
     const m = new Map<string, string>();
@@ -983,19 +1032,10 @@ export default function GeneratePage({
     }
     setUiBusy(false);
     setUiManualCid("");
-    const prev = uiJob;
-    setUiJob(null);
-    localStorage.removeItem(UI_JOB_KEY);
-    if (
-      prev?.id &&
-      (prev.status === "queued" ||
-        prev.status === "running" ||
-        prev.status === "pending_agent")
-    ) {
-      void cancelGenerateInUi(prev.id).catch(() => {});
-    }
+    // Do not cancel an in-flight CasePilot batch when reopening the modal — that
+    // was cancelling queued jobs and causing instant "9/9 failed (cancelled)" errors.
     setUiTriggerOpen(true);
-  }, [uiJob]);
+  }, []);
 
   const pollUiJob = useCallback((id: string) => {
     if (uiPollRef.current) clearInterval(uiPollRef.current);
@@ -1003,7 +1043,6 @@ export default function GeneratePage({
       try {
         const res = await refreshGenerateInUi(id);
         setUiJob(res.job);
-        // refresh endpoint already auto-finalizes when cids exist (no long poll)
         if (res.job.verification?.generate_run_saved) {
           if (uiPollRef.current) clearInterval(uiPollRef.current);
           uiPollRef.current = null;
@@ -1011,16 +1050,24 @@ export default function GeneratePage({
           await restoreGenerationStatus(setLastRun, setShowLastRun);
           return;
         }
-        if (res.job.status === "failed" || res.job.status === "cancelled") {
+        if (
+          (res.job.status === "completed" ||
+            res.job.status === "failed" ||
+            res.job.status === "cancelled") &&
+          casepilotPending(res.job) === 0
+        ) {
           if (uiPollRef.current) clearInterval(uiPollRef.current);
           uiPollRef.current = null;
           setUiBusy(false);
+          if (res.job.verification?.auto_verify_pending && (res.job.results || []).length) {
+            await restoreGenerationStatus(setLastRun, setShowLastRun);
+          }
           return;
         }
-      } catch {
-        /* keep polling through transient CasePilot blips */
+      } catch (e) {
+        setError(String(e));
       }
-    }, 4000);
+    }, 8000);
   }, []);
 
   useEffect(() => {
@@ -1037,6 +1084,7 @@ export default function GeneratePage({
           j.status === "queued" ||
           j.status === "running" ||
           j.status === "pending_agent" ||
+          casepilotPending(j) > 0 ||
           (j.verification?.ready && !j.verification?.generate_run_saved)
         ) {
           pollUiJob(j.id);
@@ -1054,6 +1102,7 @@ export default function GeneratePage({
       uiJob.status === "queued" ||
       uiJob.status === "running" ||
       uiJob.status === "pending_agent" ||
+      casepilotPending(uiJob) > 0 ||
       (uiJob.verification?.ready && !uiJob.verification?.generate_run_saved)
     ) {
       pollUiJob(uiJob.id);
@@ -1302,6 +1351,7 @@ export default function GeneratePage({
       } else {
         onCompareCompleted?.(job.id, ops);
       }
+      loadComparisonOps();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -1589,9 +1639,19 @@ export default function GeneratePage({
               </button>
             </header>
             <p className="muted small">
-              Generate a fresh Bearer via OAuth password grant. Just username + password is enough —
-              org &amp; gcid are read back from the token's JWT claims and drive actor validation and
-              x-correlation-id scoping. Only set org/gcid below to force a specific organisation.
+              {token?.credentials?.grant_type === "client_credentials" ? (
+                <>
+                  QA uses Auth0 <strong>client_credentials</strong> (
+                  {token.credentials.token_url || "configured token URL"}). Click Generate token — username
+                  and password are not required.
+                </>
+              ) : (
+                <>
+                  Generate a fresh Bearer via OAuth password grant. Just username + password is enough —
+                  org &amp; gcid are read back from the token&apos;s JWT claims and drive actor validation and
+                  x-correlation-id scoping. Only set org/gcid below to force a specific organisation.
+                </>
+              )}
             </p>
             <form className="token-cred-form" onSubmit={onApplyCredentials}>
               <label>
@@ -1600,7 +1660,7 @@ export default function GeneratePage({
                   value={credForm.username}
                   onChange={(e) => setCredForm((f) => ({ ...f, username: e.target.value }))}
                   autoComplete="username"
-                  required
+                  required={token?.credentials?.grant_type !== "client_credentials"}
                 />
               </label>
               <label>
@@ -1610,7 +1670,7 @@ export default function GeneratePage({
                   value={credForm.password}
                   onChange={(e) => setCredForm((f) => ({ ...f, password: e.target.value }))}
                   autoComplete="current-password"
-                  required
+                  required={token?.credentials?.grant_type !== "client_credentials"}
                   placeholder={token?.credentials?.has_password === "1" ? "••••••••" : ""}
                 />
               </label>
@@ -1675,6 +1735,20 @@ export default function GeneratePage({
             })}
           </div>
           <label className="category-select inline-control">
+            Compare
+            <select
+              value={compareFilter}
+              onChange={(e) => {
+                setCompareFilter(e.target.value as "all" | "needs_verify" | "has_result");
+                setSelected(new Set());
+              }}
+            >
+              <option value="all">All ({compareFilterCounts.total})</option>
+              <option value="needs_verify">Needs Verify ({compareFilterCounts.needsVerify})</option>
+              <option value="has_result">Has result · Reverify ({compareFilterCounts.hasResult})</option>
+            </select>
+          </label>
+          <label className="category-select inline-control">
             Category
             <select value={category} onChange={(e) => { setCategory(e.target.value); setSelected(new Set()); }}>
               <option value="all">All categories ({visibleOperations.length})</option>
@@ -1690,8 +1764,16 @@ export default function GeneratePage({
             <input type="checkbox" checked={skipPassed} onChange={(e) => setSkipPassed(e.target.checked)} />
             Skip passed
           </label>
-          {(sourceKinds.size > 0 || category !== "all") && (
-            <button type="button" onClick={() => { setSourceKinds(new Set()); setCategory("all"); setSelected(new Set()); }}>
+          {(sourceKinds.size > 0 || category !== "all" || compareFilter !== "all") && (
+            <button
+              type="button"
+              onClick={() => {
+                setSourceKinds(new Set());
+                setCategory("all");
+                setCompareFilter("all");
+                setSelected(new Set());
+              }}
+            >
               Reset filters
             </button>
           )}
@@ -1724,21 +1806,8 @@ export default function GeneratePage({
 
       <div className="actions">
         <button type="button" className="primary" disabled={running} onClick={() => run(false)}>
-          {running ? "Running…" : "Generate"}
+          {running ? "Running…" : "Generate from API"}
         </button>
-        <button type="button" className="primary outline" disabled={running} onClick={() => run(true)}>
-          {running ? "Running…" : "Generate & validate"}
-        </button>
-        {running && job?.id && (
-          <button
-            type="button"
-            className="primary outline"
-            onClick={() => void abortGenerate()}
-            title="Stop the current Generate / Generate & validate job"
-          >
-            Close / abort ✕
-          </button>
-        )}
         <button
           type="button"
           className="primary outline"
@@ -1750,12 +1819,21 @@ export default function GeneratePage({
           }
           onClick={() => openUiTrigger()}
         >
-          Generate in UI
+          Generate from UI
         </button>
-        <button type="button" className="primary outline" disabled={lastRunBusy} onClick={onShowLastRun}>
-          {lastRunBusy ? "Loading…" : "Generation Status"}
-        </button>
-        {job && <span className={`status-pill ${job.status}`}>{job.status}</span>}
+        {running && job?.id && (
+          <button
+            type="button"
+            className="primary outline"
+            onClick={() => void abortGenerate()}
+            title="Stop the current API generate job"
+          >
+            Close / abort ✕
+          </button>
+        )}
+        {(job || uiJob) && (
+          <span className={`status-pill ${(job || uiJob)?.status}`}>{(job || uiJob)?.status}</span>
+        )}
       </div>
 
       {error && <p className="error">{error}</p>}
@@ -1779,12 +1857,23 @@ export default function GeneratePage({
         <details className="operation-summary-details generation-log-details" open>
           <summary style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span>
-              UI trigger log · Job {uiJob.id.slice(0, 8)}
+              Generation log · UI · Job {uiJob.id.slice(0, 8)}
               {" · "}
               <span className={`status-pill ${uiJob.status}`}>{uiJob.status}</span>
               {uiJob.verification?.ready ? " · correlation ready" : ""}
               {uiJob.verification?.generate_run_saved ? " · Generation Status saved" : ""}
-              {" · stays open after browser closes"}
+              {(() => {
+                const rs = (uiJob.agent as { run_summary?: { ok?: number; failed?: number; pending?: number } })
+                  ?.run_summary;
+                if (!rs || (rs.ok == null && rs.failed == null && rs.pending == null)) return null;
+                return (
+                  <>
+                    {" · "}
+                    {rs.ok ?? 0} passed · {rs.failed ?? 0} failed
+                    {(rs.pending ?? 0) > 0 ? ` · ${rs.pending} pending` : ""}
+                  </>
+                );
+              })()}
             </span>
             <button
               type="button"
@@ -1796,7 +1885,7 @@ export default function GeneratePage({
                 e.stopPropagation();
                 void closeUiSession();
               }}
-              title="Stop polling and dismiss this Generate-in-UI session"
+              title="Stop polling and dismiss this Generate-from-UI session"
             >
               Close session ✕
             </button>
@@ -1892,8 +1981,7 @@ export default function GeneratePage({
       {job && (
         <details className="operation-summary-details generation-log-details" open>
           <summary>
-            Live generation log · Job {job.id.slice(0, 8)}
-            {!!job.params.validate ? " · generate + validate" : ""}
+            Generation log · API · Job {job.id.slice(0, 8)}
             {" · "}
             <span className={`status-pill ${job.status}`}>{job.status}</span>
             {job.error ? ` · ${job.error}` : ""}
@@ -1910,7 +1998,10 @@ export default function GeneratePage({
           <details className="operation-summary-details" open>
             <summary>
               Generation Status
-              {isValidateMode ? " · generate + validate" : " · generate only"}
+              {" · "}
+              scenarios {statusRows.length}
+              {" · "}
+              landed {scenariosWithLanding}
               {isValidateMode && (
                 <>
                   {" · "}
@@ -1919,18 +2010,21 @@ export default function GeneratePage({
                   FAIL: {scenarioSummary?.fail ?? runReport?.summary?.fail ?? runReport?.summary?.needs_work ?? 0}
                   {" · "}
                   N/A: {scenarioSummary?.na ?? runReport?.summary?.na ?? 0}
-                  {(scenarioSummary?.total ?? runReport?.summary?.total) != null &&
-                    ` / ${scenarioSummary?.total ?? runReport?.summary?.total}`}
                 </>
               )}
-              {!isValidateMode && (
-                <>
-                  {" · "}
-                  scenarios {statusRows.length}
-                  {" · "}
-                  landed {scenariosWithLanding}
-                </>
-              )}
+              {" · "}
+              <button
+                type="button"
+                className="link-btn"
+                disabled={lastRunBusy}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void onShowLastRun();
+                }}
+              >
+                {lastRunBusy ? "Refreshing…" : "Refresh"}
+              </button>
             </summary>
             <div className="mongo-status generation-status-actions">
               <button type="button" className="link-btn" onClick={exportStatusCsv}>

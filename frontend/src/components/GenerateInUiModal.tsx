@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   fetchCasepilotStatus,
   fetchUiTestrailMap,
+  listGenerateInUi,
   startGenerateInUi,
   type UiTriggerJob,
   type UiTriggerSelectionItem,
@@ -111,9 +112,13 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
   /** headed = visible browser (default); headless = no UI window */
   const [browserMode, setBrowserMode] = useState<"headed" | "headless">("headed");
   /** default = PP cap / CASEPILOT_MAX_PARALLEL; 1 = serial */
-  const [parallelMode, setParallelMode] = useState<"default" | "1" | "2" | "3" | "4">("default");
+  const [parallelMode, setParallelMode] = useState<"default" | "1" | "2" | "3" | "4">(
+    selection.length > 1 ? "1" : "default",
+  );
   const [defaultParallel, setDefaultParallel] = useState<number | null>(null);
   const closedRef = useRef(false);
+  const submitRef = useRef(false);
+  const [activeUiJobId, setActiveUiJobId] = useState<string | null>(null);
 
   function requestClose() {
     closedRef.current = true;
@@ -124,6 +129,30 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
   useEffect(() => {
     setRows(initialRows);
   }, [initialRows]);
+
+  useEffect(() => {
+    if (selection.length > 1) {
+      setParallelMode("1");
+    }
+  }, [selection.length]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listGenerateInUi()
+      .then((data) => {
+        if (cancelled) return;
+        const active = (data.jobs || []).find((j) =>
+          ["queued", "running", "pending_agent"].includes(String(j.status || "")),
+        );
+        setActiveUiJobId(active?.id || null);
+      })
+      .catch(() => {
+        if (!cancelled) setActiveUiJobId(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -180,11 +209,13 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitRef.current || busy) return;
     if (missingCase) {
       setError("Each scenario needs a TestRail case id.");
       return;
     }
     closedRef.current = false;
+    submitRef.current = true;
     setBusy(true);
     setError("");
     try {
@@ -235,6 +266,7 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
       if (closedRef.current) return;
       setError(formatCasepilotError(err instanceof Error ? err.message : String(err)));
     } finally {
+      submitRef.current = false;
       setBusy(false);
     }
   }
@@ -245,10 +277,10 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
         className="modal-card generate-ui-modal generate-ui-modal-wide"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Generate in UI"
+        aria-label="Generate from UI"
       >
         <div className="modal-head">
-          <strong>Generate in UI</strong>
+          <strong>Generate from UI</strong>
           <button type="button" className="link-btn" onClick={requestClose}>
             close ✕
           </button>
@@ -261,6 +293,19 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
         <p className={`small ${mcpOk ? "ok" : mcpOk === false ? "error" : "muted"}`}>
           {mcpDetail || "Checking CasePilot…"}
         </p>
+        {activeUiJobId ? (
+          <p className="small warn">
+            Another Generate-in-UI session is active ({activeUiJobId.slice(0, 8)}). Sending will
+            stop that batch on the connector and start this one. Use Close session on the log
+            panel if you want to cancel without starting a new run.
+          </p>
+        ) : null}
+        {rows.length > 1 ? (
+          <p className="muted small">
+            Multi-event batch: set <strong>Parallel browsers</strong> to 2–4 to run cases concurrently
+            on CasePilot (~10 min for 5). Serial (1) runs one-after-another (~8 min/case).
+          </p>
+        ) : null}
 
         <form onSubmit={onSubmit} className="token-cred-form">
           <label style={{ display: "block", marginBottom: 12, maxWidth: 360 }}>

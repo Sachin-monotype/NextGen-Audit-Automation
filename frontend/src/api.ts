@@ -98,6 +98,8 @@ export type TokenStatus = {
     gcid?: string;
     email?: string;
     has_password?: string;
+    grant_type?: string;
+    token_url?: string;
   };
 };
 
@@ -235,13 +237,16 @@ export type LatestComparisonItem = {
   rows: ComparisonRow[];
 };
 
-export async function fetchLatestResults() {
-  const res = await fetch(`${API}/api/results/latest`);
+export async function fetchLatestResults(target?: string) {
+  const qs = target ? `?target=${encodeURIComponent(target)}` : "";
+  const res = await fetch(`${API}/api/results/latest${qs}`);
   return res.json() as Promise<{
     operations: string[];
     items: LatestComparisonItem[];
     rows: ComparisonRow[];
     count: number;
+    audit_target?: string;
+    available_targets?: string[];
   }>;
 }
 
@@ -414,6 +419,12 @@ export async function fetchGenerateInUi(jobId: string) {
   const res = await fetch(`${API}/api/jobs/generate-ui/${encodeURIComponent(jobId)}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<UiTriggerJob>;
+}
+
+export async function listGenerateInUi() {
+  const res = await fetch(`${API}/api/jobs/generate-ui`);
+  const data = await res.json();
+  return data as { jobs?: UiTriggerJob[]; count?: number; error?: string };
 }
 
 export async function recordGenerateInUiResults(
@@ -600,6 +611,8 @@ export type IngestionConsumer = {
   name: string;
   queue: string;
   collection: string;
+  target?: string;
+  vhost?: string;
   connected: boolean;
   consumed: number;
   inserted: number;
@@ -613,6 +626,15 @@ export type IngestionStatus = {
   running: boolean;
   started_at: number | null;
   mongo_connected: boolean | null;
+  mongo_databases?: string[];
+  ingest_targets?: string[];
+  ingest_lanes?: Array<{ target: string; vhost: string; mongo_db: string }>;
+  multi_target?: boolean;
+  auto_purge_enabled?: boolean;
+  auto_purge_interval_sec?: number;
+  auto_purge_min_ready?: number;
+  auto_purge_total?: number;
+  last_auto_purge_at?: number | null;
   rabbitmq_connected: boolean;
   max_docs_per_operation?: number;
   cleanup_interval_sec?: number;

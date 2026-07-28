@@ -18,6 +18,10 @@ def normalize_touchpoint(touch: str) -> str:
         return "discovery"
     if "favourite" in t or "favorite" in t:
         return "favourite"
+    if ("app" in t or "desktop" in t or "connect" in t) and (
+        "global" in t or "discover" in t or "search" in t
+    ):
+        return "global_app"
     if "project" in t and "list" in t:
         return "project_list"
     if t.strip() == "project" or t.startswith("project "):
@@ -31,7 +35,7 @@ def expected_activate_family_input_keys(touch: str) -> dict[str, Any]:
     """Return required keys / value predicates for activateFamily raw input."""
     kind = normalize_touchpoint(touch)
     base = {"familyIds": list, "activationType": str}
-    if kind == "discovery":
+    if kind in {"discovery", "global_app"}:
         return {**base, "_forbid": ("listIds", "listType", "projectId")}
     if kind == "favourite":
         return {**base, "listType": "FAVORITE", "_forbid": ("listIds",)}

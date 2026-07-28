@@ -9,10 +9,9 @@ import {
   fetchJob,
   fetchJobs,
   fetchLatestResults,
+  fetchPipelineConfig,
   deleteLatestResult,
   exportComparisonExcel,
-  restoreResultsFromJobs,
-  startCompare,
   type CategoryReport,
   type ComparableOperation,
   type ComparisonRow,
@@ -204,14 +203,6 @@ function rowMatchesFieldSearch(row: ComparisonRow, query: string): boolean {
   );
 }
 
-function formatComparedAt(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
-  }
-}
-
 function loadTrack(): Record<string, TrackStatus> {
   try {
     const raw = localStorage.getItem(TRACK_KEY);
@@ -259,6 +250,9 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterEnv, setFilterEnv] = useState<string[]>([]);
   const [filterService, setFilterService] = useState<string[]>([]);
+  /** PP / QA / UAT — Results store is per audit target so stores never mix. */
+  const [resultsTarget, setResultsTarget] = useState("pp");
+  const [availableTargets, setAvailableTargets] = useState<string[]>(["pp", "qa", "uat"]);
   const [categories, setCategories] = useState<CategoryReport | null>(null);
   const [opMeta, setOpMeta] = useState<ComparableOperation[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -301,28 +295,23 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   }
 
   const loadLatest = useCallback(() => {
-    fetchLatestResults()
-      .then(setLatest)
+    fetchLatestResults(resultsTarget)
+      .then((data) => {
+        setLatest(data);
+        if (data.audit_target) setResultsTarget(data.audit_target);
+        if (data.available_targets?.length) setAvailableTargets(data.available_targets);
+      })
       .catch(() => setLatest(null));
-  }, []);
+  }, [resultsTarget]);
 
-  const verifyOperation = useCallback(
-    async (operation: string) => {
-      setVerifyBusyOp(operation);
-      setRefreshError("");
-      try {
-        const job = await startCompare([operation]);
-        setRefreshJobId(job.id);
-        setActiveId(job.id);
-        setSourceMode("latest");
-      } catch (e) {
-        setRefreshError(String(e));
-      } finally {
-        setVerifyBusyOp(null);
-      }
-    },
-    [],
-  );
+  useEffect(() => {
+    fetchPipelineConfig()
+      .then((cfg) => {
+        const t = (cfg.target || "pp").toLowerCase();
+        if (t) setResultsTarget(t);
+      })
+      .catch(() => {});
+  }, []);
 
   const [deletingOp, setDeletingOp] = useState<string | null>(null);
   /** Bulk-select operations in the coverage table for deletion. */
@@ -330,8 +319,6 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const [exportBusy, setExportBusy] = useState(false);
   const [refreshJobId, setRefreshJobId] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState("");
-  const [restoreBusy, setRestoreBusy] = useState(false);
-  const [verifyBusyOp, setVerifyBusyOp] = useState<string | null>(null);
   /** When Compare hands us the compared ops, limit the coverage list to those. */
   const [highlightActive, setHighlightActive] = useState(false);
   const highlightSet = useMemo(
@@ -856,6 +843,20 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
 
       <div className="filter-row compare-filter-row">
         <label className="filter-field">
+          <span>audit env</span>
+          <select
+            value={resultsTarget}
+            onChange={(e) => setResultsTarget(e.target.value)}
+            title="Show Results for this audit target (PP / QA / UAT stores are separate)"
+          >
+            {availableTargets.map((t) => (
+              <option key={t} value={t}>
+                {t.toUpperCase()}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="filter-field">
           <span>view</span>
           <select
             value={sourceMode}
@@ -891,7 +892,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
           </select>
         </label>
         <MultiSelect
-          label="environment"
+          label="platform"
           options={environmentOptions}
           selected={filterEnv}
           onChange={setFilterEnv}
@@ -915,46 +916,6 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
           <button type="button" onClick={clearFilters}>Clear</button>
         </div>
       </div>
-
-      {sourceMode === "latest" && (
-        <p className="result-source-banner">
-          Showing the <strong>latest stored comparison for each operation</strong>
-          {latest?.count ? ` (${latest.count} operation${latest.count === 1 ? "" : "s"})` : ""}.
-          {refreshJobId ? (
-            <> Compare in progress… snapshots update here as each operation finishes.</>
-          ) : (
-            <> Run Compare from the Compare tab; results appear here automatically.</>
-          )}
-        </p>
-      )}
-
-      {sourceMode === "latest" && (latest?.count ?? 0) < 100 && (
-        <div className="banner warn" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <span>
-            Only <strong>{latest?.count ?? 0}</strong> stored comparison
-            {(latest?.count ?? 0) === 1 ? "" : "s"} — restore rehydrates completed compare jobs from the last 7 days.
-          </span>
-          <button
-            type="button"
-            className="primary outline"
-            disabled={restoreBusy}
-            onClick={() => {
-              setRestoreBusy(true);
-              setRefreshError("");
-              void restoreResultsFromJobs()
-                .then((r) => {
-                  if (r.error) setRefreshError(r.error);
-                  else loadLatest();
-                })
-                .catch((e) => setRefreshError(String(e)))
-                .finally(() => setRestoreBusy(false));
-            }}
-          >
-            {restoreBusy ? "Restoring…" : "Restore last 7 days"}
-          </button>
-          <span className="muted">For 300+ ops use Compare → Compare all pairable.</span>
-        </div>
-      )}
 
       {refreshError && <p className="error">{refreshError}</p>}
 
@@ -1397,18 +1358,16 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                   <th>Category</th>
                   <th>Env</th>
                   <th>Service</th>
-                  <th>Compared</th>
                   <th>PASS</th>
                   <th>FAIL</th>
                   <th>SKIP</th>
-                  <th title="Run or re-run source comparison for this operation">Verify</th>
                   <th className="coverage-col-narrow" title="Review status">✓</th>
                 </tr>
               </thead>
               <tbody>
                 {coverageRows.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="muted">
+                    <td colSpan={9} className="muted">
                       No operations match this coverage filter.
                     </td>
                   </tr>
@@ -1435,9 +1394,6 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                     <td>{r.category}</td>
                     <td>{r.environment}</td>
                     <td>{r.service}</td>
-                    <td className="coverage-compared" title={r.comparedAt || undefined}>
-                      {r.comparedAt ? formatComparedAt(r.comparedAt) : "—"}
-                    </td>
                     <td>
                       <button
                         type="button"
@@ -1469,32 +1425,6 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                       >
                         <span className={`badge ${r.skipped ? "skip" : "na"}`}>{r.skipped}</span>
                       </button>
-                    </td>
-                    <td className="coverage-verify-cell">
-                      {r.comparedAt ? (
-                        <span style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
-                          <span className="badge pass" title={`Compared ${r.comparedAt}`}>
-                            ✓ Compared
-                          </span>
-                          <button
-                            type="button"
-                            className="link-btn"
-                            disabled={verifyBusyOp === r.operation || Boolean(refreshJobId)}
-                            onClick={() => void verifyOperation(r.operation)}
-                          >
-                            {verifyBusyOp === r.operation ? "Starting…" : "Reverify"}
-                          </button>
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          className="link-btn"
-                          disabled={verifyBusyOp === r.operation || Boolean(refreshJobId)}
-                          onClick={() => void verifyOperation(r.operation)}
-                        >
-                          {verifyBusyOp === r.operation ? "Starting…" : "Verify"}
-                        </button>
-                      )}
                     </td>
                     <td className="coverage-col-narrow">
                       <details className="coverage-track-menu">
@@ -1595,18 +1525,12 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                 const open = expanded.has(operation);
                 const failCount = opRows.filter((r) => r.match_status === "FAIL").length;
                 const total = opRows.length;
-                const comparedAt = comparedAtByOp.get(operation);
                 return (
                   <section key={operation} className="result-group" id={`op-${operation}`}>
                     <button type="button" className="result-group-head" onClick={() => toggleGroup(operation)}>
                       <span className="result-group-title">
                         <span className={`result-status-dot ${failCount ? "fail" : "pass"}`} aria-hidden />
                         {operation}
-                        {comparedAt && sourceMode === "latest" && (
-                          <span className="result-group-compared" title={comparedAt}>
-                            compared {formatComparedAt(comparedAt)}
-                          </span>
-                        )}
                       </span>
                       <span className="result-group-meta">
                         <span className="result-group-fields">{total} field{total === 1 ? "" : "s"}</span>
