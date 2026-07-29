@@ -34,6 +34,12 @@ app = FastAPI(title="NextGen Audit Automation", version="1.1.0")
 
 @app.on_event("startup")
 def _start_background_tasks() -> None:
+    try:
+        from audit_validator.env_profiles import apply_audit_profile
+
+        apply_audit_profile(project_root=settings.audit_project_root)
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning("Audit profile apply on startup failed: %s", exc)
     retention.start()
     # Keep RabbitMQ → Mongo dump running so Generate/Compare always see fresh pairs.
     # Opt out with INGEST_AUTO_START=false if you want pure manual control.

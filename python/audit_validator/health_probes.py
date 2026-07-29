@@ -21,7 +21,7 @@ import socket
 import time
 import uuid
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 import requests
 
@@ -1281,8 +1281,103 @@ def probe_mysql_source() -> dict[str, Any]:
         return result
 
 
+def probe_oauth_token() -> dict[str, Any]:
+    """Issue a Bearer via the active profile (PP password grant or QA client_credentials)."""
+    from audit_validator.auth import (
+        audit_app_token_credentials_curl,
+        jwt_expires_in_hours,
+        oauth_grant_type,
+        oauth_token_form_fields,
+        oauth_token_request_curl,
+    )
+    from audit_validator.env_profiles import get_audit_profile
+
+    profile = get_audit_profile()
+    grant = oauth_grant_type()
+    url, fields = oauth_token_form_fields()
+    encoded_body = urlencode(fields, encoding="utf-8")
+    auth_curl = oauth_token_request_curl(redact_secrets=True)
+    api_port = os.getenv("API_PORT", "3200").strip() or "3200"
+    app_base = f"http://localhost:{api_port}"
+    app_curl = audit_app_token_credentials_curl(base_url=app_base)
+
+    result = _base(
+        "oauth_token",
+        f"OAuth Bearer token ({grant}) · {profile.label}",
+        "api",
+        url,
+        "POST",
+        why=(
+            "Generate / Compare / GraphQL probes need a valid BEARER_TOKEN. "
+            "PP uses Auth0 password grant; QA uses client_credentials (M2M). "
+            "The Generate UI calls POST /api/token/credentials which runs the same OAuth flow."
+        ),
+    )
+    result["sample"] = f"AUDIT_TARGET={profile.name} · grant={grant}"
+    result["curl"] = auth_curl
+    result["app_curl"] = app_curl
+    result["request"] = {
+        "method": "POST",
+        "url": url,
+        "headers": {"Content-Type": "application/x-www-form-urlencoded"},
+        "params": {},
+        "body": encoded_body,
+        "content_type": "application/x-www-form-urlencoded",
+    }
+
+    if grant == "password" and not os.getenv("OAUTH_PASSWORD", "").strip():
+        result.update(
+            detail="OAUTH_PASSWORD not set — cannot test password grant.",
+            hint="Set OAUTH_USERNAME / OAUTH_PASSWORD in .env or use Generate → Bearer credentials.",
+        )
+        return result
+
+    start = time.monotonic()
+    try:
+        from audit_validator.token_manager import _fetch_fresh_token
+
+        token = _fetch_fresh_token()
+        ttl = jwt_expires_in_hours(token)
+        ttl_s = f"{ttl:.1f}h" if ttl is not None else "unknown"
+        result["latency_ms"] = _now_ms(start)
+        result["reachable"] = True
+        result["status_code"] = 200
+        result.update(
+            state="ok",
+            ok=True,
+            detail=f"Issued JWT · expires in {ttl_s} · len={len(token)}",
+            response_snippet=(token[:120] + "…") if len(token) > 120 else token,
+        )
+        result["hint"] = (
+            f"Auth0 curl (redacted) via Copy curl · "
+            f"app wrapper: POST {app_base}/api/token/credentials"
+        )
+        return result
+    except Exception as exc:  # noqa: BLE001
+        result["latency_ms"] = _now_ms(start)
+        msg = str(exc)
+        if "403" in msg or "401" in msg:
+            result.update(
+                state="error",
+                reachable=True,
+                ok=False,
+                detail=f"Auth0 rejected credentials: {exc}",
+                hint="Check OAUTH_CLIENT_ID/SECRET (QA) or OAUTH_USERNAME/PASSWORD (PP).",
+            )
+        else:
+            result.update(
+                state="error",
+                reachable=False,
+                ok=False,
+                detail=f"Token request failed: {exc}",
+                hint="See Copy curl — verify AUDIT_TARGET matches the environment you expect.",
+            )
+        return result
+
+
 _PROBES = {
     "rabbitmq": probe_rabbitmq,
+    "oauth_token": probe_oauth_token,
     "graphql": probe_graphql,
     "ingress": probe_ingress,
     "mysql_source": probe_mysql_source,

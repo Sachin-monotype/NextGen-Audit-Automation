@@ -21,7 +21,21 @@ DEFAULT_OAUTH = {
 
 
 def resolve_oauth_config() -> dict[str, str]:
-    """Active OAuth client settings (OAUTH_* with AUTH0_* aliases)."""
+    """Active OAuth client settings — follows AUDIT_TARGET profile when strict (default)."""
+    from audit_validator.env_profiles import get_audit_profile
+
+    strict = os.getenv("AUDIT_TARGET_STRICT", "true").strip().lower() not in {"0", "false", "no"}
+    if strict:
+        o = get_audit_profile().oauth
+        return {
+            "token_url": o.token_url,
+            "client_id": o.client_id,
+            "client_secret": o.client_secret,
+            "audience": o.audience,
+            "grant_type": o.grant_type.strip().lower(),
+            "organization": (o.organization or "").strip(),
+        }
+
     return {
         "token_url": (
             os.getenv("OAUTH_TOKEN_URL")
@@ -68,10 +82,13 @@ def oauth_token_kwargs(cfg: dict[str, Any] | None = None) -> dict[str, str]:
         val = c.get(key)
         if val:
             out[key] = str(val)
-    org = str(c.get("organization") or "").strip()
-    if org:
-        out["organization"] = org
     return out
+
+
+def oauth_organization(cfg: dict[str, Any] | None = None) -> str:
+    """Auth0 organization id for client_credentials grant (not used in password grant)."""
+    c = cfg or resolve_oauth_config()
+    return str(c.get("organization") or "").strip()
 
 
 def _strip_bearer(value: str) -> str:
@@ -495,12 +512,117 @@ def fetch_oauth_token_client_credentials(
     return str(token)
 
 
+def oauth_token_form_fields(
+    *,
+    grant_type: str | None = None,
+    username: str = "",
+    password: str = "",
+    org: str = "",
+    gcid: str = "",
+) -> tuple[str, list[tuple[str, str]]]:
+    """Build OAuth token POST body fields for the active AUDIT_TARGET profile."""
+    cfg = resolve_oauth_config()
+    url = cfg["token_url"]
+    gt = (grant_type or cfg["grant_type"] or "password").strip().lower()
+    if gt == "client_credentials":
+        fields: list[tuple[str, str]] = [
+            ("grant_type", "client_credentials"),
+            ("client_id", cfg["client_id"]),
+            ("client_secret", cfg["client_secret"]),
+            ("audience", cfg["audience"]),
+        ]
+        org_val = (cfg.get("organization") or "").strip()
+        if org_val and os.getenv("OAUTH_CLIENT_CREDENTIALS_INCLUDE_ORG", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            fields.append(("organization", org_val))
+        return url, fields
+
+    user = (username or os.getenv("OAUTH_USERNAME", "")).strip()
+    pwd = (password or os.getenv("OAUTH_PASSWORD", "")).strip()
+    merged_org = (org or os.getenv("OAUTH_ORG", "")).strip()
+    merged_gcid = (gcid or os.getenv("OAUTH_GCID", "")).strip()
+    fields = [
+        ("grant_type", "password"),
+        ("client_id", cfg["client_id"]),
+        ("client_secret", cfg["client_secret"]),
+        ("audience", cfg["audience"]),
+        ("username", user),
+        ("password", pwd),
+        ("scope", "openid profile email offline_access"),
+    ]
+    if merged_org:
+        fields.append(("t_organization", merged_org))
+    if merged_gcid:
+        fields.append(("gcid", merged_gcid))
+    return url, fields
+
+
+def oauth_token_request_curl(
+    *,
+    grant_type: str | None = None,
+    username: str = "",
+    password: str = "",
+    org: str = "",
+    gcid: str = "",
+    redact_secrets: bool = True,
+) -> str:
+    """Runnable curl for the Auth0 token endpoint (secrets redacted by default)."""
+    url, fields = oauth_token_form_fields(
+        grant_type=grant_type,
+        username=username,
+        password=password,
+        org=org,
+        gcid=gcid,
+    )
+    encoded_fields: list[tuple[str, str]] = []
+    for key, val in fields:
+        if redact_secrets and key in {"client_secret", "password"}:
+            val = "***"
+        encoded_fields.append((key, val))
+    body = urllib.parse.urlencode(encoded_fields, encoding="utf-8")
+    return (
+        f"curl -X POST '{url}' \\\n"
+        f"  -H 'Content-Type: application/x-www-form-urlencoded' \\\n"
+        f"  -d '{body}'"
+    )
+
+
+def audit_app_token_credentials_curl(
+    *,
+    base_url: str = "http://localhost:3200",
+    username: str = "",
+    password: str = "",
+    org: str = "",
+    gcid: str = "",
+) -> str:
+    """Runnable curl for POST /api/token/credentials (Generate UI Bearer modal)."""
+    import json
+
+    payload = {
+        "username": username or os.getenv("OAUTH_USERNAME", ""),
+        "password": "***" if (password or os.getenv("OAUTH_PASSWORD", "")) else "",
+        "org": org or os.getenv("OAUTH_ORG", ""),
+        "gcid": gcid or os.getenv("OAUTH_GCID", ""),
+    }
+    body = json.dumps(payload)
+    return (
+        f"curl -X POST '{base_url.rstrip('/')}/api/token/credentials' \\\n"
+        f"  -H 'Content-Type: application/json' \\\n"
+        f"  -d '{body}'"
+    )
+
+
 def fetch_oauth_token(
     *,
     username: str,
     password: str,
-    org: str,
-    gcid: str,
+    org: str = "",
+    organization: str = "",
+    gcid: str = "",
     token_url: str | None = None,
     client_id: str | None = None,
     client_secret: str | None = None,
@@ -508,6 +630,7 @@ def fetch_oauth_token(
 ) -> str:
     cfg = resolve_oauth_config()
     url = token_url or cfg["token_url"]
+    merged_org = (org or organization or "").strip()
     fields = [
         ("grant_type", "password"),
         ("client_id", client_id or cfg["client_id"]),
@@ -520,8 +643,8 @@ def fetch_oauth_token(
     # org / gcid are optional — when the caller supplies only username + password,
     # Auth0 resolves the user's default org and the resulting JWT carries the real
     # t_organization / gcid claims (which we then read back).
-    if org:
-        fields.append(("t_organization", org))
+    if merged_org:
+        fields.append(("t_organization", merged_org))
     if gcid:
         fields.append(("gcid", gcid))
     body = urllib.parse.urlencode(fields, encoding="utf-8")
@@ -560,8 +683,12 @@ def refresh_env_tokens(project_root: Path) -> dict[str, str]:
 
     common = resolve_oauth_config()
     oauth_kw = oauth_token_kwargs(common)
+    org_cfg = oauth_organization(common)
     if common["grant_type"] == "client_credentials":
-        primary = fetch_oauth_token_client_credentials(**oauth_kw)
+        m2m_org = org_cfg if os.getenv(
+            "OAUTH_CLIENT_CREDENTIALS_INCLUDE_ORG", ""
+        ).strip().lower() in {"1", "true", "yes", "on"} else ""
+        primary = fetch_oauth_token_client_credentials(**oauth_kw, organization=m2m_org)
         secondary = ""
     else:
         if not all([username, password, org, gcid]):
@@ -569,7 +696,7 @@ def refresh_env_tokens(project_root: Path) -> dict[str, str]:
                 "Set OAUTH_USERNAME, OAUTH_PASSWORD, OAUTH_ORG, and OAUTH_GCID in .env"
             )
         primary = fetch_oauth_token(
-            username=username, password=password, org=org, gcid=gcid, **oauth_kw
+            username=username, password=password, org=org or org_cfg, gcid=gcid, **oauth_kw
         )
         time.sleep(1)
         secondary_user = os.getenv("OAUTH_SECONDARY_USERNAME", "").strip()

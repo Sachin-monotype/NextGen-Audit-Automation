@@ -51,8 +51,8 @@ def connect_log_capture_enabled() -> bool:
 
 
 def connect_log_prepare_mode() -> str:
-    """``truncate`` (archive + clear) or ``offset`` (non-destructive byte marker)."""
-    mode = (os.getenv("CONNECT_LOG_PREPARE") or "truncate").strip().lower()
+    """``offset`` (byte marker, safe with open Serilog handles) or ``truncate`` (archive + clear)."""
+    mode = (os.getenv("CONNECT_LOG_PREPARE") or "offset").strip().lower()
     return "offset" if mode == "offset" else "truncate"
 
 
@@ -199,17 +199,67 @@ def prepare_connect_log_baseline(
     )
 
 
-def parse_events_since_baseline(
-    baseline: ConnectLogBaseline,
+def _baseline_captured_dt(baseline: ConnectLogBaseline) -> datetime | None:
+    raw = (baseline.captured_at or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _event_after_baseline(ev: ConnectLogEvent, captured: datetime) -> bool:
+    if ev.occurred_at:
+        try:
+            at = datetime.fromisoformat(ev.occurred_at.replace("Z", "+00:00"))
+            return at >= captured
+        except ValueError:
+            pass
+    return True
+
+
+def _candidate_log_paths(baseline: ConnectLogBaseline) -> list[Path]:
+    """Primary log plus archives / sibling files touched after baseline (truncate recovery)."""
+    primary = Path(baseline.path).expanduser()
+    out: list[Path] = []
+    seen: set[str] = set()
+    captured = _baseline_captured_dt(baseline)
+
+    def _add(path: Path) -> None:
+        if not path.is_file():
+            return
+        key = str(path.resolve())
+        if key in seen:
+            return
+        seen.add(key)
+        out.append(path)
+
+    _add(primary)
+    if baseline.archive_path:
+        _add(Path(baseline.archive_path).expanduser())
+
+    log_dir = primary.parent
+    if log_dir.is_dir():
+        for path in sorted(log_dir.glob("file-*.log*"), key=lambda p: p.stat().st_mtime, reverse=True):
+            if captured:
+                mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+                if mtime < captured:
+                    continue
+            _add(path)
+    return out
+
+
+def _parse_log_segment(
+    path: Path,
     *,
+    byte_offset: int = 0,
     operations: set[str] | None = None,
 ) -> list[ConnectLogEvent]:
-    """Parse ingress audit events appended after the baseline offset."""
-    path = Path(baseline.path).expanduser()
     if not path.is_file():
         return []
     size = path.stat().st_size
-    start = max(0, int(baseline.byte_offset))
+    start = max(0, int(byte_offset))
     if size <= start:
         return []
     with path.open("rb") as fh:
@@ -228,6 +278,57 @@ def parse_events_since_baseline(
             tmp_path.unlink(missing_ok=True)
         except OSError:
             pass
+
+
+def parse_events_since_baseline(
+    baseline: ConnectLogBaseline,
+    *,
+    operations: set[str] | None = None,
+) -> list[ConnectLogEvent]:
+    """Parse ingress audit events appended after the baseline offset."""
+    primary = Path(baseline.path).expanduser()
+    captured = _baseline_captured_dt(baseline)
+    merged: list[ConnectLogEvent] = []
+    seen: set[str] = set()
+
+    for path in _candidate_log_paths(baseline):
+        if path.resolve() == primary.resolve():
+            events = _parse_log_segment(path, byte_offset=baseline.byte_offset, operations=operations)
+        else:
+            events = parse_connect_service_log(path, operations=operations)
+            if captured:
+                events = [e for e in events if _event_after_baseline(e, captured)]
+        for ev in events:
+            key = f"{ev.x_correlation_id.lower()}:{ev.operation}"
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(ev)
+    return merged
+
+
+def connect_log_harvest_stale_sec() -> int:
+    return max(30, int(os.getenv("CONNECT_LOG_HARVEST_STALE_SEC", "45") or "45"))
+
+
+def should_resume_connect_log_harvest(job: dict[str, Any]) -> bool:
+    """True when harvest was scheduled but the background worker likely died (e.g. uvicorn reload)."""
+    cap = job.get("connect_log_capture")
+    if not isinstance(cap, dict):
+        return False
+    if str(cap.get("status") or "") != "harvesting":
+        return False
+    if cap.get("harvest"):
+        return False
+    updated_raw = str(job.get("updated_at") or cap.get("harvest_started_at") or "")
+    if not updated_raw:
+        return True
+    try:
+        updated = datetime.fromisoformat(updated_raw.replace("Z", "+00:00"))
+    except ValueError:
+        return True
+    age = (datetime.now(timezone.utc) - updated).total_seconds()
+    return age >= connect_log_harvest_stale_sec()
 
 
 def _latest_event_for_operation(events: list[ConnectLogEvent], operation: str) -> ConnectLogEvent | None:
@@ -306,14 +407,23 @@ def wait_for_connect_log_events(
         f"▸ Connect log harvest started · expected={expected_ops or 'any'} · "
         f"timeout={timeout}s · poll={interval}s"
     )
+    scan_paths = _candidate_log_paths(baseline)
+    if len(scan_paths) > 1:
+        _log(f"▸ Scanning {len(scan_paths)} log file(s) (truncate recovery / archives)")
+    if baseline.mode == "truncate":
+        _log(
+            "⚠ CONNECT_LOG_PREPARE=truncate can leave Serilog writing to a 0-byte file — "
+            "prefer offset mode if harvest finds nothing"
+        )
 
     while time.monotonic() < deadline:
         polls += 1
         events = parse_events_since_baseline(baseline, operations=op_filter)
         groups = group_by_operation(events)
         found_ops = {op for op in expected_ops if op in groups and groups[op].correlation_ids}
-        size = Path(baseline.path).stat().st_size if Path(baseline.path).is_file() else 0
-        last_sizes.append(size)
+        sizes = [p.stat().st_size for p in scan_paths if p.is_file()]
+        total_size = sum(sizes)
+        last_sizes.append(total_size)
         if len(last_sizes) > 4:
             last_sizes = last_sizes[-4:]
         stable = len(last_sizes) >= 2 and last_sizes[-1] == last_sizes[-2]
@@ -356,9 +466,11 @@ def wait_for_connect_log_events(
             return result
 
         if polls == 1 or polls % 4 == 0:
+            primary_sz = Path(baseline.path).stat().st_size if Path(baseline.path).is_file() else 0
             _log(
                 f"… waiting for Connect log · found={len(events)} event(s) · "
                 f"ops={sorted(found_ops) if found_ops else '—'} · "
+                f"primary={primary_sz}B · total={total_size}B · "
                 f"elapsed={time.monotonic() - started:.0f}s"
             )
         time.sleep(interval)
@@ -382,11 +494,13 @@ def wait_for_connect_log_events(
     return result
 
 
-def schedule_connect_log_harvest(project_root: Path, job_id: str) -> bool:
+def schedule_connect_log_harvest(project_root: Path, job_id: str, *, force: bool = False) -> bool:
     """Background poll + merge harvested cids into a UI trigger job."""
     with _HARVEST_LOCK:
-        if job_id in _HARVEST_SCHEDULED:
+        if job_id in _HARVEST_SCHEDULED and not force:
             return False
+        if force:
+            _HARVEST_SCHEDULED.discard(job_id)
         _HARVEST_SCHEDULED.add(job_id)
 
     def _worker() -> None:
@@ -406,6 +520,10 @@ def schedule_connect_log_harvest(project_root: Path, job_id: str) -> bool:
             baseline = ConnectLogBaseline.from_dict(cap)
             if not baseline:
                 return
+            cap["harvest_started_at"] = _now()
+            cap["status"] = "harvesting"
+            job["connect_log_capture"] = cap
+            _write_job(project_root, job)
             selection = [s for s in (job.get("selection") or []) if isinstance(s, dict)]
 
             def _progress(msg: str) -> None:

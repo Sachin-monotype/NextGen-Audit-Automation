@@ -31,7 +31,7 @@ QA_OAUTH = OAuthProfile(
     client_id="LhfeUMNRvHeb0pbefR5YlvRUeV6Fk100",
     client_secret="I9ycmyvb4ztc_1s_9AgmjzGSOzAG2uEH5TzY2GtNKUiehXv3YjLZzX9h4W0UN07v",
     audience="https://api.monotype.com",
-    organization="org_N6FdVIbUd6dYuJwM",
+    organization="",
     grant_type="client_credentials",
 )
 
@@ -140,6 +140,7 @@ QA = AuditTargetProfile(
     mongo_db_name="AuditLogsQA",
     oauth=QA_OAUTH,
     oauth_username="mem.auditqatest@gmail.com",
+    user_oauth=PP_OAUTH,
 )
 
 EVEREST_DEV = AuditTargetProfile(

@@ -1257,22 +1257,39 @@ def _begin_connect_log_capture(
             f"  xCorrelationId will be harvested from Connect logs after UI run "
             f"(poll up to {int(os.getenv('CONNECT_LOG_SETTLE_SEC', '300') or '300')}s)",
         )
+        if baseline.mode == "truncate":
+            _append_log(
+                job,
+                "  ⚠ truncate mode can prevent Serilog from writing new lines — set "
+                "CONNECT_LOG_PREPARE=offset if harvest finds nothing",
+            )
     except Exception as exc:  # noqa: BLE001
         _append_log(job, f"⚠ Connect log prepare failed: {exc}")
 
 
 def _schedule_connect_log_harvest_if_ready(project_root: Path, job: dict[str, Any]) -> None:
-    from audit_validator.ingress.connect_log_capture import schedule_connect_log_harvest
+    from audit_validator.ingress.connect_log_capture import (
+        schedule_connect_log_harvest,
+        should_resume_connect_log_harvest,
+    )
 
     cap = job.get("connect_log_capture")
     if not isinstance(cap, dict):
         return
-    if str(cap.get("status") or "") != "watching":
+    status = str(cap.get("status") or "")
+    job_id = str(job.get("id") or "")
+    if status == "harvesting":
+        if should_resume_connect_log_harvest(job):
+            _append_log(job, "▸ Resuming Connect log harvest (previous worker interrupted)")
+            _write_job(project_root, job)
+            schedule_connect_log_harvest(project_root, job_id, force=True)
+        return
+    if status != "watching":
         return
     cap["status"] = "harvesting"
     job["connect_log_capture"] = cap
     _write_job(project_root, job)
-    schedule_connect_log_harvest(project_root, str(job.get("id") or ""))
+    schedule_connect_log_harvest(project_root, job_id)
 
 
 def _audit_emit_step(op: str, touch_short: str) -> str:

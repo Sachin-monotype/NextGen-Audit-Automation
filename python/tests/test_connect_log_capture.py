@@ -80,3 +80,23 @@ def test_expected_operations_from_selection() -> None:
         {"operation": "userLogoutApp"},
     ]
     assert expected_operations_from_selection(sel) == ["appClosed", "userLogoutApp"]
+
+
+def test_parse_supplemental_log_when_primary_empty(tmp_path: Path) -> None:
+    """After truncate the primary file may stay 0 bytes; scan sibling/archive logs."""
+    log_dir = tmp_path / "service"
+    log_dir.mkdir()
+    primary = log_dir / "file-20260729.log"
+    primary.write_text("", encoding="utf-8")
+    archive = log_dir / "file-20260729.log.pre-audit.log"
+    archive.write_text(SAMPLE, encoding="utf-8")
+    baseline = ConnectLogBaseline(
+        path=str(primary),
+        byte_offset=0,
+        captured_at="2026-07-29T03:20:00+00:00",
+        mode="truncate",
+        archive_path=str(archive),
+    )
+    events = parse_events_since_baseline(baseline)
+    ops = {e.operation for e in events}
+    assert "appSettingsAutoPerformanceEnabled" in ops

@@ -40,13 +40,27 @@ function requestToCurlOrQuery(req: NonNullable<ApiProbe["request"]>): string {
   }
   const lines = [`curl -X ${method} '${urlStr}'`];
   const headers = req.headers || {};
+  const contentType =
+    req.content_type ||
+    headers["Content-Type"] ||
+    headers["content-type"] ||
+    "";
   for (const [k, v] of Object.entries(headers)) {
     if (v == null || v === "") continue;
     lines.push(`  -H '${k}: ${String(v).replace(/'/g, "'\\''")}'`);
   }
   if (req.body != null && method !== "GET" && method !== "HEAD") {
     const body =
-      typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+      typeof req.body === "string"
+        ? req.body
+        : contentType.includes("x-www-form-urlencoded")
+          ? new URLSearchParams(
+              Object.entries(req.body as Record<string, string>).map(([k, v]) => [k, String(v)])
+            ).toString()
+          : JSON.stringify(req.body);
+    if (contentType && !headers["Content-Type"] && !headers["content-type"]) {
+      lines.push(`  -H 'Content-Type: ${contentType}'`);
+    }
     lines.push(`  -d '${body.replace(/'/g, "'\\''")}'`);
   }
   return lines.join(" \\\n");
@@ -68,6 +82,7 @@ function ProbeCard({
   const [jsonError, setJsonError] = useState("");
   const [customResult, setCustomResult] = useState<ApiProbe | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedApp, setCopiedApp] = useState(false);
 
   useEffect(() => {
     if (probe.request) {
@@ -111,7 +126,19 @@ function ProbeCard({
     }
   }
 
-  function copyCurlOrQuery() {
+  function copyCurlOrQuery(which: "auth" | "app" = "auth") {
+    if (which === "app" && probe.app_curl) {
+      navigator.clipboard.writeText(probe.app_curl);
+      setCopiedApp(true);
+      setTimeout(() => setCopiedApp(false), 1500);
+      return;
+    }
+    if (probe.curl) {
+      navigator.clipboard.writeText(probe.curl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+      return;
+    }
     let req = probe.request;
     if (showEditor && reqText) {
       try {
@@ -131,9 +158,9 @@ function ProbeCard({
   const display = customResult ?? probe;
   const editable = probe.request && probe.method !== "TCP" && probe.method !== "ping";
   const canCopy =
-    !!probe.request &&
-    probe.method !== "TCP" &&
-    probe.method !== "ping";
+    !!probe.curl ||
+    !!probe.app_curl ||
+    (!!probe.request && probe.method !== "TCP" && probe.method !== "ping");
 
   return (
     <div className={`probe-card ${display.state}`}>
@@ -148,13 +175,22 @@ function ProbeCard({
           {busy ? "testing…" : "Test"}
         </button>
         {canCopy && (
-          <button type="button" className="link-btn" onClick={copyCurlOrQuery}>
-            {copied
-              ? "Copied!"
-              : probe.method === "SELECT"
-                ? "Copy query"
-                : "Copy curl"}
-          </button>
+          <>
+            <button type="button" className="link-btn" onClick={() => copyCurlOrQuery("auth")}>
+              {copied
+                ? "Copied!"
+                : probe.method === "SELECT"
+                  ? "Copy query"
+                  : probe.curl
+                    ? "Copy Auth0 curl"
+                    : "Copy curl"}
+            </button>
+            {probe.app_curl && (
+              <button type="button" className="link-btn" onClick={() => copyCurlOrQuery("app")}>
+                {copiedApp ? "Copied!" : "Copy app API curl"}
+              </button>
+            )}
+          </>
         )}
       </div>
       {probe.why && <p className="probe-why">{probe.why}</p>}
@@ -162,6 +198,18 @@ function ProbeCard({
         <span className="probe-method">{probe.method}</span> {probe.url}
       </div>
       {probe.sample && <div className="probe-sample mono">sample: {probe.sample}</div>}
+      {probe.curl && (
+        <details className="probe-curl-block">
+          <summary className="link-btn">show Auth0 curl (redacted)</summary>
+          <pre className="mono">{probe.curl}</pre>
+        </details>
+      )}
+      {probe.app_curl && (
+        <details className="probe-curl-block">
+          <summary className="link-btn">show app API curl (POST /api/token/credentials)</summary>
+          <pre className="mono">{probe.app_curl}</pre>
+        </details>
+      )}
       <div className="probe-detail">{display.detail}</div>
       {display.hint && <div className="probe-hint">→ {display.hint}</div>}
 

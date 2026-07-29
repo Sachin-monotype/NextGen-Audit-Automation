@@ -693,12 +693,17 @@ export type ApiProbe = {
   hint: string;
   response_snippet: string;
   sample?: string;
+  /** Pre-built runnable curl (e.g. OAuth token); preferred over requestToCurlOrQuery. */
+  curl?: string;
+  /** Local app wrapper curl (e.g. POST /api/token/credentials). */
+  app_curl?: string;
   request?: {
     method: string;
     url: string;
     headers: Record<string, string>;
     params: Record<string, unknown>;
     body: unknown;
+    content_type?: string;
   };
 };
 

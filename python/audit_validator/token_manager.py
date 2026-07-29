@@ -33,6 +33,7 @@ from .auth import (
     jwt_is_expired,
     jwt_payload,
     oauth_grant_type,
+    oauth_organization,
     oauth_token_kwargs,
     resolve_oauth_config,
 )
@@ -123,6 +124,13 @@ def _oauth_credentials(project_root: Path, token: str) -> dict[str, str]:
     }
 
 
+def _ensure_audit_profile(project_root: Path | None = None) -> None:
+    """Apply AUDIT_TARGET profile OAuth/queue defaults before token operations."""
+    from audit_validator.env_profiles import apply_audit_profile
+
+    apply_audit_profile(project_root=project_root or find_project_root())
+
+
 def _oauth_common() -> dict[str, str]:
     return resolve_oauth_config()
 
@@ -137,8 +145,14 @@ def _fetch_fresh_token(
 ) -> str:
     common = user_oauth_config_dict() if use_user_oauth else _oauth_common()
     oauth_kw = oauth_token_kwargs(common)
+    org_cfg = oauth_organization(common)
+    effective_org = (org or "").strip() or org_cfg
     if common.get("grant_type") == "client_credentials" and not (username and password):
-        return fetch_oauth_token_client_credentials(**oauth_kw)
+        # QA M2M works without organization; stale OAUTH_ORG from PP causes Auth0 400.
+        m2m_org = org_cfg if os.getenv(
+            "OAUTH_CLIENT_CREDENTIALS_INCLUDE_ORG", ""
+        ).strip().lower() in {"1", "true", "yes", "on"} else ""
+        return fetch_oauth_token_client_credentials(**oauth_kw, organization=m2m_org)
     user = (username or "").strip()
     pwd = (password or "").strip() or os.getenv("OAUTH_PASSWORD", "").strip()
     if not user or not pwd:
@@ -146,7 +160,7 @@ def _fetch_fresh_token(
     return fetch_oauth_token(
         username=user,
         password=pwd,
-        org=org,
+        org=effective_org,
         gcid=gcid,
         **oauth_kw,
     )
@@ -191,6 +205,7 @@ def _generate(project_root: Path, token: str) -> str:
 def bearer_status(project_root: Path | None = None, *, min_ttl_hours: float = 0.25) -> TokenStatus:
     """Report current BEARER_TOKEN health without side effects."""
     root = project_root or find_project_root()
+    _ensure_audit_profile(root)
     load_dotenv(root / ".env")
     raw = _strip_bearer(os.getenv("BEARER_TOKEN", ""))
     creds = _oauth_credentials(root, raw)
@@ -292,6 +307,7 @@ def apply_credentials(
     ``BEARER_TOKEN``.
     """
     root = project_root or find_project_root()
+    _ensure_audit_profile(root)
     load_dotenv(root / ".env")
     user = (username or "").strip()
     pwd = (password or "").strip() or os.getenv("OAUTH_PASSWORD", "").strip()
@@ -300,7 +316,7 @@ def apply_credentials(
     grant = oauth_grant_type()
     use_user_oauth = bool(user and pwd)
 
-    if grant == "client_credentials" and not use_user_oauth:
+    if grant == "client_credentials":
         try:
             fresh = _fetch_fresh_token()
         except Exception as exc:  # noqa: BLE001
@@ -372,6 +388,7 @@ def apply_credentials(
 def current_oauth_form_defaults(project_root: Path | None = None) -> dict[str, str]:
     """Non-secret defaults for the credentials editor (password never returned)."""
     root = project_root or find_project_root()
+    _ensure_audit_profile(root)
     load_dotenv(root / ".env")
     raw = _strip_bearer(os.getenv("BEARER_TOKEN", ""))
     meta = token_metadata(raw) if raw else {"email": "", "org": "", "gcid": ""}
@@ -408,6 +425,7 @@ def compare_provided_vs_generated(project_root: Path | None = None) -> dict[str,
     identity the stored credentials produce?" Does not persist anything.
     """
     root = project_root or find_project_root()
+    _ensure_audit_profile(root)
     load_dotenv(root / ".env")
     provided = _strip_bearer(os.getenv("BEARER_TOKEN", ""))
     result: dict[str, object] = {

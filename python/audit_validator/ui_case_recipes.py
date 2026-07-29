@@ -141,9 +141,10 @@ def _S(*rows: dict[str, str], op: str, touch: str) -> list[dict[str, str]]:
     return out
 
 
-def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
+def recipe_for(op: str, touch: str, *, label: str = "", selection_id: str = "") -> list[dict[str, str]]:
     op = (op or "").strip()
     touch = (touch or "").strip()
+    sid = (selection_id or "").strip()
     ts = short_touch(touch)
     touch_canon = touch or {
         "global": "Discovery/Browse (global)",
@@ -156,36 +157,37 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
     }.get(ts, touch)
     label = label or f"{op}({ts})"
 
-    if _is_connect_ingress_touch(touch):
-        return recipe_connect_ingress(op, touch, label=label)
+    is_app_ingress = sid.startswith("ingress:") and not sid.startswith("ingress:plugin_")
+    is_connect = is_app_ingress or _is_connect_ingress_touch(touch)
 
-    # ── Ingress — Monotype Connect desktop UI ──
-    if op == "appSettingsPerformanceModeChanged" and ts == "desktop_ui":
-        return _S(
-            _row(
-                "Launch Monotype Connect desktop app on macOS.",
-                "App opens to login or home.",
-            ),
-            _row(
-                "Log in with the configured test credentials (OAUTH_USERNAME / OAUTH_PASSWORD).",
-                "User is authenticated; main UI visible.",
-            ),
-            _row(
-                "Open Preferences (Monotype Connect menu → Preferences / Settings).",
-                "Preferences window is open.",
-            ),
-            _row(
-                "Go to General → Performance mode and select a different mode "
-                "(e.g. Max capacity or Balanced).",
-                "Performance mode changes; appSettingsPerformanceModeChanged ingress event fires.",
-            ),
-            _row(
-                audit_emit_ingress(op, "desktop_ui"),
-                audit_expected_ingress(op),
-            ),
-            op=op,
-            touch="Desktop UI",
-        )
+    if is_connect:
+        if op == "appSettingsPerformanceModeChanged":
+            return _S(
+                _row(
+                    "Launch Monotype Connect desktop app on macOS.",
+                    "App opens to login or home.",
+                ),
+                _row(
+                    "Log in with the configured test credentials (OAUTH_USERNAME / OAUTH_PASSWORD).",
+                    "User is authenticated; main UI visible.",
+                ),
+                _row(
+                    "Open Preferences (Monotype Connect menu → Preferences / Settings).",
+                    "Preferences window is open.",
+                ),
+                _row(
+                    "Go to General → Performance mode and select a different mode "
+                    "(e.g. Max capacity or Balanced).",
+                    "Performance mode changes; appSettingsPerformanceModeChanged ingress event fires.",
+                ),
+                _row(
+                    "Close the app when done. Do not grep logs — automation harvests xCorrelationId.",
+                    "Action complete; xCorrelationId will be harvested from Connect service log.",
+                ),
+                op=op,
+                touch=touch_canon or "Desktop UI",
+            )
+        return recipe_connect_ingress(op, touch or "Desktop UI", label=label)
 
     # ── activateFamily — plain English (matches C73306719 / C73306718) ──
     if op == "activateFamily" and ts == "global_app":
@@ -1295,6 +1297,7 @@ def steps_for_selection(selection: list[dict[str, Any]]) -> list[dict[str, str]]
         op = str(s.get("operation") or "").strip()
         touch = str(s.get("touchpoint") or "").strip()
         label = str(s.get("label") or op).strip()
+        sid = str(s.get("id") or "").strip()
         if n > 1:
             out.append(
                 {
@@ -1308,7 +1311,7 @@ def steps_for_selection(selection: list[dict[str, Any]]) -> list[dict[str, str]]
                     "expected": "",
                 }
             )
-        out.extend(recipe_for(op, touch, label=label))
+        out.extend(recipe_for(op, touch, label=label, selection_id=sid))
     if n > 1:
         out.append(
             {
