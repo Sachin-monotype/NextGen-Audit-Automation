@@ -73,7 +73,7 @@ def _is_uuid(value: Any) -> bool:
 
 
 def _iso(value: Any) -> Any:
-    f"""Serialize datetime-like values so JSON / Compare never choke.
+    """Serialize datetime-like values so JSON / Compare never choke.
 
     Mirror CMS/AMS API style: ``2026-06-29T06:34:38.855Z`` (ms, not µs).
     """
@@ -213,7 +213,7 @@ class CmsDbClient:
             SELECT *
             FROM {cms_schema()}.customers
             WHERE id IN ({placeholders})
-            f""",
+            """,
             tuple(ids),
             cfg=self._mysql,
         )
@@ -393,7 +393,7 @@ class UmsDbClient:
         correlation_id: str = "",
         user_type: str = "service",
     ) -> list[dict[str, Any]]:
-        f"""Bulk profile fetch — one SQL ``IN`` (critical for Compare prefetch)."""
+        """Bulk profile fetch — one SQL ``IN`` (critical for Compare prefetch)."""
         del correlation_id, user_type, customer_id
         ids = [str(p).strip() for p in profile_ids if str(p or "").strip()]
         if not ids:
@@ -426,7 +426,7 @@ class UmsDbClient:
         *,
         correlation_id: str = "",
     ) -> dict[str, dict[str, Any]]:
-        f"""Bulk roles — one SQL ``IN`` → id → role dict (with permissions)."""
+        """Bulk roles — one SQL ``IN`` → id → role dict (with permissions)."""
         del correlation_id, customer_id
         ids = [str(r).strip() for r in role_ids if str(r or "").strip()]
         if not ids:
@@ -467,7 +467,7 @@ class UmsDbClient:
         return out
 
     def _permissions_for_roles(self, role_ids: list[str]) -> dict[str, list[dict[str, int]]]:
-        f"""Mirror CMS API shape: permissions: [{id: 1}, {id: 2}, …]."""
+        """Mirror CMS API shape: permissions: [{id: 1}, {id: 2}, …]."""
         ids = [str(r).strip() for r in role_ids if _is_uuid(r)]
         if not ids:
             return {}
@@ -819,7 +819,7 @@ class AmsDbClient:
         global_user_id: str = "",
         global_customer_id: str = "",
     ) -> dict[str, dict[str, Any]]:
-        f"""Type-agnostic bulk lookup — mirrors HTTP ``POST /v2/assets/bulk``."""
+        """Type-agnostic bulk lookup — mirrors HTTP ``POST /v2/assets/bulk``."""
         del correlation_id, global_customer_id
         return self.get_assets_by_ids(asset_ids, global_user_id=global_user_id)
 
@@ -882,7 +882,7 @@ class AmsDbClient:
                   updated_at
                 FROM {ams_schema()}.projects
                 WHERE id IN ({placeholders})
-                f""",
+                """,
                 tuple(ids),
                 cfg=self._mysql,
             )
@@ -934,7 +934,7 @@ class AmsDbClient:
                     FROM {ams_schema()}.asset_user_access
                     WHERE user_id = %s
                       AND asset_id IN ({ph})
-                    f""",
+                    """,
                     (global_user_id, *node_list),
                     cfg=self._mysql,
                 )

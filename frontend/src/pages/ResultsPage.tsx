@@ -12,6 +12,7 @@ import {
   fetchPipelineConfig,
   deleteLatestResult,
   exportComparisonExcel,
+  refreshStoredComparisons,
   type CategoryReport,
   type ComparableOperation,
   type ComparisonRow,
@@ -282,6 +283,22 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const [scenarioStructureFilter, setScenarioStructureFilter] = useState("");
   const [scenarioShowAllDiffs, setScenarioShowAllDiffs] = useState(false);
 
+  async function refreshAllInStore() {
+    setRefreshError("");
+    setRefreshAllBusy(true);
+    try {
+      const res = await refreshStoredComparisons(undefined, resultsTarget);
+      setRefreshJobId(res.job.id);
+      setActiveId(res.job.id);
+      setSourceMode("job");
+      loadLatest();
+    } catch (e) {
+      setRefreshError(String(e));
+    } finally {
+      setRefreshAllBusy(false);
+    }
+  }
+
   async function openFailureLog() {
     setFailureLogBusy(true);
     setShowFailureLog(true);
@@ -318,6 +335,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const [selectedOps, setSelectedOps] = useState<Set<string>>(new Set());
   const [exportBusy, setExportBusy] = useState(false);
   const [refreshJobId, setRefreshJobId] = useState<string | null>(null);
+  const [refreshAllBusy, setRefreshAllBusy] = useState(false);
   const [refreshError, setRefreshError] = useState("");
   /** When Compare hands us the compared ops, limit the coverage list to those. */
   const [highlightActive, setHighlightActive] = useState(false);
@@ -930,6 +948,17 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
       {job?.error && sourceMode === "job" && <p className="error">{job.error}</p>}
 
       <div className="actions" style={{ marginBottom: 12 }}>
+        <button
+          type="button"
+          className="primary"
+          disabled={refreshAllBusy || !latest?.count}
+          onClick={() => void refreshAllInStore()}
+          title={`Re-run Compare for every operation in the ${resultsTarget.toUpperCase()} store and update records in place`}
+        >
+          {refreshAllBusy
+            ? "Re-comparing…"
+            : `Re-compare all (${resultsTarget.toUpperCase()} · ${latest?.count ?? 0})`}
+        </button>
         <button type="button" className="primary outline" disabled={failureLogBusy} onClick={openFailureLog}>
           {failureLogBusy ? "Loading…" : "Failure log"}
         </button>

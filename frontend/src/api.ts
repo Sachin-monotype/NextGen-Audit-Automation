@@ -92,8 +92,10 @@ export type TokenStatus = {
   can_regenerate?: boolean;
   message?: string;
   error?: string;
-  credentials?: {
+    credentials?: {
     username?: string;
+    profile_username?: string;
+    audit_target?: string;
     org?: string;
     gcid?: string;
     email?: string;
@@ -360,7 +362,7 @@ export async function startGenerateInUi(body: {
   notes?: string;
   extra?: Record<string, unknown>;
   dispatch?: boolean;
-  /** CasePilot browser mode — false = headed (default), true = headless */
+  /** CasePilot browser mode — true = headless (default), false = headed */
   headless?: boolean;
   /** 1 = serial; 2+ = parallel browsers (clamped by CasePilot PP cap); omit = env / PP default */
   max_parallel?: number;
@@ -466,8 +468,12 @@ export type CasepilotStatus = {
   connection_info?: { mcp_url?: string; dashboard_url?: string; email?: string };
 };
 
-export async function fetchCasepilotStatus() {
-  const res = await fetch(`${API}/api/meta/casepilot`);
+export async function fetchCasepilotStatus(opts?: { fast?: boolean; force?: boolean }) {
+  const params = new URLSearchParams();
+  if (opts?.fast === false) params.set("fast", "false");
+  if (opts?.force) params.set("force", "true");
+  const qs = params.toString();
+  const res = await fetch(`${API}/api/meta/casepilot${qs ? `?${qs}` : ""}`);
   return res.json() as Promise<CasepilotStatus>;
 }
 
@@ -851,6 +857,7 @@ export async function startCompare(
   operations: string[],
   fieldPathsByOp?: Record<string, string[]>,
   correlationByOp?: Record<string, string>,
+  target?: string,
 ) {
   const res = await fetch(`${API}/api/jobs/compare`, {
     method: "POST",
@@ -858,6 +865,7 @@ export async function startCompare(
     body: JSON.stringify({
       operations,
       sample_source: "fresh",
+      target: target || undefined,
       field_paths_by_op: fieldPathsByOp && Object.keys(fieldPathsByOp).length
         ? fieldPathsByOp
         : undefined,
@@ -898,20 +906,22 @@ export async function fetchComparisonOperations() {
   return res.json() as Promise<{ count: number; operations: Record<string, string> }>;
 }
 
-/** Re-compare operations shown in Results (updates comparison-latest.json in place). */
-export async function refreshStoredComparisons(operations?: string[]) {
+/** Re-compare operations shown in Results (updates comparison-latest-{target}.json in place). */
+export async function refreshStoredComparisons(operations?: string[], target?: string) {
   const res = await fetch(`${API}/api/results/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(
-      operations && operations.length ? { operations } : {},
-    ),
+    body: JSON.stringify({
+      ...(operations && operations.length ? { operations } : {}),
+      ...(target ? { target } : {}),
+    }),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<{
     ok: boolean;
     operations: string[];
     count: number;
+    target?: string;
     job: Job;
   }>;
 }

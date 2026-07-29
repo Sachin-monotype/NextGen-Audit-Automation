@@ -81,6 +81,40 @@ def audit_expected_ingress(op: str) -> str:
     )
 
 
+def _is_connect_ingress_touch(touch: str) -> bool:
+    t = " ".join((touch or "").lower().replace("_", " ").split())
+    if t in {"desktop app", "plugin", "desktop ui", "app"}:
+        return True
+    return "desktop" in t and "ui" in t
+
+
+def recipe_connect_ingress(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
+    """Monotype Connect / plugin ingress — automation harvests xCorrelationId from service logs."""
+    ts = short_touch(touch)
+    touch_canon = touch or {"desktop_ui": "Desktop UI", "global_app": "App"}.get(ts, touch)
+    title = label or f"{op}({ts})"
+    return _S(
+        _row(
+            "Launch Monotype Connect desktop app on macOS (or open the host app for plugin flows).",
+            "App or plugin host is ready.",
+        ),
+        _row(
+            "Log in with configured test credentials if needed (OAUTH_USERNAME / OAUTH_PASSWORD).",
+            "User authenticated; main UI visible.",
+        ),
+        _row(
+            f"Perform the UI action for {title} so ingress event `{op}` fires once.",
+            f"{op} ingress event fires from Monotype Connect.",
+        ),
+        _row(
+            "Close the browser / app when done. Do not grep logs — the audit app reads Connect service logs.",
+            "Action complete; xCorrelationId will be harvested automatically.",
+        ),
+        op=op,
+        touch=touch_canon,
+    )
+
+
 def _row(step: str, expected: str = "") -> dict[str, str]:
     return {"step": step, "expected": expected}
 
@@ -121,6 +155,9 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
         "desktop_ui": "Desktop UI",
     }.get(ts, touch)
     label = label or f"{op}({ts})"
+
+    if _is_connect_ingress_touch(touch):
+        return recipe_connect_ingress(op, touch, label=label)
 
     # ── Ingress — Monotype Connect desktop UI ──
     if op == "appSettingsPerformanceModeChanged" and ts == "desktop_ui":
@@ -1291,10 +1328,17 @@ def compact_checklist(selection: list[dict[str, Any]]) -> list[str]:
         touch = str(s.get("touchpoint") or "").strip()
         ts = short_touch(touch)
         label = str(s.get("label") or f"{op}({ts})")
-        lines.append(
-            f"{i}. {label} → fire {op} once (NO RETRY) → "
-            f"AUDIT_RESULT|operation={op}|correlation_id=<uuid>|touchpoint={ts}"
-        )
+        sid = str(s.get("id") or "")
+        if sid.startswith("ingress:") or _is_connect_ingress_touch(touch):
+            lines.append(
+                f"{i}. {label} → fire {op} once in Connect/plugin (NO RETRY) → "
+                "automation harvests xCorrelationId from service log"
+            )
+        else:
+            lines.append(
+                f"{i}. {label} → fire {op} once (NO RETRY) → "
+                f"AUDIT_RESULT|operation={op}|correlation_id=<uuid>|touchpoint={ts}"
+            )
     return lines
 
 

@@ -331,7 +331,9 @@ class AuditBridge:
         sample_source: str = "fresh",
         field_paths_by_op: dict[str, list[str]] | None = None,
         correlation_by_op: dict[str, str] | None = None,
+        audit_target: str | None = None,
     ) -> JobRecord:
+        target = (audit_target or os.getenv("AUDIT_TARGET") or "pp").strip().lower()
         job = self.store.create(
             "compare",
             {
@@ -339,6 +341,7 @@ class AuditBridge:
                 "sample_source": sample_source,
                 "field_paths_by_op": field_paths_by_op or {},
                 "correlation_by_op": correlation_by_op or {},
+                "audit_target": target,
             },
         )
         thread = threading.Thread(
@@ -1214,6 +1217,7 @@ class AuditBridge:
         routing_keys = _routing_keys_map(self.project_root)
         job = self.store.get(job_id)
         job_kind = job.kind if job else "compare"
+        audit_target = str((job.params or {}).get("audit_target") or os.getenv("AUDIT_TARGET") or "pp").strip().lower()
         saved_ops = 0
 
         def _row_dict(r: Any) -> dict[str, Any]:
@@ -1248,6 +1252,7 @@ class AuditBridge:
                     job_id=job_id,
                     job_kind=job_kind,
                     compared_at=_now(),
+                    target=audit_target,
                 )
                 saved_ops += 1
                 if saved_ops == 1 or saved_ops % 10 == 0:
@@ -1288,10 +1293,11 @@ class AuditBridge:
                 job_id=job_id,
                 job_kind=job_kind,
                 compared_at=_now(),
+                target=audit_target,
             )
             self.store.append_log(
                 job_id,
-                f"▸ Saved latest comparison snapshot for {len(ops)} operation(s)",
+                f"▸ Saved latest comparison snapshot for {len(ops)} operation(s) → {audit_target}",
             )
         except Exception as exc:  # noqa: BLE001 — persistence must not fail the job
             log.warning("Could not persist latest comparison: %s", exc)
@@ -1588,7 +1594,13 @@ class AuditBridge:
         correlation_by_op: dict[str, str] | None = None,
     ) -> None:
         self.store.update(job_id, status=JobStatus.RUNNING, started_at=_now())
-        self.store.append_log(job_id, f"▸ Source validation for {len(operations)} operation(s)…")
+        job = self.store.get(job_id)
+        audit_target = str(
+            ((job.params or {}).get("audit_target") if job else None)
+            or os.getenv("AUDIT_TARGET")
+            or "pp"
+        ).strip().lower()
+        self.store.append_log(job_id, f"▸ Source validation for {len(operations)} operation(s) [{audit_target.upper()}]…")
         if field_paths_by_op:
             n = sum(len(v) for v in field_paths_by_op.values())
             self.store.append_log(job_id, f"  · Selective attributes: {n} field path(s) across ops")

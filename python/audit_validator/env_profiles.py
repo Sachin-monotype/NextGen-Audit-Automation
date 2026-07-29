@@ -60,6 +60,9 @@ class AuditTargetProfile:
     seed_deactivate_family_id: str
     mongo_db_name: str = ""  # empty → derived as AuditLogs{NAME}
     oauth: OAuthProfile = PP_OAUTH
+    oauth_username: str = ""
+    # Password-grant OAuth for the Bearer credentials modal (QA uses PP user login).
+    user_oauth: OAuthProfile | None = None
 
 
 PP_PREPROD = AuditTargetProfile(
@@ -86,6 +89,7 @@ PP_PREPROD = AuditTargetProfile(
     seed_family_id="794981",
     seed_deactivate_family_id="8kL8ZM64",
     mongo_db_name="AuditLogsPreprod",
+    oauth_username="mem.auditpreprodtest@gmail.com",
 )
 
 UAT = AuditTargetProfile(
@@ -135,6 +139,7 @@ QA = AuditTargetProfile(
     seed_deactivate_family_id="8kL8ZM64",
     mongo_db_name="AuditLogsQA",
     oauth=QA_OAUTH,
+    oauth_username="mem.auditqatest@gmail.com",
 )
 
 EVEREST_DEV = AuditTargetProfile(
@@ -198,6 +203,7 @@ _PROFILE_KEYS: frozenset[str] = frozenset(
         "OAUTH_AUDIENCE",
         "OAUTH_GRANT_TYPE",
         "OAUTH_ORG",
+        "OAUTH_USERNAME",
         "AUTH0_TOKEN_URL",
         "AUTH0_CLIENT_ID",
         "AUTH0_CLIENT_SECRET",
@@ -206,6 +212,24 @@ _PROFILE_KEYS: frozenset[str] = frozenset(
         "AUTH0_GRANT_TYPE",
     }
 )
+
+
+def user_oauth_for_profile(profile: AuditTargetProfile | None = None) -> OAuthProfile:
+    """OAuth client used for user password grant (Bearer credentials modal)."""
+    p = profile or get_audit_profile()
+    return p.user_oauth if p.user_oauth is not None else p.oauth
+
+
+def user_oauth_config_dict(profile: AuditTargetProfile | None = None) -> dict[str, str]:
+    o = user_oauth_for_profile(profile)
+    return {
+        "token_url": o.token_url,
+        "client_id": o.client_id,
+        "client_secret": o.client_secret,
+        "audience": o.audience,
+        "grant_type": o.grant_type,
+        "organization": o.organization,
+    }
 
 
 def mongo_db_for_profile(profile: AuditTargetProfile | None = None) -> str:
@@ -283,6 +307,7 @@ def apply_audit_profile(*, project_root=None) -> AuditTargetProfile:
         "OAUTH_AUDIENCE": profile.oauth.audience,
         "OAUTH_GRANT_TYPE": profile.oauth.grant_type,
         "OAUTH_ORG": profile.oauth.organization,
+        "OAUTH_USERNAME": profile.oauth_username,
         "AUTH0_TOKEN_URL": profile.oauth.token_url,
         "AUTH0_CLIENT_ID": profile.oauth.client_id,
         "AUTH0_CLIENT_SECRET": profile.oauth.client_secret,

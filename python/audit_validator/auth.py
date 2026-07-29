@@ -60,6 +60,20 @@ def oauth_grant_type() -> str:
     return resolve_oauth_config()["grant_type"]
 
 
+def oauth_token_kwargs(cfg: dict[str, Any] | None = None) -> dict[str, str]:
+    """OAuth client fields safe for ``fetch_oauth_token*`` (excludes grant_type)."""
+    c = cfg or resolve_oauth_config()
+    out: dict[str, str] = {}
+    for key in ("token_url", "client_id", "client_secret", "audience"):
+        val = c.get(key)
+        if val:
+            out[key] = str(val)
+    org = str(c.get("organization") or "").strip()
+    if org:
+        out["organization"] = org
+    return out
+
+
 def _strip_bearer(value: str) -> str:
     token = value.strip()
     if token.lower().startswith("bearer "):
@@ -545,8 +559,9 @@ def refresh_env_tokens(project_root: Path) -> dict[str, str]:
     gcid = os.getenv("OAUTH_GCID", "").strip()
 
     common = resolve_oauth_config()
+    oauth_kw = oauth_token_kwargs(common)
     if common["grant_type"] == "client_credentials":
-        primary = fetch_oauth_token_client_credentials(**common)
+        primary = fetch_oauth_token_client_credentials(**oauth_kw)
         secondary = ""
     else:
         if not all([username, password, org, gcid]):
@@ -554,7 +569,7 @@ def refresh_env_tokens(project_root: Path) -> dict[str, str]:
                 "Set OAUTH_USERNAME, OAUTH_PASSWORD, OAUTH_ORG, and OAUTH_GCID in .env"
             )
         primary = fetch_oauth_token(
-            username=username, password=password, org=org, gcid=gcid, **common
+            username=username, password=password, org=org, gcid=gcid, **oauth_kw
         )
         time.sleep(1)
         secondary_user = os.getenv("OAUTH_SECONDARY_USERNAME", "").strip()
@@ -565,7 +580,7 @@ def refresh_env_tokens(project_root: Path) -> dict[str, str]:
                 password=os.getenv("OAUTH_SECONDARY_PASSWORD", password),
                 org=org,
                 gcid=gcid,
-                **common,
+                **oauth_kw,
             )
 
     text = env_path.read_text(encoding="utf-8") if env_path.is_file() else ""

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from typing import Any
 
@@ -78,11 +79,14 @@ class CompareRequest(BaseModel):
     # Optional: operation → exact xCorrelationId to pair (Compare-from-Enrich/raw card).
     # Lets us compare the specific event on the card, including ones fired by others.
     correlation_by_op: dict[str, str] | None = None
+    # pp | qa | uat — which comparison-latest-{target}.json store to update
+    target: str | None = None
 
 
 class RefreshResultsRequest(BaseModel):
     """Re-compare operations already shown in the Result tab (updates comparison-latest.json)."""
     operations: list[str] | None = None
+    target: str | None = None
 
 
 class ExportResultsRequest(BaseModel):
@@ -773,9 +777,42 @@ def set_pipeline_target(req: PipelineTargetRequest) -> dict[str, Any]:
             )
         settings.mongo_db = mongo_name
         db.use_database(mongo_name)
+        if profile.oauth_username:
+            set_key(
+                str(settings.audit_project_root / ".env"),
+                "OAUTH_USERNAME",
+                profile.oauth_username,
+            )
+            os.environ["OAUTH_USERNAME"] = profile.oauth_username
+        pwd = (os.getenv("OAUTH_PASSWORD") or "").strip()
+        token_refreshed = False
+        try:
+            from audit_validator.token_manager import apply_credentials
+
+            if profile.oauth.grant_type == "client_credentials":
+                apply_credentials(
+                    settings.audit_project_root,
+                    username="",
+                    password="",
+                    persist=True,
+                )
+                token_refreshed = True
+            elif profile.oauth_username and pwd:
+                apply_credentials(
+                    settings.audit_project_root,
+                    username=profile.oauth_username,
+                    password=pwd,
+                    persist=True,
+                )
+                token_refreshed = True
+        except Exception:
+            pass
         if not multi_target_ingestion_enabled():
             ingestion.reconfigure()
-        return pipeline_config()
+        out = pipeline_config()
+        out["oauth_username"] = profile.oauth_username
+        out["token_refreshed"] = token_refreshed
+        return out
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -1021,19 +1058,19 @@ class UiTriggerRequest(BaseModel):
     notes: str = ""
     extra: dict[str, Any] = Field(default_factory=dict)
     dispatch: bool = False
-    # Browser mode for CasePilot connector (default headed / visible)
-    headless: bool = False
+    # Browser mode for CasePilot connector (default headless)
+    headless: bool = True
     # Parallel UI browsers for this batch (1=serial; omit=None → env/PP cap)
     max_parallel: int | None = None
 
 
 @app.get("/api/meta/casepilot")
-def casepilot_status() -> dict[str, Any]:
+def casepilot_status(fast: bool = True, force: bool = False) -> dict[str, Any]:
     """CasePilot MCP reachability (preflight + connector online)."""
     try:
         from audit_validator.ui_trigger import casepilot_health
 
-        return casepilot_health()
+        return casepilot_health(fast=fast, force=force)
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 
@@ -1216,6 +1253,29 @@ def record_generate_ui_results(job_id: str, body: UiTriggerResultsBody) -> dict[
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
+@app.post("/api/jobs/generate-ui/{job_id}/harvest-connect-log")
+def harvest_connect_log_generate_ui(job_id: str) -> dict[str, Any]:
+    """Poll Connect service log for xCorrelationId after an app/plugin UI run."""
+    try:
+        from audit_validator.ui_trigger import get_ui_trigger_job, _schedule_connect_log_harvest_if_ready
+
+        job = get_ui_trigger_job(settings.audit_project_root, job_id)
+        if not job:
+            raise HTTPException(404, f"No UI trigger job {job_id}")
+        if not job.get("connect_log_capture"):
+            return JSONResponse(
+                {"ok": False, "error": "Job has no Connect log capture baseline"},
+                status_code=400,
+            )
+        _schedule_connect_log_harvest_if_ready(settings.audit_project_root, job)
+        job = get_ui_trigger_job(settings.audit_project_root, job_id)
+        return {"ok": True, "job": job}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
 @app.post("/api/jobs/generate-ui/{job_id}/verify")
 def verify_generate_ui(job_id: str) -> dict[str, Any]:
     """After UI trigger: poll Mongo raw/enrich by correlation_id and write Generation Status."""
@@ -1264,8 +1324,9 @@ def start_compare_all() -> dict[str, Any]:
     ops = [str(i.get("operation") or "") for i in items if i.get("operation")]
     if not ops:
         raise HTTPException(400, "No pairable operations to compare")
-    job = bridge.start_compare(ops, "fresh")
-    return {"ok": True, "count": len(ops), "job": _job_payload(job)}
+    target = (os.getenv("AUDIT_TARGET") or "pp").strip().lower()
+    job = bridge.start_compare(ops, "fresh", audit_target=target)
+    return {"ok": True, "count": len(ops), "target": target, "job": _job_payload(job)}
 
 
 @app.post("/api/jobs/compare")
@@ -1277,6 +1338,7 @@ def start_compare(body: CompareRequest) -> dict[str, Any]:
         body.sample_source,
         field_paths_by_op=body.field_paths_by_op,
         correlation_by_op=body.correlation_by_op,
+        audit_target=body.target,
     )
     return _job_payload(job)
 
@@ -1287,14 +1349,21 @@ def refresh_stored_comparisons(body: RefreshResultsRequest | None = None) -> dic
     from .comparison_store import list_latest
 
     req = body or RefreshResultsRequest()
+    target = (req.target or os.getenv("AUDIT_TARGET") or "pp").strip().lower()
     ops = [o.strip() for o in (req.operations or []) if o and o.strip()]
     if not ops:
-        latest = list_latest(settings.audit_project_root)
+        latest = list_latest(settings.audit_project_root, target=target)
         ops = list(latest.get("operations") or [])
     if not ops:
-        raise HTTPException(400, "No stored comparisons to refresh")
-    job = bridge.start_compare(ops, "fresh")
-    return {"ok": True, "operations": ops, "count": len(ops), "job": _job_payload(job)}
+        raise HTTPException(400, f"No stored comparisons to refresh for target={target}")
+    job = bridge.start_compare(ops, "fresh", audit_target=target)
+    return {
+        "ok": True,
+        "operations": ops,
+        "count": len(ops),
+        "target": target,
+        "job": _job_payload(job),
+    }
 
 
 @app.get("/api/meta/enriched-fields/{operation}")

@@ -886,7 +886,7 @@ export default function GeneratePage({
   function openCredentialsEditor() {
     const c = token?.credentials;
     setCredForm({
-      username: c?.username || token?.email || "",
+      username: c?.username || c?.profile_username || token?.email || "",
       password: "",
       org: c?.org || token?.org || "",
       gcid: c?.gcid || token?.gcid || "",
@@ -1345,6 +1345,7 @@ export default function GeneratePage({
         ops,
         undefined,
         Object.keys(correlationByOp).length ? correlationByOp : undefined,
+        pipeline?.target,
       );
       if (onCompareRequested) {
         onCompareRequested(job.id);
@@ -1641,15 +1642,18 @@ export default function GeneratePage({
             <p className="muted small">
               {token?.credentials?.grant_type === "client_credentials" ? (
                 <>
-                  QA uses Auth0 <strong>client_credentials</strong> (
-                  {token.credentials.token_url || "configured token URL"}). Click Generate token — username
-                  and password are not required.
+                  <strong>QA</strong> uses Auth0 <strong>client_credentials</strong> for{" "}
+                  <code>BEARER_TOKEN</code> — click Generate token (no password needed). Username
+                  auto-switches to <code>{token.credentials.profile_username || "mem.auditqatest@gmail.com"}</code>{" "}
+                  for CasePilot / UI. For Compare JWT claims, paste a browser SSO token into{" "}
+                  <code>NEXTGEN_BEARER_TOKEN</code> in <code>.env</code>.
                 </>
               ) : (
                 <>
-                  Generate a fresh Bearer via OAuth password grant. Just username + password is enough —
-                  org &amp; gcid are read back from the token&apos;s JWT claims and drive actor validation and
-                  x-correlation-id scoping. Only set org/gcid below to force a specific organisation.
+                  Generate a fresh Bearer via OAuth password grant. Username switches with{" "}
+                  <strong>Environment</strong> (PP → preprod test user, QA → QA test user); password is
+                  reused from <code>.env</code> when left blank. Org &amp; gcid are read from the JWT —
+                  override below only when needed.
                 </>
               )}
             </p>

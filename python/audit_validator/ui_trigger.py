@@ -23,8 +23,10 @@ from typing import Any
 from audit_validator.casepilot_mcp import (
     CasePilotMcpClient,
     CasePilotMcpError,
+    cached_connector_online,
     extract_casepilot_batch_id,
     extract_casepilot_job_ids,
+    get_shared_casepilot_client,
     health_check,
     load_casepilot_config,
     parse_testrail_case_ids,
@@ -772,8 +774,8 @@ def create_ui_trigger_job(
             "correlation_ids": [],
             "operations": [str(s.get("operation") or "") for s in selection if isinstance(s, dict)],
             "note": (
-                "When CasePilot finishes we auto-extract correlation_ids (including intermediate "
-                "mutations) and verify raw/enrich into Generation Status."
+                "When CasePilot finishes we auto-extract correlation_ids and verify raw/enrich. "
+                "App/plugin ingress uses Connect service log harvest (xCorrelationId)."
             ),
             "auto_verify": True,
         },
@@ -793,8 +795,45 @@ def create_ui_trigger_job(
         _append_log(payload, f"  plan {i}. {st.get('step')}")
     _write_job(project_root, payload)
     if dispatch:
-        payload = dispatch_ui_trigger_job(project_root, job_id) or payload
+        if _async_dispatch_enabled():
+            schedule_dispatch_ui_trigger_job(project_root, job_id)
+        else:
+            payload = dispatch_ui_trigger_job(project_root, job_id) or payload
     return payload
+
+
+def _async_dispatch_enabled() -> bool:
+    return os.getenv("CASEPILOT_ASYNC_DISPATCH", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def schedule_dispatch_ui_trigger_job(project_root: Path, job_id: str) -> None:
+    """Queue CasePilot dispatch on a background thread (fast HTTP return)."""
+    job = get_ui_trigger_job(project_root, job_id)
+    if job:
+        _append_log(job, "▸ Dispatching to CasePilot in background…")
+        job["status"] = "pending_agent"
+        _write_job(project_root, job)
+
+    def _run() -> None:
+        try:
+            dispatch_ui_trigger_job(project_root, job_id)
+        except Exception as exc:  # noqa: BLE001
+            job_now = get_ui_trigger_job(project_root, job_id)
+            if job_now:
+                agent = dict(job_now.get("agent") or {})
+                agent["send_status"] = "error"
+                agent["last_error"] = str(exc)
+                job_now["agent"] = agent
+                job_now["status"] = "failed"
+                _append_log(job_now, f"✖ Background dispatch failed: {exc}")
+                _write_job(project_root, job_now)
+
+    threading.Thread(target=_run, daemon=True, name=f"casepilot-dispatch-{job_id[:8]}").start()
 
 
 def list_ui_trigger_jobs(project_root: Path, *, limit: int = 20) -> list[dict[str, Any]]:
@@ -1179,6 +1218,63 @@ def _short_touch_label(touch: str) -> str:
     return short_touch(touch)
 
 
+def _selection_uses_connect_log_capture(selection: list[dict[str, Any]]) -> bool:
+    from audit_validator.ingress.connect_log_capture import selection_uses_connect_log_capture
+
+    return selection_uses_connect_log_capture(selection)
+
+
+def _begin_connect_log_capture(
+    job: dict[str, Any],
+    selection: list[dict[str, Any]],
+    *,
+    tag: str = "",
+) -> None:
+    from audit_validator.ingress.connect_log_capture import (
+        connect_log_capture_enabled,
+        expected_operations_from_selection,
+        prepare_connect_log_baseline,
+    )
+
+    if not connect_log_capture_enabled() or not _selection_uses_connect_log_capture(selection):
+        return
+    try:
+        baseline = prepare_connect_log_baseline(tag=tag or str(job.get("id") or "")[:8])
+        ops = expected_operations_from_selection(selection)
+        job["connect_log_capture"] = {
+            **baseline.as_dict(),
+            "status": "watching",
+            "expected_operations": ops,
+        }
+        archive = baseline.archive_path or ""
+        _append_log(
+            job,
+            f"▸ Connect log prepared ({baseline.mode}) · {baseline.path}"
+            + (f" · archived={archive}" if archive else f" · offset={baseline.byte_offset}"),
+        )
+        _append_log(
+            job,
+            f"  xCorrelationId will be harvested from Connect logs after UI run "
+            f"(poll up to {int(os.getenv('CONNECT_LOG_SETTLE_SEC', '300') or '300')}s)",
+        )
+    except Exception as exc:  # noqa: BLE001
+        _append_log(job, f"⚠ Connect log prepare failed: {exc}")
+
+
+def _schedule_connect_log_harvest_if_ready(project_root: Path, job: dict[str, Any]) -> None:
+    from audit_validator.ingress.connect_log_capture import schedule_connect_log_harvest
+
+    cap = job.get("connect_log_capture")
+    if not isinstance(cap, dict):
+        return
+    if str(cap.get("status") or "") != "watching":
+        return
+    cap["status"] = "harvesting"
+    job["connect_log_capture"] = cap
+    _write_job(project_root, job)
+    schedule_connect_log_harvest(project_root, str(job.get("id") or ""))
+
+
 def _audit_emit_step(op: str, touch_short: str) -> str:
     from audit_validator.ui_case_recipes import audit_emit
 
@@ -1223,21 +1319,65 @@ def _build_context(
     primary_op = str(primary.get("operation") or "activateFamily")
     primary_touch = short_touch(str(primary.get("touchpoint") or "global"))
     checklist = compact_checklist(items)
+    connect_ingress = _selection_uses_connect_log_capture(items)
     summary = (job.get("cta_text") or "").strip()
     if not summary:
-        if len(items) == 1:
+        if connect_ingress and len(items) == 1:
+            summary = (
+                f"Trigger {primary.get('label') or primary_op} in Monotype Connect once — "
+                "no log capture needed (automation reads Connect service log)"
+            )
+        elif len(items) == 1:
             summary = f"Trigger {primary.get('label') or primary_op} once, emit AUDIT_RESULT, stop"
+        elif connect_ingress:
+            summary = (
+                f"Run {len(items)} Monotype Connect / plugin TestRail cases serially — "
+                "perform each desktop action once; automation harvests xCorrelationId from logs"
+            )
         else:
             summary = (
                 f"Run {len(items)} NextGen audit TestRail cases serially — "
                 "one AUDIT_RESULT (+ AUDIT_GRAPHQL) per case; reuse login/state where possible"
             )
+    ingress_block = (
+        [
+            "",
+            "## Ingress / Connect desktop",
+            "- Perform the Monotype Connect or plugin UI action only.",
+            "- Do NOT grep logs or paste xCorrelationId — the audit app reads Connect service logs.",
+            "- Close the browser/app when all steps are done.",
+        ]
+        if connect_ingress
+        else []
+    )
+    correlation_block = (
+        [
+            "## Correlation (Connect ingress)",
+            "- No AUDIT_RESULT required — xCorrelationId is harvested from Connect service logs.",
+            "- Field name in log body: xCorrelationId (NOT the HTTP x-correlation-id header).",
+        ]
+        if connect_ingress
+        else [
+            "## Correlation",
+            "- Header: correlation-id (never x-correlation-id).",
+            "- Line 1: AUDIT_RESULT|operation=<op>|correlation_id=<real-uuid>|touchpoint=<short>",
+            "- Line 2: AUDIT_GRAPHQL {\"input\":<request variables.input>,\"response\":{\"<op>\":<response data.<op>>}}",
+            "- Copy variables.input and data.<op> from DevTools Network → GraphQL request/response JSON.",
+            "- Compare uses AUDIT_GRAPHQL for join keys — do not skip the second line.",
+            "- Filter Network by operationName matching the mutation (ignore search/browse queries).",
+            "- Real UUIDs only — never YOUR-UUID or <uuid> literals.",
+            f"- Example line 1: AUDIT_RESULT|operation={primary_op}|correlation_id=<uuid>|touchpoint={primary_touch}",
+            f'- Example line 2: AUDIT_GRAPHQL {{"input":{{}},"response":{{"{primary_op}":{{}}}}}}',
+        ]
+    )
     description = "\n".join(
         [
             "NextGen Audit Automation — Generate in UI handoff",
             "",
             "## YOU ARE AN ANONYMOUS UI RUNNER",
-            "- Goal: TRIGGER GraphQL events and emit AUDIT_RESULT. Minimal assertions.",
+            "- Goal: TRIGGER GraphQL events and emit AUDIT_RESULT. Minimal assertions."
+            if not connect_ingress
+            else "- Goal: TRIGGER Monotype Connect / plugin ingress events. Minimal assertions.",
             "- Follow DETAILED STEPS in order. Locators are exact — use [data-qa-id='…'] / [data-testid='…'] as written. Do not hunt for alternate controls.",
             "- NO RETRIES: attempt each step once. If a step fails, emit what you have and move on / stop. Do not re-run the case or re-click the same control in a loop.",
             "- Pick ANY visible family/style matching ON/OFF — never invent family ids.",
@@ -1256,17 +1396,9 @@ def _build_context(
             "",
             "## Extra notes",
             (job.get("notes") or "").strip() or "(none)",
+            *ingress_block,
             "",
-            "## Correlation",
-            "- Header: correlation-id (never x-correlation-id).",
-            "- Line 1: AUDIT_RESULT|operation=<op>|correlation_id=<real-uuid>|touchpoint=<short>",
-            "- Line 2: AUDIT_GRAPHQL {\"input\":<request variables.input>,\"response\":{\"<op>\":<response data.<op>>}}",
-            "- Copy variables.input and data.<op> from DevTools Network → GraphQL request/response JSON.",
-            "- Compare uses AUDIT_GRAPHQL for join keys — do not skip the second line.",
-            "- Filter Network by operationName matching the mutation (ignore search/browse queries).",
-            "- Real UUIDs only — never YOUR-UUID or <uuid> literals.",
-            f"- Example line 1: AUDIT_RESULT|operation={primary_op}|correlation_id=<uuid>|touchpoint={primary_touch}",
-            f'- Example line 2: AUDIT_GRAPHQL {{"input":{{}},"response":{{"{primary_op}":{{}}}}}}',
+            *correlation_block,
         ]
     )
     per_notes = []
@@ -1291,7 +1423,8 @@ def _build_context(
         "audit_graphql_format": (
             f'AUDIT_GRAPHQL {{"input":<variables.input>,"response":{{"{primary_op}":<data.{primary_op}>}}}}'
         ),
-        "prefer_graphql_capture": "true",
+        "prefer_graphql_capture": "false" if connect_ingress else "true",
+        "connect_log_capture": "true" if connect_ingress else "false",
         "capture_intermediate_mutations": "false" if len(items) > 3 else "true",
         "product": "NextGen",
         "source": "nextgen-audit-automation",
@@ -1342,7 +1475,10 @@ def _connector_online(client: CasePilotMcpClient) -> bool | None:
 
 def _wait_for_connector_online(client: CasePilotMcpClient, job: dict[str, Any]) -> None:
     """Poll preflight until a runner is online (or give up after a short window)."""
-    tries = max(1, int(os.getenv("CASEPILOT_CONNECTOR_WAIT_TRIES", "6") or "6"))
+    cached = cached_connector_online()
+    if cached is True:
+        return
+    tries = max(1, int(os.getenv("CASEPILOT_CONNECTOR_WAIT_TRIES", "2") or "2"))
     for i in range(tries):
         state = _connector_online(client)
         if state is None or state:
@@ -1358,6 +1494,33 @@ def _wait_for_connector_online(client: CasePilotMcpClient, job: dict[str, Any]) 
         "⚠ Proceeding to queue although no runner reported online — "
         "start/check your CasePilot connector if this run does not begin.",
     )
+
+
+def _restore_mtfngpp_handler_for_browser(*, job: dict[str, Any] | None = None) -> None:
+    """After CasePilot Electron CDP runs, point ``mtfngpp://`` back at Monotype NextGen."""
+    if os.getenv("CASEPILOT_RESTORE_MTFPNGPP_HANDLER", "true").strip().lower() in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }:
+        return
+    if os.name != "posix" or os.uname().sysname != "Darwin":
+        return
+    try:
+        from audit_validator.macos_deeplink import current_mtfngpp_handler, restore_mtfngpp_handler
+
+        before = current_mtfngpp_handler()
+        if restore_mtfngpp_handler(quiet=True):
+            after = current_mtfngpp_handler()
+            if job is not None and before != after:
+                _append_log(
+                    job,
+                    f"▸ Restored mtfngpp:// handler: {before or 'unset'} → {after or 'com.monotype.unified'}",
+                )
+    except Exception as exc:  # noqa: BLE001
+        if job is not None:
+            _append_log(job, f"⚠ Could not restore mtfngpp:// handler: {exc}")
 
 
 def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] | None:
@@ -1379,6 +1542,8 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
     testrail["case_ids"] = case_ids
     job["testrail"] = testrail
 
+    selection_items = [s for s in (job.get("selection") or []) if isinstance(s, dict)]
+
     if not cfg.configured:
         agent.update({"send_status": "missing_api_key", "last_error": "CASEPILOT_API_KEY not set"})
         job["agent"] = agent
@@ -1396,43 +1561,64 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
         job["status"] = "failed"
         return _write_job(project_root, job)
 
-    if not cfg.ui_config_ready():
+    if not cfg.ui_config_ready(selection=selection_items):
+        from audit_validator.casepilot_mcp import selection_uses_electron_app
+
+        uses_electron = selection_uses_electron_app(selection_items)
         agent.update(
             {
                 "send_status": "credentials_required",
-                "last_error": "Set CASEPILOT_UI_BASE_URL / USERNAME / PASSWORD (or OAUTH_*)",
+                "last_error": (
+                    "Set CASEPILOT_ELECTRON_APP_PATH (Monotype Connect.app) and OAUTH_USERNAME/OAUTH_PASSWORD"
+                    if uses_electron
+                    else "Set CASEPILOT_UI_BASE_URL / USERNAME / PASSWORD (or OAUTH_*)"
+                ),
             }
         )
         job["agent"] = agent
         job["status"] = "failed"
         return _write_job(project_root, job)
 
+    _restore_mtfngpp_handler_for_browser(job=job)
+
+    _begin_connect_log_capture(job, selection_items, tag=job_id[:8])
+
     try:
         from audit_validator.env_profiles import get_audit_profile
 
         profile = get_audit_profile()
-        # Always drive CasePilot at the currently selected AUDIT_TARGET NextGen URL
-        # (not a stale CASEPILOT_UI_BASE_URL pinned to PP).
-        ui_cfg = cfg.ui_config()
-        ui_cfg["base_url"] = (
-            (os.getenv("NEXTGEN_UI_URL") or "").strip()
-            or profile.nextgen_ui_url
-            or ui_cfg.get("base_url")
-            or ""
-        )
-        # Modal / request override (headed default unless headless=true)
         extra = job.get("extra") if isinstance(job.get("extra"), dict) else {}
-        if "headless" in extra:
-            ui_cfg["headless"] = bool(extra.get("headless"))
+        # Web uses NEXTGEN_UI_URL; Electron drives Monotype Connect .app directly.
+        ui_cfg = cfg.ui_config(
+            selection=selection_items,
+            extra=extra,
+            base_url=(
+                (os.getenv("NEXTGEN_UI_URL") or "").strip()
+                or profile.nextgen_ui_url
+                or cfg.ui_base_url
+                or ""
+            ),
+        )
         max_parallel = resolve_max_parallel(
             ui_app_type=str(ui_cfg.get("app_type") or cfg.ui_app_type),
             job_extra=extra,
             cfg=cfg,
         )
-        _append_log(
-            job,
-            f"▸ Browser mode: {'headless' if ui_cfg.get('headless') else 'headed (visible)'}",
-        )
+        app_type = str(ui_cfg.get("app_type") or "web").lower()
+        if app_type in {"electron", "desktop", "app"}:
+            attach = str(ui_cfg.get("electron_attach_mode") or "launch")
+            _append_log(
+                job,
+                f"▸ Electron mode: {attach} · app={ui_cfg.get('electron_app_path') or 'attach-only'} · "
+                f"{'headless' if ui_cfg.get('headless') else 'headed (visible)'} · "
+                f"debug_port={ui_cfg.get('electron_debug_port')}",
+            )
+        else:
+            _append_log(
+                job,
+                f"▸ Browser mode: {'headless' if ui_cfg.get('headless') else 'headed (visible)'} · "
+                f"url={ui_cfg.get('base_url')}",
+            )
         if len(case_ids) > 1:
             mode = (
                 f"parallel (max_parallel={max_parallel})"
@@ -1453,7 +1639,7 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
         else:
             _append_log(job, "▸ Parallelism: CasePilot PP default (full connector cap)")
 
-        client = CasePilotMcpClient(cfg)
+        client = get_shared_casepilot_client(cfg)
         stopped = _stop_other_active_ui_jobs(project_root, job_id, client)
         if stopped:
             _append_log(
@@ -1461,28 +1647,39 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
                 f"▸ Stopped {len(stopped)} prior Generate-in-UI batch(es) on connector "
                 f"({', '.join(s[:8] for s in stopped)}) — only one UI run at a time",
             )
-        # Preview cases first (surface not_found early)
-        preview = client.fetch_testrail_cases(case_ids)
-        if preview.get("not_found"):
-            raise CasePilotMcpError(
-                f"TestRail case(s) not found: {preview.get('not_found')}",
-                payload=preview,
-            )
+        preview: dict[str, Any] = {"skipped": True}
+        preview_testrail = os.getenv("CASEPILOT_PREVIEW_TESTRAIL", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        if preview_testrail:
+            preview = client.fetch_testrail_cases(case_ids)
+            if preview.get("not_found"):
+                raise CasePilotMcpError(
+                    f"TestRail case(s) not found: {preview.get('not_found')}",
+                    payload=preview,
+                )
 
-        selection_items = [s for s in (job.get("selection") or []) if isinstance(s, dict)]
-        # ONE CasePilot session for the whole selection (connector rejects 45 parallel queues).
-        # Context = compact EVENT checklist + short recipes so the AI fires mutations, not setup epics.
         env_block = (
             f"\n\n## Environment\n- AUDIT_TARGET={profile.name}\n"
-            f"- NextGen UI: {ui_cfg['base_url']}\n"
-            "Use this URL only — do not switch environments mid-run.\n"
+            + (
+                f"- Monotype Connect Electron: {ui_cfg.get('electron_app_path') or 'attach CDP'}\n"
+                if app_type in {"electron", "desktop", "app"}
+                else (
+                    f"- NextGen UI: {ui_cfg.get('base_url')}\n"
+                    "Use this URL only — do not switch environments mid-run.\n"
+                )
+            )
         )
         summary, description, hints = _build_context(job, selection_override=selection_items or None)
         hints = {
             **hints,
             "audit_target": profile.name,
-            "nextgen_ui_url": ui_cfg["base_url"],
+            "nextgen_ui_url": ui_cfg.get("base_url") or profile.nextgen_ui_url,
             "mongo_db": (os.getenv("MONGO_DB_NAME") or "").strip(),
+            "app_type": app_type,
         }
         if max_parallel and max_parallel > 1:
             hints["parallel_ui"] = (
@@ -1903,6 +2100,9 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
                 ),
             }
             job["agent"] = agent
+            _restore_mtfngpp_handler_for_browser(job=job)
+            if job.get("connect_log_capture"):
+                _schedule_connect_log_harvest_if_ready(project_root, job)
             return _write_job(project_root, job)
 
         if pending > 0:
@@ -1974,16 +2174,28 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
             if prev != "completed" and _added == 0:
                 _append_log(job, "✓ CasePilot UI run completed — extracting correlation_id…")
             if _added == 0 and not (job.get("results") or []):
-                _append_log(
-                    job,
-                    "⚠ No AUDIT_RESULT/correlation_id found in CasePilot notes — "
-                    "paste correlation_id in the log panel (fallback)",
-                )
-                job["verification"] = {
-                    **(job.get("verification") or {}),
-                    "ready": False,
-                    "auto_verify_pending": False,
-                }
+                if job.get("connect_log_capture"):
+                    _append_log(
+                        job,
+                        "✓ CasePilot finished — harvesting xCorrelationId from Connect service log…",
+                    )
+                    job["verification"] = {
+                        **(job.get("verification") or {}),
+                        "ready": False,
+                        "auto_verify_pending": True,
+                        "connect_log_harvest": "pending",
+                    }
+                else:
+                    _append_log(
+                        job,
+                        "⚠ No AUDIT_RESULT/correlation_id found in CasePilot notes — "
+                        "paste correlation_id in the log panel (fallback)",
+                    )
+                    job["verification"] = {
+                        **(job.get("verification") or {}),
+                        "ready": False,
+                        "auto_verify_pending": False,
+                    }
             elif partial_batch:
                 if prev != "completed":
                     _append_log(
@@ -2003,6 +2215,10 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
                 }
             elif _added > 0:
                 _append_log(job, "✓ All CasePilot jobs finished — auto-verifying raw/enrich…")
+        if pending <= 0:
+            _restore_mtfngpp_handler_for_browser(job=job)
+            if job.get("connect_log_capture"):
+                _schedule_connect_log_harvest_if_ready(project_root, job)
         job["agent"] = agent
         return _write_job(project_root, job)
     except Exception as exc:
@@ -2289,5 +2505,5 @@ def finalize_ui_trigger_verification(
     return _write_job(project_root, job)
 
 
-def casepilot_health() -> dict[str, Any]:
-    return health_check()
+def casepilot_health(*, fast: bool = True, force: bool = False) -> dict[str, Any]:
+    return health_check(fast=fast, force=force)

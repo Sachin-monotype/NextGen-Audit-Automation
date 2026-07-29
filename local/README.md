@@ -25,7 +25,8 @@ PYTHONPATH=python backend/.venv/bin/python local/scripts/<script>.py [args]
 | Script | Purpose |
 |--------|---------|
 | `push_export_testrail_cases.py` | Push export TestRail packs (`--pack batch1\|batch2`, `--merge-map`) |
-| `push_ui_testrail_cases.py` | Push UI action packs (`--pack batch3\|batch4\|ingress`, `--merge-map`) |
+| `push_ui_testrail_cases.py` | Push UI action packs (`--pack batch3\|batch4\|ingress\|app_plugin`, `--merge-map`) |
+| `build_ingress_app_plugin_testrail_pack.py` | Build APP + Plugin ingress UI cases for TestRail section 4070136 |
 | `build_export_testrail_pack.py` | Build original 9 export cases + GQL samples |
 | `build_export_batch2_testrail_pack.py` | Build batch-2 export cases (reporting, users, teams, …) |
 | `sync_fdc14091_testrail_steps.py` | Sync TestRail steps from UI recipes |

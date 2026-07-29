@@ -1,0 +1,572 @@
+{
+  "version": 1,
+  "jira": "FDC-14091",
+  "suite": 22395,
+  "suite_section": 4070136,
+  "notes": "Monotype Connect APP + Plugin UI ingress triggers. Push: local/scripts/push_ui_testrail_cases.py --pack app_plugin --merge-map",
+  "preconditions_template": "1. Monotype Connect desktop app installed on macOS.\n2. Valid test user credentials (PP: mem.auditpreprodtest@gmail.com · QA: mem.auditqatest@gmail.com).\n3. App not logged in OR ready to re-open Preferences.",
+  "cases": [
+    {
+      "title": "Verify plugin panel opened (Plugin)",
+      "operation": "pluginPanelOpened",
+      "touchpoint": "Plugin",
+      "key": "ingress:plugin_panel_opened",
+      "kind": "ingress",
+      "ingress_case_id": "plugin_panel_opened",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Adobe InDesign or Illustrator with Monotype Fonts plugin installed and enabled.\n3. Valid test user credentials; Connect logged in.",
+      "custom_steps_separated": [
+        {
+          "content": "Open host app (InDesign/Illustrator) with Monotype plugin installed.",
+          "expected": "Document or start screen visible."
+        },
+        {
+          "content": "Open Monotype Fonts plugin panel (Window → Extensions / Monotype).",
+          "expected": "Plugin panel opens; pluginPanelOpened fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `pluginPanelOpened`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify plugin panel closed (Plugin)",
+      "operation": "pluginPanelClosed",
+      "touchpoint": "Plugin",
+      "key": "ingress:plugin_panel_closed",
+      "kind": "ingress",
+      "ingress_case_id": "plugin_panel_closed",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Adobe InDesign or Illustrator with Monotype Fonts plugin installed and enabled.\n3. Valid test user credentials; Connect logged in.",
+      "custom_steps_separated": [
+        {
+          "content": "Open host app and open Monotype plugin panel.",
+          "expected": "Plugin panel visible."
+        },
+        {
+          "content": "Close the Monotype plugin panel.",
+          "expected": "Panel closes; pluginPanelClosed fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `pluginPanelClosed`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify missing font left unresolved (Plugin)",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "Plugin",
+      "key": "ingress:plugin_missing_font_unresolved",
+      "kind": "ingress",
+      "ingress_case_id": "plugin_missing_font_unresolved",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Adobe InDesign or Illustrator with Monotype Fonts plugin installed and enabled.\n3. Valid test user credentials; Connect logged in.",
+      "custom_steps_separated": [
+        {
+          "content": "Open document with missing fonts; dismiss or skip resolution.",
+          "expected": "Missing font remains unresolved; ingress event fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `pluginDocumentOpened`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify missing font resolved (Plugin)",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "Plugin",
+      "key": "ingress:plugin_missing_font_resolved",
+      "kind": "ingress",
+      "ingress_case_id": "plugin_missing_font_resolved",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Adobe InDesign or Illustrator with Monotype Fonts plugin installed and enabled.\n3. Valid test user credentials; Connect logged in.",
+      "custom_steps_separated": [
+        {
+          "content": "Open document with missing fonts; activate or resolve each missing font via plugin.",
+          "expected": "Fonts resolved; ingress event fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `pluginDocumentOpened`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify missing font detected (Plugin)",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "Plugin",
+      "key": "ingress:plugin_missing_font_detected",
+      "kind": "ingress",
+      "ingress_case_id": "plugin_missing_font_detected",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Adobe InDesign or Illustrator with Monotype Fonts plugin installed and enabled.\n3. Valid test user credentials; Connect logged in.",
+      "custom_steps_separated": [
+        {
+          "content": "Open a document with fonts not activated / missing from the system.",
+          "expected": "Plugin reports missing fonts; pluginMissingFontDetected fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `pluginDocumentOpened`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify imported font requested (Plugin)",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "Plugin",
+      "key": "ingress:plugin_imported_font_requested",
+      "kind": "ingress",
+      "ingress_case_id": "plugin_imported_font_requested",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Adobe InDesign or Illustrator with Monotype Fonts plugin installed and enabled.\n3. Valid test user credentials; Connect logged in.",
+      "custom_steps_separated": [
+        {
+          "content": "In plugin, request activation/import for a local/imported font.",
+          "expected": "Import request sent; pluginDocumentOpened-related ingress fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `pluginDocumentOpened`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify font manually activated in plugin (Plugin)",
+      "operation": "pluginFontManuallyActivated",
+      "touchpoint": "Plugin",
+      "key": "ingress:plugin_font_manually_activated",
+      "kind": "ingress",
+      "ingress_case_id": "plugin_font_manually_activated",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Adobe InDesign or Illustrator with Monotype Fonts plugin installed and enabled.\n3. Valid test user credentials; Connect logged in.",
+      "custom_steps_separated": [
+        {
+          "content": "Open document; manually activate a font from the plugin panel.",
+          "expected": "Font activates; pluginFontManuallyActivated fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `pluginFontManuallyActivated`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify font auto-activated in plugin (Plugin)",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "Plugin",
+      "key": "ingress:plugin_font_auto_activated",
+      "kind": "ingress",
+      "ingress_case_id": "plugin_font_auto_activated",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Adobe InDesign or Illustrator with Monotype Fonts plugin installed and enabled.\n3. Valid test user credentials; Connect logged in.",
+      "custom_steps_separated": [
+        {
+          "content": "Open document with auto-activation enabled; open file using Monotype fonts.",
+          "expected": "Fonts auto-activate; ingress event fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `pluginDocumentOpened`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify font conflict detected (Plugin)",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "Plugin",
+      "key": "ingress:plugin_font_conflict_detected",
+      "kind": "ingress",
+      "ingress_case_id": "plugin_font_conflict_detected",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Adobe InDesign or Illustrator with Monotype Fonts plugin installed and enabled.\n3. Valid test user credentials; Connect logged in.",
+      "custom_steps_separated": [
+        {
+          "content": "Open document that triggers a font conflict in the plugin.",
+          "expected": "Conflict reported; ingress event fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `pluginDocumentOpened`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify plugin document opened (Plugin)",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "Plugin",
+      "key": "ingress:plugin_document_opened",
+      "kind": "ingress",
+      "ingress_case_id": "plugin_document_opened",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Adobe InDesign or Illustrator with Monotype Fonts plugin installed and enabled.\n3. Valid test user credentials; Connect logged in.",
+      "custom_steps_separated": [
+        {
+          "content": "Open host app and open a document that uses Monotype fonts.",
+          "expected": "Document opens in host app."
+        },
+        {
+          "content": "Ensure Monotype plugin is active for the document.",
+          "expected": "pluginDocumentOpened fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `pluginDocumentOpened`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify plugin install-all enabled (App)",
+      "operation": "appSettingsPluginInstallAllEnabled",
+      "touchpoint": "Desktop App",
+      "key": "ingress:app_settings_plugin_install_all_enabled",
+      "kind": "ingress",
+      "ingress_case_id": "app_settings_plugin_install_all_enabled",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Valid test user credentials (PP: mem.auditpreprodtest@gmail.com · QA: mem.auditqatest@gmail.com).\n3. App not logged in OR ready to re-open Preferences.",
+      "custom_steps_separated": [
+        {
+          "content": "Launch Monotype Connect desktop app on macOS.",
+          "expected": "App opens to login screen or home."
+        },
+        {
+          "content": "Log in with the configured test credentials.",
+          "expected": "User is authenticated; main app UI is visible."
+        },
+        {
+          "content": "Open Preferences → Plugins → enable “Install fonts in all applications”.",
+          "expected": "Toggle ON; appSettingsPluginInstallAllEnabled ingress event fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `appSettingsPluginInstallAllEnabled`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify plugin install-all disabled (App)",
+      "operation": "appSettingsPluginInstallAllDisabled",
+      "touchpoint": "Desktop App",
+      "key": "ingress:app_settings_plugin_install_all_disabled",
+      "kind": "ingress",
+      "ingress_case_id": "app_settings_plugin_install_all_disabled",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Valid test user credentials (PP: mem.auditpreprodtest@gmail.com · QA: mem.auditqatest@gmail.com).\n3. App not logged in OR ready to re-open Preferences.",
+      "custom_steps_separated": [
+        {
+          "content": "Launch Monotype Connect desktop app on macOS.",
+          "expected": "App opens to login screen or home."
+        },
+        {
+          "content": "Log in with the configured test credentials.",
+          "expected": "User is authenticated; main app UI is visible."
+        },
+        {
+          "content": "Open Preferences → Plugins → disable “Install fonts in all applications”.",
+          "expected": "Toggle OFF; appSettingsPluginInstallAllDisabled ingress event fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `appSettingsPluginInstallAllDisabled`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify per-app plugin enabled (App)",
+      "operation": "appSettingsPluginAppEnabled",
+      "touchpoint": "Desktop App",
+      "key": "ingress:app_settings_plugin_app_enabled",
+      "kind": "ingress",
+      "ingress_case_id": "app_settings_plugin_app_enabled",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Valid test user credentials (PP: mem.auditpreprodtest@gmail.com · QA: mem.auditqatest@gmail.com).\n3. App not logged in OR ready to re-open Preferences.",
+      "custom_steps_separated": [
+        {
+          "content": "Launch Monotype Connect desktop app on macOS.",
+          "expected": "App opens to login screen or home."
+        },
+        {
+          "content": "Log in with the configured test credentials.",
+          "expected": "User is authenticated; main app UI is visible."
+        },
+        {
+          "content": "Open Preferences → Plugins → enable plugin for a host application (e.g. InDesign).",
+          "expected": "Per-app plugin enabled; appSettingsPluginAppEnabled fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `appSettingsPluginAppEnabled`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify named host-app plugin enabled (App)",
+      "operation": "appSettingsPluginInstallAllDisabled",
+      "touchpoint": "Desktop App",
+      "key": "ingress:app_settings_plugin_app_app_name_enabled",
+      "kind": "ingress",
+      "ingress_case_id": "app_settings_plugin_app_app_name_enabled",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Valid test user credentials (PP: mem.auditpreprodtest@gmail.com · QA: mem.auditqatest@gmail.com).\n3. App not logged in OR ready to re-open Preferences.",
+      "custom_steps_separated": [
+        {
+          "content": "Launch Monotype Connect desktop app on macOS.",
+          "expected": "App opens to login screen or home."
+        },
+        {
+          "content": "Log in with the configured test credentials.",
+          "expected": "User is authenticated; main app UI is visible."
+        },
+        {
+          "content": "Open Preferences → Plugins → enable plugin for a specific named app in the list.",
+          "expected": "Named app plugin enabled; ingress event fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `appSettingsPluginAppEnabled`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify auto performance enabled (App)",
+      "operation": "appSettingsAutoPerformanceEnabled",
+      "touchpoint": "Desktop App",
+      "key": "ingress:app_settings_auto_performance_enabled",
+      "kind": "ingress",
+      "ingress_case_id": "app_settings_auto_performance_enabled",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Valid test user credentials (PP: mem.auditpreprodtest@gmail.com · QA: mem.auditqatest@gmail.com).\n3. App not logged in OR ready to re-open Preferences.",
+      "custom_steps_separated": [
+        {
+          "content": "Launch Monotype Connect desktop app on macOS.",
+          "expected": "App opens to login screen or home."
+        },
+        {
+          "content": "Log in with the configured test credentials.",
+          "expected": "User is authenticated; main app UI is visible."
+        },
+        {
+          "content": "Open Preferences → General → enable Auto performance.",
+          "expected": "Auto performance ON; appSettingsAutoPerformanceEnabled fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `appSettingsAutoPerformanceEnabled`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify auto performance disabled (App)",
+      "operation": "appSettingsAutoPerformanceDisabled",
+      "touchpoint": "Desktop App",
+      "key": "ingress:app_settings_auto_performance_disabled",
+      "kind": "ingress",
+      "ingress_case_id": "app_settings_auto_performance_disabled",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Valid test user credentials (PP: mem.auditpreprodtest@gmail.com · QA: mem.auditqatest@gmail.com).\n3. App not logged in OR ready to re-open Preferences.",
+      "custom_steps_separated": [
+        {
+          "content": "Launch Monotype Connect desktop app on macOS.",
+          "expected": "App opens to login screen or home."
+        },
+        {
+          "content": "Log in with the configured test credentials.",
+          "expected": "User is authenticated; main app UI is visible."
+        },
+        {
+          "content": "Open Preferences → General → disable Auto performance.",
+          "expected": "Auto performance OFF; appSettingsAutoPerformanceDisabled fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `appSettingsAutoPerformanceDisabled`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify activation mode changed (App)",
+      "operation": "appSettingsActivationModeChanged",
+      "touchpoint": "Desktop App",
+      "key": "ingress:app_settings_activation_mode_changed",
+      "kind": "ingress",
+      "ingress_case_id": "app_settings_activation_mode_changed",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Valid test user credentials (PP: mem.auditpreprodtest@gmail.com · QA: mem.auditqatest@gmail.com).\n3. App not logged in OR ready to re-open Preferences.",
+      "custom_steps_separated": [
+        {
+          "content": "Launch Monotype Connect desktop app on macOS.",
+          "expected": "App opens to login screen or home."
+        },
+        {
+          "content": "Log in with the configured test credentials.",
+          "expected": "User is authenticated; main app UI is visible."
+        },
+        {
+          "content": "Open Preferences → Fonts / Activation → change activation mode (e.g. Permanent ↔ Temporary).",
+          "expected": "Activation mode changes; appSettingsActivationModeChanged fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `appSettingsActivationModeChanged`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify app logs exported (App)",
+      "operation": "appLogsExported",
+      "touchpoint": "Desktop App",
+      "key": "ingress:app_logs_exported",
+      "kind": "ingress",
+      "ingress_case_id": "app_logs_exported",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Valid test user credentials (PP: mem.auditpreprodtest@gmail.com · QA: mem.auditqatest@gmail.com).\n3. App not logged in OR ready to re-open Preferences.",
+      "custom_steps_separated": [
+        {
+          "content": "Launch Monotype Connect desktop app on macOS.",
+          "expected": "App opens to login screen or home."
+        },
+        {
+          "content": "Log in with the configured test credentials.",
+          "expected": "User is authenticated; main app UI is visible."
+        },
+        {
+          "content": "Open Preferences → Help / Troubleshooting → Export logs (or equivalent).",
+          "expected": "Logs export completes; appLogsExported fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `appLogsExported`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify app language changed (App)",
+      "operation": "appLanguageChanged",
+      "touchpoint": "Desktop App",
+      "key": "ingress:app_language_changed",
+      "kind": "ingress",
+      "ingress_case_id": "app_language_changed",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Valid test user credentials (PP: mem.auditpreprodtest@gmail.com · QA: mem.auditqatest@gmail.com).\n3. App not logged in OR ready to re-open Preferences.",
+      "custom_steps_separated": [
+        {
+          "content": "Launch Monotype Connect desktop app on macOS.",
+          "expected": "App opens to login screen or home."
+        },
+        {
+          "content": "Log in with the configured test credentials.",
+          "expected": "User is authenticated; main app UI is visible."
+        },
+        {
+          "content": "Open Preferences → General → Language → select a different language and apply.",
+          "expected": "UI language changes; appLanguageChanged fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `appLanguageChanged`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify app feedback submitted (App)",
+      "operation": "appFeedbackSubmitted",
+      "touchpoint": "Desktop App",
+      "key": "ingress:app_feedback_submitted",
+      "kind": "ingress",
+      "ingress_case_id": "app_feedback_submitted",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Valid test user credentials (PP: mem.auditpreprodtest@gmail.com · QA: mem.auditqatest@gmail.com).\n3. App not logged in OR ready to re-open Preferences.",
+      "custom_steps_separated": [
+        {
+          "content": "Launch Monotype Connect desktop app on macOS.",
+          "expected": "App opens to login screen or home."
+        },
+        {
+          "content": "Log in with the configured test credentials.",
+          "expected": "User is authenticated; main app UI is visible."
+        },
+        {
+          "content": "Open Help / Send feedback → enter text → submit.",
+          "expected": "Feedback submitted; appFeedbackSubmitted fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `appFeedbackSubmitted`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify app cache cleared (App)",
+      "operation": "appCacheCleared",
+      "touchpoint": "Desktop App",
+      "key": "ingress:app_cache_cleared",
+      "kind": "ingress",
+      "ingress_case_id": "app_cache_cleared",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Valid test user credentials (PP: mem.auditpreprodtest@gmail.com · QA: mem.auditqatest@gmail.com).\n3. App not logged in OR ready to re-open Preferences.",
+      "custom_steps_separated": [
+        {
+          "content": "Launch Monotype Connect desktop app on macOS.",
+          "expected": "App opens to login screen or home."
+        },
+        {
+          "content": "Log in with the configured test credentials.",
+          "expected": "User is authenticated; main app UI is visible."
+        },
+        {
+          "content": "Open Preferences → Advanced / Storage → Clear cache.",
+          "expected": "Cache cleared; appCacheCleared fires."
+        },
+        {
+          "content": "On the test Mac open the latest log under ~/Library/Logs/Monotype/Monotype Connect/ConnectService/service, find the ingress curl for operation `appCacheCleared`, and copy xCorrelationId (field name xcorrelationid in the log).",
+          "expected": "Real correlation UUID captured; raw + enriched audit event verifiable in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    }
+  ]
+}

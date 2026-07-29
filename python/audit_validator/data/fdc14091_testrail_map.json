@@ -1837,6 +1837,153 @@
       "operation": "activateFamily",
       "touchpoint": "App (global)",
       "key": "activateFamily::App (global)"
+    },
+    {
+      "case_id": 73314949,
+      "title": "Verify plugin panel opened (Plugin)",
+      "operation": "pluginPanelOpened",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:plugin_panel_opened"
+    },
+    {
+      "case_id": 73314950,
+      "title": "Verify plugin panel closed (Plugin)",
+      "operation": "pluginPanelClosed",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:plugin_panel_closed"
+    },
+    {
+      "case_id": 73314951,
+      "title": "Verify missing font left unresolved (Plugin)",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:plugin_missing_font_unresolved"
+    },
+    {
+      "case_id": 73314952,
+      "title": "Verify missing font resolved (Plugin)",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:plugin_missing_font_resolved"
+    },
+    {
+      "case_id": 73314953,
+      "title": "Verify missing font detected (Plugin)",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:plugin_missing_font_detected"
+    },
+    {
+      "case_id": 73314954,
+      "title": "Verify imported font requested (Plugin)",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:plugin_imported_font_requested"
+    },
+    {
+      "case_id": 73314955,
+      "title": "Verify font manually activated in plugin (Plugin)",
+      "operation": "pluginFontManuallyActivated",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:plugin_font_manually_activated"
+    },
+    {
+      "case_id": 73314956,
+      "title": "Verify font auto-activated in plugin (Plugin)",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:plugin_font_auto_activated"
+    },
+    {
+      "case_id": 73314957,
+      "title": "Verify font conflict detected (Plugin)",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:plugin_font_conflict_detected"
+    },
+    {
+      "case_id": 73314958,
+      "title": "Verify plugin document opened (Plugin)",
+      "operation": "pluginDocumentOpened",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:plugin_document_opened"
+    },
+    {
+      "case_id": 73314959,
+      "title": "Verify plugin install-all enabled (App)",
+      "operation": "appSettingsPluginInstallAllEnabled",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:app_settings_plugin_install_all_enabled"
+    },
+    {
+      "case_id": 73314960,
+      "title": "Verify plugin install-all disabled (App)",
+      "operation": "appSettingsPluginInstallAllDisabled",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:app_settings_plugin_install_all_disabled"
+    },
+    {
+      "case_id": 73314961,
+      "title": "Verify per-app plugin enabled (App)",
+      "operation": "appSettingsPluginAppEnabled",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:app_settings_plugin_app_enabled"
+    },
+    {
+      "case_id": 73314962,
+      "title": "Verify named host-app plugin enabled (App)",
+      "operation": "appSettingsPluginInstallAllDisabled",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:app_settings_plugin_app_app_name_enabled"
+    },
+    {
+      "case_id": 73314963,
+      "title": "Verify auto performance enabled (App)",
+      "operation": "appSettingsAutoPerformanceEnabled",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:app_settings_auto_performance_enabled"
+    },
+    {
+      "case_id": 73314964,
+      "title": "Verify auto performance disabled (App)",
+      "operation": "appSettingsAutoPerformanceDisabled",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:app_settings_auto_performance_disabled"
+    },
+    {
+      "case_id": 73314965,
+      "title": "Verify activation mode changed (App)",
+      "operation": "appSettingsActivationModeChanged",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:app_settings_activation_mode_changed"
+    },
+    {
+      "case_id": 73314966,
+      "title": "Verify app logs exported (App)",
+      "operation": "appLogsExported",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:app_logs_exported"
+    },
+    {
+      "case_id": 73314967,
+      "title": "Verify app language changed (App)",
+      "operation": "appLanguageChanged",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:app_language_changed"
+    },
+    {
+      "case_id": 73314968,
+      "title": "Verify app feedback submitted (App)",
+      "operation": "appFeedbackSubmitted",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:app_feedback_submitted"
+    },
+    {
+      "case_id": 73314969,
+      "title": "Verify app cache cleared (App)",
+      "operation": "appCacheCleared",
+      "touchpoint": "Discovery/Browse (global)",
+      "key": "ingress:app_cache_cleared"
     }
   ],
   "by_key": {
@@ -2101,6 +2248,27 @@
     "updateSubToggle::Discovery/Browse (global)": 73311092,
     "appSettingsPerformanceModeChanged::Desktop UI": 73311305,
     "ingress:app_settings_performance_mode_changed": 73311305,
-    "activateFamily::App (global)": 73311306
+    "activateFamily::App (global)": 73311306,
+    "ingress:plugin_panel_opened": 73314949,
+    "ingress:plugin_panel_closed": 73314950,
+    "ingress:plugin_missing_font_unresolved": 73314951,
+    "ingress:plugin_missing_font_resolved": 73314952,
+    "ingress:plugin_missing_font_detected": 73314953,
+    "ingress:plugin_imported_font_requested": 73314954,
+    "ingress:plugin_font_manually_activated": 73314955,
+    "ingress:plugin_font_auto_activated": 73314956,
+    "ingress:plugin_font_conflict_detected": 73314957,
+    "ingress:plugin_document_opened": 73314958,
+    "ingress:app_settings_plugin_install_all_enabled": 73314959,
+    "ingress:app_settings_plugin_install_all_disabled": 73314960,
+    "ingress:app_settings_plugin_app_enabled": 73314961,
+    "ingress:app_settings_plugin_app_app_name_enabled": 73314962,
+    "ingress:app_settings_auto_performance_enabled": 73314963,
+    "ingress:app_settings_auto_performance_disabled": 73314964,
+    "ingress:app_settings_activation_mode_changed": 73314965,
+    "ingress:app_logs_exported": 73314966,
+    "ingress:app_language_changed": 73314967,
+    "ingress:app_feedback_submitted": 73314968,
+    "ingress:app_cache_cleared": 73314969
   }
 }
