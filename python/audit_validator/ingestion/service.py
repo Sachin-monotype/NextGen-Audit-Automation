@@ -45,7 +45,9 @@ class IngestionService:
         removed from the queue; this drops anything still queued so only fresh events
         get ingested. Returns per-queue purged message counts."""
         purged: dict[str, int] = {}
-        params = pika.URLParameters(self._config.rabbitmq_url)
+        from ..rabbitmq.connection import url_parameters
+
+        params = url_parameters(self._config.rabbitmq_url)
         connection = None
         try:
             connection = pika.BlockingConnection(params)

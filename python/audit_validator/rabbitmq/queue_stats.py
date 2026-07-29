@@ -31,7 +31,9 @@ def get_queue_depths(
             rmq.platform_notification_queue,
         )
     names = [rmq.raw_queue, rmq.enriched_queue, rmq.dead_letter_queue, *extra_queues]
-    params = pika.URLParameters(rmq.url)
+    from .connection import url_parameters
+
+    params = url_parameters(rmq.url)
     params.heartbeat = 60
     connection = pika.BlockingConnection(params)
     channel = connection.channel()

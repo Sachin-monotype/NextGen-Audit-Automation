@@ -128,6 +128,8 @@ def _warn_if_wrong_vhost(cfg: AppConfig) -> None:
 
     import pika
 
+    from ..rabbitmq.connection import url_parameters
+
     parsed = urlparse(cfg.rabbitmq.url)
     current_vhost = parsed.path.strip("/") or "/"
     siblings = {
@@ -142,13 +144,13 @@ def _warn_if_wrong_vhost(cfg: AppConfig) -> None:
     alt_url = urlunparse(parsed._replace(path=f"/{quote(alt_vhost, safe='')}"))
 
     try:
-        conn = pika.BlockingConnection(pika.URLParameters(cfg.rabbitmq.url))
+        conn = pika.BlockingConnection(url_parameters(cfg.rabbitmq.url))
         ch = conn.channel()
         cur_raw = ch.queue_declare(queue=cfg.rabbitmq.raw_queue, passive=True).method.message_count
         cur_enr = ch.queue_declare(queue=cfg.rabbitmq.enriched_queue, passive=True).method.message_count
         conn.close()
 
-        conn2 = pika.BlockingConnection(pika.URLParameters(alt_url))
+        conn2 = pika.BlockingConnection(url_parameters(alt_url))
         ch2 = conn2.channel()
         try:
             alt_raw = ch2.queue_declare(queue=cfg.rabbitmq.raw_queue, passive=True).method.message_count

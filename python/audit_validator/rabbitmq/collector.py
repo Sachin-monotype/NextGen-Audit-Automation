@@ -389,7 +389,9 @@ class QueueEventCollector:
             return dict(self._enriched_by_routing_key)
 
     def _consume_loop(self) -> None:
-        params = pika.URLParameters(self._rmq.url)
+        from .connection import url_parameters
+
+        params = url_parameters(self._rmq.url)
         params.heartbeat = 600
         params.blocked_connection_timeout = 300
 

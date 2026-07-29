@@ -42,7 +42,9 @@ def purge_queues(
         if include_dead_letter:
             queue_names.append(rmq.dead_letter_queue)
 
-    params = pika.URLParameters(rmq.url)
+    from .connection import url_parameters
+
+    params = url_parameters(rmq.url)
     params.heartbeat = 60
     connection = pika.BlockingConnection(params)
     from urllib.parse import urlparse

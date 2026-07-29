@@ -71,7 +71,9 @@ class QueueConsumer:
         self._stop.set()
 
     def run(self) -> None:
-        params = pika.URLParameters(self._config.rabbitmq_url)
+        from ..rabbitmq.connection import url_parameters
+
+        params = url_parameters(self._config.rabbitmq_url)
         params.heartbeat = 600
         params.blocked_connection_timeout = 300
 

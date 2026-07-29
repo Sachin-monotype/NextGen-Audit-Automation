@@ -41,7 +41,9 @@ def publish_raw_event(
         headers={"x-correlation-id": cid} if cid else None,
     )
 
-    conn = pika.BlockingConnection(pika.URLParameters(rmq.url))
+    from .connection import url_parameters
+
+    conn = pika.BlockingConnection(url_parameters(rmq.url))
     try:
         ch = conn.channel()
         try:
