@@ -8,6 +8,7 @@ latest N documents per operation.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from dataclasses import dataclass
@@ -122,12 +123,19 @@ class IngestionService:
         if self.running:
             return
         self._stop.clear()
+        ensure_indexes = os.getenv("INGEST_ENSURE_INDEXES_ON_START", "true").strip().lower() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }
         for lane in self._lanes:
             collections = [b.collection for b in lane.lane.config.bindings]
-            try:
-                lane.writer.ensure_indexes(collections)
-            except Exception as exc:  # noqa: BLE001
-                log.warning("ensure_indexes failed for %s (continuing): %s", lane.lane.target, exc)
+            if ensure_indexes:
+                try:
+                    lane.writer.ensure_indexes(collections)
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("ensure_indexes failed for %s (continuing): %s", lane.lane.target, exc)
 
         if self._base.purge_on_start:
             try:

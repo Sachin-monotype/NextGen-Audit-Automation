@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import threading
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
@@ -36,16 +37,17 @@ def _start_background_tasks() -> None:
     retention.start()
     # Keep RabbitMQ → Mongo dump running so Generate/Compare always see fresh pairs.
     # Opt out with INGEST_AUTO_START=false if you want pure manual control.
-    import os
-
     if os.getenv("INGEST_AUTO_START", "true").strip().lower() in {"1", "true", "yes", "on"}:
-        try:
-            status = ingestion.start()
-            logging.getLogger(__name__).info(
-                "Live ingestion auto-started (running=%s)", status.get("running")
-            )
-        except Exception as exc:  # noqa: BLE001
-            logging.getLogger(__name__).warning("Live ingestion auto-start failed: %s", exc)
+        def _start_ingestion() -> None:
+            try:
+                status = ingestion.start()
+                logging.getLogger(__name__).info(
+                    "Live ingestion auto-started (running=%s)", status.get("running")
+                )
+            except Exception as exc:  # noqa: BLE001
+                logging.getLogger(__name__).warning("Live ingestion auto-start failed: %s", exc)
+
+        threading.Thread(target=_start_ingestion, name="ingest-autostart", daemon=True).start()
 
 
 @app.on_event("shutdown")

@@ -68,6 +68,8 @@ function isElectronAppSelection(selection: UiTriggerSelectionItem[]): boolean {
     return false;
   });
 }
+
+function formatCasepilotError(raw: string): string {
   const low = raw.toLowerCase();
   if (
     low.includes("ip_banned") ||

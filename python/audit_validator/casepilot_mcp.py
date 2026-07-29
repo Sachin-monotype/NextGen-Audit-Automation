@@ -42,15 +42,47 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw in {"1", "true", "yes", "on"}
 
 
+def _electron_app_asar_path(app_path: Path) -> Path | None:
+    """Return Contents/Resources/app.asar inside a macOS .app bundle."""
+    candidate = app_path / "Contents" / "Resources" / "app.asar"
+    return candidate if candidate.is_file() else None
+
+
+def _normalize_electron_app_path(raw: str) -> str:
+    """Resolve to a .app bundle that contains Contents/Resources/app.asar."""
+    path = Path(raw).expanduser()
+    if not path.exists():
+        return raw
+    if path.suffix == ".app" and _electron_app_asar_path(path):
+        return str(path)
+    # Parent install folder, e.g. /Applications/Monotype NextGen/
+    if path.is_dir():
+        for child in sorted(path.glob("*.app")):
+            if _electron_app_asar_path(child):
+                return str(child)
+    # Flat /Applications/Monotype NextGen.app
+    for name in ("Monotype NextGen.app", "Monotype Connect.app"):
+        candidate = path / name if path.is_dir() else Path("/Applications") / name
+        if candidate.is_dir() and _electron_app_asar_path(candidate):
+            return str(candidate)
+    return raw
+
+
 def discover_electron_app_path() -> str:
     """Resolve Monotype Connect / NextGen .app bundle on macOS."""
     explicit = (os.getenv("CASEPILOT_ELECTRON_APP_PATH") or "").strip()
     if explicit:
-        return explicit
-    for name in ("Monotype Connect.app", "Monotype NextGen.app"):
-        path = Path("/Applications") / name
-        if path.is_dir():
-            return str(path)
+        return _normalize_electron_app_path(explicit)
+    for root in (Path("/Applications"), Path("/Applications/Monotype NextGen")):
+        if not root.is_dir():
+            continue
+        for name in ("Monotype NextGen.app", "Monotype Connect.app"):
+            candidate = root / name
+            if candidate.is_dir() and _electron_app_asar_path(candidate):
+                return str(candidate)
+        for child in root.glob("*.app"):
+            if _electron_app_asar_path(child):
+                return str(child)
     return ""
 
 
@@ -180,7 +212,11 @@ def build_ui_config(
         if attach_mode == "attach":
             out["electron_debug_port"] = debug_port
             return out
-        app_path = str(extra.get("electron_app_path") or cfg.electron_app_path or discover_electron_app_path())
+        app_path = str(
+            extra.get("electron_app_path")
+            or _normalize_electron_app_path(cfg.electron_app_path)
+            or discover_electron_app_path()
+        )
         out.update(
             {
                 "electron_app_path": app_path,

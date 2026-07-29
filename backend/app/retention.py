@@ -9,6 +9,7 @@ unbounded even when live ingestion is stopped.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from typing import TYPE_CHECKING
 
@@ -47,8 +48,14 @@ class RetentionScheduler:
             log.warning("Mongo retention sweep failed: %s", exc)
 
     def _loop(self) -> None:
-        # Immediate sweep on startup to trim any existing bloat, then periodic.
-        self._sweep()
+        skip = os.getenv("MONGO_RETENTION_SKIP_STARTUP_SWEEP", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        if not skip:
+            self._sweep()
         while not self._stop.wait(self._interval):
             self._sweep()
 

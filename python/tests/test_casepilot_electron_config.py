@@ -74,6 +74,14 @@ def test_build_ui_config_web() -> None:
     assert out["browser"] == "chrome"
 
 
+def test_normalize_electron_app_path_nested() -> None:
+    from audit_validator.casepilot_mcp import _normalize_electron_app_path
+
+    resolved = _normalize_electron_app_path("/Applications/Monotype NextGen")
+    assert resolved.endswith("Monotype NextGen.app")
+    assert "app.asar" not in resolved
+
+
 def test_ui_config_ready_electron(monkeypatch) -> None:
     cfg = _cfg()
     sel = [{"id": "ingress:app_language_changed", "touchpoint": "Desktop App"}]
