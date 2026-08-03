@@ -642,18 +642,26 @@ def apply_extracted_results(
                 gql_resp = (
                     item.get("graphql_response") if isinstance(item.get("graphql_response"), dict) else {}
                 )
+                jwt_ident = (
+                    item.get("jwt_identity") if isinstance(item.get("jwt_identity"), dict) else None
+                )
                 ctx = build_trigger_context(
                     operation=op,
                     correlation_id=cid,
                     graphql_input=gql_inp,
                     graphql_response=gql_resp,
+                    jwt_identity=jwt_ident,
                     success=True,
                 )
+                if item.get("jwt_identity_note"):
+                    ctx["jwt_identity_note"] = str(item.get("jwt_identity_note"))
+                if item.get("our_profile_id"):
+                    ctx["our_profile_id"] = str(item.get("our_profile_id"))
                 if gql_inp or gql_resp:
-                    ctx["capture_source"] = "casepilot_ui"
+                    ctx["capture_source"] = item.get("source") or "casepilot_ui"
                     ctx["replay_mode"] = "casepilot_ui"
                 else:
-                    ctx["capture_source"] = "casepilot_minimal"
+                    ctx["capture_source"] = item.get("source") or "casepilot_minimal"
                     ctx["replay_mode"] = "pending_raw"
                 for name in {op, display}:
                     if not name:

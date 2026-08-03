@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import JsonTree from "../components/JsonTree";
 import EnrichDiffModal from "../components/EnrichDiffModal";
 import GenerateInUiModal from "../components/GenerateInUiModal";
+import GenerateFromUiScriptModal from "../components/GenerateFromUiScriptModal";
 import VerifyInUiModal, { type VerifyInUiContext } from "../components/VerifyInUiModal";
 import {
   fetchCategories,
@@ -94,6 +95,14 @@ type ListModalState = {
   columns: string[];
   rows: Array<Record<string, string | number>>;
 };
+
+function isUiOrAppEvent(item: DropdownItem): boolean {
+  if (item.id.startsWith("ingress:plugin_")) return false;
+  if (item.kind === "graphql") return true;
+  if (item.id.startsWith("ingress:app_")) return true;
+  if (item.kind === "ingress" && !item.id.startsWith("ingress:plugin")) return true;
+  return item.kind !== "ingress" && item.kind !== "cron";
+}
 
 function csvEscape(v: unknown): string {
   const s = v == null ? "" : String(v);
@@ -759,6 +768,7 @@ export default function GeneratePage({
     dataB: unknown;
   } | null>(null);
   const [uiTriggerOpen, setUiTriggerOpen] = useState(false);
+  const [uiScriptOpen, setUiScriptOpen] = useState(false);
   const [uiJob, setUiJob] = useState<UiTriggerJob | null>(null);
   const [uiManualCid, setUiManualCid] = useState("");
   const [uiBusy, setUiBusy] = useState(false);
@@ -1808,23 +1818,56 @@ export default function GeneratePage({
         />
       )}
 
+      <div className="generate-channels">
+        <section className="generate-channel">
+          <h3 className="generate-channel-title">Generate from API</h3>
+          <p className="muted small">
+            Fire GraphQL / ingress payloads directly. Uses bearer token and default payloads.
+          </p>
+          <button type="button" className="primary" disabled={running} onClick={() => run(false)}>
+            {running ? "Running…" : "Run API generate"}
+          </button>
+        </section>
+
+        <section className="generate-channel">
+          <h3 className="generate-channel-title">Generate from CasePilot</h3>
+          <p className="muted small">
+            Hand off selected scenarios to CasePilot MCP. Paste or auto-capture correlation IDs, then
+            verify here.
+          </p>
+          <button
+            type="button"
+            className="primary outline"
+            disabled={running || selected.size === 0}
+            title={
+              selected.size === 0
+                ? "Select at least one scenario"
+                : "Trigger via CasePilot — then verify with correlation-id"
+            }
+            onClick={() => openUiTrigger()}
+          >
+            Open CasePilot handoff
+          </button>
+        </section>
+
+        <section className="generate-channel">
+          <h3 className="generate-channel-title">Generate from UI Script</h3>
+          <p className="muted small">
+            Pulls Playwright <code>datasource-latest.xlsx</code> (Web / App). Select target, event
+            and scenario — uses Excel <code>auth_token</code> for actor JWT when present.
+          </p>
+          <button
+            type="button"
+            className="primary outline"
+            disabled={running || uiBusy}
+            onClick={() => setUiScriptOpen(true)}
+          >
+            Select &amp; verify
+          </button>
+        </section>
+      </div>
+
       <div className="actions">
-        <button type="button" className="primary" disabled={running} onClick={() => run(false)}>
-          {running ? "Running…" : "Generate from API"}
-        </button>
-        <button
-          type="button"
-          className="primary outline"
-          disabled={running || selected.size === 0}
-          title={
-            selected.size === 0
-              ? "Select at least one scenario"
-              : "Trigger via CasePilot UI — then verify here with correlation-id"
-          }
-          onClick={() => openUiTrigger()}
-        >
-          Generate from UI
-        </button>
         {running && job?.id && (
           <button
             type="button"
@@ -1832,7 +1875,7 @@ export default function GeneratePage({
             onClick={() => void abortGenerate()}
             title="Stop the current API generate job"
           >
-            Close / abort ✕
+            Close / abort API job ✕
           </button>
         )}
         {(job || uiJob) && (
@@ -1841,6 +1884,16 @@ export default function GeneratePage({
       </div>
 
       {error && <p className="error">{error}</p>}
+
+      {uiScriptOpen && (
+        <GenerateFromUiScriptModal
+          onClose={() => setUiScriptOpen(false)}
+          onComplete={async (j) => {
+            activateUiJob(j);
+            await restoreGenerationStatus(setLastRun, setShowLastRun);
+          }}
+        />
+      )}
 
       {uiTriggerOpen && (
         <GenerateInUiModal
@@ -1857,130 +1910,245 @@ export default function GeneratePage({
         />
       )}
 
-      {uiJob && (
-        <details className="operation-summary-details generation-log-details" open>
-          <summary style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span>
-              Generation log · UI · Job {uiJob.id.slice(0, 8)}
-              {" · "}
-              <span className={`status-pill ${uiJob.status}`}>{uiJob.status}</span>
-              {uiJob.verification?.ready ? " · correlation ready" : ""}
-              {uiJob.verification?.generate_run_saved ? " · Generation Status saved" : ""}
-              {(() => {
-                const rs = (uiJob.agent as { run_summary?: { ok?: number; failed?: number; pending?: number } })
-                  ?.run_summary;
-                if (!rs || (rs.ok == null && rs.failed == null && rs.pending == null)) return null;
-                return (
-                  <>
-                    {" · "}
-                    {rs.ok ?? 0} passed · {rs.failed ?? 0} failed
-                    {(rs.pending ?? 0) > 0 ? ` · ${rs.pending} pending` : ""}
-                  </>
-                );
-              })()}
-            </span>
-            <button
-              type="button"
-              className="link-btn"
-              style={{ marginLeft: "auto" }}
-              disabled={uiBusy}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                void closeUiSession();
-              }}
-              title="Stop polling and dismiss this Generate-from-UI session"
-            >
-              Close session ✕
-            </button>
-          </summary>
-          {!!(uiJob.agent as { last_error?: string } | undefined)?.last_error && (
-            <p className="error small">
-              {(uiJob.agent as { last_error?: string }).last_error}
-            </p>
-          )}
-          <div className="log-box generation-log-box">
-            <pre ref={uiLogRef} className="job-logs">
-              {(uiJob.logs || []).join("\n") || "Waiting for CasePilot…"}
-            </pre>
-          </div>
-          {(uiJob.results || []).length > 0 && (
-            <div className="mongo-status generation-status-actions" style={{ marginTop: 8 }}>
-              <strong>Captured correlation_id(s)</strong>
-              <ul className="muted small">
-                {(uiJob.results || [])
-                  .filter((r) => {
-                    const c = String(r.correlation_id || "");
+      {uiJob && (() => {
+        const isScript =
+          (uiJob.agent as { channel?: string } | undefined)?.channel === "playwright_script";
+        const agent = (uiJob.agent || {}) as {
+          last_error?: string;
+          correlation_details?: Array<{
+            event?: string;
+            scenario?: string;
+            correlation_id?: string;
+            status?: string;
+          }>;
+          rows_imported?: number;
+        };
+        const details =
+          agent.correlation_details && agent.correlation_details.length > 0
+            ? agent.correlation_details
+            : (uiJob.results || [])
+                .filter((r) => {
+                  const c = String(r.correlation_id || "");
+                  return /^[0-9a-fA-F-]{36}$/.test(c) && !c.toLowerCase().includes("your-uuid");
+                })
+                .map((r) => ({
+                  event: r.operation || "",
+                  scenario: r.touchpoint || "",
+                  correlation_id: r.correlation_id || "",
+                  status: "OK",
+                }));
+
+        return (
+          <details className="operation-summary-details generation-log-details" open>
+            <summary style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span>
+                {isScript ? "UI Script correlations" : "Generation log · CasePilot"}
+                {" · Job "}
+                {uiJob.id.slice(0, 8)}
+                {" · "}
+                <span className={`status-pill ${uiJob.status}`}>{uiJob.status}</span>
+                {isScript ? ` · ${details.length} correlation(s)` : ""}
+                {uiJob.verification?.ready ? " · correlation ready" : ""}
+                {uiJob.verification?.generate_run_saved ? " · Generation Status saved" : ""}
+                {!isScript &&
+                  (() => {
+                    const rs = (
+                      uiJob.agent as {
+                        run_summary?: { ok?: number; failed?: number; pending?: number };
+                      }
+                    )?.run_summary;
+                    if (!rs || (rs.ok == null && rs.failed == null && rs.pending == null)) return null;
                     return (
-                      /^[0-9a-fA-F-]{36}$/.test(c) &&
-                      !c.toLowerCase().includes("your-uuid")
+                      <>
+                        {" · "}
+                        {rs.ok ?? 0} passed · {rs.failed ?? 0} failed
+                        {(rs.pending ?? 0) > 0 ? ` · ${rs.pending} pending` : ""}
+                      </>
                     );
-                  })
-                  .map((r, i) => (
-                    <li key={`${r.correlation_id}-${i}`}>
-                      <code>{r.correlation_id}</code>
-                      {r.operation
-                        ? ` · ${scenarioDisplayName(r.operation, r.touchpoint, { ui: true })}`
-                        : ""}
-                    </li>
-                  ))}
-              </ul>
-              <p className="muted small">
-                Verification runs automatically after CasePilot finishes — Generation Status opens
-                with raw/enrich. Use Continue only if auto-verify did not run.
-              </p>
-            </div>
-          )}
-          <div className="mongo-status generation-status-actions" style={{ marginTop: 8, gap: 8 }}>
-            <input
-              value={uiManualCid}
-              onChange={(e) => setUiManualCid(e.target.value)}
-              placeholder="Paste correlation-id from DevTools response header"
-              style={{ minWidth: 280 }}
-            />
-            <button type="button" disabled={uiBusy || !uiManualCid.trim()} onClick={onUiManualCid}>
-              Save correlation_id
-            </button>
-            <button
-              type="button"
-              className="primary"
-              disabled={
-                uiBusy ||
-                !(uiJob.verification?.ready || (uiJob.results || []).some((r) => r.correlation_id))
-              }
-              onClick={onContinueUiVerify}
-              title="Look up Mongo raw/enrich by correlation_id and open Generation Status"
-            >
-              {uiBusy ? "Verifying…" : "Continue verification"}
-            </button>
-            <button
-              type="button"
-              disabled={uiBusy}
-              onClick={async () => {
-                setUiBusy(true);
-                try {
-                  const res = await refreshGenerateInUi(uiJob.id);
-                  activateUiJob(res.job);
-                } catch (e) {
-                  setError(String(e));
-                } finally {
-                  setUiBusy(false);
-                }
-              }}
-            >
-              Refresh CasePilot
-            </button>
-            <button type="button" disabled={uiBusy} onClick={() => void closeUiSession()}>
-              Close session
-            </button>
-          </div>
-          <p className="muted small" style={{ marginTop: 8 }}>
-            Auto-mapped TestRail ids → Send. When CasePilot finishes we auto-capture all{" "}
-            <code>correlation-id</code>s (including createProject / list helpers) and open Generation
-            Status with raw + enrich. Paste below only if the agent omitted AUDIT_RESULT.
-          </p>
-        </details>
-      )}
+                  })()}
+              </span>
+              <button
+                type="button"
+                className="link-btn"
+                style={{ marginLeft: "auto" }}
+                disabled={uiBusy}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void closeUiSession();
+                }}
+                title="Stop polling and dismiss this session"
+              >
+                Close session ✕
+              </button>
+            </summary>
+
+            {!!agent.last_error && <p className="error small">{agent.last_error}</p>}
+
+            {isScript ? (
+              <>
+                <div className="ui-script-correlation-table-wrap">
+                  <table className="ui-script-correlation-table">
+                    <thead>
+                      <tr>
+                        <th>Event</th>
+                        <th>Scenario</th>
+                        <th>Correlation ID</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {details.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="muted">
+                            No correlation IDs imported. Use OK rows with a valid UUID in
+                            correlation_id.
+                          </td>
+                        </tr>
+                      ) : (
+                        details.map((r, i) => (
+                          <tr key={`${r.correlation_id}-${i}`}>
+                            <td>{r.event || "—"}</td>
+                            <td>{r.scenario || "—"}</td>
+                            <td>
+                              <code className="cid-cell">{r.correlation_id}</code>
+                              <button
+                                type="button"
+                                className="link-btn"
+                                onClick={() =>
+                                  void navigator.clipboard.writeText(String(r.correlation_id || ""))
+                                }
+                                title="Copy correlation ID"
+                              >
+                                copy
+                              </button>
+                            </td>
+                            <td>
+                              <span className="status-pill ok">{r.status || "OK"}</span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mongo-status generation-status-actions" style={{ marginTop: 8, gap: 8 }}>
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={
+                      uiBusy ||
+                      !(
+                        uiJob.verification?.ready ||
+                        (uiJob.results || []).some((r) => r.correlation_id)
+                      )
+                    }
+                    onClick={onContinueUiVerify}
+                    title="Look up Mongo raw/enrich by correlation_id and open Generation Status"
+                  >
+                    {uiBusy ? "Verifying…" : "Continue verification"}
+                  </button>
+                  <button type="button" disabled={uiBusy} onClick={() => void closeUiSession()}>
+                    Close session
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="log-box generation-log-box">
+                  <pre ref={uiLogRef} className="job-logs">
+                    {(uiJob.logs || []).join("\n") || "Waiting for CasePilot…"}
+                  </pre>
+                </div>
+                {(uiJob.results || []).length > 0 && (
+                  <div className="mongo-status generation-status-actions" style={{ marginTop: 8 }}>
+                    <strong>Captured correlation_id(s)</strong>
+                    <ul className="muted small">
+                      {(uiJob.results || [])
+                        .filter((r) => {
+                          const c = String(r.correlation_id || "");
+                          return (
+                            /^[0-9a-fA-F-]{36}$/.test(c) && !c.toLowerCase().includes("your-uuid")
+                          );
+                        })
+                        .map((r, i) => (
+                          <li key={`${r.correlation_id}-${i}`}>
+                            <code>{r.correlation_id}</code>
+                            {r.operation
+                              ? ` · ${scenarioDisplayName(r.operation, r.touchpoint, { ui: true })}`
+                              : ""}
+                          </li>
+                        ))}
+                    </ul>
+                    <p className="muted small">
+                      Verification runs automatically after CasePilot finishes — Generation Status
+                      opens with raw/enrich. Use Continue only if auto-verify did not run.
+                    </p>
+                  </div>
+                )}
+                <div
+                  className="mongo-status generation-status-actions"
+                  style={{ marginTop: 8, gap: 8 }}
+                >
+                  <input
+                    value={uiManualCid}
+                    onChange={(e) => setUiManualCid(e.target.value)}
+                    placeholder="Paste correlation-id from DevTools response header"
+                    style={{ minWidth: 280 }}
+                  />
+                  <button
+                    type="button"
+                    disabled={uiBusy || !uiManualCid.trim()}
+                    onClick={onUiManualCid}
+                  >
+                    Save correlation_id
+                  </button>
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={
+                      uiBusy ||
+                      !(
+                        uiJob.verification?.ready ||
+                        (uiJob.results || []).some((r) => r.correlation_id)
+                      )
+                    }
+                    onClick={onContinueUiVerify}
+                    title="Look up Mongo raw/enrich by correlation_id and open Generation Status"
+                  >
+                    {uiBusy ? "Verifying…" : "Continue verification"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={uiBusy}
+                    onClick={async () => {
+                      setUiBusy(true);
+                      try {
+                        const res = await refreshGenerateInUi(uiJob.id);
+                        activateUiJob(res.job);
+                      } catch (e) {
+                        setError(String(e));
+                      } finally {
+                        setUiBusy(false);
+                      }
+                    }}
+                  >
+                    Refresh CasePilot
+                  </button>
+                  <button type="button" disabled={uiBusy} onClick={() => void closeUiSession()}>
+                    Close session
+                  </button>
+                </div>
+                <p className="muted small" style={{ marginTop: 8 }}>
+                  Auto-mapped TestRail ids → Send. When CasePilot finishes we auto-capture all{" "}
+                  <code>correlation-id</code>s and open Generation Status. Paste below only if the
+                  agent omitted AUDIT_RESULT.
+                </p>
+              </>
+            )}
+          </details>
+        );
+      })()}
 
       {job && (
         <details className="operation-summary-details generation-log-details" open>

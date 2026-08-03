@@ -1215,6 +1215,121 @@ input[type="radio"] {
   margin-bottom: 16px;
 }
 
+.generate-channels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.generate-channel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.generate-channel-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.generate-channel .primary {
+  align-self: flex-start;
+}
+
+.ui-script-correlation-table-wrap {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
+.ui-script-correlation-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.ui-script-correlation-table th,
+.ui-script-correlation-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border, #e8ecf0);
+  vertical-align: middle;
+}
+
+.ui-script-correlation-table thead th {
+  position: sticky;
+  top: 0;
+  background: #1f4e79;
+  color: #fff;
+  font-weight: 600;
+  z-index: 1;
+}
+
+.ui-script-correlation-table tbody tr:nth-child(even) {
+  background: #f7f9fb;
+}
+
+.ui-script-correlation-table .cid-cell {
+  font-size: 0.82rem;
+  margin-right: 6px;
+  word-break: break-all;
+}
+
+.ui-script-target-toggle {
+  display: inline-flex;
+  gap: 0;
+  margin: 12px 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ui-script-target-toggle button {
+  border: none;
+  border-radius: 0;
+  background: var(--surface);
+  padding: 8px 18px;
+  min-width: 88px;
+}
+
+.ui-script-target-toggle button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.ui-script-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+
+.ui-script-path {
+  margin: 0 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.generate-ui-script-modal {
+  max-width: 560px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
 button {
   background: var(--surface);
   border: 1px solid var(--border);

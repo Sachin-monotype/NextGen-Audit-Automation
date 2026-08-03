@@ -76,19 +76,28 @@ def _load_enriched_sample(
     )
 
     def _from_fresh() -> JsonDict | None:
+        from ..case_keys import cron_staging_stem, parse_display_operation
+
         bases = (
             enriched_dir,
             cfg.project_root / "payload" / "ingress" / "enrich",
         )
+        base_op, case_suffix = parse_display_operation(operation)
+        stems = [operation]
+        if case_suffix and base_op:
+            stems.append(cron_staging_stem(base_op, case_suffix))
+        if base_op and base_op not in stems:
+            stems.append(base_op)
         for base in bases:
             if not base.is_dir():
                 continue
-            canonical = base / f"{operation}.json"
-            if canonical.is_file():
-                return json.loads(canonical.read_text(encoding="utf-8"))
-            matches = sorted(base.glob(f"{operation}-*.json"))
-            if matches:
-                return json.loads(matches[-1].read_text(encoding="utf-8"))
+            for stem in stems:
+                canonical = base / f"{stem}.json"
+                if canonical.is_file():
+                    return json.loads(canonical.read_text(encoding="utf-8"))
+                matches = sorted(base.glob(f"{stem}-*.json"))
+                if matches:
+                    return json.loads(matches[-1].read_text(encoding="utf-8"))
         return None
 
     def _from_queue_pairs() -> JsonDict | None:
@@ -200,6 +209,18 @@ def _variation_md5s_in_hits(hits: list[dict]) -> set[str]:
     return {str(h.get("md5")).strip() for h in hits if isinstance(h, dict) and h.get("md5")}
 
 
+def _note_discovery_failure(cache: dict[str, Any], exc: Exception) -> None:
+    msg = str(exc).strip()
+    if not msg:
+        return
+    label = f"Discovery/Typesense error: {msg}"
+    prev = str(cache.get("discovery_error") or "")
+    if not prev:
+        cache["discovery_error"] = label
+    elif msg not in prev:
+        cache["discovery_error"] = f"{prev}; {msg}"
+
+
 def _prefetch_discovery(
     ops: list[str],
     samples: dict[str, JsonDict],
@@ -300,6 +321,7 @@ def _prefetch_discovery(
                     covered_families.add(fid)
             except Exception as exc:  # noqa: BLE001
                 log.warning("Discovery family route %s failed: %s", fid, exc)
+                _note_discovery_failure(cache, exc)
         style_batches = _chunk_ids(style_id_list)
 
         def _styles_batch(batch: list[str]) -> list[dict]:
@@ -330,6 +352,7 @@ def _prefetch_discovery(
                         by_style_groups.append(fut.result())
                     except Exception as exc:  # noqa: BLE001
                         log.warning("Discovery style batch failed: %s", exc)
+                        _note_discovery_failure(cache, exc)
 
         style_hits = _merge_style_hits(style_hits, *by_style_groups)
         cache["style_hits"] = style_hits
@@ -349,6 +372,7 @@ def _prefetch_discovery(
                         by_style_var_groups.append(fut.result())
                     except Exception as exc:  # noqa: BLE001
                         log.warning("Discovery variation batch failed: %s", exc)
+                        _note_discovery_failure(cache, exc)
         if not by_style_var_groups and budget.can_call() and ids:
             budget.record(f"GET /v1/variations familyIds=[{len(ids)} ids]")
             by_family = discovery.fetch_variations_by_family_ids(
@@ -381,6 +405,7 @@ def _prefetch_discovery(
                         by_md5_groups.append(fut.result())
                     except Exception as exc:  # noqa: BLE001
                         log.warning("Discovery md5 batch failed: %s", exc)
+                        _note_discovery_failure(cache, exc)
         cache["variation_hits"] = _merge_variation_hits(variation_hits, *by_md5_groups)
         if not cache["variation_hits"] and not budget.can_call():
             cache["discovery_note"] = "Discovery budget exhausted before variations fetch"
@@ -1673,6 +1698,10 @@ def run_source_validation(
                     live["graphql_response"] = trigger["graphql_response"]
                 if isinstance(trigger.get("jwt_identity"), dict) and trigger["jwt_identity"]:
                     live["jwt_identity"] = trigger["jwt_identity"]
+                if trigger.get("jwt_identity_note"):
+                    live["jwt_identity_note"] = str(trigger.get("jwt_identity_note"))
+                if trigger.get("our_profile_id"):
+                    live["our_profile_id"] = str(trigger.get("our_profile_id"))
             if "jwt_identity" not in live:
                 live["jwt_identity"] = jwt_identity()
             # QA M2M tokens have no user claims — fall back to actor stamps on the event
@@ -1688,9 +1717,10 @@ def run_source_validation(
                         "JWT claims taken from enriched actor "
                         "(active Bearer is M2M / has no user claims)"
                     )
-            pid = resolve_our_profile_id(project_root=cfg.project_root)
-            if pid:
-                live["our_profile_id"] = pid
+            if not live.get("our_profile_id"):
+                pid = resolve_our_profile_id(project_root=cfg.project_root)
+                if pid:
+                    live["our_profile_id"] = pid
         except Exception:
             pass
         # Raw envelope is for pairing only — comparison sources GraphQL trigger/response.

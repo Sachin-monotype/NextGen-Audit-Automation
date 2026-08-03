@@ -352,6 +352,7 @@ export type UiTriggerJob = {
     note?: string;
     generate_run_saved?: boolean;
     completed?: boolean;
+    auto_verify_pending?: boolean;
   };
 };
 
@@ -427,6 +428,62 @@ export async function listGenerateInUi() {
   const res = await fetch(`${API}/api/jobs/generate-ui`);
   const data = await res.json();
   return data as { jobs?: UiTriggerJob[]; count?: number; error?: string };
+}
+
+export type UiScriptCatalog = {
+  ok: boolean;
+  target?: string;
+  path?: string;
+  sheet?: string;
+  events?: string[];
+  scenarios?: string[];
+  rows?: Array<{
+    event_name: string;
+    scenario: string;
+    correlation_id: string;
+    has_auth_token: boolean;
+  }>;
+  count?: number;
+  error?: string;
+};
+
+export async function fetchUiScriptCatalog(target: "web" | "app") {
+  const res = await fetch(
+    `${API}/api/jobs/generate-ui-script/catalog?target=${encodeURIComponent(target)}`,
+  );
+  const data = (await res.json()) as UiScriptCatalog;
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || "Failed to load UI script catalog");
+  }
+  return data;
+}
+
+export async function importGenerateFromUiScript(opts: {
+  target: "web" | "app";
+  events?: string[];
+  scenarios?: string[];
+}) {
+  const res = await fetch(`${API}/api/jobs/generate-ui-script`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      target: opts.target,
+      events: opts.events ?? [],
+      scenarios: opts.scenarios ?? [],
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok && !data.job) {
+    throw new Error(data.error || "Failed to import UI script Excel");
+  }
+  return data as {
+    ok: boolean;
+    job: UiTriggerJob;
+    rows_parsed?: number;
+    target?: string;
+    path?: string;
+    error?: string;
+  };
 }
 
 export async function recordGenerateInUiResults(

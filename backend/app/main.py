@@ -9,7 +9,7 @@ import re
 import threading
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
@@ -1231,6 +1231,63 @@ def refresh_generate_ui(job_id: str) -> dict[str, Any]:
 
 class UiTriggerResultsBody(BaseModel):
     results: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class UiScriptImportBody(BaseModel):
+    target: str = "web"
+    events: list[str] = Field(default_factory=list)
+    scenarios: list[str] = Field(default_factory=list)
+
+
+@app.get("/api/jobs/generate-ui-script/catalog")
+def generate_ui_script_catalog(target: str = "web") -> dict[str, Any]:
+    """List events/scenarios from Playwright datasource-latest.xlsx (web or app sheet)."""
+    try:
+        from audit_validator.ui_script_import import list_ui_script_catalog
+
+        return {"ok": True, **list_ui_script_catalog(target=target)}
+    except FileNotFoundError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+@app.post("/api/jobs/generate-ui-script")
+def import_generate_ui_script(body: UiScriptImportBody) -> dict[str, Any]:
+    """Import from datasource-latest.xlsx (web/app) → verify → Generation Status + Compare."""
+    try:
+        from audit_validator.ui_script_import import (
+            import_ui_script_excel,
+            resolve_ui_script_datasource_path,
+        )
+
+        path = resolve_ui_script_datasource_path()
+        job = import_ui_script_excel(
+            settings.audit_project_root,
+            target=body.target,
+            events=body.events or None,
+            scenarios=body.scenarios or None,
+            db=db,
+        )
+        ready = bool((job or {}).get("verification", {}).get("generate_run_saved"))
+        rows = int(((job or {}).get("agent") or {}).get("rows_imported") or 0)
+        return {
+            "ok": ready,
+            "job": job,
+            "rows_parsed": rows,
+            "target": body.target,
+            "path": str(path),
+        }
+    except FileNotFoundError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
 @app.post("/api/jobs/generate-ui/{job_id}/results")
