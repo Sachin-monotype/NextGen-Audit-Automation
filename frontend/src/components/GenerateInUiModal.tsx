@@ -295,10 +295,10 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
         className="modal-card generate-ui-modal generate-ui-modal-wide"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Generate from UI"
+        aria-label="Generate from CasePilot"
       >
         <div className="modal-head">
-          <strong>Generate from UI</strong>
+          <strong>Generate from CasePilot</strong>
           <button type="button" className="link-btn" onClick={requestClose}>
             close ✕
           </button>

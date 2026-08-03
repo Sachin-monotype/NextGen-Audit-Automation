@@ -659,31 +659,41 @@ def apply_extracted_results(
                     ctx["our_profile_id"] = str(item.get("our_profile_id"))
                 if item.get("auth_token"):
                     ctx["auth_token"] = str(item.get("auth_token"))
-                if item.get("jwt_from_excel") or item.get("source") == "playwright_script":
-                    ctx["jwt_from_excel"] = bool(
-                        item.get("jwt_from_excel")
-                        or str(item.get("jwt_identity_note") or "").startswith(
-                            "JWT claims from Excel"
-                        )
-                    )
+                note = str(item.get("jwt_identity_note") or "")
+                if (
+                    item.get("jwt_from_excel")
+                    or item.get("source") == "playwright_script"
+                    or "Excel auth_token" in note
+                    or note.startswith("JWT claims from Excel")
+                ):
+                    ctx["jwt_from_excel"] = True
+                src = str(item.get("source") or "").strip() or "casepilot_ui"
                 if gql_inp or gql_resp:
-                    ctx["capture_source"] = item.get("source") or "casepilot_ui"
-                    ctx["replay_mode"] = "casepilot_ui"
-                elif item.get("source") == "playwright_script":
+                    ctx["capture_source"] = src
+                    # Keep playwright_script sticky so Compare prefers Excel Response/JWT.
+                    ctx["replay_mode"] = (
+                        "playwright_script" if src == "playwright_script" else "casepilot_ui"
+                    )
+                elif src == "playwright_script":
                     # Keep Excel JWT sticky even when Response cell is empty.
                     ctx["capture_source"] = "playwright_script"
                     ctx["replay_mode"] = "playwright_script"
                 else:
-                    ctx["capture_source"] = item.get("source") or "casepilot_minimal"
+                    ctx["capture_source"] = src or "casepilot_minimal"
                     ctx["replay_mode"] = "pending_raw"
-                for name in {op, display}:
+                # Save under bare op, scenario, and (UI) label so Compare finds Excel
+                # capture even when the operator selects activateFamily(global).
+                names = {op, display}
+                if display.endswith("(UI)"):
+                    names.add(display[: -len("(UI)")])
+                for name in names:
                     if not name:
                         continue
                     save_trigger_context(project_root, name, ctx)
                 if gql_resp:
                     gql_dir = project_root / "payload" / "graphql"
                     gql_dir.mkdir(parents=True, exist_ok=True)
-                    for name in {op, display}:
+                    for name in names:
                         if name:
                             (gql_dir / f"{name}.json").write_text(
                                 json.dumps(gql_resp, indent=2, default=str),

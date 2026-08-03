@@ -91,8 +91,21 @@ def save_trigger_context(
     return path
 
 
-def load_trigger_context(project_root: Path, operation: str) -> dict[str, Any] | None:
-    path = project_root / "payload" / "trigger" / f"{operation}.json"
+def _trigger_is_ui_or_excel_capture(data: dict[str, Any]) -> bool:
+    """True when the trigger came from Excel / Playwright / CasePilot UI (not BE seed)."""
+    mode = str(data.get("replay_mode") or "").strip()
+    src = str(data.get("capture_source") or "").strip()
+    note = str(data.get("jwt_identity_note") or "")
+    return (
+        mode in {"casepilot_ui", "playwright_script"}
+        or src in {"playwright_script", "casepilot_ui", "casepilot_minimal"}
+        or bool(data.get("jwt_from_excel"))
+        or "Excel auth_token" in note
+        or note.startswith("JWT claims from Excel")
+    )
+
+
+def _read_trigger_file(path: Path) -> dict[str, Any] | None:
     if not path.is_file():
         return None
     try:
@@ -100,6 +113,50 @@ def load_trigger_context(project_root: Path, operation: str) -> dict[str, Any] |
         return data if isinstance(data, dict) else None
     except Exception:
         return None
+
+
+def load_trigger_context(project_root: Path, operation: str) -> dict[str, Any] | None:
+    """Load trigger JSON for an operation.
+
+    Prefer Excel/UI captures (``…(UI).json`` / playwright / Excel JWT) over stale
+    BE seed files that share the same scenario name (e.g. ``activateFamily(global)``).
+    """
+    trigger_dir = project_root / "payload" / "trigger"
+    op = (operation or "").strip()
+    if not op:
+        return None
+
+    candidates: list[Path] = []
+    exact = trigger_dir / f"{op}.json"
+    if exact.is_file():
+        candidates.append(exact)
+
+    if op.endswith("(UI)"):
+        bare = op[: -len("(UI)")]
+        bare_path = trigger_dir / f"{bare}.json"
+        if bare_path.is_file() and bare_path not in candidates:
+            candidates.append(bare_path)
+    else:
+        ui_path = trigger_dir / f"{op}(UI).json"
+        if ui_path.is_file() and ui_path not in candidates:
+            candidates.append(ui_path)
+
+    ui_hits: list[dict[str, Any]] = []
+    other: list[dict[str, Any]] = []
+    for path in candidates:
+        data = _read_trigger_file(path)
+        if not data:
+            continue
+        if _trigger_is_ui_or_excel_capture(data):
+            ui_hits.append(data)
+        else:
+            other.append(data)
+
+    if ui_hits:
+        return ui_hits[0]
+    if other:
+        return other[0]
+    return None
 
 
 def _replay_graphql_live(

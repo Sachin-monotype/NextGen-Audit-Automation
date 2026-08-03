@@ -70,8 +70,18 @@ def _load_ingress_results(path: Path | None) -> list[dict]:
     return [c for c in cases if isinstance(c, dict)]
 
 
+def _cron_rows_by_case(cases: list[dict]) -> dict[str, dict]:
+    """One Results row per cron case_id (not collapsed by operation)."""
+    out: dict[str, dict] = {}
+    for case in cases:
+        cid = str(case.get("case_id") or "")
+        if cid:
+            out[cid] = case
+    return out
+
+
 def _cron_rows_by_operation(cases: list[dict]) -> dict[str, dict]:
-    """Last cron case per operation (for Results tab merge)."""
+    """Last cron case per operation (legacy merge)."""
     out: dict[str, dict] = {}
     for case in cases:
         op = str(case.get("operation") or "")
@@ -698,62 +708,74 @@ def write_e2e_workbook(
 
     sim, sim_errors = _load_flows_simulation(flows_results_path) if flows_results_path else ({}, {})
     cron_cases = _load_cron_results(cron_results_path)
+    cron_by_case = _cron_rows_by_case(cron_cases)
     cron_by_op = _cron_rows_by_operation(cron_cases)
     ingress_cases = _load_ingress_results(ingress_results_path)
     ingress_by_case = _ingress_rows_by_case(ingress_cases)
     val_by_op = best_validation_per_operation(validation_results)
     cov_by_op = {row.operation: row for row in coverage.operations} if coverage else {}
 
-    all_ops = sorted(set(e2e_expected_operations()) | set(cron_by_op.keys()))
+    from audit_validator.case_keys import cron_display_operation
+
+    cron_case_ops = {
+        str(c.get("operation") or "")
+        for c in cron_by_case.values()
+        if str(c.get("operation") or "")
+    }
+    all_ops = sorted(set(e2e_expected_operations()) - cron_case_ops)
 
     rows: list[list[str | int]] = []
     for op in all_ops:
         row = cov_by_op.get(op)
         stages = row.stages if row else {}
         val = val_by_op.get(op)
-        cron_case = cron_by_op.get(op)
-        if cron_case and op not in sim:
-            simulation = "CRON"
-            sim_err = str(cron_case.get("error") or "")
-            raw = "YES" if cron_case.get("publish_status") == "PASS" else "NO"
-            enrich = (
-                "YES"
-                if cron_case.get("enrich_status") == "PASS"
-                else "DEAD_LETTER"
-                if cron_case.get("enrich_status") == "DLQ"
-                else "NO"
-            )
-            outcome_status = str(cron_case.get("validation_status") or "FAIL")
-            outcome_reason = sim_err or f"cron case {cron_case.get('case_id', '')}"
-            trigger = "CRON"
-        else:
-            simulation = sim.get(op, "NOT_RUN")
-            sim_err = sim_errors.get(op, "")
-            raw = _raw_status(stages)
-            enriched = _enriched_status(stages, op)
-            outcome = resolve_e2e_outcome(
-                op,
-                simulation=simulation,
-                sim_error=sim_err,
-                raw=raw,
-                enriched=enriched,
-                val=val,
-            )
-            outcome_status = outcome.status
-            outcome_reason = outcome.reason
-            enrich = enriched
-            trigger = "GQL" if simulation not in ("NOT_RUN", "SKIP", "") else "NOT_RUN"
-
+        simulation = sim.get(op, "NOT_RUN")
+        sim_err = sim_errors.get(op, "")
+        raw = _raw_status(stages)
+        enriched = _enriched_status(stages, op)
+        outcome = resolve_e2e_outcome(
+            op,
+            simulation=simulation,
+            sim_error=sim_err,
+            raw=raw,
+            enriched=enriched,
+            val=val,
+        )
         rows.append(
             [
                 op,
-                expected_routing_key(op) or str((cron_case or {}).get("routing_key") or ""),
-                trigger,
+                expected_routing_key(op) or "",
+                "GQL" if simulation not in ("NOT_RUN", "SKIP", "") else "NOT_RUN",
                 simulation,
                 raw,
+                enriched,
+                outcome.status,
+                outcome.reason,
+            ]
+        )
+
+    for case_id, cron_case in sorted(cron_by_case.items()):
+        op = str(cron_case.get("operation") or case_id)
+        display = cron_display_operation(op, case_id)
+        sim_err = str(cron_case.get("error") or "")
+        raw = "YES" if cron_case.get("publish_status") == "PASS" else "NO"
+        enrich = (
+            "YES"
+            if cron_case.get("enrich_status") == "PASS"
+            else "DEAD_LETTER"
+            if cron_case.get("enrich_status") == "DLQ"
+            else "NO"
+        )
+        rows.append(
+            [
+                display,
+                str(cron_case.get("routing_key") or expected_routing_key(op) or ""),
+                "CRON",
+                "CRON",
+                raw,
                 enrich,
-                outcome_status,
-                outcome_reason,
+                str(cron_case.get("validation_status") or "FAIL"),
+                sim_err or f"cron case {case_id}",
             ]
         )
 

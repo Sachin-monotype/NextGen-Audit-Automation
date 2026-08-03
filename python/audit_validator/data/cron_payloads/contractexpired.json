@@ -3,6 +3,7 @@
     "eventId": "c5d76020-8565-48f7-b8d9-4db3f6e6df1f",
     "eventVersion": 1,
     "occurredAt": "2026-07-09T06:10:53.087Z",
+    "routingKey": "subscription.contract.expiry",
     "actor": {
         "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
     },

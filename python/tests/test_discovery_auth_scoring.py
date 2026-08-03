@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+
+from audit_validator.auth import resolve_discovery_base_url
 from audit_validator.source_validation.comparison_rows import (
     ComparisonRow,
     MappingField,
@@ -9,6 +12,35 @@ from audit_validator.source_validation.comparison_rows import (
     _is_unreachable_error,
     _row,
 )
+
+
+def test_discovery_base_url_rewrites_middleware_to_bff(monkeypatch):
+    monkeypatch.setenv("NEXTGEN_UI_URL", "https://nextgen-qa.monotype-pp.com")
+    monkeypatch.setenv(
+        "DISCOVERY_BASE_URL", "https://mtc-middleware-discovery.monotype-pp.com"
+    )
+    monkeypatch.delenv("DISCOVERY_USE_MIDDLEWARE", raising=False)
+    assert resolve_discovery_base_url() == "https://nextgen-qa.monotype-pp.com/api/search"
+
+
+def test_discovery_base_url_can_force_middleware(monkeypatch):
+    monkeypatch.setenv(
+        "DISCOVERY_BASE_URL", "https://mtc-middleware-discovery.monotype-pp.com"
+    )
+    monkeypatch.setenv("DISCOVERY_USE_MIDDLEWARE", "true")
+    assert resolve_discovery_base_url() == "https://mtc-middleware-discovery.monotype-pp.com"
+
+
+def test_qa_user_oauth_is_spa_password_client(monkeypatch):
+    monkeypatch.setenv("AUDIT_TARGET", "qa")
+    from audit_validator.env_profiles import get_audit_profile, user_oauth_config_dict
+
+    profile = get_audit_profile("qa")
+    assert profile.user_oauth is not None
+    assert profile.user_oauth.grant_type == "password"
+    uo = user_oauth_config_dict(profile)
+    assert uo["client_id"].startswith("s6k7gw")
+    assert "secure.monotype-pp.com" in uo["token_url"]
 
 
 def test_401_is_auth_not_unreachable():

@@ -35,6 +35,17 @@ QA_OAUTH = OAuthProfile(
     grant_type="client_credentials",
 )
 
+# NextGen QA SPA client — password grant (same client as MTConnectAutomation QA).
+# Browser SSO / Excel tokens use this azp; M2M QA_OAUTH rejects password grant.
+QA_USER_OAUTH = OAuthProfile(
+    token_url="https://secure.monotype-pp.com/oauth/token",
+    client_id="s6k7gwI03MnW4EpGKirRF3VGZq5k9HLG",
+    client_secret="BYyS6kCDXMSsOFzG9q_qZrFZhWO7rAHgLZfp0zKMbba8ZGLPifcWEFDRzLfP9LRx",
+    audience="https://nextgen.monotype.com",
+    organization="",
+    grant_type="password",
+)
+
 
 @dataclass(frozen=True)
 class AuditTargetProfile:
@@ -139,8 +150,8 @@ QA = AuditTargetProfile(
     seed_deactivate_family_id="8kL8ZM64",
     mongo_db_name="AuditLogsQA",
     oauth=QA_OAUTH,
-    oauth_username="mem.auditqatest@gmail.com",
-    user_oauth=PP_OAUTH,
+    oauth_username="monotype.staging+testuser11new@gmail.com",
+    user_oauth=QA_USER_OAUTH,
 )
 
 EVEREST_DEV = AuditTargetProfile(

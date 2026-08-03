@@ -3,7 +3,7 @@
     "eventId": "11540829-a5b0-45d9-b1d1-676366002acf",
     "eventVersion": 1,
     "occurredAt": "2026-07-09T06:10:59.254Z",
-    "routingKey": "reporting.window.closing",
+    "routingKey": "reporting.window.final",
     "actor": {
         "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
     },

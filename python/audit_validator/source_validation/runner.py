@@ -7,10 +7,16 @@ import logging
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable
 
+from ..auth import (
+    _strip_bearer,
+    ensure_discovery_user_token,
+    resolve_discovery_base_url,
+    resolve_excel_discovery_token,
+)
 from ..models import JsonDict
 from .clients import DiscoveryClient
 from .db.factory import build_ums_cms_ams_clients
@@ -1574,6 +1580,22 @@ def run_source_validation(
             except Exception:  # noqa: BLE001 — progress must never break validation
                 pass
 
+    excel_tok = resolve_excel_discovery_token(cfg.project_root, ops=ops)
+    minted = ensure_discovery_user_token(project_root=cfg.project_root)
+    preferred = minted or excel_tok
+    if preferred and preferred != _strip_bearer(cfg.discovery_bearer_token):
+        cfg = replace(
+            cfg,
+            discovery_bearer_token=preferred,
+            discovery_base_url=resolve_discovery_base_url(),
+        )
+        src = "OAuth password grant" if minted else "Excel auth_token"
+        _emit(
+            f"▸ Discovery/Typesense using {src} via {cfg.discovery_base_url}"
+        )
+    elif cfg.discovery_ready:
+        _emit(f"▸ Discovery/Typesense base={cfg.discovery_base_url}")
+
     discovery = DiscoveryClient(cfg) if cfg.discovery_ready else None
     ums, cms, ams, truth_mode = build_ums_cms_ams_clients(cfg)
     _emit(f"Source truth: {truth_mode} (UMS/CMS/AMS); Typesense stays on HTTP")
@@ -1760,7 +1782,9 @@ def run_source_validation(
                     live["jwt_identity"] = trigger["jwt_identity"]
                 if trigger.get("jwt_identity_note"):
                     live["jwt_identity_note"] = str(trigger.get("jwt_identity_note"))
-                if trigger.get("jwt_from_excel"):
+                if trigger.get("jwt_from_excel") or "Excel auth_token" in str(
+                    trigger.get("jwt_identity_note") or ""
+                ):
                     live["jwt_from_excel"] = True
                 if trigger.get("our_profile_id"):
                     live["our_profile_id"] = str(trigger.get("our_profile_id"))

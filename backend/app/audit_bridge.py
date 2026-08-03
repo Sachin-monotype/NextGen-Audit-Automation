@@ -579,10 +579,30 @@ class AuditBridge:
                     exit_code = max(exit_code, self._run_ingress_cases(job_id, ingress_cases))
                 self.store.append_log(job_id, "▸ Phase 2: Wait for scenario events in Mongo…")
                 self._verify_scenario_results(scenario_results, wait_sec=75)
+                if cron_cases:
+                    self._verify_cron_case_results(job_id, cron_cases)
                 self.store.append_log(job_id, "▸ Phase 2b: Source validation per touchpoint…")
                 # Per-touchpoint Results rows: activateFamily(global), activateFamily(list), …
                 if scenario_results:
                     val_result = self._run_scenario_source_validation(job_id, scenario_results)
+                    if cron_cases:
+                        cron_ops, cron_corr = self._cron_validate_targets(cron_cases)
+                        cron_val = self._run_source_validation(
+                            job_id, cron_ops, correlation_by_op=cron_corr
+                        )
+                        val_result = {
+                            "passed": val_result.get("passed", 0) + cron_val.get("passed", 0),
+                            "failed": val_result.get("failed", 0) + cron_val.get("failed", 0),
+                            "skipped": val_result.get("skipped", 0) + cron_val.get("skipped", 0),
+                            "rows": list(val_result.get("rows") or []) + list(cron_val.get("rows") or []),
+                            "operations": list(val_result.get("operations") or [])
+                            + list(cron_val.get("operations") or []),
+                        }
+                elif cron_cases:
+                    cron_ops, cron_corr = self._cron_validate_targets(cron_cases)
+                    val_result = self._run_source_validation(
+                        job_id, cron_ops, correlation_by_op=cron_corr
+                    )
                 else:
                     val_result = self._run_source_validation(job_id, resolved_ops)
                 ingest_status = self._ensure_ingestion(job_id)
@@ -1005,15 +1025,90 @@ class AuditBridge:
         """Bounded, non-destructive config for a targeted/cron run (see _run_e2e)."""
         from dataclasses import replace
 
-        settle_sec = float(os.getenv("TARGETED_SETTLE_SEC", "60"))
+        settle_sec = float(os.getenv("TARGETED_SETTLE_SEC") or os.getenv("CRON_SETTLE_SEC") or "90")
+        catchup = float(os.getenv("CRON_ENRICHED_CATCHUP_SEC") or "45")
         return replace(
             cfg,
             settle_after_flows_sec=settle_sec,
-            enriched_catchup_sec=0.0,
+            enriched_catchup_sec=catchup,
             enriched_backlog_drain_sec=0.0,
             purge_test_queues_on_e2e=False,
             purge_queues_on_e2e=False,
         )
+
+    def _cron_validate_targets(
+        self, cron_case_ids: list[str]
+    ) -> tuple[list[str], dict[str, str]]:
+        """Case-scoped compare labels + owned correlation ids for staging."""
+        from audit_validator.case_keys import cron_case_key, cron_display_operation
+        from audit_validator.cron.payloads import load_cron_cases
+        from audit_validator.generation_tracker import get_owned_correlation
+
+        by_id = {c.case_id: c for c in load_cron_cases()}
+        display_ops: list[str] = []
+        correlation_by_op: dict[str, str] = {}
+        for cid in cron_case_ids:
+            case = by_id.get(cid)
+            if not case:
+                continue
+            label = cron_display_operation(case.operation, cid)
+            display_ops.append(label)
+            owned = get_owned_correlation(
+                case.operation,
+                project_root=self.project_root,
+                case_key=cron_case_key(cid),
+            )
+            if owned:
+                correlation_by_op[label] = owned
+        return display_ops, correlation_by_op
+
+    def _verify_cron_case_results(
+        self, job_id: str, case_ids: list[str], *, wait_sec: float | None = None
+    ) -> list[dict[str, Any]]:
+        """Poll Mongo until each cron case has raw (and enriched when expected)."""
+        from audit_validator.cron.mongo_verify import wait_for_cron_cases_in_mongo
+
+        if not case_ids:
+            return []
+        timeout = wait_sec if wait_sec is not None else float(
+            os.getenv("CRON_VERIFY_TIMEOUT_SEC") or os.getenv("GENERATE_VERIFY_TIMEOUT_SEC") or "90"
+        )
+        self.store.append_log(
+            job_id,
+            f"▸ Waiting up to {timeout:.0f}s for {len(case_ids)} cron case(s) in Mongo…",
+        )
+        statuses = wait_for_cron_cases_in_mongo(
+            case_ids,
+            project_root=self.project_root,
+            db=self.db,
+            wait_sec=timeout,
+        )
+        rows: list[dict[str, Any]] = []
+        for st in statuses:
+            rows.append(
+                {
+                    "case_id": st.case_id,
+                    "operation": st.operation,
+                    "display": st.display,
+                    "xCorrelationId": st.correlation_id,
+                    "raw": st.raw,
+                    "enriched": st.enriched,
+                    "expects_enrich": st.expects_enrich,
+                }
+            )
+            if st.raw and (st.enriched or not st.expects_enrich):
+                self.store.append_log(
+                    job_id,
+                    f"  ✓ {st.display} — raw={'yes' if st.raw else 'no'} "
+                    f"enrich={'yes' if st.enriched else 'n/a' if not st.expects_enrich else 'no'}",
+                )
+            else:
+                self.store.append_log(
+                    job_id,
+                    f"  ⚠ {st.display} — raw={'yes' if st.raw else 'no'} "
+                    f"enrich={'yes' if st.enriched else 'no'}",
+                )
+        return rows
 
     def _run_cron_cases(self, job_id: str, case_ids: list[str]) -> int:
         """Inject the selected cron/scheduler payloads and validate raw↔enriched."""
@@ -1036,6 +1131,7 @@ class AuditBridge:
             purge_before=False,
             purge_after=False,
         )
+        self._verify_cron_case_results(job_id, case_ids)
         _print_pipeline_summary(cfg, e2e)
         _write_e2e_reports(
             cfg,
@@ -1343,11 +1439,20 @@ class AuditBridge:
             our_profile = ""
 
         for op in ops:
+            from audit_validator.case_keys import cron_case_key, parse_display_operation
+
+            base_op, case_suffix = parse_display_operation(op)
+            case_key = cron_case_key(case_suffix) if case_suffix else None
+            lookup_op = base_op or op
             # Touchpoint variants (e.g. activateFamily(global)) don't exist as a
             # distinct source.operation in Mongo — reuse the enriched sample staged
             # during the last Generate run so Compare can re-validate them.
             owned_cid = pinned_cids.get(op) or (
-                get_owned_correlation(op, project_root=self.project_root)
+                get_owned_correlation(
+                    lookup_op,
+                    project_root=self.project_root,
+                    case_key=case_key,
+                )
                 if get_owned_correlation
                 else None
             )
@@ -1513,7 +1618,7 @@ class AuditBridge:
                         self.store.append_log(job_id, f"  ✓ Fingerprint pair for {op} via {method}")
                 if not (raw and enriched):
                     raw, enriched = self.db.latest_pair(
-                        op, require_pair=True, actor_global_user_id=our_profile or None
+                        lookup_op, require_pair=True, actor_global_user_id=our_profile or None
                     )
 
             if not (raw and enriched) and not owned_cid:
@@ -1521,13 +1626,18 @@ class AuditBridge:
                 try:
                     from audit_validator.generation_tracker import list_owned
 
-                    entry = (list_owned(project_root=self.project_root).get("by_operation") or {}).get(op) or {}
+                    owned_store = list_owned(project_root=self.project_root)
+                    entry = (
+                        (owned_store.get("by_case") or {}).get(case_key or "")
+                        if case_key
+                        else {}
+                    ) or (owned_store.get("by_operation") or {}).get(lookup_op) or {}
                 except Exception:
                     entry = {}
                 find_fp = getattr(self.db, "find_fingerprint_pair", None)
                 if callable(find_fp) and (our_profile or entry.get("profile_id") or entry.get("generated_at")):
                     raw, enriched, method = find_fp(
-                        op,
+                        lookup_op,
                         actor_global_user_id=our_profile or entry.get("profile_id"),
                         since_iso=entry.get("generated_at"),
                         event_id=entry.get("eventId") or entry.get("event_id"),
@@ -1541,7 +1651,7 @@ class AuditBridge:
                 missing_pair.append(op)
                 # Explain why: is it enriched-only, raw-only, or neither?
                 raw_only, enr_only = self.db.latest_pair(
-                    op, require_pair=False, correlation_id=owned_cid or None
+                    lookup_op, require_pair=False, correlation_id=owned_cid or None
                 )
                 if enr_only and not raw_only:
                     cid = enr_only.get("xCorrelationId", "") or (owned_cid or "")

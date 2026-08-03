@@ -5,7 +5,7 @@
     "occurredAt": "2026-07-09T06:29:01.274Z",
     "routingKey": "byof.licence.expired",
     "actor": {
-      "globalUserId": null,
+      "globalUserId": "7063f9ff-6884-11f1-a522-0e0a04e472ab",
       "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
     },
     "source": {
@@ -61,8 +61,7 @@
       },
       "styles": [
         {
-            "styleId": "style-1",
-            "styleName": "Open Sans Italic",
+            "styleId": "696261",
             "linkedAt": "2025-01-01T00:00:00.000Z",
             "linkedBy": "user-1"
           }

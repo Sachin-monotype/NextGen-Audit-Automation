@@ -508,7 +508,7 @@ class QueueEventCollector:
                         self._enriched_routing_key_for_correlation[cid] = routing_key
 
                 if self._write_files:
-                    self._write_enriched_payload(routing_key, op_key, payload)
+                    self._write_enriched_payload(routing_key, op_key, payload, cid)
 
                 if routing_key not in self._rmq.enriched_routing_keys:
                     log.debug(
@@ -540,18 +540,43 @@ class QueueEventCollector:
             return
 
         out_dir.mkdir(parents=True, exist_ok=True)
+        cid = (correlation_id or "").strip()
+        case_stem = self._case_stem_for_correlation(cid, operation)
         if operation and operation != "unknown":
             path = out_dir / f"{operation}.json"
+            path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            if case_stem and case_stem != operation:
+                case_path = out_dir / f"{case_stem}.json"
+                case_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         else:
-            cid = (correlation_id or "event")[:8]
-            path = out_dir / f"unknown-{cid}.json"
-        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            short = (cid or "event")[:8]
+            path = out_dir / f"unknown-{short}.json"
+            path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    def _case_stem_for_correlation(self, correlation_id: str, operation: str) -> str | None:
+        if not correlation_id:
+            return None
+        try:
+            from ..generation_tracker import lookup_by_correlation
+            from ..case_keys import cron_staging_stem
+
+            hit = lookup_by_correlation(correlation_id, project_root=self._config.project_root)
+            if not hit:
+                return None
+            case_id = str(hit.get("case_id") or "").strip()
+            op = str(hit.get("operation") or operation or "").strip()
+            if case_id and op:
+                return cron_staging_stem(op, case_id)
+        except Exception:
+            return None
+        return None
 
     def _write_enriched_payload(
         self,
         routing_key: str,
         op_key: str,
         payload: JsonDict,
+        correlation_id: str | None = None,
     ) -> None:
         out_dir = self._config.enriched_events_dir
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -561,6 +586,11 @@ class QueueEventCollector:
             if operation and operation != "unknown":
                 op_path = out_dir / f"{operation}.json"
                 op_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+                cid = (correlation_id or "").strip() or str(payload.get("xCorrelationId") or "").strip()
+                case_stem = self._case_stem_for_correlation(cid, operation)
+                if case_stem and case_stem != operation:
+                    case_path = out_dir / f"{case_stem}.json"
+                    case_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     @staticmethod
     def _assert_topology(channel: BlockingChannel, rmq: RabbitMQConfig) -> None:

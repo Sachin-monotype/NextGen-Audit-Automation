@@ -823,18 +823,39 @@ def get_operation_mapping(
     reference_xlsx: Path | None = None,
     audit_events_xlsx: Path | None = None,
 ) -> list[MappingField]:
+    from .cron_mappings import cron_mapping_for_operation
+
+    cron_rows = cron_mapping_for_operation(operation)
+    if cron_rows:
+        return cron_rows
+
     xlsx = audit_events_xlsx or DEFAULT_AUDIT_EVENTS_XLSX
     registry = events_by_operation(str(xlsx))
     spec = registry.get(operation)
     if spec:
         return _mapping_for_event_spec(spec)
 
+    from ..case_keys import parse_display_operation
+
+    base, _case = parse_display_operation(operation)
+    if base != operation:
+        cron_rows = cron_mapping_for_operation(base)
+        if cron_rows:
+            return cron_rows
+        spec = registry.get(base)
+        if spec:
+            return _mapping_for_event_spec(spec)
+
     excel_maps = load_reference_excel(reference_xlsx)
     if operation in excel_maps and excel_maps[operation]:
         return excel_maps[operation]
+    if base in excel_maps and excel_maps[base]:
+        return excel_maps[base]
     if operation in _FONT_OPS or operation == "activateList":
         return _font_template(reference_xlsx)
-    return _builtin_mapping(operation)
+    if base in _FONT_OPS or base == "activateList":
+        return _font_template(reference_xlsx)
+    return _builtin_mapping(operation if operation in _EXPORT_OPS or operation in _FONT_OPS else base)
 
 
 def all_operation_mappings(

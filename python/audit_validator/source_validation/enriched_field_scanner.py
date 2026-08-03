@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from typing import Any
 
@@ -52,7 +53,7 @@ def _walk(obj: object, prefix: str, out: list[tuple[str, object]]) -> None:
         if not obj:
             return
         # Index concrete elements; also expose [0] paths for mappers
-        for idx, item in enumerate(obj[:3]):
+        for idx, item in enumerate(obj[: max(1, int(os.getenv("ENRICHED_SCAN_MAX_ARRAY_ITEMS", "20") or "20"))]):
             seg = f"{prefix}[{idx}]"
             _walk(item, seg, out)
         if len(obj) == 1:

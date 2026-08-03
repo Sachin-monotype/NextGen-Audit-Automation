@@ -7,9 +7,11 @@ import {
   fetchIngestionStatus,
   fetchLogs,
   fetchOperationCurl,
+  fetchPipelineConfig,
   fetchUiConfig,
   hasActiveFilters,
   purgeIngestion,
+  setPipelineTarget,
   startCompare,
   startIngestion,
   stopIngestion,
@@ -18,8 +20,15 @@ import {
   type IngestionStatus,
   type LogRow,
   type OperationCurl,
+  type PipelineConfig,
   type Tab,
 } from "../api";
+
+const DEFAULT_TARGETS = [
+  { id: "pp", label: "PP", url: "https://nextgen.monotype-pp.com" },
+  { id: "qa", label: "QA", url: "https://nextgen-qa.monotype-pp.com" },
+  { id: "uat", label: "UAT", url: "https://nextgen.monotype-uat.com" },
+];
 
 type DisplayPageProps = {
   /** Start a compare for one operation, then land on the live Compare tab. */
@@ -380,12 +389,15 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
     dataA: unknown;
     dataB: unknown;
   } | null>(null);
+  const [pipeline, setPipeline] = useState<PipelineConfig | null>(null);
+  const [targetBusy, setTargetBusy] = useState(false);
 
   useEffect(() => {
     fetchUiConfig().then((cfg) => {
       if (cfg.pageSizeOptions?.length) setPageSizes(cfg.pageSizeOptions);
       if (cfg.defaultPageSize) setPageSize(cfg.defaultPageSize);
     });
+    fetchPipelineConfig().then(setPipeline).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -415,6 +427,20 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
       setLoading(false);
     }
   }, [tab, applied, page, pageSize]);
+
+  async function onTargetChange(target: string) {
+    setTargetBusy(true);
+    setError("");
+    try {
+      const next = await setPipelineTarget(target);
+      setPipeline(next);
+      setPage(1);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setTargetBusy(false);
+    }
+  }
 
   useEffect(() => {
     load();
@@ -509,8 +535,26 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
             <h2>Enrich/raw</h2>
             <span className="muted">
               {unique ? "latest per operation" : "all matches"}
+              {pipeline?.mongo_db ? ` · ${pipeline.mongo_db}` : ""}
             </span>
           </div>
+          <label className="inline-control">
+            Environment
+            <select
+              value={pipeline?.target || "pp"}
+              disabled={targetBusy || loading}
+              onChange={(e) => onTargetChange(e.target.value)}
+            >
+              {(pipeline?.available_targets?.length
+                ? pipeline.available_targets
+                : DEFAULT_TARGETS
+              ).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="collection-select">
             Collection
             <select

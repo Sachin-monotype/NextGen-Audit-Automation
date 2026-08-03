@@ -9,7 +9,13 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from ..project_root import find_project_root
-from ..auth import _strip_bearer, ensure_discovery_user_token, resolve_discovery_bearer_token
+from ..auth import (
+    _strip_bearer,
+    ensure_discovery_user_token,
+    resolve_discovery_base_url,
+    resolve_discovery_bearer_token,
+    resolve_excel_discovery_token,
+)
 
 
 def _bearer_header(token: str) -> str:
@@ -99,11 +105,12 @@ def load_source_validation_config(project_root: Path | None = None) -> SourceVal
     )
     return SourceValidationConfig(
         project_root=root,
-        discovery_base_url=os.getenv(
-            "DISCOVERY_BASE_URL", "https://mtc-middleware-discovery.monotype-pp.com"
-        ).rstrip("/"),
-        discovery_bearer_token=ensure_discovery_user_token(project_root=root)
-        or resolve_discovery_bearer_token(),
+        discovery_base_url=resolve_discovery_base_url(),
+        discovery_bearer_token=(
+            ensure_discovery_user_token(project_root=root)
+            or resolve_excel_discovery_token(project_root=root)
+            or resolve_discovery_bearer_token()
+        ),
         ums_base_url=os.getenv("UMS_BASE_URL", "https://usermanagement-pp.monotype.com").rstrip(
             "/"
         ),

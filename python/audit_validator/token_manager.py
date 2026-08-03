@@ -32,6 +32,7 @@ from .auth import (
     jwt_expires_in_hours,
     jwt_is_expired,
     jwt_payload,
+    mint_user_password_token,
     oauth_grant_type,
     oauth_organization,
     oauth_token_kwargs,
@@ -157,6 +158,13 @@ def _fetch_fresh_token(
     pwd = (password or "").strip() or os.getenv("OAUTH_PASSWORD", "").strip()
     if not user or not pwd:
         raise RuntimeError("Username and password are required for OAuth password grant.")
+    if use_user_oauth or common.get("grant_type") == "password":
+        return mint_user_password_token(
+            username=user,
+            password=pwd,
+            org=effective_org,
+            gcid=gcid,
+        )
     return fetch_oauth_token(
         username=user,
         password=pwd,
@@ -184,6 +192,16 @@ def _persist_bearer(project_root: Path, token: str, *, var: str = "BEARER_TOKEN"
 
 def _generate(project_root: Path, token: str) -> str:
     creds = _oauth_credentials(project_root, token)
+    # Always prefer password-grant user JWT when username/password are available —
+    # QA's profile grant is client_credentials (M2M), which Discovery rejects.
+    if creds.get("username") and creds.get("password"):
+        return _fetch_fresh_token(
+            username=creds["username"],
+            password=creds["password"],
+            org=creds.get("org", ""),
+            gcid=creds.get("gcid", ""),
+            use_user_oauth=True,
+        )
     if oauth_grant_type() == "client_credentials":
         return _fetch_fresh_token()
     missing = [k for k in ("username", "password") if not creds.get(k)]

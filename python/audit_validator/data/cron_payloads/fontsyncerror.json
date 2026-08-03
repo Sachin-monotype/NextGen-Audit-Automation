@@ -22,8 +22,8 @@
     "subject": {
         "type": "fontVariation",
         "id": [
-            "0c7e0ef74f9c5cdd2a76d9912c3a3dd5",
-            "20fc9a3dbde196c0b47fac53ca4e2aa2"
+            "0c7e0ef74df9c5cdd2asaa76d9912c3a3dd5",
+            "20fc9a3dbddsadae196c0b47fac53ca4e2aa2"
         ],
         "epicEventName": "font.sync.failure",
         "action": "sync",
@@ -208,8 +208,8 @@
         "message": "2 font(s) failed sync"
     },
     "actor": {
-        "globalUserId": "28c9ad2d-79ed-11f1-a522-0e0a04e472ab",
-        "globalCustomerId": "c0f63c78-64af-4173-a8f9-1617eccd051b",
+        "globalUserId": "7063f9ff-6884-11f1-a522-0e0a04e472ab",
+        "globalCustomerId":"4a949153-9cab-4023-b31c-8336a8a3ec46",
         "authenticationState": "authenticated",
         "machineId": "PA1MNP1YCGM9VJCW893HKC9Q5JPYSYHV2Z6YX75ZT8JF401XS800",
         "uniqueId": "9E69BD6430A581D3FE60581E",
@@ -217,8 +217,8 @@
             "user": {
                 "source": "user-management-service",
                 "profile": {
-                    "id": "28c9ad2d-79ed-11f1-a522-0e0a04e472ab",
-                    "customerId": "c0f63c78-64af-4173-a8f9-1617eccd051b",
+                    "id": "7063f9ff-6884-11f1-a522-0e0a04e472ab",
+                    "customerId": "4a949153-9cab-4023-b31c-8336a8a3ec46",
                     "firstName": "Test Audit 007",
                     "lastName": null,
                     "email": "test_audit_007@serveruser-c0f63c78-64af-4173-a8f9-1617eccd051b.com",

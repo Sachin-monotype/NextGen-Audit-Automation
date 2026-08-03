@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
@@ -319,6 +320,94 @@ def resolve_bearer_token(*, prefer_pp: bool | None = None) -> str:
     return primary
 
 
+def resolve_discovery_base_url() -> str:
+    """Base URL for Typesense/Discovery HTTP calls.
+
+    Browser / Excel user JWTs are accepted by the NextGen BFF search proxy
+    (``{NEXTGEN_UI_URL}/api/search/...``) but rejected with 401 by the bare
+    ``mtc-middleware-discovery`` host (that host expects resolver M2M).
+
+    Override with ``DISCOVERY_BASE_URL``. Set ``DISCOVERY_USE_MIDDLEWARE=true`` to
+    force the bare middleware host (only with a Discovery M2M token).
+    """
+    explicit = (os.getenv("DISCOVERY_BASE_URL") or "").strip().rstrip("/")
+    force_mw = (os.getenv("DISCOVERY_USE_MIDDLEWARE") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    ui = (os.getenv("NEXTGEN_UI_URL") or "").strip().rstrip("/")
+    if not ui:
+        try:
+            from audit_validator.env_profiles import get_audit_profile
+
+            ui = get_audit_profile().nextgen_ui_url.rstrip("/")
+        except Exception:
+            ui = "https://nextgen-qa.monotype-pp.com"
+    bff = f"{ui}/api/search"
+    if not explicit:
+        return bff
+    if "mtc-middleware-discovery" in explicit and not force_mw:
+        return bff
+    return explicit
+
+
+def resolve_excel_discovery_token(
+    project_root: Path | None = None,
+    *,
+    ops: list[str] | None = None,
+) -> str:
+    """Pick a non-expired Excel ``auth_token`` (browser SSO) for Discovery/Typesense.
+
+    Looks at saved UI-script trigger contexts first, then ``datasource-latest.xlsx``.
+    """
+    del ops  # reserved for future per-op scoping
+    root = project_root
+    if root is None:
+        try:
+            from .project_root import find_project_root
+
+            root = find_project_root()
+        except Exception:
+            return ""
+
+    candidates: list[str] = []
+
+    def _consider(raw: object) -> None:
+        tok = _strip_bearer(str(raw or ""))
+        if not tok or jwt_is_expired(tok):
+            return
+        ident = _identity_from_payload(jwt_payload(tok))
+        if _identity_is_user(ident) and tok not in candidates:
+            candidates.append(tok)
+
+    trig_dir = Path(root) / "payload" / "trigger"
+    if trig_dir.is_dir():
+        for path in trig_dir.glob("*.json"):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if isinstance(data, dict):
+                _consider(data.get("auth_token"))
+
+    try:
+        from audit_validator.ui_script_import import (
+            load_ui_script_rows,
+            resolve_ui_script_datasource_path,
+        )
+
+        ds = resolve_ui_script_datasource_path()
+        for target in ("web", "app"):
+            for row in load_ui_script_rows(target=target, path=ds):
+                _consider(row.get("auth_token"))
+    except Exception:
+        pass
+
+    return candidates[0] if candidates else ""
+
+
 def resolve_discovery_bearer_token() -> str:
     """
     Bearer for Discovery middleware (POST /v1/styles, GET /v1/variations).
@@ -343,13 +432,58 @@ def resolve_discovery_bearer_token() -> str:
     return ""
 
 
-def ensure_discovery_user_token(*, project_root: Path | None = None) -> str:
-    """Return a non-expired user JWT usable by Discovery.
+def mint_user_password_token(
+    *,
+    username: str = "",
+    password: str = "",
+    org: str = "",
+    gcid: str = "",
+) -> str:
+    """Mint a user JWT via the profile's password-grant client (``user_oauth``).
 
-    When ``OAUTH_GRANT_TYPE=client_credentials``, ``BEARER_TOKEN`` is M2M and Discovery
-    returns 401. If password grant is allowed for the OAuth client, mint a user token
-    and persist it as ``DISCOVERY_BEARER_TOKEN``. Otherwise the operator must paste a
-    fresh browser SSO token into ``NEXTGEN_BEARER_TOKEN`` / ``DISCOVERY_BEARER_TOKEN``.
+    QA's main OAuth client is M2M-only; user/Discovery tokens must use the NextGen
+    SPA client (same as MTConnectAutomation TokenProvider).
+    """
+    from audit_validator.env_profiles import get_audit_profile, user_oauth_config_dict
+
+    profile = get_audit_profile()
+    uo = user_oauth_config_dict(profile)
+    user = (username or os.getenv("OAUTH_USERNAME") or profile.oauth_username or "").strip()
+    pwd = (password or os.getenv("OAUTH_PASSWORD") or "").strip()
+    if not user or not pwd:
+        raise RuntimeError(
+            "OAUTH_USERNAME / OAUTH_PASSWORD required to mint a user JWT "
+            "(set once in .env — no Excel paste needed)."
+        )
+    org_val = (
+        (org or "").strip()
+        or (os.getenv("OAUTH_ORG") or "").strip()
+        or (os.getenv("OAUTH_ORGANIZATION") or "").strip()
+        or (uo.get("organization") or "").strip()
+    )
+    gcid_val = (
+        (gcid or "").strip()
+        or (os.getenv("OAUTH_GCID") or "").strip()
+        or (os.getenv("GRAPHQL_CONTEXT_CUSTOMER_ID") or "").strip()
+    )
+    return fetch_oauth_token(
+        username=user,
+        password=pwd,
+        org=org_val,
+        gcid=gcid_val,
+        token_url=uo["token_url"],
+        client_id=uo["client_id"],
+        client_secret=uo["client_secret"],
+        audience=uo["audience"],
+    )
+
+
+def ensure_discovery_user_token(*, project_root: Path | None = None) -> str:
+    """Return a non-expired user JWT usable by Discovery/Typesense.
+
+    Prefer a cached ``DISCOVERY_BEARER_TOKEN`` / browser JWT when still valid;
+    otherwise mint via ``OAUTH_USERNAME`` / ``OAUTH_PASSWORD`` on the profile
+    ``user_oauth`` client (QA SPA password grant).
     """
     existing = resolve_discovery_bearer_token()
     if existing:
@@ -361,13 +495,7 @@ def ensure_discovery_user_token(*, project_root: Path | None = None) -> str:
         return ""
 
     try:
-        fresh = fetch_oauth_token(
-            username=username,
-            password=password,
-            org=os.getenv("OAUTH_ORG", "").strip(),
-            organization=os.getenv("OAUTH_ORGANIZATION", "").strip(),
-            gcid=os.getenv("OAUTH_GCID", "").strip(),
-        )
+        fresh = mint_user_password_token(username=username, password=password)
     except Exception:
         return ""
 
@@ -376,6 +504,7 @@ def ensure_discovery_user_token(*, project_root: Path | None = None) -> str:
         return ""
 
     os.environ["DISCOVERY_BEARER_TOKEN"] = fresh
+    os.environ["NEXTGEN_BEARER_TOKEN"] = fresh
     root = project_root
     if root is None:
         try:
@@ -387,12 +516,10 @@ def ensure_discovery_user_token(*, project_root: Path | None = None) -> str:
     if root is not None:
         try:
             env_path = Path(root) / ".env"
-            if env_path.is_file():
-                text = env_path.read_text(encoding="utf-8")
-                env_path.write_text(
-                    _set_env_var(text, "DISCOVERY_BEARER_TOKEN", fresh),
-                    encoding="utf-8",
-                )
+            text = env_path.read_text(encoding="utf-8") if env_path.is_file() else ""
+            text = _set_env_var(text, "DISCOVERY_BEARER_TOKEN", fresh)
+            text = _set_env_var(text, "NEXTGEN_BEARER_TOKEN", fresh)
+            env_path.write_text(text, encoding="utf-8")
         except Exception:
             pass
     return fresh

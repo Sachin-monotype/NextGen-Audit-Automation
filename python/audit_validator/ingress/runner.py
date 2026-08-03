@@ -153,6 +153,7 @@ def _post_cases(
                 continue
             published.append((case, payload, cid))
             try:
+                from ..case_keys import ingress_case_key
                 from ..generation_tracker import record_generation
 
                 actor = payload.get("actor") if isinstance(payload.get("actor"), dict) else {}
@@ -161,6 +162,7 @@ def _post_cases(
                     cid,
                     kind="ingress",
                     project_root=project_root,
+                    case_key=ingress_case_key(case.case_id),
                     meta={
                         "case_id": case.case_id,
                         "eventId": payload.get("eventId"),

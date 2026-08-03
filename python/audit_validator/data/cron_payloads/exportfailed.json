@@ -1,0 +1,27 @@
+{
+    "xCorrelationId":"6e84ed17-b8af-4a1a-bdb9-648c481afe52",
+    "eventId":"6e84ed17-b8af-4a1a-bdb9-648c481afe52",
+    "occurredAt":"2026-07-07T10:25:52.704Z",
+    "source":{
+       "service":"mt-batch-orchestration-service",
+       "trigger":"H-2"
+    },
+    "actor":{
+       "globalCustomerId":"7080453a-1651-44f6-901c-ead0f117bbc6",
+       "globalUserId":"8ca40e91-6fb7-11f1-a522-0e0a04e472ab"
+    },
+    "subject":{
+       "operationType":"EXPORT_USERS",
+       "batchId":"039e9ba3-281b-431f-baed-bb6ad31f66c8",
+       "batchStatus":"COMPLETED_WITH_ERRORS",
+       "failedCount":1,
+       "errors":[
+          {
+             "itemId":"4e87cc2d-8811-475c-8db3-f766c696187e",
+             "errorCode":"DATA_BUILD_ERROR",
+             "errorMessage":"The AWS Access Key Id you provided does not exist in our records."
+          }
+       ]
+    },
+    "routingKey":"export.failed"
+ }

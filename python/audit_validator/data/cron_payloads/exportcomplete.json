@@ -1,0 +1,20 @@
+{
+    "xCorrelationId":"d65964d0-4f7e-4f63-afa6-07bd6fee5ede",
+    "eventId":"d65964d0-4f7e-4f63-afa6-07bd6fee5ede",
+    "occurredAt":"2026-07-07T09:29:30.897Z",
+    "source":{
+       "service":"mt-batch-orchestration-service",
+       "trigger":"H-1"
+    },
+    "actor":{
+       "globalCustomerId":"4a949153-9cab-4023-b31c-8336a8a3ec46",
+       "globalUserId": "7063f9ff-6884-11f1-a522-0e0a04e472ab"
+    },
+    "subject":{
+       "operationType":"EXPORT_USERS",
+       "rowCount":13,
+       "expiresAt":"2026-07-14T09:29:07.590Z",
+       "downloadUrl":"https://das-test-das-bucket.s3.us-east-1.amazonaws.com/exports/b7122c76-0ef3-4a97-9b7c-192e994f6a04/c1751555-325d-4aeb-8096-1f2024894fa0/users_export_2026-07-07.csv?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=AKIA4ESISDICQYNETHFC%2F20260707%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260707T092907Z&X-Amz-Expires=604800&X-Amz-Signature=e5960fbf162b1d219de54739f6e2870f45f17ff216cad99745f4f35272ef3d07&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject"
+    },
+    "routingKey":"export.completed"
+ }

@@ -150,7 +150,8 @@ class DiscoveryClient:
             resp = self._session.post(url, json=body, headers=headers, timeout=60)
             if resp.status_code >= 400:
                 if page == 1:
-                    log.warning("Discovery family styles %s → %s", fid, resp.status_code)
+                    resp.raise_for_status()
+                log.warning("Discovery family styles %s → %s", fid, resp.status_code)
                 break
             hits = _unwrap_discovery_hits(resp.json())
             if not hits:
