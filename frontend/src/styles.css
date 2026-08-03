@@ -1890,9 +1890,10 @@ button:disabled {
 }
 
 .coverage-compared {
+  white-space: nowrap;
   font-size: 0.78rem;
-  color: var(--muted);
-  max-width: 9.5rem;
+  color: var(--text-muted);
+  max-width: 11rem;
   overflow: hidden;
   text-overflow: ellipsis;
 }

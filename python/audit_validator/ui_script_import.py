@@ -70,15 +70,37 @@ def _parse_response_cell(raw: Any) -> dict[str, Any] | None:
     if raw is None or (isinstance(raw, float) and str(raw) == "nan"):
         return None
     if isinstance(raw, dict):
-        return raw
-    text = str(raw).strip()
-    if not text or text.lower() in {"nan", "none"}:
+        parsed: dict[str, Any] | None = raw
+    else:
+        text = str(raw).strip()
+        if not text or text.lower() in {"nan", "none"}:
+            return None
+        try:
+            loaded = json.loads(text)
+            parsed = loaded if isinstance(loaded, dict) else None
+        except json.JSONDecodeError:
+            return None
+    if not parsed:
         return None
-    try:
-        parsed = json.loads(text)
-        return parsed if isinstance(parsed, dict) else None
-    except json.JSONDecodeError:
+    # Playwright captures full HTTP GraphQL body: {"data": {"op": {...}}, "errors": ...}
+    data = parsed.get("data")
+    if isinstance(data, dict) and data:
+        return data
+    return parsed
+
+
+def _normalize_graphql_response(op: str, gql: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Ensure Compare digs see ``{operation: body}`` (not HTTP ``{data:...}`` wrapper)."""
+    if not isinstance(gql, dict) or not gql:
         return None
+    if op and op in gql:
+        return gql
+    data = gql.get("data")
+    if isinstance(data, dict) and data:
+        if op and op in data:
+            return data
+        return {op: data} if op else data
+    return {op: gql} if op else gql
 
 
 def _cell_str(raw: Any) -> str:
@@ -480,14 +502,15 @@ def create_ui_script_job(
             "recorded_at": _now(),
             "jwt_identity": ident,
             "jwt_identity_note": source_note,
+            "jwt_from_excel": bool(auth_token),
         }
+        if auth_token:
+            item["auth_token"] = auth_token
         if profile_id:
             item["our_profile_id"] = profile_id
-        gql = r.get("graphql_response")
-        if isinstance(gql, dict) and gql:
+        gql = _normalize_graphql_response(op, r.get("graphql_response") if isinstance(r.get("graphql_response"), dict) else None)
+        if gql:
             item["graphql_response"] = gql
-            if op and op not in gql and "data" not in gql:
-                item["graphql_response"] = {op: gql}
         extracted.append(item)
     if not extracted:
         _append_log(job, "✖ No valid correlation_id values found in Excel (need OK rows with UUID)")

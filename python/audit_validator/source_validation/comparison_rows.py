@@ -291,8 +291,25 @@ def _row(
 
     if not ev and not sv:
         status = "N/A"
+    elif (
+        spec.source_system == "Typesense"
+        and ev
+        and not sv
+        and _is_unreachable_error(
+            str(live.get("discovery_error") or live.get("discovery_note") or notes or "")
+        )
+    ):
+        disc_msg = str(
+            live.get("discovery_error") or live.get("discovery_note") or notes or ""
+        )
+        status = "N/A"
+        notes = disc_msg or "Discovery/Typesense unreachable — not validated"
     elif spec.validate == "N" and ev:
-        status = "PASS"
+        status = "SKIP"
+        notes = notes or (
+            spec.notes
+            or f"Validation=N — not compared to external source ({spec.source_system})"
+        )
     elif spec.source_system in _ACCEPT_ECHO and ev:
         status = "PASS" if (values_equivalent(sv, ev, field_path=spec.enriched_path) or not sv) else "FAIL"
         if status == "PASS" and not sv and not notes and spec.source_system == "Audit service":
@@ -526,12 +543,17 @@ def _cms_jwt_fallback(path: str, live: dict[str, Any]) -> object | None:
     leaf = rel.rsplit(".", 1)[-1]
     ident = live.get("jwt_identity") if isinstance(live.get("jwt_identity"), dict) else None
     if not ident:
-        try:
-            from audit_validator.auth import jwt_identity
-
-            ident = jwt_identity()
-        except Exception:
+        if live.get("jwt_from_excel") or "Excel auth_token" in str(
+            live.get("jwt_identity_note") or ""
+        ):
             ident = {}
+        else:
+            try:
+                from audit_validator.auth import jwt_identity
+
+                ident = jwt_identity()
+            except Exception:
+                ident = {}
     low = leaf.lower()
     if low in {"displayname", "name"}:
         return ident.get("org_name") or None
@@ -1000,7 +1022,13 @@ def _jwt_actor_value(
 
         ident = live.get("jwt_identity") if isinstance(live.get("jwt_identity"), dict) else None
         if not ident:
-            ident = jwt_identity()
+            # Excel auth_token path: never substitute the project logged-in Bearer.
+            if live.get("jwt_from_excel") or "Excel auth_token" in str(
+                live.get("jwt_identity_note") or ""
+            ):
+                ident = {}
+            else:
+                ident = jwt_identity()
     except Exception:
         ident = {}
     key = path.split(".")[-1]
@@ -1021,7 +1049,12 @@ def _jwt_actor_value(
         # Profile UUID is not in JWT — prefer UMS resolution via email/idp.
         pid = live.get("our_profile_id") or live.get("actor_profile_id")
         if pid:
-            return pid, "UMS profile id (resolved via JWT email / idpUserId)"
+            note = "UMS profile id (resolved via JWT email / idpUserId)"
+            if live.get("jwt_from_excel") or "Excel auth_token" in str(
+                live.get("jwt_identity_note") or ""
+            ):
+                note = "UMS profile id (resolved via Excel auth_token)"
+            return pid, note
         actor = enriched.get("actor") or {}
         return actor.get("globalUserId"), "UMS profile id (not in JWT — use enriched until resolved)"
     actor = enriched.get("actor") or {}

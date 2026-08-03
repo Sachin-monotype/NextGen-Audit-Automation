@@ -657,9 +657,22 @@ def apply_extracted_results(
                     ctx["jwt_identity_note"] = str(item.get("jwt_identity_note"))
                 if item.get("our_profile_id"):
                     ctx["our_profile_id"] = str(item.get("our_profile_id"))
+                if item.get("auth_token"):
+                    ctx["auth_token"] = str(item.get("auth_token"))
+                if item.get("jwt_from_excel") or item.get("source") == "playwright_script":
+                    ctx["jwt_from_excel"] = bool(
+                        item.get("jwt_from_excel")
+                        or str(item.get("jwt_identity_note") or "").startswith(
+                            "JWT claims from Excel"
+                        )
+                    )
                 if gql_inp or gql_resp:
                     ctx["capture_source"] = item.get("source") or "casepilot_ui"
                     ctx["replay_mode"] = "casepilot_ui"
+                elif item.get("source") == "playwright_script":
+                    # Keep Excel JWT sticky even when Response cell is empty.
+                    ctx["capture_source"] = "playwright_script"
+                    ctx["replay_mode"] = "playwright_script"
                 else:
                     ctx["capture_source"] = item.get("source") or "casepilot_minimal"
                     ctx["replay_mode"] = "pending_raw"

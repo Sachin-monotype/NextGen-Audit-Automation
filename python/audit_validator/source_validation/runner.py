@@ -1661,12 +1661,29 @@ def run_source_validation(
                 load_trigger_context,
             )
 
-            trigger = load_trigger_context(cfg.project_root, op)
+            saved_trigger = load_trigger_context(cfg.project_root, op)
+            trigger = saved_trigger
             ui_capture = (
                 isinstance(trigger, dict)
-                and str(trigger.get("replay_mode") or "") == "casepilot_ui"
-                and isinstance(trigger.get("graphql_response"), dict)
-                and bool(trigger.get("graphql_response"))
+                and str(trigger.get("replay_mode") or "")
+                in {"casepilot_ui", "playwright_script"}
+                and (
+                    str(trigger.get("replay_mode") or "") == "playwright_script"
+                    or (
+                        isinstance(trigger.get("graphql_response"), dict)
+                        and bool(trigger.get("graphql_response"))
+                    )
+                )
+            )
+            excel_jwt = bool(
+                isinstance(saved_trigger, dict)
+                and (
+                    saved_trigger.get("jwt_from_excel")
+                    or "Excel auth_token"
+                    in str(saved_trigger.get("jwt_identity_note") or "")
+                )
+                and isinstance(saved_trigger.get("jwt_identity"), dict)
+                and saved_trigger.get("jwt_identity")
             )
             enrich_cid = str(enriched.get("xCorrelationId") or "").strip()
             raw_cid = str((raw_ev or {}).get("xCorrelationId") or "").strip()
@@ -1690,24 +1707,57 @@ def run_source_validation(
                 )
             elif not trigger:
                 trigger = load_trigger_context(cfg.project_root, op)
+
+            # Rebuild from raw/enrich drops Excel JWT — restore sheet identity when present.
+            if excel_jwt and isinstance(saved_trigger, dict):
+                if not isinstance(trigger, dict):
+                    trigger = {}
+                trigger["jwt_identity"] = saved_trigger["jwt_identity"]
+                if saved_trigger.get("jwt_identity_note"):
+                    trigger["jwt_identity_note"] = saved_trigger["jwt_identity_note"]
+                trigger["jwt_from_excel"] = True
+                if saved_trigger.get("our_profile_id"):
+                    trigger["our_profile_id"] = saved_trigger["our_profile_id"]
+                if saved_trigger.get("auth_token"):
+                    trigger["auth_token"] = saved_trigger["auth_token"]
+                saved_gql = saved_trigger.get("graphql_response")
+                if isinstance(saved_gql, dict) and saved_gql:
+                    trigger["graphql_response"] = saved_gql
+                trigger["capture_source"] = saved_trigger.get("capture_source") or "playwright_script"
+                trigger["replay_mode"] = saved_trigger.get("replay_mode") or "playwright_script"
+
             if trigger:
                 live["trigger"] = trigger
-                if not live.get("graphql_response") and isinstance(
-                    trigger.get("graphql_response"), dict
+                trigger_gql = (
+                    trigger.get("graphql_response")
+                    if isinstance(trigger.get("graphql_response"), dict)
+                    else None
+                )
+                # Prefer Excel/Playwright Response over a stale payload/graphql file.
+                if trigger_gql and (
+                    trigger.get("jwt_from_excel")
+                    or str(trigger.get("capture_source") or "") == "playwright_script"
+                    or str(trigger.get("replay_mode") or "")
+                    in {"casepilot_ui", "playwright_script"}
                 ):
-                    live["graphql_response"] = trigger["graphql_response"]
+                    live["graphql_response"] = trigger_gql
+                elif not live.get("graphql_response") and trigger_gql:
+                    live["graphql_response"] = trigger_gql
                 if isinstance(trigger.get("jwt_identity"), dict) and trigger["jwt_identity"]:
                     live["jwt_identity"] = trigger["jwt_identity"]
                 if trigger.get("jwt_identity_note"):
                     live["jwt_identity_note"] = str(trigger.get("jwt_identity_note"))
+                if trigger.get("jwt_from_excel"):
+                    live["jwt_from_excel"] = True
                 if trigger.get("our_profile_id"):
                     live["our_profile_id"] = str(trigger.get("our_profile_id"))
             if "jwt_identity" not in live:
                 live["jwt_identity"] = jwt_identity()
             # QA M2M tokens have no user claims — fall back to actor stamps on the event
             # so JWT Compare rows are not Source=none against a populated enriched actor.
+            # Never do this when Excel auth_token supplied the identity — that would hide mismatches.
             ident = live.get("jwt_identity") if isinstance(live.get("jwt_identity"), dict) else {}
-            if not _identity_is_user(ident):
+            if not live.get("jwt_from_excel") and not _identity_is_user(ident):
                 from_actor = jwt_identity_from_actor(
                     enriched.get("actor") if isinstance(enriched.get("actor"), dict) else {}
                 )
@@ -1718,9 +1768,49 @@ def run_source_validation(
                         "(active Bearer is M2M / has no user claims)"
                     )
             if not live.get("our_profile_id"):
-                pid = resolve_our_profile_id(project_root=cfg.project_root)
-                if pid:
-                    live["our_profile_id"] = pid
+                # Excel token path: never substitute the project logged-in profile.
+                if not live.get("jwt_from_excel"):
+                    pid = resolve_our_profile_id(project_root=cfg.project_root)
+                    if pid:
+                        live["our_profile_id"] = pid
+                else:
+                    # Best-effort resolve from Excel JWT idp/email only.
+                    try:
+                        from audit_validator.auth import jwt_identity as _jwt_ident_fn
+                        from audit_validator.source_validation.clients import UmsClient
+                        from audit_validator.source_validation.config import (
+                            load_source_validation_config,
+                        )
+
+                        excel_ident = live.get("jwt_identity") if isinstance(live.get("jwt_identity"), dict) else {}
+                        idp = str(excel_ident.get("idp_user_id") or "").strip()
+                        token = ""
+                        if isinstance(trigger, dict):
+                            token = str(trigger.get("auth_token") or "").strip()
+                        if token and not excel_ident:
+                            excel_ident = _jwt_ident_fn(token)
+                            live["jwt_identity"] = excel_ident
+                            idp = str(excel_ident.get("idp_user_id") or "").strip()
+                        if idp:
+                            sv_cfg = load_source_validation_config(cfg.project_root)
+                            if sv_cfg.ums_ready:
+                                user = UmsClient(sv_cfg).get_user_by_idp_user_id(
+                                    idp, correlation_id="compare-excel-auth-token-profile"
+                                )
+                                if isinstance(user, dict):
+                                    gcid = str(excel_ident.get("gcid") or "")
+                                    for pr in user.get("profiles") or []:
+                                        if not isinstance(pr, dict):
+                                            continue
+                                        pid = pr.get("id") or (pr.get("profile") or {}).get("id")
+                                        if not pid:
+                                            continue
+                                        if gcid and str(pr.get("customerId") or "") == gcid:
+                                            live["our_profile_id"] = str(pid)
+                                            break
+                                        live.setdefault("our_profile_id", str(pid))
+                    except Exception:
+                        pass
         except Exception:
             pass
         # Raw envelope is for pairing only — comparison sources GraphQL trigger/response.

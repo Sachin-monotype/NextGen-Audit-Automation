@@ -172,6 +172,41 @@ def test_parse_web_app_sheets_and_auth_token_filter():
     assert app_rows[0]["scenario"] == "favourite"
 
 
+def test_parse_unwraps_graphql_data_wrapper_and_auth():
+    token = _fake_jwt(
+        **{
+            "https://api.monotype.com/gcid": "cust-wrap",
+            "https://api.monotype.com/email": "wrap@example.com",
+            "sub": "auth0|wrap",
+        }
+    )
+    df = pd.DataFrame(
+        [
+            {
+                "event_name": "activateFamily",
+                "scenario": "favourite",
+                "correlation_id": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+                "auth_token": token,
+                "Response": json.dumps(
+                    {"data": {"activateFamily": {"actionCounts": {"activated": 1}}}}
+                ),
+                "status": "OK",
+            }
+        ]
+    )
+    buf = BytesIO()
+    df.to_excel(buf, index=False)
+    rows = parse_ui_script_excel(buf.getvalue())
+    assert len(rows) == 1
+    assert rows[0]["auth_token"].startswith("eyJ")
+    assert "data" not in rows[0]["graphql_response"]
+    assert rows[0]["graphql_response"]["activateFamily"]["actionCounts"]["activated"] == 1
+    from audit_validator.ui_script_import import _normalize_graphql_response
+
+    norm = _normalize_graphql_response("activateFamily", rows[0]["graphql_response"])
+    assert "activateFamily" in norm
+
+
 def test_jwt_identity_from_excel_auth_token():
     token = _fake_jwt(
         **{

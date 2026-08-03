@@ -1387,6 +1387,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                   <th>Category</th>
                   <th>Env</th>
                   <th>Service</th>
+                  <th>Compared</th>
                   <th>PASS</th>
                   <th>FAIL</th>
                   <th>SKIP</th>
@@ -1396,7 +1397,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
               <tbody>
                 {coverageRows.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="muted">
+                    <td colSpan={10} className="muted">
                       No operations match this coverage filter.
                     </td>
                   </tr>
@@ -1423,6 +1424,9 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                     <td>{r.category}</td>
                     <td>{r.environment}</td>
                     <td>{r.service}</td>
+                    <td className="coverage-compared" title={r.comparedAt || undefined}>
+                      {r.comparedAt ? new Date(r.comparedAt).toLocaleString() : "—"}
+                    </td>
                     <td>
                       <button
                         type="button"
