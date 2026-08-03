@@ -430,24 +430,44 @@ export async function listGenerateInUi() {
   return data as { jobs?: UiTriggerJob[]; count?: number; error?: string };
 }
 
+export type UiScriptCatalogRow = {
+  id?: string;
+  event_name: string;
+  scenario: string;
+  correlation_id: string;
+  has_auth_token: boolean;
+};
+
 export type UiScriptCatalog = {
   ok: boolean;
   target?: string;
   path?: string;
+  filename?: string;
   sheet?: string;
   events?: string[];
   scenarios?: string[];
-  rows?: Array<{
-    event_name: string;
-    scenario: string;
-    correlation_id: string;
-    has_auth_token: boolean;
-  }>;
+  rows?: UiScriptCatalogRow[];
   count?: number;
   error?: string;
 };
 
-export async function fetchUiScriptCatalog(target: "web" | "app") {
+export type UiScriptPair = { event_name: string; scenario: string };
+
+export async function fetchUiScriptCatalog(target: "web" | "app", file?: File | null) {
+  if (file) {
+    const fd = new FormData();
+    fd.append("target", target);
+    fd.append("file", file);
+    const res = await fetch(`${API}/api/jobs/generate-ui-script/catalog`, {
+      method: "POST",
+      body: fd,
+    });
+    const data = (await res.json()) as UiScriptCatalog;
+    if (!res.ok || data.ok === false) {
+      throw new Error(data.error || "Failed to parse uploaded Excel");
+    }
+    return data;
+  }
   const res = await fetch(
     `${API}/api/jobs/generate-ui-script/catalog?target=${encodeURIComponent(target)}`,
   );
@@ -460,17 +480,16 @@ export async function fetchUiScriptCatalog(target: "web" | "app") {
 
 export async function importGenerateFromUiScript(opts: {
   target: "web" | "app";
-  events?: string[];
-  scenarios?: string[];
+  pairs?: UiScriptPair[];
+  file?: File | null;
 }) {
+  const fd = new FormData();
+  fd.append("target", opts.target);
+  fd.append("pairs", JSON.stringify(opts.pairs ?? []));
+  if (opts.file) fd.append("file", opts.file);
   const res = await fetch(`${API}/api/jobs/generate-ui-script`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      target: opts.target,
-      events: opts.events ?? [],
-      scenarios: opts.scenarios ?? [],
-    }),
+    body: fd,
   });
   const data = await res.json();
   if (!res.ok && !data.job) {
@@ -482,6 +501,7 @@ export async function importGenerateFromUiScript(opts: {
     rows_parsed?: number;
     target?: string;
     path?: string;
+    filename?: string;
     error?: string;
   };
 }

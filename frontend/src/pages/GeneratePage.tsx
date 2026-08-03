@@ -1853,8 +1853,8 @@ export default function GeneratePage({
         <section className="generate-channel">
           <h3 className="generate-channel-title">Generate from UI Script</h3>
           <p className="muted small">
-            Pulls Playwright <code>datasource-latest.xlsx</code> (Web / App). Select target, event
-            and scenario — uses Excel <code>auth_token</code> for actor JWT when present.
+            Pulls Playwright <code>datasource-latest.xlsx</code> (or upload your own). Pick Web/App,
+            then event → scenario — uses Excel <code>auth_token</code> for actor JWT when present.
           </p>
           <button
             type="button"

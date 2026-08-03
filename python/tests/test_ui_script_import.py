@@ -159,6 +159,14 @@ def test_parse_web_app_sheets_and_auth_token_filter():
     assert len(filtered) == 1
     assert filtered[0]["auth_token"].startswith("eyJ")
 
+    pair_only = parse_ui_script_excel(
+        content,
+        target="web",
+        pairs=[{"event_name": "activateFamily", "scenario": "global"}],
+    )
+    assert len(pair_only) == 1
+    assert pair_only[0]["event_name"] == "activateFamily"
+
     app_rows = parse_ui_script_excel(content, target="app")
     assert len(app_rows) == 1
     assert app_rows[0]["scenario"] == "favourite"

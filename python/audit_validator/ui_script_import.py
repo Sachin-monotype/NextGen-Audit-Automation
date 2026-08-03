@@ -111,6 +111,61 @@ def _sheet_for_target(target: str) -> str:
     return SHEET_BY_TARGET[_norm_target(target)]
 
 
+def _pair_keys(pairs: list[dict[str, Any]] | None) -> set[str]:
+    """Normalize selected event+scenario pairs to ``event::scenario`` keys."""
+    keys: set[str] = set()
+    for p in pairs or []:
+        if not isinstance(p, dict):
+            continue
+        op = str(
+            p.get("event_name") or p.get("operation") or p.get("event") or ""
+        ).strip()
+        touch = str(
+            p.get("scenario") or p.get("touchpoint") or p.get("touch") or ""
+        ).strip()
+        if not op:
+            continue
+        touch_n = _normalize_scenario(touch) if touch else ""
+        keys.add(f"{op}::{touch_n}" if touch_n else op)
+    return keys
+
+
+def catalog_from_rows(
+    rows: list[dict[str, Any]],
+    *,
+    target: str = "web",
+    path: str | None = None,
+    filename: str | None = None,
+) -> dict[str, Any]:
+    """Build catalog payload from parsed Excel rows."""
+    events = sorted({str(r["event_name"]) for r in rows if r.get("event_name")})
+    scenarios = sorted({str(r["scenario"]) for r in rows if r.get("scenario")})
+    pairs = [
+        {
+            "id": (
+                f"{r.get('event_name')}::{r.get('scenario')}"
+                if r.get("scenario")
+                else str(r.get("event_name") or "")
+            ),
+            "event_name": str(r.get("event_name") or ""),
+            "scenario": str(r.get("scenario") or ""),
+            "correlation_id": str(r.get("correlation_id") or ""),
+            "has_auth_token": bool(str(r.get("auth_token") or "").strip()),
+        }
+        for r in rows
+    ]
+    return {
+        "target": _norm_target(target),
+        "path": path,
+        "filename": filename,
+        "sheet": _sheet_for_target(target),
+        "events": events,
+        "scenarios": scenarios,
+        "rows": pairs,
+        "count": len(pairs),
+    }
+
+
 def parse_ui_script_excel(
     content: bytes,
     *,
@@ -118,12 +173,14 @@ def parse_ui_script_excel(
     sheet_name: str | None = None,
     events: list[str] | None = None,
     scenarios: list[str] | None = None,
+    pairs: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Parse datasource sheet: event_name, scenario, correlation_id, auth_token, response.
 
     - Forward-fills blank ``event_name`` cells (merged-style Excel rows).
     - When a ``status`` column exists, only OK/PASS rows with a correlation_id are kept.
     - Rows without a usable correlation_id are skipped.
+    - Optional ``pairs`` filters exact event+scenario combinations (preferred).
     - Optional ``events`` / ``scenarios`` filters match normalized names (empty = all).
     """
     import pandas as pd
@@ -172,6 +229,7 @@ def parse_ui_script_excel(
             "Excel must include event_name (or event/operation) and correlation_id columns"
         )
 
+    pair_filter = _pair_keys(pairs)
     event_filter = {e.strip() for e in (events or []) if str(e).strip()}
     scenario_filter = {_normalize_scenario(s) for s in (scenarios or []) if str(s).strip()}
     scenario_filter |= {s.strip().lower() for s in (scenarios or []) if str(s).strip()}
@@ -197,10 +255,19 @@ def parse_ui_script_excel(
         scenario = _cell_str(series.get(scenario_col)) if scenario_col else ""
         scenario = _normalize_scenario(scenario) if scenario else ""
 
-        if event_filter and op not in event_filter:
-            continue
-        if scenario_filter and scenario not in scenario_filter and scenario.lower() not in scenario_filter:
-            continue
+        if pair_filter:
+            key = f"{op}::{scenario}" if scenario else op
+            if key not in pair_filter:
+                continue
+        else:
+            if event_filter and op not in event_filter:
+                continue
+            if (
+                scenario_filter
+                and scenario not in scenario_filter
+                and scenario.lower() not in scenario_filter
+            ):
+                continue
 
         row_target = _cell_str(series.get(target_col)) if target_col else ""
         if not row_target and target:
@@ -231,6 +298,7 @@ def load_ui_script_rows(
     target: str = "web",
     events: list[str] | None = None,
     scenarios: list[str] | None = None,
+    pairs: list[dict[str, Any]] | None = None,
     path: Path | None = None,
 ) -> list[dict[str, Any]]:
     """Read datasource-latest.xlsx for ``web`` or ``app`` and return filtered OK rows."""
@@ -241,33 +309,29 @@ def load_ui_script_rows(
         target=target,
         events=events,
         scenarios=scenarios,
+        pairs=pairs,
     )
 
 
-def list_ui_script_catalog(*, target: str = "web", path: Path | None = None) -> dict[str, Any]:
+def list_ui_script_catalog(
+    *,
+    target: str = "web",
+    path: Path | None = None,
+    content: bytes | None = None,
+    filename: str | None = None,
+) -> dict[str, Any]:
     """List events / scenarios / rows available in the Excel for the given target."""
+    if content is not None:
+        rows = parse_ui_script_excel(content, target=target)
+        return catalog_from_rows(
+            rows,
+            target=target,
+            path=None,
+            filename=filename or "upload.xlsx",
+        )
     ds = path or resolve_ui_script_datasource_path()
     rows = load_ui_script_rows(target=target, path=ds)
-    events = sorted({str(r["event_name"]) for r in rows if r.get("event_name")})
-    scenarios = sorted({str(r["scenario"]) for r in rows if r.get("scenario")})
-    pairs = [
-        {
-            "event_name": str(r.get("event_name") or ""),
-            "scenario": str(r.get("scenario") or ""),
-            "correlation_id": str(r.get("correlation_id") or ""),
-            "has_auth_token": bool(str(r.get("auth_token") or "").strip()),
-        }
-        for r in rows
-    ]
-    return {
-        "target": _norm_target(target),
-        "path": str(ds),
-        "sheet": _sheet_for_target(target),
-        "events": events,
-        "scenarios": scenarios,
-        "rows": pairs,
-        "count": len(pairs),
-    }
+    return catalog_from_rows(rows, target=target, path=str(ds))
 
 
 def _jwt_identity_for_row(auth_token: str) -> dict[str, Any]:
@@ -444,6 +508,7 @@ def import_ui_script_excel(
     target: str = "web",
     events: list[str] | None = None,
     scenarios: list[str] | None = None,
+    pairs: list[dict[str, Any]] | None = None,
     selection: list[dict[str, Any]] | None = None,
     db: Any = None,
     path: Path | None = None,
@@ -453,11 +518,19 @@ def import_ui_script_excel(
     tgt = _norm_target(target)
     if content is not None:
         rows = parse_ui_script_excel(
-            content, target=tgt, events=events, scenarios=scenarios
+            content,
+            target=tgt,
+            events=events,
+            scenarios=scenarios,
+            pairs=pairs,
         )
     else:
         rows = load_ui_script_rows(
-            target=tgt, events=events, scenarios=scenarios, path=path
+            target=tgt,
+            events=events,
+            scenarios=scenarios,
+            pairs=pairs,
+            path=path,
         )
     if not rows:
         raise ValueError(

@@ -9,7 +9,7 @@ import re
 import threading
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
@@ -1234,9 +1234,21 @@ class UiTriggerResultsBody(BaseModel):
 
 
 class UiScriptImportBody(BaseModel):
+    """JSON shape documented for clients; import endpoint accepts multipart Form."""
+
     target: str = "web"
     events: list[str] = Field(default_factory=list)
     scenarios: list[str] = Field(default_factory=list)
+    pairs: list[dict[str, str]] = Field(default_factory=list)
+
+
+def _parse_ui_script_pairs(raw: str) -> list[dict[str, Any]]:
+    if not (raw or "").strip():
+        return []
+    parsed = json.loads(raw)
+    if not isinstance(parsed, list):
+        return []
+    return [p for p in parsed if isinstance(p, dict)]
 
 
 @app.get("/api/jobs/generate-ui-script/catalog")
@@ -1254,21 +1266,65 @@ def generate_ui_script_catalog(target: str = "web") -> dict[str, Any]:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
+@app.post("/api/jobs/generate-ui-script/catalog")
+async def generate_ui_script_catalog_upload(
+    target: str = Form("web"),
+    file: UploadFile = File(...),
+) -> dict[str, Any]:
+    """Parse an uploaded Excel and return Web/App catalog for the picker."""
+    try:
+        from audit_validator.ui_script_import import list_ui_script_catalog
+
+        content = await file.read()
+        if not content:
+            raise HTTPException(400, "Empty file")
+        return {
+            "ok": True,
+            **list_ui_script_catalog(
+                target=target,
+                content=content,
+                filename=file.filename or "upload.xlsx",
+            ),
+        }
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
 @app.post("/api/jobs/generate-ui-script")
-def import_generate_ui_script(body: UiScriptImportBody) -> dict[str, Any]:
-    """Import from datasource-latest.xlsx (web/app) → verify → Generation Status + Compare."""
+async def import_generate_ui_script(
+    target: str = Form("web"),
+    pairs: str = Form("[]"),
+    file: UploadFile | None = File(None),
+) -> dict[str, Any]:
+    """Import from datasource-latest.xlsx or uploaded Excel → verify → Compare."""
     try:
         from audit_validator.ui_script_import import (
             import_ui_script_excel,
             resolve_ui_script_datasource_path,
         )
 
-        path = resolve_ui_script_datasource_path()
+        content: bytes | None = None
+        filename: str | None = None
+        if file is not None and (file.filename or "").strip():
+            content = await file.read()
+            if not content:
+                raise HTTPException(400, "Empty file")
+            filename = file.filename
+
+        pair_list = _parse_ui_script_pairs(pairs)
+        path_note: str | None = None
+        if content is None:
+            path_note = str(resolve_ui_script_datasource_path())
+
         job = import_ui_script_excel(
             settings.audit_project_root,
-            target=body.target,
-            events=body.events or None,
-            scenarios=body.scenarios or None,
+            content,
+            target=target or "web",
+            pairs=pair_list or None,
             db=db,
         )
         ready = bool((job or {}).get("verification", {}).get("generate_run_saved"))
@@ -1277,13 +1333,16 @@ def import_generate_ui_script(body: UiScriptImportBody) -> dict[str, Any]:
             "ok": ready,
             "job": job,
             "rows_parsed": rows,
-            "target": body.target,
-            "path": str(path),
+            "target": target or "web",
+            "path": path_note,
+            "filename": filename,
         }
     except FileNotFoundError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
     except HTTPException:
         raise
+    except json.JSONDecodeError as exc:
+        return JSONResponse({"ok": False, "error": f"Invalid pairs JSON: {exc}"}, status_code=400)
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
     except Exception as exc:
