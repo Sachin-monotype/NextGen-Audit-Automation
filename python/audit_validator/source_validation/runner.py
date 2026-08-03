@@ -236,7 +236,11 @@ def _prefetch_discovery(
 
     cache: dict[str, Any] = {}
     if not discovery or not cfg.discovery_ready:
-        cache["discovery_note"] = "Discovery token missing — Typesense/middleware not queried"
+        cache["discovery_note"] = (
+            "Discovery token missing — Typesense/middleware not queried "
+            "(need a non-expired user SSO token in DISCOVERY_BEARER_TOKEN or "
+            "NEXTGEN_BEARER_TOKEN; M2M BEARER_TOKEN is rejected with 401)"
+        )
         return cache
 
     family_ids: set[str] = set()
@@ -441,6 +445,15 @@ def _prefetch_discovery(
             save_pickle(cfg.project_root, "discovery", key_parts, cache)
     except Exception as exc:
         cache["discovery_error"] = f"Discovery/Typesense error: {exc}"
+        # Auth failures must not leave a stale empty pickle that masks future retries.
+        err_l = str(exc).lower()
+        if any(m in err_l for m in ("401", "unauthorized", "403", "forbidden")):
+            try:
+                from .source_cache import clear_pickle
+
+                clear_pickle(cfg.project_root, "discovery", key_parts)
+            except Exception:
+                pass
         log.warning("Discovery prefetch failed: %s", exc)
     return cache
 

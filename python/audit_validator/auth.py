@@ -323,24 +323,79 @@ def resolve_discovery_bearer_token() -> str:
     """
     Bearer for Discovery middleware (POST /v1/styles, GET /v1/variations).
 
-  PP/browser SSO tokens work; Everest OAuth ``BEARER_TOKEN`` often returns 401 here.
-    Prefer ``DISCOVERY_BEARER_TOKEN``, then ``BEARER_TOKEN_PP`` / ``NEXTGEN_BEARER_TOKEN``.
+    Discovery rejects Everest M2M ``client_credentials`` tokens (401 Unauthorized).
+    Prefer a **non-expired user** JWT: ``DISCOVERY_BEARER_TOKEN``, then
+    ``BEARER_TOKEN_PP`` / ``NEXTGEN_BEARER_TOKEN``. Never return an ``@clients``
+    M2M token or an expired JWT (both produce silent empty Typesense results).
     """
-    explicit = _strip_bearer(os.getenv("DISCOVERY_BEARER_TOKEN", ""))
-    if explicit and not jwt_is_expired(explicit):
-        return explicit
-    for key in ("BEARER_TOKEN_PP", "NEXTGEN_BEARER_TOKEN"):
+    for key in (
+        "DISCOVERY_BEARER_TOKEN",
+        "BEARER_TOKEN_PP",
+        "NEXTGEN_BEARER_TOKEN",
+        "BEARER_TOKEN",
+    ):
         token = _strip_bearer(os.getenv(key, ""))
-        if token and not jwt_is_expired(token):
-            return token
-    oauth = _strip_bearer(os.getenv("BEARER_TOKEN", ""))
-    if oauth and not jwt_is_expired(oauth):
-        return oauth
-    for key in ("BEARER_TOKEN_PP", "NEXTGEN_BEARER_TOKEN", "BEARER_TOKEN"):
-        token = _strip_bearer(os.getenv(key, ""))
-        if token:
+        if not token or jwt_is_expired(token):
+            continue
+        ident = _identity_from_payload(jwt_payload(token))
+        if _identity_is_user(ident):
             return token
     return ""
+
+
+def ensure_discovery_user_token(*, project_root: Path | None = None) -> str:
+    """Return a non-expired user JWT usable by Discovery.
+
+    When ``OAUTH_GRANT_TYPE=client_credentials``, ``BEARER_TOKEN`` is M2M and Discovery
+    returns 401. If password grant is allowed for the OAuth client, mint a user token
+    and persist it as ``DISCOVERY_BEARER_TOKEN``. Otherwise the operator must paste a
+    fresh browser SSO token into ``NEXTGEN_BEARER_TOKEN`` / ``DISCOVERY_BEARER_TOKEN``.
+    """
+    existing = resolve_discovery_bearer_token()
+    if existing:
+        return existing
+
+    username = (os.getenv("OAUTH_USERNAME") or "").strip()
+    password = (os.getenv("OAUTH_PASSWORD") or "").strip()
+    if not username or not password:
+        return ""
+
+    try:
+        fresh = fetch_oauth_token(
+            username=username,
+            password=password,
+            org=os.getenv("OAUTH_ORG", "").strip(),
+            organization=os.getenv("OAUTH_ORGANIZATION", "").strip(),
+            gcid=os.getenv("OAUTH_GCID", "").strip(),
+        )
+    except Exception:
+        return ""
+
+    ident = _identity_from_payload(jwt_payload(fresh))
+    if not _identity_is_user(ident) or jwt_is_expired(fresh):
+        return ""
+
+    os.environ["DISCOVERY_BEARER_TOKEN"] = fresh
+    root = project_root
+    if root is None:
+        try:
+            from .project_root import find_project_root
+
+            root = find_project_root()
+        except Exception:
+            root = None
+    if root is not None:
+        try:
+            env_path = Path(root) / ".env"
+            if env_path.is_file():
+                text = env_path.read_text(encoding="utf-8")
+                env_path.write_text(
+                    _set_env_var(text, "DISCOVERY_BEARER_TOKEN", fresh),
+                    encoding="utf-8",
+                )
+        except Exception:
+            pass
+    return fresh
 
 
 def resolve_graphql_bearer_token() -> str:

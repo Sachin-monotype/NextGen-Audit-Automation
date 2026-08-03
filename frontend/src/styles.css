@@ -2378,6 +2378,12 @@ button:disabled {
 .field-notes {
   margin: 8px 0 0;
   font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.field-card.fail .field-notes,
+.field-card.skip .field-notes,
+.row-fail .field-notes {
   color: var(--danger);
 }
 

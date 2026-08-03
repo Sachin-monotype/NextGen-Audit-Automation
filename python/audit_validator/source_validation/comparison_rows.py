@@ -207,31 +207,46 @@ def _is_source_error(notes: str) -> bool:
     return any(marker in low for marker in _SOURCE_ERROR_MARKERS)
 
 
-# Errors that mean "we never reached the origin" (network / VPN / Cloudflare edge block
-# / auth-forbidden). These are NOT validation problems — we simply could not check the
-# field — so they are classified N/A rather than SKIP, and a banner tells the user to
-# connect to the VPN.
+# Errors that mean "we never reached the origin" (network / VPN / Cloudflare edge block).
+# These are NOT validation problems — we simply could not check the field — so they are
+# classified N/A rather than SKIP. Auth failures (401/403) are NOT unreachable: the API
+# responded, so Typesense/UMS/CMS auth problems must surface as FAIL.
 _UNREACHABLE_MARKERS = (
-    "forbidden",
     "cloudflare",
     "error code: 10",
     "timed out",
     "timeout",
     "connection",
     "max retries",
-    "403 ",
-    "403 client",
+)
+
+_AUTH_ERROR_MARKERS = (
     "401 ",
     "unauthorized",
+    "403 ",
+    "forbidden",
+    "discovery token missing",
+    "typesense/middleware not queried",
 )
 
 
 def _is_unreachable_error(notes: str) -> bool:
-    """True when the source API could not be reached (network/VPN/Cloudflare/auth block)."""
+    """True when the source API could not be reached (network/VPN/Cloudflare)."""
     if not notes:
         return False
     low = notes.lower()
+    # Auth failures are reachable-but-denied — handled separately as FAIL.
+    if any(marker in low for marker in _AUTH_ERROR_MARKERS):
+        return False
     return any(marker in low for marker in _UNREACHABLE_MARKERS)
+
+
+def _is_auth_error(notes: str) -> bool:
+    """True when the source API rejected credentials (401/403 / missing token)."""
+    if not notes:
+        return False
+    low = notes.lower()
+    return any(marker in low for marker in _AUTH_ERROR_MARKERS)
 
 
 def _dig(enriched: JsonDict, path: str) -> object:
@@ -295,6 +310,20 @@ def _row(
         spec.source_system == "Typesense"
         and ev
         and not sv
+        and _is_auth_error(
+            str(live.get("discovery_error") or live.get("discovery_note") or notes or "")
+        )
+    ):
+        # Discovery answered 401/403 or token was missing — real failure, not N/A.
+        disc_msg = str(
+            live.get("discovery_error") or live.get("discovery_note") or notes or ""
+        )
+        status = "FAIL"
+        notes = disc_msg or "Discovery/Typesense auth failed — not validated"
+    elif (
+        spec.source_system == "Typesense"
+        and ev
+        and not sv
         and _is_unreachable_error(
             str(live.get("discovery_error") or live.get("discovery_note") or notes or "")
         )
@@ -314,9 +343,12 @@ def _row(
         status = "PASS" if (values_equivalent(sv, ev, field_path=spec.enriched_path) or not sv) else "FAIL"
         if status == "PASS" and not sv and not notes and spec.source_system == "Audit service":
             notes = notes or "Enricher-generated / constant — not compared to DB"
+    elif not sv and ev and _is_auth_error(notes):
+        status = "FAIL"
+        notes = notes or "Source API auth failed (401/403) — fix Bearer / Discovery token"
     elif not sv and ev and _is_unreachable_error(notes):
-        # Source API was unreachable (VPN off / Cloudflare edge block / auth forbidden /
-        # timeout). We never got to compare, so this is Not Applicable — not a SKIP and
+        # Source API was unreachable (VPN off / Cloudflare edge block / timeout).
+        # We never got to compare, so this is Not Applicable — not a SKIP and
         # certainly not a FAIL. The Results banner surfaces the VPN hint.
         status = "N/A"
         notes = notes or "Source API unreachable (connect to VPN) — not validated"

@@ -637,7 +637,18 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
 
   const unreachableCount = useMemo(
     () =>
-      rows.filter((r) => /unreachable|vpn|forbidden|cloudflare|timed out|connection/i.test(r.notes || "")).length,
+      rows.filter((r) =>
+        /unreachable|vpn|cloudflare|timed out|connection/i.test(r.notes || ""),
+      ).length,
+    [rows],
+  );
+  const authFailCount = useMemo(
+    () =>
+      rows.filter((r) =>
+        /401 |unauthorized|403 |forbidden|discovery token missing|typesense\/middleware not queried/i.test(
+          r.notes || "",
+        ),
+      ).length,
     [rows],
   );
 
@@ -939,9 +950,22 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
 
       {unreachableCount > 0 && (
         <div className="banner warn">
-          <strong>{unreachableCount} field(s) could not be validated because the source APIs
-          (CMS / UMS / Discovery / AMS) were unreachable or forbidden.</strong> These are marked <b>N/A</b> / <b>SKIP</b>, not
-          failures. Connect to VPN, verify AMS headers via the curl below in your notes, then re-run Compare.
+          <strong>
+            {unreachableCount} field(s) could not be validated because the source APIs (CMS /
+            UMS / Discovery / AMS) were unreachable (network / VPN / Cloudflare).
+          </strong>{" "}
+          These are marked <b>N/A</b>, not failures. Connect to VPN, then re-run Compare.
+        </div>
+      )}
+
+      {authFailCount > 0 && (
+        <div className="banner error">
+          <strong>
+            {authFailCount} field(s) failed source auth (401/403) — often Discovery/Typesense
+            with an M2M or expired Bearer.
+          </strong>{" "}
+          These are marked <b>FAIL</b>. Refresh a user SSO / password-grant token
+          (``DISCOVERY_BEARER_TOKEN`` / ``NEXTGEN_BEARER_TOKEN``), then re-run Compare.
         </div>
       )}
 
