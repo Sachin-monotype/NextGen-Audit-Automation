@@ -252,8 +252,8 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const [filterEnv, setFilterEnv] = useState<string[]>([]);
   const [filterService, setFilterService] = useState<string[]>([]);
   /** PP / QA / UAT — Results store is per audit target so stores never mix. */
-  const [resultsTarget, setResultsTarget] = useState("pp");
-  const [availableTargets, setAvailableTargets] = useState<string[]>(["pp", "qa", "uat"]);
+  const [resultsTarget, setResultsTarget] = useState("qa");
+  const [availableTargets, setAvailableTargets] = useState<string[]>(["qa", "pp", "uat"]);
   const [categories, setCategories] = useState<CategoryReport | null>(null);
   const [opMeta, setOpMeta] = useState<ComparableOperation[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -324,7 +324,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   useEffect(() => {
     fetchPipelineConfig()
       .then((cfg) => {
-        const t = (cfg.target || "pp").toLowerCase();
+        const t = (cfg.target || "qa").toLowerCase();
         if (t) setResultsTarget(t);
       })
       .catch(() => {});
@@ -456,7 +456,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     return metaByOp.get(`${base}(BE)`) ?? metaByOp.get(`${base}(UI)`);
   }
 
-  /** Drop ``op(BE)`` when bare ``op`` is also in the coverage list (ingress dupes). */
+  /** Drop ``op(UI)`` / bare ``op(BE)`` when the unlabeled scenario is also listed. */
   function dedupeCoverageRows<T extends { operation: string; environment: string; service: string }>(
     rows: T[],
   ): T[] {
@@ -465,15 +465,22 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
       (r.service && r.service !== "—" ? 1 : 0);
     const byBase = new Map<string, T>();
     for (const row of rows) {
-      const be = row.operation.match(/^(.+)\(BE\)$/);
-      const base = be ? be[1] : row.operation;
+      const ui = row.operation.match(/^(.+)\(UI\)$/i);
+      const be = row.operation.match(/^([^(]+)\(BE\)$/);
+      const base = ui ? ui[1] : be ? be[1] : row.operation;
       const prev = byBase.get(base);
       if (!prev) {
-        byBase.set(base, row);
+        byBase.set(base, {
+          ...row,
+          operation: ui ? base : row.operation,
+        });
         continue;
       }
-      if (score(row) > score(prev)) byBase.set(base, row);
-      else if (!be && /\(BE\)$/.test(prev.operation)) byBase.set(base, row);
+      const canon = { ...row, operation: ui ? base : row.operation };
+      if (score(canon) > score(prev)) byBase.set(base, canon);
+      else if (!ui && !be && (/\(UI\)$/i.test(prev.operation) || /\(BE\)$/.test(prev.operation))) {
+        byBase.set(base, canon);
+      }
     }
     return [...byBase.values()];
   }

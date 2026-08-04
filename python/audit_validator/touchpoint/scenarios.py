@@ -65,16 +65,17 @@ def scenario_display_name(
     ui: bool = False,
     be: bool = False,
 ) -> str:
-    """e.g. ``activateFamily(global)(UI)`` or ``activateFamily(global)(BE)``."""
+    """e.g. ``activateFamily(global)`` for UI, ``activateFamily(global)(BE)`` for backend.
+
+    UI is the default channel — no ``(UI)`` suffix. Only backend-minted runs get ``(BE)``.
+    """
     short = short_touchpoint(touchpoint)
     base = f"{operation}({short})" if short else operation
-    # Strip legacy lowercase suffixes before applying canonical tags
+    # Strip legacy channel suffixes before applying canonical tags
     for legacy in ("(ui)", "(be)", "(UI)", "(BE)"):
         if base.endswith(legacy):
             base = base[: -len(legacy)]
-    if ui:
-        return f"{base}(UI)"
-    if be:
+    if be and not ui:
         return f"{base}(BE)"
     return base
 

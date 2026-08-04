@@ -55,9 +55,26 @@ def _parse_source(data_mapping: str) -> tuple[str, str]:
     """Return (Source label, API hint) — labels: Typesense, UMS, Raw, CMS, AMS, Resolver, JWT."""
     dm = data_mapping or ""
     lower = dm.lower()
+    # Resolver / enricher constants first — "mt-connect-middleware-discovery" contains
+    # the substring "discovery" and must NOT be classified as Typesense.
+    if "resolver" in lower or "enricher constant" in lower or "middleware-discovery" in lower:
+        return "Resolver", "enricher constant"
     if "variation" in lower and ("discovery" in lower or "typesense" in lower):
         return "Typesense", "GET /v1/variations"
-    if "discovery" in lower or "typesense" in lower:
+    if (
+        "typesense" in lower
+        or "/v1/styles" in lower
+        or "/v1/variations" in lower
+        or "discovery post" in lower
+        or "discovery get" in lower
+        or "discovery →" in lower
+        or "discovery/" in lower
+        or "mtc_families" in lower
+        or "mtc_foundries" in lower
+    ):
+        return "Typesense", "POST /v1/styles"
+    # Bare "discovery" only when it is clearly the catalog source (not middleware-discovery).
+    if re.search(r"(?<![a-z-])discovery(?![a-z-])", lower) or "discovery " in lower:
         return "Typesense", "POST /v1/styles"
     if "ums" in lower or "user-management" in lower:
         return "UMS", "POST/GET /api/v3/customers/{gcid}/profiles"
@@ -69,8 +86,6 @@ def _parse_source(data_mapping: str) -> tuple[str, str]:
         return "JWT", "Bearer token claims"
     if "auth0" in lower:
         return "Auth0", "GET /api/v2/users/{id}"
-    if "resolver" in lower:
-        return "Resolver", "enricher constant"
     if "raw" in lower or "mtconnect-api" in lower or "graphql" in lower or "trigger" in lower or "curl" in lower:
         return "Trigger", "GraphQL curl / event trigger"
     return "Unknown", dm[:80] if dm else ""

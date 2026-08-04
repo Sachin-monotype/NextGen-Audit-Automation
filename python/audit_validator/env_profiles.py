@@ -253,8 +253,8 @@ def mongo_db_for_profile(profile: AuditTargetProfile | None = None) -> str:
 
 
 def audit_target_name() -> str:
-    raw = (os.getenv("AUDIT_TARGET") or "pp").strip().lower()
-    return raw if raw in _PROFILES else "pp"
+    raw = (os.getenv("AUDIT_TARGET") or "qa").strip().lower()
+    return raw if raw in _PROFILES else "qa"
 
 
 def get_audit_profile(name: str | None = None) -> AuditTargetProfile:
@@ -274,7 +274,7 @@ def apply_audit_profile(*, project_root=None) -> AuditTargetProfile:
     """
     Apply AUDIT_TARGET profile defaults on top of .env.
 
-    Profile-owned keys always win when AUDIT_TARGET is set (default pp).
+    Profile-owned keys always win when AUDIT_TARGET is set (default qa).
     RABBITMQ_URL / INGRESS_RABBITMQ_URL keep credentials/host from .env but
     switch vhost to the profile value.
     """

@@ -594,6 +594,20 @@ def apply_extracted_results(
             "graphql_input": item.get("graphql_input"),
             "graphql_response": item.get("graphql_response"),
         }
+        if item.get("excel_event_name"):
+            row["excel_event_name"] = str(item.get("excel_event_name"))
+        if item.get("graphql_failed"):
+            row["graphql_failed"] = True
+        if item.get("jwt_identity") and isinstance(item.get("jwt_identity"), dict):
+            row["jwt_identity"] = item["jwt_identity"]
+        if item.get("jwt_identity_note"):
+            row["jwt_identity_note"] = str(item.get("jwt_identity_note"))
+        if item.get("jwt_from_excel"):
+            row["jwt_from_excel"] = True
+        if item.get("auth_token"):
+            row["auth_token"] = str(item.get("auth_token"))
+        if item.get("our_profile_id"):
+            row["our_profile_id"] = str(item.get("our_profile_id"))
         results.append(row)
         existing.add(cid)
         gql_note = (
@@ -680,7 +694,11 @@ def apply_extracted_results(
                     ctx["replay_mode"] = "playwright_script"
                 else:
                     ctx["capture_source"] = src or "casepilot_minimal"
-                    ctx["replay_mode"] = "pending_raw"
+                    # Keep Excel JWT sticky even when Response is empty / pending_raw.
+                    if ctx.get("jwt_from_excel") or src == "playwright_script":
+                        ctx["replay_mode"] = "playwright_script"
+                    else:
+                        ctx["replay_mode"] = "pending_raw"
                 # Save under bare op, scenario, and (UI) label so Compare finds Excel
                 # capture even when the operator selects activateFamily(global).
                 names = {op, display}
@@ -2442,11 +2460,53 @@ def finalize_ui_trigger_verification(
             enr_doc = None
             raw_mongo = None
             enr_mongo = None
+            mongo_op_alias = ""
+            excel_op = str(r.get("excel_event_name") or "").strip()
+            gql_failed = bool(r.get("graphql_failed"))
+            if gql_failed:
+                status = "N/A"
+                remark = (
+                    "UI-triggered · GraphQL errors / empty data — no audit event expected"
+                )
+                scenarios.append(
+                    {
+                        "scenario_id": f"{op}::{touch}" if touch else op,
+                        "operation": op,
+                        "touchpoint": touch,
+                        "label": display,
+                        "status": status,
+                        "xCorrelationId": cid,
+                        "correlation_id": cid,
+                        "raw": False,
+                        "enriched": False,
+                        "raw_event": None,
+                        "enriched_event": None,
+                        "source": "ui",
+                        "channel": "UI",
+                        "ui_status": status,
+                        "remark": remark,
+                        "pairing_method": "graphql_failed",
+                    }
+                )
+                _log(f"  · {display}: N/A GraphQL failed cid={(cid or '')[:8]}")
+                continue
             if db is not None and cid:
                 try:
                     raw2, enr2 = db.latest_pair(op, require_pair=False, correlation_id=cid)
                     raw_mongo = raw2 if isinstance(raw2, dict) else None
                     enr_mongo = enr2 if isinstance(enr2, dict) else None
+                    # Excel event_name often ≠ Mongo source.operation — CID-only fallback.
+                    if not raw_mongo and not enr_mongo and hasattr(db, "latest_by_correlation"):
+                        raw3, enr3 = db.latest_by_correlation(cid, require_pair=False)
+                        raw_mongo = raw3 if isinstance(raw3, dict) else None
+                        enr_mongo = enr3 if isinstance(enr3, dict) else None
+                        if raw_mongo or enr_mongo:
+                            hit = enr_mongo or raw_mongo or {}
+                            src = hit.get("source") if isinstance(hit.get("source"), dict) else {}
+                            mongo_op = str(src.get("operation") or "").strip()
+                            if mongo_op and mongo_op != op:
+                                mongo_op_alias = mongo_op
+                                display = scenario_display_name(mongo_op, touch, ui=True)
                     if raw_mongo:
                         raw_doc = _event_for_report(raw_mongo)
                     if enr_mongo:
@@ -2464,15 +2524,23 @@ def finalize_ui_trigger_verification(
 
             raw_ok = bool(raw_doc)
             enr_ok = bool(enr_doc)
+            alias_note = (
+                f" · op alias excel={excel_op or op} mongo={mongo_op_alias}"
+                if mongo_op_alias
+                else ""
+            )
             if raw_ok and enr_ok:
                 status = "PASS"
-                remark = "UI-triggered · raw + enriched landed in Mongo"
+                remark = f"UI-triggered · raw + enriched landed in Mongo{alias_note}"
             elif raw_ok and not enr_ok:
                 status = "FAIL"
-                remark = "UI-triggered · raw landed; enrichment missing"
+                remark = f"UI-triggered · raw landed; enrichment missing{alias_note}"
             elif enr_ok and not raw_ok:
                 status = "PASS"
-                remark = "UI-triggered · enriched landed (raw not in Mongo — non-blocking)"
+                remark = (
+                    "UI-triggered · enriched landed (raw not in Mongo — non-blocking)"
+                    f"{alias_note}"
+                )
             elif cid:
                 status = "FAIL"
                 remark = "UI-triggered · correlation captured; event not in Mongo yet"
@@ -2483,7 +2551,7 @@ def finalize_ui_trigger_verification(
             scenarios.append(
                 {
                     "scenario_id": f"{op}::{touch}" if touch else op,
-                    "operation": op,
+                    "operation": mongo_op_alias or op,
                     "touchpoint": touch,
                     "label": display,
                     "status": status,
@@ -2498,6 +2566,8 @@ def finalize_ui_trigger_verification(
                     "ui_status": status,
                     "remark": remark,
                     "pairing_method": "owned_cid" if cid else None,
+                    "excel_event_name": excel_op or None,
+                    "mongo_operation": mongo_op_alias or None,
                 }
             )
             _log(

@@ -766,10 +766,19 @@ def _prefetch_identity_sources_inner(
             try:
                 try:
                     cache["ams_by_id"].update(
-                        bulk_a(asset_ids, global_user_id=default_profile)
+                        bulk_a(
+                            asset_ids,
+                            global_user_id=default_profile,
+                            global_customer_id=default_gcid,
+                        )
                     )
                 except TypeError:
-                    cache["ams_by_id"].update(bulk_a(asset_ids))
+                    try:
+                        cache["ams_by_id"].update(
+                            bulk_a(asset_ids, global_user_id=default_profile)
+                        )
+                    except TypeError:
+                        cache["ams_by_id"].update(bulk_a(asset_ids))
             except Exception as exc:  # noqa: BLE001
                 log.warning("AMS bulk prefetch failed: %s", exc)
         for key in sorted(keys["assets"]):
@@ -1582,7 +1591,21 @@ def run_source_validation(
 
     excel_tok = resolve_excel_discovery_token(cfg.project_root, ops=ops)
     minted = ensure_discovery_user_token(project_root=cfg.project_root)
+    # Prefer auto-minted (or cached) user JWT; fall back to Excel auth_token.
     preferred = minted or excel_tok
+    if not preferred:
+        # Last chance — mint may have been skipped because env wasn't loaded yet.
+        try:
+            from audit_validator.auth import mint_user_password_token
+
+            preferred = mint_user_password_token()
+            if preferred:
+                os.environ["DISCOVERY_BEARER_TOKEN"] = preferred
+                os.environ["NEXTGEN_BEARER_TOKEN"] = preferred
+                minted = preferred
+                _emit("▸ Discovery/Typesense minted user JWT (last-chance password grant)")
+        except Exception as exc:  # noqa: BLE001
+            _emit(f"▸ Discovery/Typesense token unavailable: {exc}")
     if preferred and preferred != _strip_bearer(cfg.discovery_bearer_token):
         cfg = replace(
             cfg,
@@ -1595,6 +1618,11 @@ def run_source_validation(
         )
     elif cfg.discovery_ready:
         _emit(f"▸ Discovery/Typesense base={cfg.discovery_base_url}")
+    else:
+        _emit(
+            "▸ Discovery/Typesense NOT ready — font catalog fields will FAIL auth. "
+            "Set OAUTH_USERNAME/OAUTH_PASSWORD or a user SSO DISCOVERY_BEARER_TOKEN."
+        )
 
     discovery = DiscoveryClient(cfg) if cfg.discovery_ready else None
     ums, cms, ams, truth_mode = build_ums_cms_ams_clients(cfg)
@@ -1698,27 +1726,46 @@ def run_source_validation(
 
             saved_trigger = load_trigger_context(cfg.project_root, op)
             trigger = saved_trigger
-            ui_capture = (
-                isinstance(trigger, dict)
-                and str(trigger.get("replay_mode") or "")
-                in {"casepilot_ui", "playwright_script"}
-                and (
-                    str(trigger.get("replay_mode") or "") == "playwright_script"
-                    or (
-                        isinstance(trigger.get("graphql_response"), dict)
-                        and bool(trigger.get("graphql_response"))
-                    )
-                )
+            excel_note = (
+                str((saved_trigger or {}).get("jwt_identity_note") or "")
+                if isinstance(saved_trigger, dict)
+                else ""
             )
             excel_jwt = bool(
                 isinstance(saved_trigger, dict)
                 and (
                     saved_trigger.get("jwt_from_excel")
-                    or "Excel auth_token"
-                    in str(saved_trigger.get("jwt_identity_note") or "")
+                    or "Excel auth_token" in excel_note
+                    or excel_note.startswith("JWT claims from Excel")
+                    or bool(str(saved_trigger.get("auth_token") or "").strip())
+                    or str(saved_trigger.get("capture_source") or "") == "playwright_script"
                 )
-                and isinstance(saved_trigger.get("jwt_identity"), dict)
-                and saved_trigger.get("jwt_identity")
+                and (
+                    (
+                        isinstance(saved_trigger.get("jwt_identity"), dict)
+                        and saved_trigger.get("jwt_identity")
+                    )
+                    or bool(str(saved_trigger.get("auth_token") or "").strip())
+                )
+            )
+            ui_capture = bool(
+                isinstance(trigger, dict)
+                and (
+                    str(trigger.get("replay_mode") or "")
+                    in {"casepilot_ui", "playwright_script"}
+                    or excel_jwt
+                    or str(trigger.get("capture_source") or "")
+                    in {"playwright_script", "casepilot_ui"}
+                )
+                and (
+                    excel_jwt
+                    or str(trigger.get("replay_mode") or "") == "playwright_script"
+                    or (
+                        isinstance(trigger.get("graphql_response"), dict)
+                        and bool(trigger.get("graphql_response"))
+                    )
+                    or str(trigger.get("capture_source") or "") == "playwright_script"
+                )
             )
             enrich_cid = str(enriched.get("xCorrelationId") or "").strip()
             raw_cid = str((raw_ev or {}).get("xCorrelationId") or "").strip()
@@ -1747,7 +1794,17 @@ def run_source_validation(
             if excel_jwt and isinstance(saved_trigger, dict):
                 if not isinstance(trigger, dict):
                     trigger = {}
-                trigger["jwt_identity"] = saved_trigger["jwt_identity"]
+                if isinstance(saved_trigger.get("jwt_identity"), dict) and saved_trigger.get(
+                    "jwt_identity"
+                ):
+                    trigger["jwt_identity"] = saved_trigger["jwt_identity"]
+                elif saved_trigger.get("auth_token"):
+                    try:
+                        trigger["jwt_identity"] = jwt_identity(
+                            str(saved_trigger.get("auth_token"))
+                        )
+                    except Exception:
+                        pass
                 if saved_trigger.get("jwt_identity_note"):
                     trigger["jwt_identity_note"] = saved_trigger["jwt_identity_note"]
                 trigger["jwt_from_excel"] = True
@@ -1759,7 +1816,13 @@ def run_source_validation(
                 if isinstance(saved_gql, dict) and saved_gql:
                     trigger["graphql_response"] = saved_gql
                 trigger["capture_source"] = saved_trigger.get("capture_source") or "playwright_script"
-                trigger["replay_mode"] = saved_trigger.get("replay_mode") or "playwright_script"
+                if str(trigger.get("replay_mode") or "") in {"", "pending_raw", "None"}:
+                    trigger["replay_mode"] = (
+                        saved_trigger.get("replay_mode")
+                        if str(saved_trigger.get("replay_mode") or "")
+                        in {"casepilot_ui", "playwright_script"}
+                        else "playwright_script"
+                    )
 
             if trigger:
                 live["trigger"] = trigger
@@ -1788,8 +1851,30 @@ def run_source_validation(
                     live["jwt_from_excel"] = True
                 if trigger.get("our_profile_id"):
                     live["our_profile_id"] = str(trigger.get("our_profile_id"))
+            # Never fall back to project Bearer / BE seed JWT for Excel/UI captures.
             if "jwt_identity" not in live:
-                live["jwt_identity"] = jwt_identity()
+                if excel_jwt and isinstance(saved_trigger, dict):
+                    if isinstance(saved_trigger.get("jwt_identity"), dict) and saved_trigger.get(
+                        "jwt_identity"
+                    ):
+                        live["jwt_identity"] = saved_trigger["jwt_identity"]
+                        live["jwt_from_excel"] = True
+                    elif saved_trigger.get("auth_token"):
+                        live["jwt_identity"] = jwt_identity(str(saved_trigger.get("auth_token")))
+                        live["jwt_from_excel"] = True
+                    else:
+                        live["jwt_identity"] = {}
+                        live["jwt_from_excel"] = True
+                elif ui_capture:
+                    # Prefer enriched actor over project seed Bearer for UI runs.
+                    live["jwt_identity"] = jwt_identity_from_actor(
+                        enriched.get("actor") if isinstance(enriched.get("actor"), dict) else {}
+                    )
+                    live["jwt_identity_note"] = (
+                        "JWT claims taken from enriched actor (UI capture; no Excel token)"
+                    )
+                else:
+                    live["jwt_identity"] = jwt_identity()
             # QA M2M tokens have no user claims — fall back to actor stamps on the event
             # so JWT Compare rows are not Source=none against a populated enriched actor.
             # Never do this when Excel auth_token supplied the identity — that would hide mismatches.

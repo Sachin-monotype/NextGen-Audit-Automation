@@ -478,6 +478,9 @@ def mint_user_password_token(
     )
 
 
+_DISCOVERY_MINT_COOLDOWN_UNTIL = 0.0
+
+
 def ensure_discovery_user_token(*, project_root: Path | None = None) -> str:
     """Return a non-expired user JWT usable by Discovery/Typesense.
 
@@ -485,22 +488,52 @@ def ensure_discovery_user_token(*, project_root: Path | None = None) -> str:
     otherwise mint via ``OAUTH_USERNAME`` / ``OAUTH_PASSWORD`` on the profile
     ``user_oauth`` client (QA SPA password grant).
     """
+    import logging
+    import time
+
+    global _DISCOVERY_MINT_COOLDOWN_UNTIL  # noqa: PLW0603
+
+    log = logging.getLogger(__name__)
+
     existing = resolve_discovery_bearer_token()
     if existing:
         return existing
 
+    # Prefer Excel/UI capture JWT before minting (avoids Auth0 429 storms).
+    try:
+        excel = resolve_excel_discovery_token(project_root)
+        if excel:
+            os.environ.setdefault("DISCOVERY_BEARER_TOKEN", excel)
+            return excel
+    except Exception:
+        pass
+
+    if time.time() < _DISCOVERY_MINT_COOLDOWN_UNTIL:
+        return ""
+
     username = (os.getenv("OAUTH_USERNAME") or "").strip()
     password = (os.getenv("OAUTH_PASSWORD") or "").strip()
     if not username or not password:
+        log.warning(
+            "Discovery token missing and OAUTH_USERNAME/OAUTH_PASSWORD unset — "
+            "Typesense Compare will FAIL auth"
+        )
         return ""
 
     try:
         fresh = mint_user_password_token(username=username, password=password)
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 — surfaced via empty return + log
+        log.warning("Discovery user-token mint failed: %s", exc)
+        # Back off hard on rate limits so parallel Compare workers don't 429-storm Auth0.
+        if "429" in str(exc):
+            _DISCOVERY_MINT_COOLDOWN_UNTIL = time.time() + 300.0
+        else:
+            _DISCOVERY_MINT_COOLDOWN_UNTIL = time.time() + 60.0
         return ""
 
     ident = _identity_from_payload(jwt_payload(fresh))
     if not _identity_is_user(ident) or jwt_is_expired(fresh):
+        log.warning("Discovery mint returned non-user or expired JWT")
         return ""
 
     os.environ["DISCOVERY_BEARER_TOKEN"] = fresh

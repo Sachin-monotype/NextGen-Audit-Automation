@@ -281,9 +281,9 @@ def comparable_operations() -> dict[str, Any]:
         pass
 
     # Hide the bare base op when scenario variants exist (e.g. drop "activateFamily"
-    # once "activateFamily(global)" / "activateFamily(UI)" are present) so the list
-    # is maintained purely by scenario. Channel labels ``(BE)`` / ``(UI)`` are not
-    # scenario variants — ingress compares store under bare operation names.
+    # once "activateFamily(global)" is present) so the list is maintained purely by
+    # scenario. Channel label ``(BE)`` is not a scenario variant — ingress compares
+    # store under bare operation names. Legacy ``(UI)`` labels are normalized away.
     def _is_channel_label(op: str) -> bool:
         return op.endswith("(BE)") or op.endswith("(UI)")
 
@@ -712,7 +712,7 @@ def pipeline_config() -> dict[str, Any]:
             )
 
         return {
-            "target": __import__("os").getenv("AUDIT_TARGET", "pp"),
+            "target": __import__("os").getenv("AUDIT_TARGET", "qa"),
             "target_label": profile.label,
             "nextgen_url": profile.nextgen_ui_url,
             "queue_environment": "pp" if profile.rabbitmq_vhost == "mt-connect-preprod" else profile.name,
@@ -723,8 +723,8 @@ def pipeline_config() -> dict[str, Any]:
                 else ""
             ),
             "available_targets": [
-                {"id": "pp", "label": "PP", "url": "https://nextgen.monotype-pp.com"},
                 {"id": "qa", "label": "QA", "url": "https://nextgen-qa.monotype-pp.com"},
+                {"id": "pp", "label": "PP", "url": "https://nextgen.monotype-pp.com"},
                 {"id": "uat", "label": "UAT", "url": "https://nextgen.monotype-uat.com"},
             ],
             "graphql_endpoint": __import__("os").getenv("NEXTGEN_GRAPHQL_ENDPOINT", ""),
@@ -1448,7 +1448,7 @@ def start_compare_all() -> dict[str, Any]:
     ops = [str(i.get("operation") or "") for i in items if i.get("operation")]
     if not ops:
         raise HTTPException(400, "No pairable operations to compare")
-    target = (os.getenv("AUDIT_TARGET") or "pp").strip().lower()
+    target = (os.getenv("AUDIT_TARGET") or "qa").strip().lower()
     job = bridge.start_compare(ops, "fresh", audit_target=target)
     return {"ok": True, "count": len(ops), "target": target, "job": _job_payload(job)}
 
@@ -1473,7 +1473,7 @@ def refresh_stored_comparisons(body: RefreshResultsRequest | None = None) -> dic
     from .comparison_store import list_latest
 
     req = body or RefreshResultsRequest()
-    target = (req.target or os.getenv("AUDIT_TARGET") or "pp").strip().lower()
+    target = (req.target or os.getenv("AUDIT_TARGET") or "qa").strip().lower()
     ops = [o.strip() for o in (req.operations or []) if o and o.strip()]
     if not ops:
         latest = list_latest(settings.audit_project_root, target=target)

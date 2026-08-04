@@ -19,7 +19,7 @@ _BASE_SCHEMAS = {
 
 def mysql_schema_suffix() -> str:
     """Suffix appended to schema names for the active audit target."""
-    target = (os.getenv("AUDIT_TARGET") or "pp").strip().lower()
+    target = (os.getenv("AUDIT_TARGET") or "qa").strip().lower()
     if target == "qa":
         return (os.getenv("MYSQL_QA_SCHEMA_SUFFIX") or "_nextgenqa").strip()
     return (os.getenv("MYSQL_SCHEMA_SUFFIX") or "").strip()

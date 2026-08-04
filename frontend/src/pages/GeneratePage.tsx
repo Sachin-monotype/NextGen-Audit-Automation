@@ -51,8 +51,8 @@ const SOURCE_KINDS = [
 ] as const;
 
 const DEFAULT_TARGETS = [
-  { id: "pp", label: "PP", url: "https://nextgen.monotype-pp.com" },
   { id: "qa", label: "QA", url: "https://nextgen-qa.monotype-pp.com" },
+  { id: "pp", label: "PP", url: "https://nextgen.monotype-pp.com" },
   { id: "uat", label: "UAT", url: "https://nextgen.monotype-uat.com" },
 ];
 
@@ -209,8 +209,8 @@ function scenarioDisplayName(
   for (const legacy of ["(ui)", "(be)", "(UI)", "(BE)"]) {
     if (base.endsWith(legacy)) base = base.slice(0, -legacy.length);
   }
-  if (opts?.ui) return `${base}(UI)`;
-  if (opts?.be) return `${base}(BE)`;
+  // UI is the default channel — no "(UI)" suffix. Only backend runs get "(BE)".
+  if (opts?.be && !opts?.ui) return `${base}(BE)`;
   return base;
 }
 
@@ -1519,7 +1519,7 @@ export default function GeneratePage({
         <label className="inline-control">
           Environment
           <select
-            value={pipeline?.target || "pp"}
+            value={pipeline?.target || "qa"}
             disabled={targetBusy || running}
             onChange={(e) => onTargetChange(e.target.value)}
           >
@@ -1534,11 +1534,11 @@ export default function GeneratePage({
           </select>
         </label>
         {(pipeline?.nextgen_url ||
-          DEFAULT_TARGETS.find((t) => t.id === (pipeline?.target || "pp"))?.url) && (
+          DEFAULT_TARGETS.find((t) => t.id === (pipeline?.target || "qa"))?.url) && (
           <a
             href={
               pipeline?.nextgen_url ||
-              DEFAULT_TARGETS.find((t) => t.id === (pipeline?.target || "pp"))?.url
+              DEFAULT_TARGETS.find((t) => t.id === (pipeline?.target || "qa"))?.url
             }
             target="_blank"
             rel="noreferrer"

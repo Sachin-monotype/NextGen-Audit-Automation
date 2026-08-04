@@ -25,8 +25,8 @@ import {
 } from "../api";
 
 const DEFAULT_TARGETS = [
-  { id: "pp", label: "PP", url: "https://nextgen.monotype-pp.com" },
   { id: "qa", label: "QA", url: "https://nextgen-qa.monotype-pp.com" },
+  { id: "pp", label: "PP", url: "https://nextgen.monotype-pp.com" },
   { id: "uat", label: "UAT", url: "https://nextgen.monotype-uat.com" },
 ];
 
@@ -435,6 +435,22 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
       const next = await setPipelineTarget(target);
       setPipeline(next);
       setPage(1);
+      // Force reload against the new Mongo DB (page may already be 1).
+      setLoading(true);
+      try {
+        const dedupe = !hasActiveFilters(applied);
+        const data = await fetchLogs(tab, applied, 1, pageSize, dedupe);
+        setRows(data.results);
+        setTotal(data.total);
+        setUnique(data.unique ?? dedupe);
+        if ((data as { error?: string }).error) {
+          setError((data as { error?: string }).error || "");
+        }
+      } catch (e) {
+        setError(String(e));
+      } finally {
+        setLoading(false);
+      }
     } catch (e) {
       setError(String(e));
     } finally {
@@ -541,7 +557,7 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
           <label className="inline-control">
             Environment
             <select
-              value={pipeline?.target || "pp"}
+              value={pipeline?.target || "qa"}
               disabled={targetBusy || loading}
               onChange={(e) => onTargetChange(e.target.value)}
             >

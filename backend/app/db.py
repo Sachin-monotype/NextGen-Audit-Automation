@@ -401,6 +401,33 @@ class AuditDatabase:
             return _scan(filt)
         return None, None
 
+    def latest_by_correlation(
+        self,
+        correlation_id: str,
+        *,
+        require_pair: bool = False,
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        """Find raw/enriched by correlation id only (any ``source.operation``).
+
+        Used when Excel ``event_name`` does not match Mongo's GraphQL operation
+        (e.g. ``updateAssets`` sheet label → ``updateAsset`` event).
+        """
+        cid = (correlation_id or "").strip()
+        if not cid:
+            return None, None
+        from audit_validator.correlation import mongo_correlation_filter
+
+        filt = mongo_correlation_filter(cid)
+        raw_col = self.collection("raw")
+        enr_col = self.collection("enriched")
+        raw = raw_col.find_one(filt, projection={"_id": 0}, sort=[("occurredAt", DESCENDING)])
+        enriched = enr_col.find_one(
+            filt, projection={"_id": 0}, sort=[("occurredAt", DESCENDING)]
+        )
+        if require_pair:
+            return (raw, enriched) if (raw and enriched) else (None, None)
+        return raw, enriched
+
     @staticmethod
     def _op_correlation_sets(col: Collection) -> dict[str, set[str]]:
         """Per operation → set of xCorrelationIds present (single aggregation)."""

@@ -240,3 +240,54 @@ def test_list_catalog_against_real_datasource_if_present():
     assert "activateFamily" in cat["events"]
     app = list_ui_script_catalog(target="app", path=path)
     assert app["count"] > 0
+
+
+def test_parse_prefers_graphql_op_and_body_correlation_id():
+    """Excel label/CID often differ from Response body — trust the body."""
+    body_cid = "324360a1-d167-437c-a2f4-43f0ee49924b"
+    col_cid = "176127d3-0000-0000-0000-000000000001"
+    df = pd.DataFrame(
+        [
+            {
+                "event_name": "updateAssets",
+                "scenario": "global",
+                "correlation_id": "33a3c631-1111-1111-1111-111111111111",
+                "status": "OK",
+                "response": json.dumps(
+                    {"data": {"updateAsset": {"success": True, "id": "x"}}}
+                ),
+            },
+            {
+                "event_name": "fontSimilarViewed",
+                "scenario": "global",
+                "correlation_id": col_cid,
+                "status": "OK",
+                "response": json.dumps(
+                    {
+                        "status": "ok",
+                        "xCorrelationId": body_cid,
+                        "operation": "fontSimilarViewed",
+                    }
+                ),
+            },
+            {
+                "event_name": "getActiveBatches",
+                "scenario": "global",
+                "correlation_id": "81bf0470-1111-1111-1111-111111111111",
+                "status": "OK",
+                "response": json.dumps(
+                    {
+                        "errors": [{"message": "bad enum"}],
+                        "data": None,
+                    }
+                ),
+            },
+        ]
+    )
+    buf = BytesIO()
+    df.to_excel(buf, index=False)
+    rows = parse_ui_script_excel(buf.getvalue())
+    by_excel = {r["excel_event_name"]: r for r in rows}
+    assert by_excel["updateAssets"]["operation"] == "updateAsset"
+    assert by_excel["fontSimilarViewed"]["correlation_id"] == body_cid
+    assert by_excel["getActiveBatches"]["graphql_failed"] is True

@@ -333,7 +333,27 @@ class AuditBridge:
         correlation_by_op: dict[str, str] | None = None,
         audit_target: str | None = None,
     ) -> JobRecord:
-        target = (audit_target or os.getenv("AUDIT_TARGET") or "pp").strip().lower()
+        from .comparison_store import _normalize_result_operation
+
+        # UI is unlabeled — strip legacy "(UI)" so Result store stays one row per scenario.
+        operations = [_normalize_result_operation(op) for op in operations if op]
+        seen_ops: set[str] = set()
+        deduped_ops: list[str] = []
+        for op in operations:
+            if op in seen_ops:
+                continue
+            seen_ops.add(op)
+            deduped_ops.append(op)
+        operations = deduped_ops
+        if field_paths_by_op:
+            field_paths_by_op = {
+                _normalize_result_operation(k): v for k, v in field_paths_by_op.items()
+            }
+        if correlation_by_op:
+            correlation_by_op = {
+                _normalize_result_operation(k): v for k, v in correlation_by_op.items()
+            }
+        target = (audit_target or os.getenv("AUDIT_TARGET") or "qa").strip().lower()
         job = self.store.create(
             "compare",
             {
@@ -370,7 +390,7 @@ class AuditBridge:
         from audit_validator.config import load_config
 
         cfg = load_config(self.project_root)
-        target = os.getenv("AUDIT_TARGET", "pp")
+        target = os.getenv("AUDIT_TARGET", "qa")
         gql = os.getenv("NEXTGEN_GRAPHQL_ENDPOINT", os.getenv("GRAPHQL_ENDPOINT", ""))
         rmq = cfg.rabbitmq
 
@@ -1313,7 +1333,7 @@ class AuditBridge:
         routing_keys = _routing_keys_map(self.project_root)
         job = self.store.get(job_id)
         job_kind = job.kind if job else "compare"
-        audit_target = str((job.params or {}).get("audit_target") or os.getenv("AUDIT_TARGET") or "pp").strip().lower()
+        audit_target = str((job.params or {}).get("audit_target") or os.getenv("AUDIT_TARGET") or "qa").strip().lower()
         saved_ops = 0
 
         def _row_dict(r: Any) -> dict[str, Any]:
@@ -1512,8 +1532,8 @@ class AuditBridge:
                 # No pre-staged sample (e.g. compare launched straight from a
                 # Generate-in-UI run). Each UI touchpoint scenario minted its own
                 # correlation id, so pair raw+enrich by that owned cid and stage it
-                # now — this keeps the compared count 1:1 with Generation Status and
-                # preserves the (UI) label on the Result row.
+                # now — this keeps the compared count 1:1 with Generation Status under
+                # the unlabeled scenario name (UI is default; no "(UI)" suffix).
                 base_touch_op = op.split("(", 1)[0].strip() or op
                 owned_cid = (
                     get_owned_correlation(op, project_root=self.project_root)
@@ -1708,7 +1728,7 @@ class AuditBridge:
         audit_target = str(
             ((job.params or {}).get("audit_target") if job else None)
             or os.getenv("AUDIT_TARGET")
-            or "pp"
+            or "qa"
         ).strip().lower()
         self.store.append_log(job_id, f"▸ Source validation for {len(operations)} operation(s) [{audit_target.upper()}]…")
         if field_paths_by_op:

@@ -313,8 +313,10 @@ class UmsDbClient:
         customer_id: str,
         *,
         correlation_id: str = "",
+        user_type: str | None = None,
     ) -> dict[str, Any] | None:
-        del correlation_id
+        # ``user_type`` is HTTP-only (POST-as-GET filter); MySQL rows are untyped.
+        del correlation_id, user_type
         if not profile_id:
             return None
 
@@ -752,14 +754,17 @@ class AmsDbClient:
 
     The ``assets`` table only stores path / created_at / meta. API fields
     ``name``, ``parentId``, ``updatedAt``, ``description`` live on
-    ``projects`` (binary UUID ``id``). ``accessIds`` are effective ACL ids
-    from ``asset_user_access`` on the asset + ancestors (+ SuperAdmin for
-    Company Admin profiles).
+    ``projects`` (binary UUID ``id``). ``accessIds`` are effective ACL ids from:
+
+    - ``asset_user_access`` (caller grants on asset + ancestors)
+    - ``asset_group_access`` (group grants on asset + ancestors)
+    - ``asset_public_access`` (customer-level public grants)
+
+    Schema follows ``ams_schema()`` (``asset_management_nextgenqa`` on QA).
     """
 
     def __init__(self, mysql: MysqlConfig | None = None) -> None:
         self._mysql = mysql or load_mysql_config()
-        self._super_admin_by_type: dict[str, int] | None = None
 
     @staticmethod
     def ams_asset_type(asset_type: str) -> str | None:
@@ -809,7 +814,11 @@ class AmsDbClient:
             )
         if not row:
             return None
-        return self._hydrate(row, global_user_id=global_user_id)
+        return self._hydrate(
+            row,
+            global_user_id=global_user_id,
+            global_customer_id=global_customer_id,
+        )
 
     def get_assets_by_ids_only(
         self,
@@ -820,14 +829,19 @@ class AmsDbClient:
         global_customer_id: str = "",
     ) -> dict[str, dict[str, Any]]:
         """Type-agnostic bulk lookup — mirrors HTTP ``POST /v2/assets/bulk``."""
-        del correlation_id, global_customer_id
-        return self.get_assets_by_ids(asset_ids, global_user_id=global_user_id)
+        del correlation_id
+        return self.get_assets_by_ids(
+            asset_ids,
+            global_user_id=global_user_id,
+            global_customer_id=global_customer_id,
+        )
 
     def get_assets_by_ids(
         self,
         asset_ids: list[str],
         *,
         global_user_id: str = "",
+        global_customer_id: str = "",
     ) -> dict[str, dict[str, Any]]:
         ids = [str(a).strip() for a in asset_ids if str(a or "").strip()]
         if not ids:
@@ -843,7 +857,11 @@ class AmsDbClient:
             cfg=self._mysql,
         )
         proj = self._projects_for(ids)
-        access = self._access_ids_for(ids, global_user_id=global_user_id)
+        access = self._access_ids_for(
+            ids,
+            global_user_id=global_user_id,
+            global_customer_id=global_customer_id,
+        )
         out: dict[str, dict[str, Any]] = {}
         for row in rows:
             mapped = self._to_api(
@@ -856,10 +874,24 @@ class AmsDbClient:
                 out[aid] = mapped
         return out
 
-    def _hydrate(self, row: dict[str, Any], *, global_user_id: str = "") -> dict[str, Any]:
+    def _hydrate(
+        self,
+        row: dict[str, Any],
+        *,
+        global_user_id: str = "",
+        global_customer_id: str = "",
+    ) -> dict[str, Any]:
         aid = _str(_pick(row, "asset_id", "id"))
         proj = self._projects_for([aid]).get(aid) if aid else None
-        access = self._access_ids_for([aid], global_user_id=global_user_id).get(aid) if aid else None
+        access = (
+            self._access_ids_for(
+                [aid],
+                global_user_id=global_user_id,
+                global_customer_id=global_customer_id,
+            ).get(aid)
+            if aid
+            else None
+        )
         return self._to_api(row, project=proj, access_ids=access)
 
     def _projects_for(self, asset_ids: list[str]) -> dict[str, dict[str, Any]]:
@@ -896,8 +928,15 @@ class AmsDbClient:
         asset_ids: list[str],
         *,
         global_user_id: str = "",
+        global_customer_id: str = "",
     ) -> dict[str, list[int]]:
-        """Effective accessIds ≈ grants on asset + ancestors (+ SuperAdmin)."""
+        """Effective accessIds ≈ user + group + public grants on asset (+ ancestors).
+
+        Matches enricher ``accessIds`` (e.g. FullAccess from ``asset_user_access``
+        plus ViewOnly from ``asset_public_access``). Does **not** invent SuperAdmin
+        just because the caller is Company Admin — that produced false FAILs vs
+        the snapshot.
+        """
         ids = [str(i).strip() for i in asset_ids if str(i or "").strip()]
         if not ids:
             return {}
@@ -905,7 +944,7 @@ class AmsDbClient:
         placeholders = ",".join(["%s"] * len(ids))
         path_rows = select_all(
             f"""
-            SELECT asset_id, asset_path, asset_type
+            SELECT asset_id, asset_path, asset_type, global_customer_id
             FROM {ams_schema()}.assets
             WHERE asset_id IN ({placeholders})
             """,
@@ -913,20 +952,32 @@ class AmsDbClient:
             cfg=self._mysql,
         )
         path_by: dict[str, list[str]] = {}
-        type_by: dict[str, str] = {}
+        customer_by: dict[str, str] = {}
         all_nodes: set[str] = set(ids)
         for row in path_rows:
             aid = _str(_pick(row, "asset_id"))
-            type_by[aid] = _str(_pick(row, "asset_type"))
+            customer_by[aid] = _str(_pick(row, "global_customer_id"))
             raw_path = _str(_pick(row, "asset_path"))
             ancestors = [p for p in raw_path.split("|") if p]
             path_by[aid] = ancestors
             all_nodes.update(ancestors)
 
-        grants: dict[str, list[int]] = {n: [] for n in all_nodes}
-        if all_nodes and global_user_id:
-            node_list = sorted(all_nodes)
-            ph = ",".join(["%s"] * len(node_list))
+        user_grants: dict[str, list[int]] = {n: [] for n in all_nodes}
+        group_grants: dict[str, list[int]] = {n: [] for n in all_nodes}
+        public_grants: dict[str, list[int]] = {n: [] for n in all_nodes}
+
+        def _append_grant(bucket: dict[str, list[int]], nid: str, aid_val: Any) -> None:
+            if not nid or aid_val is None:
+                return
+            try:
+                bucket.setdefault(nid, []).append(int(aid_val))
+            except (TypeError, ValueError):
+                pass
+
+        node_list = sorted(all_nodes)
+        ph = ",".join(["%s"] * len(node_list)) if node_list else ""
+
+        if node_list and global_user_id:
             try:
                 acc_rows = select_all(
                     f"""
@@ -939,69 +990,64 @@ class AmsDbClient:
                     cfg=self._mysql,
                 )
                 for r in acc_rows:
-                    nid = _str(_pick(r, "asset_id"))
-                    aid_val = _pick(r, "access_id")
-                    if nid and aid_val is not None:
-                        try:
-                            grants.setdefault(nid, []).append(int(aid_val))
-                        except (TypeError, ValueError):
-                            pass
+                    _append_grant(user_grants, _str(_pick(r, "asset_id")), _pick(r, "access_id"))
             except Exception as exc:  # noqa: BLE001
-                log.warning("AMS access lookup failed: %s", exc)
+                log.warning("AMS user access lookup failed: %s", exc)
 
-        is_company_admin = self._is_company_admin(global_user_id) if global_user_id else False
+        if node_list:
+            try:
+                grp_rows = select_all(
+                    f"""
+                    SELECT asset_id, access_id
+                    FROM {ams_schema()}.asset_group_access
+                    WHERE asset_id IN ({ph})
+                    """,
+                    tuple(node_list),
+                    cfg=self._mysql,
+                )
+                for r in grp_rows:
+                    _append_grant(group_grants, _str(_pick(r, "asset_id")), _pick(r, "access_id"))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("AMS group access lookup failed: %s", exc)
+
+            try:
+                # Public / company-wide grants (e.g. ViewOnly=25) — required for
+                # updateAssetSharing snapshots. Prefer filter by customer when known.
+                pub_sql = f"""
+                    SELECT asset_id, access_id, customer_id
+                    FROM {ams_schema()}.asset_public_access
+                    WHERE asset_id IN ({ph})
+                """
+                pub_params: list[Any] = list(node_list)
+                # When every requested asset shares one customer (or caller passed
+                # one), narrow the public ACL to that customer.
+                customers = {
+                    global_customer_id.strip()
+                    for c in (global_customer_id, *[customer_by.get(i, "") for i in ids])
+                    if str(c or "").strip()
+                }
+                if len(customers) == 1:
+                    pub_sql += " AND customer_id = %s"
+                    pub_params.append(next(iter(customers)))
+                pub_rows = select_all(pub_sql, tuple(pub_params), cfg=self._mysql)
+                for r in pub_rows:
+                    _append_grant(public_grants, _str(_pick(r, "asset_id")), _pick(r, "access_id"))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("AMS public access lookup failed: %s", exc)
+
         out: dict[str, list[int]] = {}
         for aid in ids:
             ordered: list[int] = []
             seen: set[int] = set()
+            # Order mirrors enricher: direct user → group → public, then ancestors.
             for node in [aid, *path_by.get(aid, [])]:
-                for acc in grants.get(node) or []:
-                    if acc not in seen:
-                        seen.add(acc)
-                        ordered.append(acc)
-            if is_company_admin:
-                sa = self._super_admin_id(type_by.get(aid) or "")
-                if sa is not None and sa not in seen:
-                    ordered.append(sa)
+                for bucket in (user_grants, group_grants, public_grants):
+                    for acc in bucket.get(node) or []:
+                        if acc not in seen:
+                            seen.add(acc)
+                            ordered.append(acc)
             out[aid] = ordered
         return out
-
-    def _super_admin_id(self, asset_type: str) -> int | None:
-        if self._super_admin_by_type is None:
-            self._super_admin_by_type = {}
-            try:
-                rows = select_all(
-                    f"""
-                    SELECT id, asset_type
-                    FROM {ams_schema()}.access
-                    WHERE name = 'SuperAdmin'
-                    """,
-                    cfg=self._mysql,
-                )
-                for r in rows:
-                    self._super_admin_by_type[_str(_pick(r, "asset_type"))] = int(_pick(r, "id"))
-            except Exception as exc:  # noqa: BLE001
-                log.warning("AMS SuperAdmin lookup failed: %s", exc)
-        return self._super_admin_by_type.get(asset_type)
-
-    def _is_company_admin(self, profile_id: str) -> bool:
-        if not profile_id:
-            return False
-        try:
-            row = select_one(
-                f"""
-                SELECT role_name
-                FROM {ums_schema()}.vw_profile_details
-                WHERE profile_Id_uuid = %s
-                LIMIT 1
-                """,
-                (profile_id,),
-                cfg=self._mysql,
-            )
-        except Exception:
-            row = None
-        name = _str(_pick(row or {}, "role_name")).casefold()
-        return "company admin" in name or name in {"admin", "super admin"}
 
     def _to_api(
         self,

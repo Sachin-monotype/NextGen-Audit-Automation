@@ -89,6 +89,72 @@ def _parse_response_cell(raw: Any) -> dict[str, Any] | None:
     return parsed
 
 
+def _parse_full_response_cell(raw: Any) -> dict[str, Any] | None:
+    """Full Response JSON (GraphQL HTTP body or ingress envelope) — not unwrapped."""
+    if raw is None or (isinstance(raw, float) and str(raw) == "nan"):
+        return None
+    if isinstance(raw, dict):
+        return raw
+    text = str(raw).strip()
+    if not text or text.lower() in {"nan", "none"}:
+        return None
+    try:
+        loaded = json.loads(text)
+        return loaded if isinstance(loaded, dict) else None
+    except json.JSONDecodeError:
+        return None
+
+
+def _graphql_root_operation(gql: dict[str, Any] | None) -> str | None:
+    """Primary GraphQL field name from an unwrapped ``data`` object."""
+    if not isinstance(gql, dict) or not gql:
+        return None
+    skip = {"errors", "extensions", "__typename", "data"}
+    keys = [k for k in gql.keys() if k not in skip and isinstance(gql.get(k), (dict, list))]
+    if len(keys) == 1:
+        return str(keys[0])
+    # Prefer mutation-looking keys when multiple (ignore null siblings)
+    non_null = [k for k in keys if gql.get(k) not in (None, {}, [])]
+    if len(non_null) == 1:
+        return str(non_null[0])
+    return None
+
+
+def _response_body_correlation_id(full: dict[str, Any] | None) -> str | None:
+    """CID from ingress/audit Response body (preferred over a stale Excel column)."""
+    if not isinstance(full, dict):
+        return None
+    for key in ("xCorrelationId", "correlationId", "correlation_id", "x_correlation_id"):
+        val = full.get(key)
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+    return None
+
+
+def _response_body_operation(full: dict[str, Any] | None, gql: dict[str, Any] | None) -> str | None:
+    """Audit/ingress ``operation`` field, else GraphQL root field."""
+    if isinstance(full, dict):
+        op = full.get("operation")
+        if isinstance(op, str) and op.strip():
+            return op.strip()
+    return _graphql_root_operation(gql)
+
+
+def _graphql_call_failed(full: dict[str, Any] | None) -> bool:
+    """True when GraphQL returned errors and no usable data (no audit event expected)."""
+    if not isinstance(full, dict):
+        return False
+    errors = full.get("errors")
+    if not isinstance(errors, list) or not errors:
+        return False
+    data = full.get("data")
+    if data is None:
+        return True
+    if isinstance(data, dict) and not any(v not in (None, {}, []) for v in data.values()):
+        return True
+    return False
+
+
 def _normalize_graphql_response(op: str, gql: dict[str, Any] | None) -> dict[str, Any] | None:
     """Ensure Compare digs see ``{operation: body}`` (not HTTP ``{data:...}`` wrapper)."""
     if not isinstance(gql, dict) or not gql:
@@ -262,27 +328,42 @@ def parse_ui_script_excel(
     rows: list[dict[str, Any]] = []
     seen_cid: set[str] = set()
     for _, series in work.iterrows():
-        op = _cell_str(series.get(event_col))
-        cid = _cell_str(series.get(cid_col))
-        if not op and not cid:
+        excel_op = _cell_str(series.get(event_col))
+        col_cid = _cell_str(series.get(cid_col))
+        if not excel_op and not col_cid:
             continue
         if status_col is not None and not _is_ok_status(series.get(status_col)):
             continue
+
+        scenario = _cell_str(series.get(scenario_col)) if scenario_col else ""
+        scenario = _normalize_scenario(scenario) if scenario else ""
+
+        auth_token = _cell_str(series.get(auth_col)) if auth_col else ""
+        resp_raw = series.get(resp_col) if resp_col else None
+        full_resp = _parse_full_response_cell(resp_raw)
+        gql_resp = _parse_response_cell(resp_raw)
+        body_op = _response_body_operation(full_resp, gql_resp)
+        op = body_op if body_op else excel_op
+        body_cid = _response_body_correlation_id(full_resp)
+        cid = body_cid if (body_cid and is_valid_correlation_id(body_cid)) else col_cid
         if not cid or not is_valid_correlation_id(cid):
             continue
         if cid in seen_cid:
             continue
         seen_cid.add(cid)
-
-        scenario = _cell_str(series.get(scenario_col)) if scenario_col else ""
-        scenario = _normalize_scenario(scenario) if scenario else ""
+        if not op:
+            continue
 
         if pair_filter:
-            key = f"{op}::{scenario}" if scenario else op
-            if key not in pair_filter:
+            # Match either Excel label or resolved GraphQL op so UI filters still work.
+            keys = {
+                f"{op}::{scenario}" if scenario else op,
+                f"{excel_op}::{scenario}" if scenario else excel_op,
+            }
+            if keys.isdisjoint(pair_filter):
                 continue
         else:
-            if event_filter and op not in event_filter:
+            if event_filter and op not in event_filter and excel_op not in event_filter:
                 continue
             if (
                 scenario_filter
@@ -295,13 +376,12 @@ def parse_ui_script_excel(
         if not row_target and target:
             row_target = _norm_target(target)
 
-        auth_token = _cell_str(series.get(auth_col)) if auth_col else ""
-        resp_raw = series.get(resp_col) if resp_col else None
-        gql_resp = _parse_response_cell(resp_raw)
+        gql_failed = _graphql_call_failed(full_resp)
         rows.append(
             {
                 "operation": op,
                 "event_name": op,
+                "excel_event_name": excel_op or op,
                 "touchpoint": scenario,
                 "scenario": scenario,
                 "target": row_target or (target or ""),
@@ -310,6 +390,7 @@ def parse_ui_script_excel(
                 "status": "OK",
                 "response": resp_raw if resp_raw is not None else "",
                 "graphql_response": gql_resp,
+                "graphql_failed": gql_failed,
             }
         )
     return rows
@@ -508,7 +589,13 @@ def create_ui_script_job(
             item["auth_token"] = auth_token
         if profile_id:
             item["our_profile_id"] = profile_id
-        gql = _normalize_graphql_response(op, r.get("graphql_response") if isinstance(r.get("graphql_response"), dict) else None)
+        if r.get("excel_event_name"):
+            item["excel_event_name"] = str(r.get("excel_event_name"))
+        if r.get("graphql_failed"):
+            item["graphql_failed"] = True
+        gql = _normalize_graphql_response(
+            op, r.get("graphql_response") if isinstance(r.get("graphql_response"), dict) else None
+        )
         if gql:
             item["graphql_response"] = gql
         extracted.append(item)

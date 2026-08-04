@@ -12,7 +12,7 @@ export type LogRow = {
   "actor.globalUserId": string;
   occurredAt: string;
   message: Record<string, unknown>;
-  /** Scenario label when this event was minted by us, e.g. activateFamily(global)(UI). */
+  /** Scenario label when this event was minted by us, e.g. activateFamily(global) or activateFamily(global)(BE). */
   scenario?: string;
   /** UI | BE — present only for events we generated. */
   channel?: string;

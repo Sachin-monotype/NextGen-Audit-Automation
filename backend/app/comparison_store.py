@@ -12,15 +12,15 @@ _lock = threading.Lock()
 
 
 def _active_target() -> str:
-    raw = (os.getenv("AUDIT_TARGET") or "pp").strip().lower()
-    return raw if raw in {"pp", "qa", "uat", "everest"} else "pp"
+    raw = (os.getenv("AUDIT_TARGET") or "qa").strip().lower()
+    return raw if raw in {"pp", "qa", "uat", "everest"} else "qa"
 
 
 def _store_path(project_root: Path, target: str | None = None) -> Path:
     """Per-environment store so PP/QA Results never mix."""
     t = (target or _active_target()).strip().lower()
     if t not in {"pp", "qa", "uat", "everest"}:
-        t = "pp"
+        t = "qa"
     path = project_root / "reports" / f"comparison-latest-{t}.json"
     return path
 
@@ -30,7 +30,7 @@ def _legacy_store_path(project_root: Path) -> Path:
 
 
 def store_audit_target(project_root: Path | None = None, target: str | None = None) -> str:
-    return (target or _active_target()).strip().lower() or "pp"
+    return (target or _active_target()).strip().lower() or "qa"
 
 
 def _load_for_target(project_root: Path, target: str | None = None) -> dict[str, Any]:
@@ -206,14 +206,22 @@ def save_batch_results(
         for op, op_rows in grouped.items():
             if not op_rows:
                 continue
-            data[op] = {
-                "operation": op,
+            canon = _normalize_result_operation(op)
+            for r in op_rows:
+                if isinstance(r, dict):
+                    r["operation"] = _normalize_result_operation(
+                        str(r.get("operation") or canon)
+                    )
+            summ = (summaries or {}).get(op) or (summaries or {}).get(canon)
+            data[canon] = {
+                "operation": canon,
                 "compared_at": compared_at,
                 "job_id": job_id,
                 "job_kind": job_kind,
-                "summary": (summaries or {}).get(op) or _summary_for_rows(op_rows),
+                "summary": summ or _summary_for_rows(op_rows),
                 "rows": op_rows,
             }
+        data, _ = _dedupe_channel_variants(data)
         if len(data) >= 20:
             _backup_store(path)
         path.write_text(
@@ -247,15 +255,61 @@ def reconcile_scope_rows(project_root: Path) -> dict[str, int]:
     return {"operations_touched": ops_touched}
 
 
-def _dedupe_bare_be_variants(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
-    """Drop ``op(BE)`` when bare ``op`` exists (ingress generate labels).
+def _normalize_result_operation(op: str) -> str:
+    """Strip legacy ``(UI)`` channel suffix — UI is the default, unlabeled."""
+    name = str(op or "").strip()
+    if name.endswith("(UI)"):
+        return name[: -len("(UI)")]
+    if name.endswith("(ui)"):
+        return name[: -len("(ui)")]
+    return name
 
-    GraphQL touchpoints like ``activateFamily(global)(BE)`` are kept — only a
-    single ``(BE)`` suffix with no inner parens is considered a duplicate.
+
+def _dedupe_channel_variants(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """Drop redundant ``op(UI)`` / bare-``op(BE)`` when the canonical key exists.
+
+    - UI is unlabeled → ``activateList(list)(UI)`` collapses into ``activateList(list)``.
+    - Ingress ``op(BE)`` with no inner touchpoint collapses into bare ``op``.
+    - Touchpoint backend labels like ``activateFamily(global)(BE)`` are kept.
     """
     import re
 
-    be_only = re.compile(r"^(.+)\(BE\)$")
+    changed = False
+    # 1) Rename/merge *(UI) → bare
+    ui_only = re.compile(r"^(.+)\(UI\)$", re.IGNORECASE)
+    ui_keys = [op for op in list(data.keys()) if ui_only.match(str(op))]
+    for op in ui_keys:
+        m = ui_only.match(str(op))
+        if not m:
+            continue
+        bare = m.group(1)
+        item = data.pop(op, None)
+        if item is None:
+            continue
+        changed = True
+        # Rewrite row operation labels under the bare name
+        rows = item.get("rows") or []
+        for r in rows:
+            if isinstance(r, dict):
+                r["operation"] = bare
+        item["operation"] = bare
+        if bare not in data:
+            data[bare] = item
+            continue
+        # Prefer the newer / higher-pass block
+        existing = data[bare]
+        def _score(block: dict[str, Any]) -> tuple:
+            summ = block.get("summary") or {}
+            return (
+                str(block.get("compared_at") or ""),
+                int(summ.get("pass") or summ.get("PASS") or 0),
+                len(block.get("rows") or []),
+            )
+        if _score(item) > _score(existing):
+            data[bare] = item
+
+    # 2) Drop bare-op(BE) when bare exists (ingress generate labels only)
+    be_only = re.compile(r"^([^(]+)\(BE\)$")
     to_drop: list[str] = []
     for op in data:
         m = be_only.match(str(op))
@@ -264,11 +318,10 @@ def _dedupe_bare_be_variants(data: dict[str, Any]) -> tuple[dict[str, Any], bool
         bare = m.group(1)
         if bare in data and bare != op:
             to_drop.append(op)
-    if not to_drop:
-        return data, False
     for op in to_drop:
         data.pop(op, None)
-    return data, True
+        changed = True
+    return data, changed
 
 
 def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, Any]:
@@ -276,7 +329,7 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
     audit_target = store_audit_target(project_root, target)
     path = _store_path(project_root, audit_target)
     data = _load_for_target(project_root, audit_target)
-    data, deduped = _dedupe_bare_be_variants(data)
+    data, deduped = _dedupe_channel_variants(data)
     if deduped:
         path.write_text(
             json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n",
@@ -305,7 +358,7 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
         "rows": merged_rows,
         "count": len(visible_ops),
         "audit_target": audit_target,
-        "available_targets": ["pp", "qa", "uat"],
+        "available_targets": ["qa", "pp", "uat"],
     }
 
 

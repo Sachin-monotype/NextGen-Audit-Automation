@@ -335,7 +335,8 @@ def _row(
         notes = disc_msg or "Discovery/Typesense unreachable — not validated"
     elif spec.validate == "N" and ev:
         # Sheet says Validation=N (informational) — still PASS when values match so
-        # Results don't look flaky. SKIP only when there is nothing useful to show.
+        # Results don't look flaky. Enricher constants with no external probe → PASS.
+        # SKIP only when an external value was fetched but does not match.
         if sv is not None and str(sv).strip() not in ("", "-", "None") and values_equivalent(
             sv, ev, field_path=spec.enriched_path
         ):
@@ -343,6 +344,16 @@ def _row(
             notes = notes or (
                 spec.notes
                 or f"Matched ({spec.source_system}; sheet Validation=N)"
+            )
+        elif (
+            not sv
+            or str(sv).strip() in ("", "-", "None")
+            or spec.source_system in _ACCEPT_ECHO
+        ):
+            status = "PASS"
+            notes = notes or (
+                spec.notes
+                or "Enricher constant / Validation=N — not compared to external source"
             )
         else:
             status = "SKIP"
@@ -598,7 +609,10 @@ def _cms_jwt_fallback(path: str, live: dict[str, Any]) -> object | None:
             except Exception:
                 ident = {}
     low = leaf.lower()
-    if low in {"displayname", "name"}:
+    # JWT org_name is the Auth0 organization label (CMS ``name``), NOT displayName.
+    # Mapping it onto displayName caused mass false FAILs when CMS HTTP miss
+    # (e.g. SOURCE_TRUTH=db fell back to PP API for a QA-only customer).
+    if low == "name":
         return ident.get("org_name") or None
     if low in {"payingcustomer", "paying_customer"}:
         raw = ident.get("paying_customer")
@@ -1643,8 +1657,11 @@ def build_comparison_rows(
         ev = enriched_val if enriched_val is not None else _dig(enriched, norm)
         sv, note = _resolve_source_value(spec, enriched, live=live, operation=operation)
         row = _row(operation, spec, sv, ev, notes=note, live=live)
-        if not note and row.match_status == "SKIP":
-            note = _remark_for_source(live, spec.source_system, status="SKIP")
+        # ``_row`` owns match classification notes (auth errors, Validation=N, etc.).
+        # Prefer those over the raw source-fetch label from ``_resolve_source_value``.
+        remark = row.notes or note
+        if not remark and row.match_status == "SKIP":
+            remark = _remark_for_source(live, spec.source_system, status="SKIP")
         rows.append(
             ComparisonRow(
                 operation=row.operation,
@@ -1655,7 +1672,7 @@ def build_comparison_rows(
                 value_in_source=row.value_in_source,
                 value_in_enriched=row.value_in_enriched,
                 match_status=row.match_status,
-                notes=note or row.notes,
+                notes=remark,
                 field=row.field,
                 node=row.node,
                 sub_node=row.sub_node,
