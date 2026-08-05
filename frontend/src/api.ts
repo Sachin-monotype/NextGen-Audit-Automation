@@ -1061,6 +1061,8 @@ export type GenerateScenarioStatus = {
   operation: string;
   touchpoint: string;
   label?: string;
+  target?: string | null;
+  channel?: string;
   steps?: string[];
   status: string;
   xCorrelationId?: string | null;

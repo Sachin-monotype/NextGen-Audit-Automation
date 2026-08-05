@@ -651,7 +651,12 @@ class AuditDatabase:
             return 0
         return col.delete_many({"_id": {"$in": ids_to_delete}}).deleted_count or 0
 
-    def prune_raw_enriched_pairs(self, max_retain: int) -> dict[str, int]:
+    def prune_raw_enriched_pairs(
+        self,
+        max_retain: int,
+        *,
+        protect_cids: set[str] | None = None,
+    ) -> dict[str, int]:
         """Prune raw + enriched together so a kept enriched always keeps its raw twin.
 
         There are usually more raw docs than enriched. Independent pruning can delete
@@ -661,7 +666,11 @@ class AuditDatabase:
         1. Keep the latest ``max_retain`` **paired** xCorrelationIds (by enriched time).
         2. Delete older paired cids from **both** collections.
         3. For unpaired docs in each collection, keep the latest ``max_retain``, delete rest.
+
+        ``protect_cids`` — owned generate/UI correlations that must never be deleted
+        (otherwise Generation Status PASS samples vanish before Compare).
         """
+        protected = {str(c).strip() for c in (protect_cids or set()) if str(c or "").strip()}
         raw_col = self.collection("raw")
         enr_col = self.collection("enriched")
         self._ensure_sort_index(raw_col)
@@ -681,7 +690,9 @@ class AuditDatabase:
                         "docs": {
                             "$push": {
                                 "_id": "$_id",
-                                "cid": "$xCorrelationId",
+                                "cid": {
+                                    "$ifNull": ["$xCorrelationId", "$correlationId"]
+                                },
                                 "occurredAt": "$occurredAt",
                             }
                         },
@@ -721,8 +732,8 @@ class AuditDatabase:
                 key=lambda c: str((enr_by_cid[c][0] or {}).get("occurredAt") or ""),
                 reverse=True,
             )
-            keep_paired = set(paired_cids[:max_retain])
-            drop_paired = set(paired_cids[max_retain:])
+            keep_paired = set(paired_cids[:max_retain]) | (set(paired_cids) & protected)
+            drop_paired = set(paired_cids) - keep_paired
 
             for cid in drop_paired:
                 raw_delete.extend(d["_id"] for d in raw_by_cid.get(cid, []) if d.get("_id") is not None)
@@ -742,6 +753,16 @@ class AuditDatabase:
                 if (not str(d.get("cid") or "").strip())
                 or str(d.get("cid")).strip() not in all_paired
             ]
+            # Never prune protected unpaired docs (raw-only / enrich-only owned runs)
+            def _unprotected(docs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+                return [
+                    d
+                    for d in docs
+                    if str(d.get("cid") or "").strip() not in protected
+                ]
+
+            unpaired_raw = _unprotected(unpaired_raw)
+            unpaired_enr = _unprotected(unpaired_enr)
             for d in unpaired_raw[max_retain:]:
                 if d.get("_id") is not None:
                     raw_delete.append(d["_id"])
@@ -759,8 +780,9 @@ class AuditDatabase:
     def prune_all(self, max_retain: int) -> dict[str, int]:
         """Prune raw+enriched as pairs; dlq independently by latest N per operation."""
         removed: dict[str, int] = {"raw": 0, "enriched": 0, "dlq": 0}
+        protect = self._owned_protect_cids()
         try:
-            pair_removed = self.prune_raw_enriched_pairs(max_retain)
+            pair_removed = self.prune_raw_enriched_pairs(max_retain, protect_cids=protect)
             removed["raw"] = pair_removed.get("raw", 0)
             removed["enriched"] = pair_removed.get("enriched", 0)
         except Exception:
@@ -778,6 +800,36 @@ class AuditDatabase:
         except Exception:
             removed["dlq"] = 0
         return removed
+
+    def _owned_protect_cids(self) -> set[str]:
+        """Correlation ids from our generate/UI runs — never prune these."""
+        out: set[str] = set()
+        try:
+            from pathlib import Path
+
+            from audit_validator.generation_tracker import list_owned
+            from audit_validator.project_root import find_project_root
+
+            root = Path(self._settings.audit_project_root) if getattr(self._settings, "audit_project_root", None) else find_project_root()
+            owned = list_owned(project_root=root)
+            for cid in (owned.get("by_correlation") or {}):
+                c = str(cid or "").strip()
+                if c:
+                    out.add(c)
+            for entry in (owned.get("by_operation") or {}).values():
+                if not isinstance(entry, dict):
+                    continue
+                c = str(entry.get("xCorrelationId") or "").strip()
+                if c:
+                    out.add(c)
+                for h in entry.get("history") or []:
+                    if isinstance(h, dict):
+                        c2 = str(h.get("xCorrelationId") or "").strip()
+                        if c2:
+                            out.add(c2)
+        except Exception:
+            pass
+        return out
 
     def close(self) -> None:
         self._client.close()

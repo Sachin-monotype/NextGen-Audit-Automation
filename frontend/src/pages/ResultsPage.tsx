@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import MultiSelect from "../components/MultiSelect";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import VerifyInUiModal, { type VerifyInUiContext } from "../components/VerifyInUiModal";
 import {
   fetchCategories,
@@ -66,6 +65,50 @@ function operationMatchesHighlight(operation: string, highlight: Set<string>): b
   }
   return false;
 }
+
+/** Split ``activateFamily(global)(app)`` / ``…(BE)`` → base + scenario label. */
+function splitEventScenario(operation: string): { base: string; scenario: string } {
+  const raw = String(operation || "").trim();
+  let op = raw;
+  const tags: string[] = [];
+  for (const suffix of ["(BE)", "(UI)", "(be)", "(ui)", "(app)", "(APP)", "(web)", "(WEB)"]) {
+    if (op.endsWith(suffix)) {
+      tags.push(suffix.replace(/[()]/g, "").toUpperCase());
+      op = op.slice(0, -suffix.length);
+      break;
+    }
+  }
+  const m = op.match(/^([^(]+)\((.+)\)$/);
+  if (m) {
+    const scenario = tags.length ? `${m[2]} · ${tags.join(" · ")}` : m[2];
+    return { base: m[1], scenario };
+  }
+  return { base: op, scenario: tags.join(" · ") || "default" };
+}
+
+type CoverageRow = {
+  operation: string;
+  category: string;
+  comparedAt: string;
+  track: TrackStatus;
+  passed: number;
+  failed: number;
+  skipped: number;
+  na: number;
+};
+
+type CoverageEventGroup = {
+  base: string;
+  scenarios: CoverageRow[];
+  category: string;
+  comparedAt: string;
+  passed: number;
+  failed: number;
+  skipped: number;
+  na: number;
+};
+
+type CoverageSortKey = "event" | "scenario" | "compared" | "fail";
 
 /** Top-level enrich JSON sections — same order as the resolver envelope. */
 type EnvelopeSection = {
@@ -249,8 +292,6 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   /** Coverage table: fully pass / has fails / skips only (partial). */
   const [coverageOutcome, setCoverageOutcome] = useState<"all" | "pass" | "failed" | "partial">("all");
   const [filterCategory, setFilterCategory] = useState("all");
-  const [filterEnv, setFilterEnv] = useState<string[]>([]);
-  const [filterService, setFilterService] = useState<string[]>([]);
   /** PP / QA / UAT — Results store is per audit target so stores never mix. */
   const [resultsTarget, setResultsTarget] = useState("qa");
   const [availableTargets, setAvailableTargets] = useState<string[]>(["qa", "pp", "uat"]);
@@ -282,6 +323,16 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const [scenarioDiscriminatorRows, setScenarioDiscriminatorRows] = useState<ScenarioStructureRow[]>([]);
   const [scenarioStructureFilter, setScenarioStructureFilter] = useState("");
   const [scenarioShowAllDiffs, setScenarioShowAllDiffs] = useState(false);
+  /**
+   * Scenario expand state. ``none`` / ``all`` are sticky global modes so Hide/Show
+   * is not undone by data refreshes. ``custom`` uses ``eventGroupsOpen``.
+   */
+  const [scenarioExpandMode, setScenarioExpandMode] = useState<"none" | "all" | "custom">("none");
+  const [eventGroupsOpen, setEventGroupsOpen] = useState<Set<string>>(() => new Set());
+  const [coverageSort, setCoverageSort] = useState<{ key: CoverageSortKey; dir: "asc" | "desc" }>({
+    key: "compared",
+    dir: "desc",
+  });
 
   async function refreshAllInStore() {
     setRefreshError("");
@@ -457,12 +508,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   }
 
   /** Drop ``op(UI)`` / bare ``op(BE)`` when the unlabeled scenario is also listed. */
-  function dedupeCoverageRows<T extends { operation: string; environment: string; service: string }>(
-    rows: T[],
-  ): T[] {
-    const score = (r: T) =>
-      (r.environment && r.environment !== "—" ? 2 : 0) +
-      (r.service && r.service !== "—" ? 1 : 0);
+  function dedupeCoverageRows<T extends { operation: string }>(rows: T[]): T[] {
     const byBase = new Map<string, T>();
     for (const row of rows) {
       const ui = row.operation.match(/^(.+)\(UI\)$/i);
@@ -477,8 +523,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
         continue;
       }
       const canon = { ...row, operation: ui ? base : row.operation };
-      if (score(canon) > score(prev)) byBase.set(base, canon);
-      else if (!ui && !be && (/\(UI\)$/i.test(prev.operation) || /\(BE\)$/.test(prev.operation))) {
+      if (!ui && !be && (/\(UI\)$/i.test(prev.operation) || /\(BE\)$/.test(prev.operation))) {
         byBase.set(base, canon);
       }
     }
@@ -492,27 +537,13 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     return metaForOperation(operation)?.category || "—";
   }
 
-  const environmentOptions = useMemo(
-    () => [...new Set(opMeta.map((i) => i.environment).filter(Boolean))].sort(),
-    [opMeta],
-  );
-  const serviceOptions = useMemo(
-    () => [...new Set(opMeta.map((i) => i.service).filter(Boolean))].sort(),
-    [opMeta],
-  );
-
   const scopedRows = useMemo(() => {
     return rows.filter((r) => {
       if (filterOp && !r.operation.toLowerCase().includes(filterOp.toLowerCase())) return false;
       if (filterCategory !== "all" && categoryForOperation(r.operation) !== filterCategory) return false;
-      if (filterEnv.length || filterService.length) {
-        const meta = metaForOperation(r.operation);
-        if (filterEnv.length && (!meta || !filterEnv.includes(meta.environment))) return false;
-        if (filterService.length && (!meta || !filterService.includes(meta.service))) return false;
-      }
       return true;
     });
-  }, [rows, filterOp, filterCategory, filterEnv, filterService, byOperation, metaByOp]);
+  }, [rows, filterOp, filterCategory, byOperation, metaByOp]);
 
   const filtered = useMemo(() => {
     if (filterStatus === "all") return scopedRows;
@@ -538,25 +569,16 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
       map.set(row.operation, list);
     }
     return dedupeCoverageRows(
-      [...map.entries()]
-      .map(([operation, opRows]) => {
+      [...map.entries()].map(([operation, opRows]) => {
         const summary = summarizeOp(opRows);
-        const meta = metaForOperation(operation);
         const status: TrackStatus = track[operation] || "unreviewed";
         return {
           operation,
           category: categoryForOperation(operation),
-          environment: meta?.environment || "—",
-          service: meta?.service || "—",
           comparedAt: comparedAtByOp.get(operation) || "",
           track: status,
           ...summary,
         };
-      })
-      // Newest run first; fall back to operation name when timestamps tie.
-      .sort((a, b) => {
-        const byDate = (b.comparedAt || "").localeCompare(a.comparedAt || "");
-        return byDate !== 0 ? byDate : a.operation.localeCompare(b.operation);
       }),
     );
   }, [scopedRows, metaByOp, byOperation, comparedAtByOp, track]);
@@ -572,6 +594,106 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
       return true;
     });
   }, [allCoverageRows, coverageOutcome, highlightActive, highlightSet]);
+
+  const coverageGroups = useMemo((): CoverageEventGroup[] => {
+    const byBase = new Map<string, CoverageRow[]>();
+    for (const r of coverageRows as CoverageRow[]) {
+      const { base } = splitEventScenario(r.operation);
+      const list = byBase.get(base) ?? [];
+      list.push(r);
+      byBase.set(base, list);
+    }
+    const groups: CoverageEventGroup[] = [];
+    for (const [base, scenarios] of byBase) {
+      const sortScenario = (a: CoverageRow, b: CoverageRow) => {
+        const sa = splitEventScenario(a.operation).scenario;
+        const sb = splitEventScenario(b.operation).scenario;
+        const byName = sa.localeCompare(sb);
+        if (coverageSort.key === "scenario") {
+          return coverageSort.dir === "asc" ? byName : -byName;
+        }
+        if (coverageSort.key === "compared") {
+          const byDate = (a.comparedAt || "").localeCompare(b.comparedAt || "");
+          const ordered = coverageSort.dir === "asc" ? byDate : -byDate;
+          return ordered !== 0 ? ordered : byName;
+        }
+        if (coverageSort.key === "fail") {
+          const byFail = a.failed - b.failed;
+          const ordered = coverageSort.dir === "asc" ? byFail : -byFail;
+          return ordered !== 0 ? ordered : byName;
+        }
+        return byName;
+      };
+      scenarios.sort(sortScenario);
+      groups.push({
+        base,
+        scenarios,
+        category: scenarios[0]?.category || "—",
+        comparedAt: scenarios.reduce(
+          (best, s) => ((s.comparedAt || "") > best ? s.comparedAt || "" : best),
+          "",
+        ),
+        passed: scenarios.reduce((n, s) => n + s.passed, 0),
+        failed: scenarios.reduce((n, s) => n + s.failed, 0),
+        skipped: scenarios.reduce((n, s) => n + s.skipped, 0),
+        na: scenarios.reduce((n, s) => n + s.na, 0),
+      });
+    }
+    groups.sort((a, b) => {
+      let cmp = 0;
+      if (coverageSort.key === "event") {
+        cmp = a.base.localeCompare(b.base);
+      } else if (coverageSort.key === "scenario") {
+        const sa = splitEventScenario(a.scenarios[0]?.operation || "").scenario;
+        const sb = splitEventScenario(b.scenarios[0]?.operation || "").scenario;
+        cmp = sa.localeCompare(sb) || a.base.localeCompare(b.base);
+      } else if (coverageSort.key === "fail") {
+        cmp = a.failed - b.failed;
+      } else {
+        cmp = (a.comparedAt || "").localeCompare(b.comparedAt || "");
+      }
+      if (cmp === 0) cmp = a.base.localeCompare(b.base);
+      return coverageSort.dir === "asc" ? cmp : -cmp;
+    });
+    return groups;
+  }, [coverageRows, coverageSort]);
+
+  function isScenarioGroupOpen(base: string, multi: boolean): boolean {
+    if (!multi) return false;
+    if (scenarioExpandMode === "all") return true;
+    if (scenarioExpandMode === "none") return false;
+    return eventGroupsOpen.has(base);
+  }
+
+  function showAllScenarios() {
+    setScenarioExpandMode("all");
+    setEventGroupsOpen(new Set());
+  }
+
+  function hideAllScenarios() {
+    setScenarioExpandMode("none");
+    setEventGroupsOpen(new Set());
+  }
+
+  function toggleScenarioGroup(base: string, allBases: string[]) {
+    if (scenarioExpandMode === "all") {
+      const next = new Set(allBases.filter((b) => b !== base));
+      setScenarioExpandMode("custom");
+      setEventGroupsOpen(next);
+      return;
+    }
+    if (scenarioExpandMode === "none") {
+      setScenarioExpandMode("custom");
+      setEventGroupsOpen(new Set([base]));
+      return;
+    }
+    setEventGroupsOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(base)) next.delete(base);
+      else next.add(base);
+      return next;
+    });
+  }
 
   function toggleSelectOp(op: string) {
     setSelectedOps((prev) => {
@@ -624,23 +746,6 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     }
     return { pass, failed, partial, all: allCoverageRows.length };
   }, [allCoverageRows]);
-
-  const coverageTotals = useMemo(() => {
-    return coverageRows.reduce(
-      (acc, r) => {
-        acc.ops += 1;
-        acc.passed += r.passed;
-        acc.failed += r.failed;
-        acc.skipped += r.skipped;
-        acc.na += r.na;
-        if (r.track === "covered") acc.covered += 1;
-        if (r.track === "needs_enhancement") acc.needs += 1;
-        if (r.track === "unreviewed") acc.unreviewed += 1;
-        return acc;
-      },
-      { ops: 0, passed: 0, failed: 0, skipped: 0, na: 0, covered: 0, needs: 0, unreviewed: 0 },
-    );
-  }, [coverageRows]);
 
   const unreachableCount = useMemo(
     () =>
@@ -813,15 +918,29 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     setFieldSearch("");
     setCoverageOutcome("all");
     setFilterCategory("all");
-    setFilterEnv([]);
-    setFilterService([]);
     setExpanded(new Set());
+    setScenarioExpandMode("none");
+    setEventGroupsOpen(new Set());
     if (scrollRestoreY != null) {
       requestAnimationFrame(() => {
         window.scrollTo({ top: scrollRestoreY, behavior: "auto" });
         setScrollRestoreY(null);
       });
     }
+  }
+
+  function toggleCoverageSort(key: CoverageSortKey) {
+    setCoverageSort((prev) => {
+      if (prev.key === key) {
+        return { key, dir: prev.dir === "asc" ? "desc" : "asc" };
+      }
+      return { key, dir: key === "compared" || key === "fail" ? "desc" : "asc" };
+    });
+  }
+
+  function sortHeaderLabel(key: CoverageSortKey, label: string) {
+    if (coverageSort.key !== key) return label;
+    return `${label} ${coverageSort.dir === "asc" ? "↑" : "↓"}`;
   }
 
   return (
@@ -915,10 +1034,6 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
           </label>
         )}
         <label className="filter-field">
-          <span>operation</span>
-          <input value={filterOp} onChange={(e) => setFilterOp(e.target.value)} placeholder="activateFamily" />
-        </label>
-        <label className="filter-field">
           <span>category</span>
           <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
             <option value="all">All categories</option>
@@ -927,20 +1042,8 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
             ))}
           </select>
         </label>
-        <MultiSelect
-          label="platform"
-          options={environmentOptions}
-          selected={filterEnv}
-          onChange={setFilterEnv}
-        />
-        <MultiSelect
-          label="service"
-          options={serviceOptions}
-          selected={filterService}
-          onChange={setFilterService}
-        />
         <label className="filter-field">
-          <span>status</span>
+          <span>field status</span>
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="all">All</option>
             <option value="PASS">PASS</option>
@@ -948,7 +1051,30 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
             <option value="SKIP">SKIP</option>
           </select>
         </label>
-        <div className="filter-actions">
+        <div className="filter-actions results-toolbar-actions">
+          <button
+            type="button"
+            className="primary"
+            disabled={refreshAllBusy || !latest?.count}
+            onClick={() => void refreshAllInStore()}
+            title={`Re-run Compare for every operation in the ${resultsTarget.toUpperCase()} store`}
+          >
+            {refreshAllBusy
+              ? "Re-comparing…"
+              : `Re-compare (${resultsTarget.toUpperCase()})`}
+          </button>
+          <button
+            type="button"
+            className="primary outline"
+            disabled={failureLogBusy}
+            onClick={openFailureLog}
+          >
+            {failureLogBusy
+              ? "Loading…"
+              : failureLog
+                ? `Failures (${failureLog.total_fail_rows})`
+                : "Failure log"}
+          </button>
           <button type="button" onClick={clearFilters}>Clear</button>
         </div>
       </div>
@@ -978,25 +1104,18 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
 
       {job?.error && sourceMode === "job" && <p className="error">{job.error}</p>}
 
-      <div className="actions" style={{ marginBottom: 12 }}>
-        <button
-          type="button"
-          className="primary"
-          disabled={refreshAllBusy || !latest?.count}
-          onClick={() => void refreshAllInStore()}
-          title={`Re-run Compare for every operation in the ${resultsTarget.toUpperCase()} store and update records in place`}
-        >
-          {refreshAllBusy
-            ? "Re-comparing…"
-            : `Re-compare all (${resultsTarget.toUpperCase()} · ${latest?.count ?? 0})`}
-        </button>
-        <button type="button" className="primary outline" disabled={failureLogBusy} onClick={openFailureLog}>
-          {failureLogBusy ? "Loading…" : "Failure log"}
-        </button>
-        <span className="muted">
-          Common FAIL patterns across stored comparisons · count + mongo query / curl to investigate
-        </span>
-      </div>
+      {allCoverageRows.length === 0 && (
+        <div className="actions" style={{ marginBottom: 12 }}>
+          <button
+            type="button"
+            className="primary outline"
+            disabled={failureLogBusy}
+            onClick={openFailureLog}
+          >
+            {failureLogBusy ? "Loading…" : "Failure log"}
+          </button>
+        </div>
+      )}
 
       {showFailureLog && failureLog && (
         <div className="modal-backdrop" onClick={() => setShowFailureLog(false)} role="presentation">
@@ -1310,44 +1429,51 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
       {allCoverageRows.length > 0 && (
         <div className="coverage-panel" ref={coverageListRef}>
           <div className="coverage-head">
-            <div>
-              <h3>Operations coverage</h3>
-              <p className="muted">
-                {coverageTotals.ops} shown · {coverageTotals.passed} pass · {coverageTotals.failed} fail ·{" "}
-                {coverageTotals.skipped} skip
-                <span className="coverage-track-summary">
-                  {" "}· track {coverageTotals.covered} covered / {coverageTotals.needs} enhance /{" "}
-                  {coverageTotals.unreviewed} open
-                </span>
-              </p>
-            </div>
-            <div className="coverage-outcome-filters" role="group" aria-label="Coverage outcome filter">
+            <h3>Results</h3>
+            <div className="coverage-toolbar">
               <label className="filter-field coverage-op-search">
-                <span>search</span>
+                <span>Search</span>
                 <input
                   value={filterOp}
                   onChange={(e) => setFilterOp(e.target.value)}
-                  placeholder="Filter by operation name…"
+                  placeholder="Event or scenario…"
                   aria-label="Search operations in coverage table"
                 />
               </label>
-              {(
-                [
-                  ["all", `All (${coverageCounts.all})`],
-                  ["pass", `Fully pass (${coverageCounts.pass})`],
-                  ["failed", `Failed (${coverageCounts.failed})`],
-                  ["partial", `Partial / skip (${coverageCounts.partial})`],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  className={coverageOutcome === id ? "chip active" : "chip"}
-                  onClick={() => setCoverageOutcome(id)}
+              <label className="filter-field">
+                <span>Show</span>
+                <select
+                  value={coverageOutcome}
+                  onChange={(e) =>
+                    setCoverageOutcome(e.target.value as "all" | "pass" | "failed" | "partial")
+                  }
                 >
-                  {label}
+                  <option value="all">All ({coverageCounts.all})</option>
+                  <option value="pass">Passed ({coverageCounts.pass})</option>
+                  <option value="failed">Failed ({coverageCounts.failed})</option>
+                  <option value="partial">Partial / skip ({coverageCounts.partial})</option>
+                </select>
+              </label>
+              {scenarioExpandMode === "all" ||
+              (scenarioExpandMode === "custom" && eventGroupsOpen.size > 0) ? (
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={hideAllScenarios}
+                  title="Collapse all scenario rows"
+                >
+                  Hide scenarios
                 </button>
-              ))}
+              ) : (
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={showAllScenarios}
+                  title="Expand scenarios under every event"
+                >
+                  Show scenarios
+                </button>
+              )}
             </div>
           </div>
           {highlightActive && highlightSet.size > 0 && (
@@ -1361,8 +1487,8 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
               </button>
             </div>
           )}
-          <div className="coverage-bulk-actions" style={{ display: "flex", alignItems: "center", gap: 12, margin: "4px 0 8px" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div className="coverage-bulk-actions">
+            <label className="coverage-select-shown">
               <input
                 type="checkbox"
                 checked={coverageRows.length > 0 && coverageRows.every((r) => selectedOps.has(r.operation))}
@@ -1382,7 +1508,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                   });
                 }}
               />
-              <span className="muted">select shown</span>
+              <span className="muted">Select shown</span>
             </label>
             {selectedOps.size >= 1 && (
               <button
@@ -1410,119 +1536,258 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
             )}
           </div>
           <div className="result-table-wrap compact-table-wrap">
-            <table className="result-table coverage-table">
+            <table className="result-table coverage-table coverage-grouped">
               <thead>
                 <tr>
-                  <th className="coverage-col-narrow" title="Select for delete"></th>
-                  <th>Operation</th>
+                  <th className="coverage-col-narrow" title="Select"></th>
+                  <th>
+                    <button
+                      type="button"
+                      className="coverage-sort-btn"
+                      onClick={() => toggleCoverageSort("event")}
+                    >
+                      {sortHeaderLabel("event", "Event")}
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      className="coverage-sort-btn"
+                      onClick={() => toggleCoverageSort("scenario")}
+                    >
+                      {sortHeaderLabel("scenario", "Scenario")}
+                    </button>
+                  </th>
                   <th>Category</th>
-                  <th>Env</th>
-                  <th>Service</th>
-                  <th>Compared</th>
-                  <th>PASS</th>
-                  <th>FAIL</th>
-                  <th>SKIP</th>
-                  <th className="coverage-col-narrow" title="Review status">✓</th>
+                  <th>
+                    <button
+                      type="button"
+                      className="coverage-sort-btn"
+                      onClick={() => toggleCoverageSort("compared")}
+                    >
+                      {sortHeaderLabel("compared", "Compared")}
+                    </button>
+                  </th>
+                  <th className="num">Pass</th>
+                  <th className="num">
+                    <button
+                      type="button"
+                      className="coverage-sort-btn"
+                      onClick={() => toggleCoverageSort("fail")}
+                    >
+                      {sortHeaderLabel("fail", "Fail")}
+                    </button>
+                  </th>
+                  <th className="num">Skip</th>
+                  <th className="coverage-col-narrow" title="Actions"></th>
                 </tr>
               </thead>
               <tbody>
-                {coverageRows.length === 0 && (
+                {coverageGroups.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="muted">
-                      No operations match this coverage filter.
+                    <td colSpan={9} className="muted">
+                      No operations match this filter.
                     </td>
                   </tr>
                 )}
-                {coverageRows.map((r) => (
-                  <tr key={r.operation} className={r.failed ? "fail" : r.skipped ? "skip" : "pass"}>
-                    <td className="coverage-col-narrow">
-                      <input
-                        type="checkbox"
-                        checked={selectedOps.has(r.operation)}
-                        onChange={() => toggleSelectOp(r.operation)}
-                        aria-label={`Select ${r.operation}`}
-                      />
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="link-btn coverage-op-link"
-                        onClick={() => openOperationDetail(r.operation)}
+                {coverageGroups.map((g) => {
+                  const multi = g.scenarios.length > 1;
+                  const open = isScenarioGroupOpen(g.base, multi);
+                  const allBases = coverageGroups.filter((x) => x.scenarios.length > 1).map((x) => x.base);
+                  const allSelected = g.scenarios.every((s) => selectedOps.has(s.operation));
+                  const someSelected = g.scenarios.some((s) => selectedOps.has(s.operation));
+
+                  const renderScenarioRow = (r: CoverageRow, nested: boolean) => {
+                    const { base, scenario } = splitEventScenario(r.operation);
+                    return (
+                      <tr
+                        key={r.operation}
+                        className={`${r.failed ? "fail" : r.skipped ? "skip" : "pass"}${nested ? " coverage-scenario-row" : ""}`}
                       >
-                        {r.operation}
-                      </button>
-                    </td>
-                    <td>{r.category}</td>
-                    <td>{r.environment}</td>
-                    <td>{r.service}</td>
-                    <td className="coverage-compared" title={r.comparedAt || undefined}>
-                      {r.comparedAt ? new Date(r.comparedAt).toLocaleString() : "—"}
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="badge-btn"
-                        title="Show PASS fields"
-                        onClick={() => openOperationDetail(r.operation, "PASS")}
-                      >
-                        <span className="badge pass">{r.passed}</span>
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="badge-btn"
-                        title="Show FAIL fields"
-                        disabled={!r.failed}
-                        onClick={() => openOperationDetail(r.operation, "FAIL")}
-                      >
-                        <span className={`badge ${r.failed ? "fail" : "na"}`}>{r.failed}</span>
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="badge-btn"
-                        title="Show SKIP fields"
-                        disabled={!r.skipped}
-                        onClick={() => openOperationDetail(r.operation, "SKIP")}
-                      >
-                        <span className={`badge ${r.skipped ? "skip" : "na"}`}>{r.skipped}</span>
-                      </button>
-                    </td>
-                    <td className="coverage-col-narrow">
-                      <details className="coverage-track-menu">
-                        <summary
-                          className={`track-pill track-mini track-${r.track}`}
-                          title="Set review status"
-                        >
-                          {r.track === "covered" ? "✓" : r.track === "needs_enhancement" ? "!" : "·"}
-                        </summary>
-                        <div className="coverage-track-menu-body">
-                          <button type="button" onClick={() => setTrackStatus(r.operation, "covered")}>
-                            Covered
-                          </button>
-                          <button type="button" onClick={() => setTrackStatus(r.operation, "needs_enhancement")}>
-                            Needs enhancement
-                          </button>
-                          {r.track !== "unreviewed" && (
-                            <button type="button" onClick={() => setTrackStatus(r.operation, "unreviewed")}>
-                              Reset
+                        <td className="coverage-col-narrow">
+                          <input
+                            type="checkbox"
+                            checked={selectedOps.has(r.operation)}
+                            onChange={() => toggleSelectOp(r.operation)}
+                            aria-label={`Select ${r.operation}`}
+                          />
+                        </td>
+                        <td>
+                          {nested ? null : (
+                            <button
+                              type="button"
+                              className="coverage-event-name"
+                              onClick={() => openOperationDetail(r.operation)}
+                            >
+                              {base}
                             </button>
                           )}
+                        </td>
+                        <td>
                           <button
                             type="button"
-                            className="danger"
-                            disabled={deletingOp === r.operation}
-                            onClick={() => onDeleteResult(r.operation)}
+                            className={`coverage-scenario-name${nested ? " nested" : ""}`}
+                            onClick={() => openOperationDetail(r.operation)}
+                            title={r.operation}
                           >
-                            {deletingOp === r.operation ? "Deleting…" : "Delete result"}
+                            {scenario}
                           </button>
-                        </div>
-                      </details>
-                    </td>
-                  </tr>
-                ))}
+                        </td>
+                        <td>{r.category}</td>
+                        <td className="coverage-compared" title={r.comparedAt || undefined}>
+                          {r.comparedAt ? new Date(r.comparedAt).toLocaleString() : "—"}
+                        </td>
+                        <td className="num">
+                          <button
+                            type="button"
+                            className="badge-btn"
+                            title="Show PASS fields"
+                            onClick={() => openOperationDetail(r.operation, "PASS")}
+                          >
+                            <span className="badge pass">{r.passed}</span>
+                          </button>
+                        </td>
+                        <td className="num">
+                          <button
+                            type="button"
+                            className="badge-btn"
+                            title="Show FAIL fields"
+                            disabled={!r.failed}
+                            onClick={() => openOperationDetail(r.operation, "FAIL")}
+                          >
+                            <span className={`badge ${r.failed ? "fail" : "na"}`}>{r.failed}</span>
+                          </button>
+                        </td>
+                        <td className="num">
+                          <button
+                            type="button"
+                            className="badge-btn"
+                            title="Show SKIP fields"
+                            disabled={!r.skipped}
+                            onClick={() => openOperationDetail(r.operation, "SKIP")}
+                          >
+                            <span className={`badge ${r.skipped ? "skip" : "na"}`}>{r.skipped}</span>
+                          </button>
+                        </td>
+                        <td className="coverage-col-narrow">
+                          <details className="coverage-track-menu">
+                            <summary
+                              className={`track-pill track-mini track-${r.track}`}
+                              title="More actions"
+                            >
+                              ···
+                            </summary>
+                            <div className="coverage-track-menu-body">
+                              <button type="button" onClick={() => setTrackStatus(r.operation, "covered")}>
+                                Mark covered
+                              </button>
+                              <button type="button" onClick={() => setTrackStatus(r.operation, "needs_enhancement")}>
+                                Needs enhancement
+                              </button>
+                              {r.track !== "unreviewed" && (
+                                <button type="button" onClick={() => setTrackStatus(r.operation, "unreviewed")}>
+                                  Reset status
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                className="danger"
+                                disabled={deletingOp === r.operation}
+                                onClick={() => onDeleteResult(r.operation)}
+                              >
+                                {deletingOp === r.operation ? "Deleting…" : "Delete result"}
+                              </button>
+                            </div>
+                          </details>
+                        </td>
+                      </tr>
+                    );
+                  };
+
+                  if (!multi) {
+                    return renderScenarioRow(g.scenarios[0], false);
+                  }
+
+                  return (
+                    <Fragment key={g.base}>
+                      <tr className="coverage-event-row">
+                        <td className="coverage-col-narrow">
+                          <input
+                            type="checkbox"
+                            checked={allSelected}
+                            ref={(el) => {
+                              if (el) el.indeterminate = someSelected && !allSelected;
+                            }}
+                            onChange={(e) => {
+                              setSelectedOps((prev) => {
+                                const next = new Set(prev);
+                                if (e.target.checked) g.scenarios.forEach((s) => next.add(s.operation));
+                                else g.scenarios.forEach((s) => next.delete(s.operation));
+                                return next;
+                              });
+                            }}
+                            aria-label={`Select all scenarios for ${g.base}`}
+                          />
+                        </td>
+                        <td>
+                          <div className="coverage-op-cell event">
+                            <button
+                              type="button"
+                              className="op-group-expand"
+                              aria-expanded={open}
+                              aria-label={open ? `Hide scenarios for ${g.base}` : `Show scenarios for ${g.base}`}
+                              onClick={() => toggleScenarioGroup(g.base, allBases)}
+                            >
+                              {open ? "▾" : "▸"}
+                            </button>
+                            <button
+                              type="button"
+                              className="coverage-event-name"
+                              onClick={() => toggleScenarioGroup(g.base, allBases)}
+                            >
+                              {g.base}
+                            </button>
+                          </div>
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="coverage-scenario-toggle"
+                            onClick={() => toggleScenarioGroup(g.base, allBases)}
+                          >
+                            {open ? `Hide ${g.scenarios.length}` : `${g.scenarios.length} scenarios`}
+                          </button>
+                        </td>
+                        <td>{g.category}</td>
+                        <td className="coverage-compared" title={g.comparedAt || undefined}>
+                          {g.comparedAt ? new Date(g.comparedAt).toLocaleString() : "—"}
+                        </td>
+                        <td className="num">
+                          <span className="badge pass">{g.passed}</span>
+                        </td>
+                        <td className="num">
+                          <span className={`badge ${g.failed ? "fail" : "na"}`}>{g.failed}</span>
+                        </td>
+                        <td className="num">
+                          <span className={`badge ${g.skipped ? "skip" : "na"}`}>{g.skipped}</span>
+                        </td>
+                        <td className="coverage-col-narrow">
+                          {g.scenarios.length >= 2 && (
+                            <button
+                              type="button"
+                              className="link-btn"
+                              title="Compare scenarios for this event"
+                              onClick={() => void openScenarioCompare(g.scenarios.map((s) => s.operation))}
+                            >
+                              Compare
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                      {open && g.scenarios.map((s) => renderScenarioRow(s, true))}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

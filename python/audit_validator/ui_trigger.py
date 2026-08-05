@@ -594,6 +594,11 @@ def apply_extracted_results(
             "graphql_input": item.get("graphql_input"),
             "graphql_response": item.get("graphql_response"),
         }
+        row_target = str(item.get("target") or "").strip().lower()
+        if not row_target:
+            row_target = str((job.get("agent") or {}).get("target") or "").strip().lower()
+        if row_target in {"web", "app"}:
+            row["target"] = row_target
         if item.get("excel_event_name"):
             row["excel_event_name"] = str(item.get("excel_event_name"))
         if item.get("graphql_failed"):
@@ -623,7 +628,7 @@ def apply_extracted_results(
             try:
                 from audit_validator.touchpoint.scenarios import scenario_display_name
 
-                display = scenario_display_name(op, touch, ui=True)
+                display = scenario_display_name(op, touch, ui=True, target=row.get("target"))
                 record_generation(
                     op,
                     cid,
@@ -634,16 +639,21 @@ def apply_extracted_results(
                         "ui_trigger_job_id": job.get("id"),
                         "source": "casepilot",
                         "display": display,
+                        "target": row.get("target"),
                     },
                 )
-                # Also register UI display name (…(ui)) for Generation Status / Compare
+                # Also register UI display name for Generation Status / Compare
                 if display != op:
                     record_generation(
                         display,
                         cid,
                         project_root=project_root,
                         kind="ui",
-                        meta={"touchpoint": touch, "ui_trigger_job_id": job.get("id")},
+                        meta={
+                            "touchpoint": touch,
+                            "ui_trigger_job_id": job.get("id"),
+                            "target": row.get("target"),
+                        },
                     )
             except Exception as exc:  # noqa: BLE001
                 _append_log(job, f"⚠ could not record_generation: {exc}")
@@ -651,7 +661,7 @@ def apply_extracted_results(
             try:
                 from audit_validator.touchpoint.scenarios import scenario_display_name
 
-                display = scenario_display_name(op, touch, ui=True)
+                display = scenario_display_name(op, touch, ui=True, target=row.get("target"))
                 gql_inp = item.get("graphql_input") if isinstance(item.get("graphql_input"), dict) else {}
                 gql_resp = (
                     item.get("graphql_response") if isinstance(item.get("graphql_response"), dict) else {}
@@ -666,6 +676,9 @@ def apply_extracted_results(
                     graphql_response=gql_resp,
                     jwt_identity=jwt_ident,
                     success=True,
+                    # GraphQL Response has no UA / platformEnvironment — don't invent
+                    # Chrome+"web" (false FAIL vs Electron/"app" on enriched).
+                    invent_client_defaults=False,
                 )
                 if item.get("jwt_identity_note"):
                     ctx["jwt_identity_note"] = str(item.get("jwt_identity_note"))
@@ -2328,6 +2341,12 @@ def record_manual_ui_results(
     return _write_job(project_root, job)
 
 
+def _doc_correlation_id(doc: dict[str, Any] | None) -> str:
+    if not isinstance(doc, dict):
+        return ""
+    return str(doc.get("xCorrelationId") or doc.get("correlationId") or "").strip()
+
+
 def _stage_ui_verified_sample(
     project_root: Path,
     display_key: str,
@@ -2335,7 +2354,11 @@ def _stage_ui_verified_sample(
     raw_mongo: dict[str, Any] | None,
     enr_mongo: dict[str, Any] | None,
 ) -> None:
-    """Stage Mongo docs for Compare — avoids re-pairing 10+ UI scenarios on each run."""
+    """Stage Mongo docs for Compare — keeps raw/enrich CID-aligned for one display key.
+
+    Enrich-only / raw-only hits must not leave a stale twin from a previous run
+    (that produced false Compare pairs like bulkCopyAssets raw≠enrich CID).
+    """
     if not display_key or not (raw_mongo or enr_mongo):
         return
     try:
@@ -2348,10 +2371,82 @@ def _stage_ui_verified_sample(
     raw_dir = project_root / "payload" / "raw"
     enrich_dir.mkdir(parents=True, exist_ok=True)
     raw_dir.mkdir(parents=True, exist_ok=True)
+    enrich_path = enrich_dir / f"{display_key}.json"
+    raw_path = raw_dir / f"{display_key}.json"
+
+    raw_cid = _doc_correlation_id(raw_mongo)
+    enr_cid = _doc_correlation_id(enr_mongo)
+
     if enr_mongo:
-        (enrich_dir / f"{display_key}.json").write_text(dump(enr_mongo), encoding="utf-8")
+        enrich_path.write_text(dump(enr_mongo), encoding="utf-8")
     if raw_mongo:
-        (raw_dir / f"{display_key}.json").write_text(dump(raw_mongo), encoding="utf-8")
+        raw_path.write_text(dump(raw_mongo), encoding="utf-8")
+
+    # Drop stale twin when only one side landed, or CIDs disagree.
+    if enr_mongo and not raw_mongo and raw_path.is_file():
+        try:
+            prev = json.loads(raw_path.read_text(encoding="utf-8"))
+        except Exception:
+            prev = None
+        if _doc_correlation_id(prev) != enr_cid:
+            raw_path.unlink(missing_ok=True)
+    if raw_mongo and not enr_mongo and enrich_path.is_file():
+        try:
+            prev = json.loads(enrich_path.read_text(encoding="utf-8"))
+        except Exception:
+            prev = None
+        if _doc_correlation_id(prev) != raw_cid:
+            enrich_path.unlink(missing_ok=True)
+    if raw_mongo and enr_mongo and raw_cid and enr_cid and raw_cid != enr_cid:
+        # Should not happen for a true pair — prefer enrich CID, drop mismatched raw.
+        raw_path.unlink(missing_ok=True)
+
+
+def _lookup_ui_mongo_pair(
+    db: Any,
+    *,
+    op: str,
+    excel_op: str,
+    cid: str,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, str]:
+    """Resolve raw/enrich for a UI correlation id.
+
+    Tries GraphQL op, Excel event_name, then CID-only (any operation) so rows
+    where Response body rewrote the op (exportTags→getProfile) still match.
+    """
+    if db is None or not cid:
+        return None, None, ""
+    names: list[str] = []
+    for name in (op, excel_op):
+        n = str(name or "").strip()
+        if n and n not in names:
+            names.append(n)
+    raw_mongo = enr_mongo = None
+    mongo_op = ""
+    for name in names:
+        try:
+            raw2, enr2 = db.latest_pair(name, require_pair=False, correlation_id=cid)
+        except Exception:
+            continue
+        raw_mongo = raw2 if isinstance(raw2, dict) else raw_mongo
+        enr_mongo = enr2 if isinstance(enr2, dict) else enr_mongo
+        if raw_mongo or enr_mongo:
+            hit = enr_mongo or raw_mongo or {}
+            src = hit.get("source") if isinstance(hit.get("source"), dict) else {}
+            mongo_op = str(src.get("operation") or name).strip()
+            break
+    if not raw_mongo and not enr_mongo and hasattr(db, "latest_by_correlation"):
+        try:
+            raw3, enr3 = db.latest_by_correlation(cid, require_pair=False)
+            raw_mongo = raw3 if isinstance(raw3, dict) else None
+            enr_mongo = enr3 if isinstance(enr3, dict) else None
+            if raw_mongo or enr_mongo:
+                hit = enr_mongo or raw_mongo or {}
+                src = hit.get("source") if isinstance(hit.get("source"), dict) else {}
+                mongo_op = str(src.get("operation") or "").strip()
+        except Exception:
+            pass
+    return raw_mongo, enr_mongo, mongo_op
 
 
 def finalize_ui_trigger_verification(
@@ -2437,8 +2532,73 @@ def finalize_ui_trigger_verification(
         )
         from audit_validator.touchpoint.scenarios import scenario_display_name
 
-        # UI path: look up each cid directly — do NOT run the 90s owned-landing poll
-        # (that blocks Continue verification forever when one cid never lands).
+        settle_sec = max(0.0, float(os.getenv("UI_VERIFY_SETTLE_SEC", "90") or "90"))
+        poll_sec = max(1.0, float(os.getenv("UI_VERIFY_POLL_SEC", "3") or "3"))
+        deadline = time.monotonic() + settle_sec
+
+        # Per-result lookup cache updated across settle polls.
+        found: dict[str, tuple[dict[str, Any] | None, dict[str, Any] | None, str]] = {}
+
+        def _cid_key(r: dict[str, Any]) -> str:
+            return str(r.get("correlation_id") or "").strip()
+
+        def _refresh_lookups(*, force_all: bool = False) -> tuple[int, int]:
+            complete = 0
+            pending = 0
+            for r in results:
+                cid = _cid_key(r)
+                if not cid:
+                    continue
+                if str(r.get("graphql_failed") or "").lower() in {"1", "true"} or r.get("graphql_failed") is True:
+                    continue
+                prev = found.get(cid)
+                if (
+                    not force_all
+                    and prev
+                    and isinstance(prev[0], dict)
+                    and isinstance(prev[1], dict)
+                ):
+                    complete += 1
+                    continue
+                op = str(r.get("operation") or "").strip()
+                excel_op = str(r.get("excel_event_name") or "").strip()
+                raw_m, enr_m, mongo_op = _lookup_ui_mongo_pair(
+                    db, op=op, excel_op=excel_op, cid=cid
+                )
+                # Keep best so far (don't regress if a poll blanks out)
+                if prev:
+                    raw_m = raw_m or prev[0]
+                    enr_m = enr_m or prev[1]
+                    mongo_op = mongo_op or prev[2]
+                found[cid] = (raw_m, enr_m, mongo_op)
+                if isinstance(raw_m, dict) and isinstance(enr_m, dict):
+                    complete += 1
+                else:
+                    pending += 1
+            return complete, pending
+
+        _refresh_lookups(force_all=True)
+        pending = sum(
+            1
+            for _cid, (rw, en, _) in found.items()
+            if not (isinstance(rw, dict) and isinstance(en, dict))
+        )
+        if pending and settle_sec > 0 and db is not None:
+            _log(
+                f"▸ Settling Mongo for {pending} incomplete cid(s) "
+                f"(up to {int(settle_sec)}s, poll {poll_sec:g}s)…"
+            )
+            while time.monotonic() < deadline and pending > 0:
+                time.sleep(poll_sec)
+                _refresh_lookups(force_all=False)
+                pending = sum(
+                    1
+                    for _cid, (rw, en, _) in found.items()
+                    if not (isinstance(rw, dict) and isinstance(en, dict))
+                )
+                complete = len(found) - pending
+                _log(f"  · settle {complete} complete / {pending} still open")
+
         scenarios: list[dict[str, Any]] = []
         for r in results:
             op = str(r.get("operation") or "").strip()
@@ -2455,12 +2615,10 @@ def finalize_ui_trigger_verification(
             except Exception:  # noqa: BLE001
                 if "<" in op or "<" in touch:
                     continue
-            display = scenario_display_name(op, touch, ui=True)
-            raw_doc = None
-            enr_doc = None
-            raw_mongo = None
-            enr_mongo = None
-            mongo_op_alias = ""
+            row_target = str(r.get("target") or "").strip().lower()
+            if not row_target:
+                row_target = str((job.get("agent") or {}).get("target") or "").strip().lower()
+            display = scenario_display_name(op, touch, ui=True, target=row_target or None)
             excel_op = str(r.get("excel_event_name") or "").strip()
             gql_failed = bool(r.get("graphql_failed"))
             if gql_failed:
@@ -2473,6 +2631,7 @@ def finalize_ui_trigger_verification(
                         "scenario_id": f"{op}::{touch}" if touch else op,
                         "operation": op,
                         "touchpoint": touch,
+                        "target": row_target or None,
                         "label": display,
                         "status": status,
                         "xCorrelationId": cid,
@@ -2482,7 +2641,7 @@ def finalize_ui_trigger_verification(
                         "raw_event": None,
                         "enriched_event": None,
                         "source": "ui",
-                        "channel": "UI",
+                        "channel": "APP" if row_target == "app" else "UI",
                         "ui_status": status,
                         "remark": remark,
                         "pairing_method": "graphql_failed",
@@ -2490,43 +2649,42 @@ def finalize_ui_trigger_verification(
                 )
                 _log(f"  · {display}: N/A GraphQL failed cid={(cid or '')[:8]}")
                 continue
-            if db is not None and cid:
-                try:
-                    raw2, enr2 = db.latest_pair(op, require_pair=False, correlation_id=cid)
-                    raw_mongo = raw2 if isinstance(raw2, dict) else None
-                    enr_mongo = enr2 if isinstance(enr2, dict) else None
-                    # Excel event_name often ≠ Mongo source.operation — CID-only fallback.
-                    if not raw_mongo and not enr_mongo and hasattr(db, "latest_by_correlation"):
-                        raw3, enr3 = db.latest_by_correlation(cid, require_pair=False)
-                        raw_mongo = raw3 if isinstance(raw3, dict) else None
-                        enr_mongo = enr3 if isinstance(enr3, dict) else None
-                        if raw_mongo or enr_mongo:
-                            hit = enr_mongo or raw_mongo or {}
-                            src = hit.get("source") if isinstance(hit.get("source"), dict) else {}
-                            mongo_op = str(src.get("operation") or "").strip()
-                            if mongo_op and mongo_op != op:
-                                mongo_op_alias = mongo_op
-                                display = scenario_display_name(mongo_op, touch, ui=True)
-                    if raw_mongo:
-                        raw_doc = _event_for_report(raw_mongo)
-                    if enr_mongo:
-                        enr_doc = _event_for_report(enr_mongo)
-                except Exception as exc:  # noqa: BLE001
-                    _log(f"  ⚠ cid lookup for {op}: {exc}")
+
+            raw_mongo, enr_mongo, mongo_op_alias = found.get(cid, (None, None, ""))
+            if mongo_op_alias and mongo_op_alias != op:
+                display = scenario_display_name(
+                    mongo_op_alias, touch, ui=True, target=row_target or None
+                )
+
+            raw_doc = _event_for_report(raw_mongo) if isinstance(raw_mongo, dict) else None
+            enr_doc = _event_for_report(enr_mongo) if isinstance(enr_mongo, dict) else None
 
             if enr_mongo or raw_mongo:
                 _stage_ui_verified_sample(
                     project_root,
                     display,
-                    raw_mongo=raw_mongo,
-                    enr_mongo=enr_mongo,
+                    raw_mongo=raw_mongo if isinstance(raw_mongo, dict) else None,
+                    enr_mongo=enr_mongo if isinstance(enr_mongo, dict) else None,
                 )
+                # Also pin under owned tracker so retention won't delete mid-Compare.
+                try:
+                    from audit_validator.generation_tracker import record_generation
+
+                    record_generation(
+                        mongo_op_alias or op,
+                        cid,
+                        kind="ui",
+                        project_root=project_root,
+                        meta={"touchpoint": touch or None, "source": "ui_verify"},
+                    )
+                except Exception:
+                    pass
 
             raw_ok = bool(raw_doc)
             enr_ok = bool(enr_doc)
             alias_note = (
                 f" · op alias excel={excel_op or op} mongo={mongo_op_alias}"
-                if mongo_op_alias
+                if mongo_op_alias and mongo_op_alias != (excel_op or op)
                 else ""
             )
             if raw_ok and enr_ok:
@@ -2543,7 +2701,11 @@ def finalize_ui_trigger_verification(
                 )
             elif cid:
                 status = "FAIL"
-                remark = "UI-triggered · correlation captured; event not in Mongo yet"
+                remark = (
+                    "UI-triggered · correlation captured; event not in Mongo yet "
+                    "(GraphQL correlation-id may not match audit xCorrelationId, "
+                    "or the event was never published)"
+                )
             else:
                 status = "N/A"
                 remark = "Missing correlation_id"
@@ -2553,6 +2715,7 @@ def finalize_ui_trigger_verification(
                     "scenario_id": f"{op}::{touch}" if touch else op,
                     "operation": mongo_op_alias or op,
                     "touchpoint": touch,
+                    "target": row_target or None,
                     "label": display,
                     "status": status,
                     "xCorrelationId": cid,
@@ -2562,7 +2725,7 @@ def finalize_ui_trigger_verification(
                     "raw_event": raw_doc,
                     "enriched_event": enr_doc,
                     "source": "ui",
-                    "channel": "UI",
+                    "channel": "APP" if row_target == "app" else "UI",
                     "ui_status": status,
                     "remark": remark,
                     "pairing_method": "owned_cid" if cid else None,
@@ -2589,7 +2752,7 @@ def finalize_ui_trigger_verification(
                 "status": "success" if s.get("status") == "PASS" else "missing",
                 "ui_status": s.get("ui_status"),
                 "remark": s.get("remark"),
-                "channel": "UI",
+                "channel": s.get("channel") or "UI",
             }
             for s in scenarios
         ]

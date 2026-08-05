@@ -168,6 +168,20 @@ def _is_font_list_asset_context(operation: str, path: str) -> bool:
     )
 
 
+# deleteAssets: AMS no longer has the row — enriched snapshot is the source of truth.
+_DELETED_ASSET_OPS = frozenset({
+    "deleteAssets",
+    "deleteAsset",
+})
+
+
+def _is_deleted_asset_context(operation: str, path: str) -> bool:
+    return (
+        _base_op_name(operation) in _DELETED_ASSET_OPS
+        and "subject.enrichedSnapshot.asset." in path
+    )
+
+
 def _norm(val: object) -> str:
     if val is None:
         return ""
@@ -272,7 +286,13 @@ def _remark_for_source(live: dict[str, Any], source_system: str, *, status: str)
         # UMS call (e.g. role) can fail while profile fields still resolve —
         # those PASS rows must NOT inherit the unrelated error banner.
         if status in {"SKIP", "FAIL", ""}:
-            return live.get("ums_error") or live.get("ums_role_error") or ""
+            return (
+                live.get("ums_error")
+                or live.get("ums_role_error")
+                or live.get("ums_team_error")
+                or live.get("ums_subject_error")
+                or ""
+            )
         return ""
     if source_system == "CMS":
         return live.get("cms_error") or ""
@@ -430,6 +450,19 @@ def _row(
             else:
                 status = "FAIL"
                 notes = notes or "UMS response missing field (enriched has value)"
+        elif ev and spec.source_system == "AMS" and _is_deleted_asset_context(
+            operation, spec.enriched_path
+        ):
+            err = str(notes or live.get("ams_error") or "").lower()
+            if "not found" in err or (not sv and not live.get("ams_asset")):
+                # Deleted asset is gone from AMS/DB — enriched snapshot is expected.
+                status = "PASS"
+                sv = ev
+                notes = (
+                    "Asset deleted — AMS miss expected; accepting enriched snapshot"
+                )
+            else:
+                status = "SKIP" if ev else "N/A"
         elif ev and spec.source_system == "AMS" and _is_font_list_asset_context(
             operation, spec.enriched_path
         ):
@@ -661,13 +694,15 @@ def _invitation_value(path: str, invitation: dict) -> object | None:
 
 
 def _private_tag_value(path: str, tag: dict) -> object | None:
+    """Resolve ``subject.enrichedSnapshot.tags[i].…`` including associations[j].*."""
     import re
 
     m = re.search(r"tags\[(\d+)\](?:\.(.+))?$", path)
     rel = m.group(2) if m else path.rsplit(".", 1)[-1]
     if not rel:
         return tag
-    rel = rel.split("[")[0]
+    # Keep associations[0].font_name intact — stripping [n] returned the whole array
+    # and false-FAILed every nested association field against Discovery.
     return dig_once(tag, rel)
 
 
@@ -738,8 +773,14 @@ def _ums_value(
         return None
     if path.startswith("subject.enrichedSnapshot.team."):
         if ums_team:
-            key = path.split(".")[-1]
-            return ums_team.get(key)
+            rel = path[len("subject.enrichedSnapshot.team.") :]
+            if not rel:
+                return ums_team
+            val = dig_once(ums_team, rel)
+            if val is not None:
+                return val
+            # Leaf fallback for flat HTTP/DB team rows.
+            return ums_team.get(rel.split(".")[-1])
         return None
     if "subject.enrichedSnapshot" in path and "invitation" in path.lower():
         if ums_invitation:
@@ -1019,6 +1060,12 @@ def _resolve_source_value(
         return None, live.get("ams_error") or ""
 
     if spec.source_system in {"Raw", "GraphQL", "Trigger"}:
+        # Client fingerprints: platformEnvironment is defined by actorUserAgent
+        # (Electron/MonotypeNextGen → app). GraphQL responses do not carry UA —
+        # never compare against invented Chrome+"web" defaults from Excel triggers.
+        if path in {"source.platformEnvironment", "source.actorUserAgent"}:
+            return _resolve_client_fingerprint(path, enriched, live)
+
         # Prefer simulated/replayed GraphQL trigger (input + response) — never the raw envelope.
         trigger = live.get("trigger")
         if isinstance(trigger, dict) and trigger:
@@ -1073,6 +1120,87 @@ def _resolve_source_value(
         return _jwt_actor_value(path, enriched, live)
 
     return None, ""
+
+
+def _resolve_client_fingerprint(
+    path: str, enriched: JsonDict, live: dict[str, Any]
+) -> tuple[object, str]:
+    """Resolve source.platformEnvironment / source.actorUserAgent.
+
+    ``platformEnvironment`` is defined by the client UA (Electron → app, browser → web).
+    ``actorUserAgent`` is not on the GraphQL mutation response — only compare when the
+    real request UA was captured (BE curl / published overlay). Invented Excel defaults
+    (Chrome + web) must not FAIL against Electron desktop events.
+    """
+    from audit_validator.simulation.trigger_context import platform_environment_from_user_agent
+
+    trigger = live.get("trigger") if isinstance(live.get("trigger"), dict) else {}
+    enriched_src = enriched.get("source") if isinstance(enriched.get("source"), dict) else {}
+    enriched_ua = str((enriched_src or {}).get("actorUserAgent") or "").strip()
+
+    if path == "source.platformEnvironment":
+        ua = enriched_ua
+        if not ua and trigger:
+            t_src = trigger.get("source") if isinstance(trigger.get("source"), dict) else {}
+            req = trigger.get("request") if isinstance(trigger.get("request"), dict) else {}
+            ua = str(
+                (t_src or {}).get("actorUserAgent")
+                or (req or {}).get("userAgent")
+                or (req or {}).get("user-agent")
+                or ""
+            ).strip()
+            # Ignore invented Chrome default when deriving env for UI/Excel captures.
+            if ua and _is_invented_trigger_ua(ua, trigger):
+                ua = ""
+        derived = platform_environment_from_user_agent(ua)
+        if derived:
+            return (
+                derived,
+                "Derived from actorUserAgent (Electron/MonotypeNextGen → app; browser → web)",
+            )
+        return None, "actorUserAgent missing — cannot derive platformEnvironment"
+
+    # source.actorUserAgent
+    from_trigger = _trigger_value(path, trigger, enriched) if trigger else None
+    if from_trigger is not None and not _is_invented_trigger_ua(str(from_trigger), trigger):
+        note = "GraphQL curl / event trigger (captured client UA)"
+        if trigger.get("ua_captured"):
+            note = "Captured client User-Agent"
+        return from_trigger, note
+    if from_trigger is not None and _is_invented_trigger_ua(str(from_trigger), trigger):
+        return (
+            None,
+            "actorUserAgent not on GraphQL response; invented trigger UA ignored — skip",
+        )
+    return None, "actorUserAgent not captured on GraphQL response — skip"
+
+
+def _is_invented_trigger_ua(ua: str, trigger: dict[str, Any]) -> bool:
+    """True when UA is a fabricated default, not the real client fingerprint."""
+    from audit_validator.simulation.trigger_context import (
+        DEFAULT_WEB_USER_AGENT,
+        _trigger_is_ui_or_excel_capture,
+    )
+    import os
+
+    u = str(ua or "").strip()
+    if not u:
+        return True
+    low = u.lower()
+    # Real desktop / app fingerprint — never treat as invented.
+    if "electron" in low or "monotypenextgen" in low:
+        return False
+    if trigger.get("ua_captured") is True:
+        return False
+    # Excel / CasePilot UI: Response cell has no UA; build_trigger_context used to
+    # invent Chrome/web — those must not FAIL vs Electron enriched events.
+    if _trigger_is_ui_or_excel_capture(trigger):
+        return True
+    env_ua = (os.getenv("NEXTGEN_USER_AGENT") or "").strip()
+    if u == DEFAULT_WEB_USER_AGENT or (env_ua and u == env_ua):
+        # BE curls intentionally send NEXTGEN_USER_AGENT — that is captured, not invented.
+        return _trigger_is_ui_or_excel_capture(trigger)
+    return False
 
 
 def _jwt_actor_value(

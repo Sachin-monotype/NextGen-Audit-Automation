@@ -911,8 +911,8 @@ def _live_context_for_operation(
                     subject_pid, customer_id, correlation_id=cid
                 )
             except Exception as exc:  # noqa: BLE001
-                # Keep actor profile results — only note subject-profile failure.
-                ctx.setdefault("ums_error", f"UMS subject profile lookup failed: {exc}")
+                # Do NOT write ums_error — that pollutes unrelated actor UMS rows.
+                ctx["ums_subject_error"] = f"UMS subject profile lookup failed: {exc}"
         if not ctx.get("ums_subject_role"):
             sub_role_id = _subject_user_role_id_from_enriched(enriched) or _role_id_from_enriched(
                 enriched
@@ -928,6 +928,27 @@ def _live_context_for_operation(
                     )
                 except Exception as exc:  # noqa: BLE001
                     ctx["ums_role_error"] = f"UMS subject role lookup failed: {exc}"
+
+        # Subject team (createTeam / updateTeam) — numeric id, not a profile UUID.
+        subject_team_id = _subject_team_id_from_enriched(enriched)
+        if subject_team_id and not ctx.get("ums_team"):
+            row = ums_team_by.get(subject_team_id)
+            if not row:
+                fetch_teams = getattr(ums, "get_teams_by_ids", None)
+                if callable(fetch_teams):
+                    try:
+                        for trow in fetch_teams(
+                            [subject_team_id], customer_id, correlation_id=cid
+                        ) or []:
+                            if isinstance(trow, dict) and trow.get("id") is not None:
+                                ums_team_by[str(trow["id"])] = trow
+                                row = trow
+                    except Exception as exc:  # noqa: BLE001
+                        ctx.setdefault(
+                            "ums_team_error", f"UMS subject team lookup failed: {exc}"
+                        )
+            if isinstance(row, dict):
+                ctx["ums_team"] = row
 
         # Actor teams — UMS GET /customers/{gcid}/teams (id/name/description).
         # Profile nested team.id is a UUID and must not be used for teams[i].*
@@ -1241,20 +1262,64 @@ def _subject_customer_id_from_enriched(enriched: JsonDict) -> str | None:
     return None
 
 
+def _looks_like_uuid(value: object) -> bool:
+    s = str(value or "").strip()
+    if len(s) != 36:
+        return False
+    import re
+
+    return bool(
+        re.fullmatch(
+            r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+            s,
+        )
+    )
+
+
 def _subject_profile_id_from_enriched(enriched: JsonDict) -> str | None:
+    """Profile UUID for subject-user ops only — never team/asset/tag numeric ids.
+
+    Falling back to ``subject.id`` for createTeam/updateTeam passed ``60284`` into
+    ``UUID_TO_BIN`` and wiped UMS rows with a false ``subject profile lookup failed``.
+    """
     subject = enriched.get("subject") or {}
     snap = subject.get("enrichedSnapshot") or {}
+    if not isinstance(snap, dict):
+        snap = {}
     if snap.get("invitations"):
         return None
+    # Team / asset / tag subjects are not profiles.
+    if snap.get("team") and not (isinstance(snap.get("user"), dict) and snap.get("user")):
+        return None
+    if snap.get("asset") and not (isinstance(snap.get("user"), dict) and snap.get("user")):
+        return None
+    if (snap.get("tags") or snap.get("privateTags")) and not (
+        isinstance(snap.get("user"), dict) and snap.get("user")
+    ):
+        return None
     user = snap.get("user") or {}
-    prof = user.get("profile") or {}
+    prof = user.get("profile") if isinstance(user, dict) else None
     if isinstance(prof, dict) and prof.get("id"):
         return str(prof["id"])
+    # Only accept subject.id when it is a UUID (profile-targeted ops).
     ids = subject.get("id")
-    if isinstance(ids, list) and ids:
-        return str(ids[0])
-    if ids:
-        return str(ids)
+    candidates: list[object] = []
+    if isinstance(ids, list):
+        candidates.extend(ids)
+    elif ids:
+        candidates.append(ids)
+    for cand in candidates:
+        if _looks_like_uuid(cand):
+            return str(cand).strip()
+    return None
+
+
+def _subject_team_id_from_enriched(enriched: JsonDict) -> str | None:
+    subject = enriched.get("subject") or {}
+    snap = subject.get("enrichedSnapshot") or {}
+    team = snap.get("team") if isinstance(snap, dict) else None
+    if isinstance(team, dict) and team.get("id") is not None:
+        return str(team["id"]).strip()
     return None
 
 

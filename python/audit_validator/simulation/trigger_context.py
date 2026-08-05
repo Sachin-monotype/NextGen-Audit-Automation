@@ -7,6 +7,32 @@ import os
 from pathlib import Path
 from typing import Any
 
+# Default Chrome UA used for BE GraphQL curls when NEXTGEN_USER_AGENT is unset.
+DEFAULT_WEB_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
+)
+
+
+def platform_environment_from_user_agent(ua: str | None) -> str | None:
+    """Map client fingerprint → platformEnvironment.
+
+    App / Electron desktop clients include ``Electron`` (and usually
+    ``MonotypeNextGen``) in the UA. Plain browser UAs map to ``web``.
+    Returns None when the UA is missing or unrecognized.
+    """
+    u = str(ua or "").strip().lower()
+    if not u:
+        return None
+    if "electron" in u or "monotypenextgen" in u:
+        return "app"
+    if any(
+        m in u
+        for m in ("mozilla", "chrome", "safari", "firefox", "edg/", "applewebkit")
+    ):
+        return "web"
+    return None
+
 
 def build_trigger_context(
     *,
@@ -15,25 +41,40 @@ def build_trigger_context(
     graphql_response: dict[str, Any] | None = None,
     graphql_input: dict[str, Any] | None = None,
     user_agent: str | None = None,
+    platform_environment: str | None = None,
     jwt_identity: dict[str, Any] | None = None,
     success: bool | None = None,
+    invent_client_defaults: bool = True,
 ) -> dict[str, Any]:
-    """Build the trigger payload we compare enriched envelope fields against."""
-    ua = (
-        user_agent
-        or os.getenv("NEXTGEN_USER_AGENT")
-        or (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
+    """Build the trigger payload we compare enriched envelope fields against.
+
+    ``invent_client_defaults=False`` (Excel / CasePilot UI) skips fabricating a
+    Chrome UA and hardcoded ``web`` platform — those are not on the GraphQL
+    response. Compare then derives platformEnvironment from the enriched UA
+    (Electron → app) and SKIPs actorUserAgent when it was never captured.
+    """
+    if invent_client_defaults:
+        ua = (
+            user_agent
+            or os.getenv("NEXTGEN_USER_AGENT")
+            or DEFAULT_WEB_USER_AGENT
         )
-    )
+    else:
+        ua = (user_agent or "").strip()
+
     service = os.getenv("AUDIT_SOURCE_SERVICE", "mtconnect-api").strip() or "mtconnect-api"
     platform = os.getenv("AUDIT_SOURCE_PLATFORM", "nextGen").strip() or "nextGen"
-    env = (
-        os.getenv("AUDIT_SOURCE_PLATFORM_ENVIRONMENT")
-        or os.getenv("SOURCE_PLATFORM_ENVIRONMENT")
-        or "web"
-    ).strip() or "web"
+    if platform_environment and str(platform_environment).strip():
+        env = str(platform_environment).strip().lower()
+    elif invent_client_defaults:
+        env = (
+            os.getenv("AUDIT_SOURCE_PLATFORM_ENVIRONMENT")
+            or os.getenv("SOURCE_PLATFORM_ENVIRONMENT")
+            or "web"
+        ).strip() or "web"
+    else:
+        # Prefer UA-derived env when we have a real fingerprint; else leave blank.
+        env = platform_environment_from_user_agent(ua) or ""
     version = os.getenv("AUDIT_SOURCE_PLATFORM_VERSION", "1.0.0").strip() or "1.0.0"
 
     op_state = "success"
@@ -46,6 +87,31 @@ def build_trigger_context(
                 op_state = "failure"
                 break
 
+    request: dict[str, Any] = {
+        "service": service,
+        "platform": platform,
+        "platformVersion": version,
+        "operation": operation,
+        "operationState": op_state,
+        "operationIndex": 0,
+    }
+    source: dict[str, Any] = {
+        "operation": operation,
+        "service": service,
+        "platform": platform,
+        "platformVersion": version,
+        "operationState": op_state,
+        "operationIndex": 0,
+        "type": ["user"],
+    }
+    if env:
+        request["platformEnvironment"] = env
+        source["platformEnvironment"] = env
+    if ua:
+        request["userAgent"] = ua
+        request["user-agent"] = ua
+        source["actorUserAgent"] = ua
+
     return {
         "operation": operation,
         "xCorrelationId": correlation_id or "",
@@ -54,28 +120,10 @@ def build_trigger_context(
         "graphql_response": graphql_response or {},
         "graphql_input": graphql_input or {},
         "jwt_identity": jwt_identity or {},
-        "request": {
-            "userAgent": ua,
-            "user-agent": ua,
-            "service": service,
-            "platform": platform,
-            "platformEnvironment": env,
-            "platformVersion": version,
-            "operation": operation,
-            "operationState": op_state,
-            "operationIndex": 0,
-        },
-        "source": {
-            "operation": operation,
-            "service": service,
-            "platform": platform,
-            "platformEnvironment": env,
-            "platformVersion": version,
-            "actorUserAgent": ua,
-            "operationState": op_state,
-            "operationIndex": 0,
-            "type": ["user"],
-        },
+        # BE curls: UA is what we sent. Excel/UI: only true when a real client UA was passed.
+        "ua_captured": bool(ua) and (invent_client_defaults or bool(user_agent)),
+        "request": request,
+        "source": source,
     }
 
 
@@ -309,6 +357,7 @@ def _overlay_published_envelope(
         if key == "actorUserAgent":
             req["userAgent"] = val
             req["user-agent"] = val
+            ctx["ua_captured"] = True
         elif key in req or key in {
             "operationState",
             "operation",

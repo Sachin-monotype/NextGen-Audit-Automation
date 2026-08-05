@@ -720,21 +720,44 @@ class UmsDbClient:
         params: list[Any] = list(ids)
         sql = f"""
             SELECT
-              id,
-              name,
-              description,
-              LOWER(BIN_TO_UUID(customer_id)) AS customerId
-            FROM {ums_schema()}.teams
-            WHERE id IN ({placeholders})
+              t.id,
+              t.name,
+              t.description,
+              LOWER(BIN_TO_UUID(t.customer_id)) AS customerId,
+              (
+                SELECT COUNT(*)
+                FROM {ums_schema()}.profile_teams pt
+                WHERE pt.team_id = t.id
+              ) AS profilesCount
+            FROM {ums_schema()}.teams t
+            WHERE t.id IN ({placeholders})
         """
         if customer_id:
-            sql += " AND customer_id = UUID_TO_BIN(%s)"
+            sql += " AND t.customer_id = UUID_TO_BIN(%s)"
             params.append(customer_id)
         try:
             rows = select_all(sql, tuple(params), cfg=self._mysql)
         except Exception as exc:  # noqa: BLE001
-            log.warning("UMS teams DB lookup failed: %s", exc)
-            return []
+            # Older schemas may lack profile_teams — fall back without count.
+            log.warning("UMS teams DB lookup failed (%s); retrying without profilesCount", exc)
+            sql = f"""
+                SELECT
+                  id,
+                  name,
+                  description,
+                  LOWER(BIN_TO_UUID(customer_id)) AS customerId
+                FROM {ums_schema()}.teams
+                WHERE id IN ({placeholders})
+            """
+            params2: list[Any] = list(ids)
+            if customer_id:
+                sql += " AND customer_id = UUID_TO_BIN(%s)"
+                params2.append(customer_id)
+            try:
+                rows = select_all(sql, tuple(params2), cfg=self._mysql)
+            except Exception as exc2:  # noqa: BLE001
+                log.warning("UMS teams DB lookup failed: %s", exc2)
+                return []
         out: list[dict[str, Any]] = []
         for row in rows or []:
             out.append(
@@ -743,6 +766,7 @@ class UmsDbClient:
                     "name": _pick(row, "name"),
                     "description": _pick(row, "description"),
                     "customerId": _str(_pick(row, "customerId", "customer_id")),
+                    "profilesCount": _pick(row, "profilesCount", "profiles_count"),
                     "_source": f"mysql:{ums_schema()}.teams",
                 }
             )

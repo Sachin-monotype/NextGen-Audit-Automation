@@ -1692,15 +1692,203 @@ button:disabled {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-start;
+  align-items: flex-end;
 }
 
 .coverage-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 10px;
+}
+
+.coverage-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.coverage-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.coverage-toolbar .filter-field {
+  margin: 0;
+}
+
+.coverage-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 10px;
+}
+
+.coverage-select-shown {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.coverage-sort-btn {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.coverage-sort-btn:hover {
+  color: var(--accent);
+}
+
+.coverage-table td.num,
+.coverage-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.coverage-event-name {
+  border: none;
+  background: transparent;
+  color: #111;
+  font-weight: 700;
+  font-size: 0.92rem;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+}
+
+.coverage-event-name:hover {
+  text-decoration: underline;
+}
+
+.coverage-scenario-name {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.88rem;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.coverage-scenario-name.nested {
+  padding-left: 20px;
+  color: var(--text-muted);
+}
+
+.coverage-scenario-name:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.coverage-scenario-toggle {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  padding: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.coverage-scenario-toggle:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.results-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.coverage-op-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.coverage-op-cell.event {
+  gap: 6px;
+}
+
+.coverage-op-cell.nested {
+  padding-left: 8px;
+}
+
+.coverage-scenario-branch {
+  width: 10px;
+  height: 10px;
+  border-left: 2px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  margin: 0 4px 6px 10px;
+  flex: 0 0 auto;
+}
+
+.coverage-scenario-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.coverage-scenario-full {
+  font-size: 0.75rem;
+}
+
+.coverage-scenario-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
+.coverage-event-row td {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.coverage-scenario-row td {
+  background: color-mix(in srgb, var(--bg) 40%, var(--surface));
+}
+
+.coverage-grouped .op-group-expand {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.coverage-grouped .op-group-expand:hover {
+  color: var(--accent);
 }
 
 .coverage-outcome-filters .chip {
@@ -1832,11 +2020,6 @@ button:disabled {
   background: var(--surface);
 }
 
-.coverage-head h3 {
-  margin: 0 0 4px;
-  font-size: 1rem;
-}
-
 .coverage-table td,
 .coverage-table th {
   white-space: nowrap;
@@ -1856,6 +2039,10 @@ button:disabled {
 .coverage-op-link {
   font-weight: 600;
   text-align: left;
+}
+
+.coverage-table .coverage-op-cell.event {
+  justify-content: flex-start;
 }
 
 .track-pill {

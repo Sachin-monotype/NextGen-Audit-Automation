@@ -583,7 +583,7 @@ def _event_header_fields(operation: str) -> list[MappingField]:
         ),
         MappingField(
             "source", "platformEnvironment", "", "",
-            "Source: trigger platformEnvironment (web)", "", "Y",
+            "Source: platformEnvironment from actorUserAgent (Electron→app, browser→web)", "", "Y",
             "source.platformEnvironment", trigger, api, "event",
         ),
         MappingField(
@@ -593,7 +593,7 @@ def _event_header_fields(operation: str) -> list[MappingField]:
         ),
         MappingField(
             "source", "actorUserAgent", "", "",
-            "Source: User-Agent header on the GraphQL curl", "", "Y",
+            "Source: captured client User-Agent (skip when not on GraphQL response)", "", "Y",
             "source.actorUserAgent", trigger, api, "event",
         ),
         MappingField(

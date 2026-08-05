@@ -64,19 +64,25 @@ def scenario_display_name(
     *,
     ui: bool = False,
     be: bool = False,
+    app: bool = False,
+    target: str | None = None,
 ) -> str:
-    """e.g. ``activateFamily(global)`` for UI, ``activateFamily(global)(BE)`` for backend.
+    """e.g. ``activateFamily(global)``, ``activateFamily(global)(app)``, ``…(BE)``.
 
-    UI is the default channel — no ``(UI)`` suffix. Only backend-minted runs get ``(BE)``.
+    UI/web is the default channel — no ``(UI)`` / ``(web)`` suffix.
+    App Excel / plugin runs get ``(app)``. Backend-minted runs get ``(BE)``.
     """
     short = short_touchpoint(touchpoint)
     base = f"{operation}({short})" if short else operation
-    # Strip legacy channel suffixes before applying canonical tags
-    for legacy in ("(ui)", "(be)", "(UI)", "(BE)"):
+    # Strip legacy channel / platform suffixes before applying canonical tags
+    for legacy in ("(ui)", "(be)", "(UI)", "(BE)", "(app)", "(APP)", "(web)", "(WEB)"):
         if base.endswith(legacy):
             base = base[: -len(legacy)]
-    if be and not ui:
+    is_app = app or (str(target or "").strip().lower() == "app")
+    if be and not ui and not is_app:
         return f"{base}(BE)"
+    if is_app:
+        return f"{base}(app)"
     return base
 
 

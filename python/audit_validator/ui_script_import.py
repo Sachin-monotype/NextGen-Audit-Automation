@@ -494,7 +494,10 @@ def _selection_from_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for r in rows:
         op = str(r.get("operation") or "").strip()
         touch = str(r.get("touchpoint") or "").strip()
+        tgt = str(r.get("target") or "").strip().lower()
         key = f"{op}::{touch}" if touch else op
+        if tgt == "app":
+            key = f"{key}::app"
         if not op or key in seen:
             continue
         seen.add(key)
@@ -503,9 +506,10 @@ def _selection_from_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "id": key,
                 "operation": op,
                 "touchpoint": touch or None,
-                "label": scenario_display_name(op, touch or None, ui=True)
-                .replace("(UI)", "")
-                .strip(),
+                "target": tgt or None,
+                "label": scenario_display_name(
+                    op, touch or None, ui=True, target=tgt or None
+                ),
             }
         )
     return out
@@ -579,6 +583,7 @@ def create_ui_script_job(
             "correlation_id": cid,
             "operation": op,
             "touchpoint": touch,
+            "target": str(r.get("target") or target or "").strip().lower() or None,
             "source": "playwright_script",
             "recorded_at": _now(),
             "jwt_identity": ident,

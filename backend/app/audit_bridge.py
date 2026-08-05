@@ -1279,14 +1279,16 @@ class AuditBridge:
                     cfg_ua = load_simulation_config(self.project_root).nextgen_user_agent
                 except Exception:
                     pass
+                is_ui = str(sc.get("source") or "").lower() == "ui"
                 ctx = build_trigger_context(
                     operation=str(sc.get("operation") or ""),
                     correlation_id=str(sc.get("xCorrelationId") or "") or None,
                     graphql_response=resp if isinstance(resp, dict) else {},
                     graphql_input=sc.get("input") if isinstance(sc.get("input"), dict) else {},
-                    user_agent=cfg_ua,
+                    user_agent=None if is_ui else cfg_ua,
                     jwt_identity=jwt_identity(),
                     success=True,
+                    invent_client_defaults=not is_ui,
                 )
                 save_trigger_context(self.project_root, display, ctx)
             except Exception as exc:  # noqa: BLE001

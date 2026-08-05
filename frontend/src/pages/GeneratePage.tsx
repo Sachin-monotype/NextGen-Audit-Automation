@@ -202,15 +202,19 @@ function isPlaceholderScenario(operation?: string | null, touchpoint?: string | 
 function scenarioDisplayName(
   operation: string,
   touchpoint?: string | null,
-  opts?: { ui?: boolean; be?: boolean },
+  opts?: { ui?: boolean; be?: boolean; app?: boolean; target?: string | null },
 ): string {
   const short = shortTouchpoint(touchpoint);
   let base = short ? `${operation}(${short})` : operation;
-  for (const legacy of ["(ui)", "(be)", "(UI)", "(BE)"]) {
+  for (const legacy of ["(ui)", "(be)", "(UI)", "(BE)", "(app)", "(APP)", "(web)", "(WEB)"]) {
     if (base.endsWith(legacy)) base = base.slice(0, -legacy.length);
   }
-  // UI is the default channel — no "(UI)" suffix. Only backend runs get "(BE)".
-  if (opts?.be && !opts?.ui) return `${base}(BE)`;
+  const isApp =
+    Boolean(opts?.app) || String(opts?.target || "").trim().toLowerCase() === "app";
+  // UI/web is the default channel — no "(UI)"/"(web)" suffix.
+  // App Excel/plugin runs get "(app)". Backend runs get "(BE)".
+  if (opts?.be && !opts?.ui && !isApp) return `${base}(BE)`;
+  if (isApp) return `${base}(app)`;
   return base;
 }
 
@@ -222,7 +226,12 @@ function dedupeScenarioRows(scenarios: ScenarioRow[]): ScenarioRow[] {
   for (const s of scenarios) {
     if (isPlaceholderScenario(s.operation, s.touchpoint)) continue;
     const ui = String(s.source || "").toLowerCase() === "ui" || String((s as { kind?: string }).kind || "").includes("ui");
-    const key = scenarioDisplayName(s.operation, s.touchpoint, { ui, be: !ui });
+    const target = String((s as { target?: string }).target || "").toLowerCase();
+    const key = scenarioDisplayName(s.operation, s.touchpoint, {
+      ui,
+      be: !ui && target !== "app",
+      target,
+    });
     const prev = byKey.get(key);
     if (!prev) {
       byKey.set(key, { ...s, label: key });
@@ -1282,9 +1291,14 @@ export default function GeneratePage({
   const statusRows: StatusRow[] = useMemo(() => {
     if (statusScenarios.length > 0) {
       return statusScenarios.map((s) => {
-        // Generation Status shows the clean scenario name (no "(UI)"/"(BE)" suffix).
+        // Keep "(app)" so app Excel runs stay distinct from web; strip only legacy UI/BE.
         const cleanLabel = (s.label || "").replace(/\s*\((?:UI|BE)\)\s*$/i, "");
-        const key = cleanLabel || scenarioDisplayName(s.operation, s.touchpoint);
+        const key =
+          cleanLabel ||
+          scenarioDisplayName(s.operation, s.touchpoint, {
+            ui: true,
+            target: s.target,
+          });
         return {
           key,
           operation: s.operation,
