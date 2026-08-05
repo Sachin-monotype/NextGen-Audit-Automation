@@ -1,0 +1,375 @@
+{
+  "source": "Desktop UI Navigation spreadsheet + ingress manifest + ui_navigation.json",
+  "target_url": "https://mt-audit-log-resolver-service-preprod.monotype-pp.com/v1/audit-events",
+  "events": [
+    {
+      "case_id": "app_settings_plugin_install_all_enabled",
+      "event_name": "app.settings.plugin.install_all.enabled",
+      "operation": "appSettingsPluginInstallAllEnabled",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Desktop app > Preferences > Plugins > Install all plugins > Enable toggle"
+      ],
+      "trigger_hint": "enable plugin",
+      "automatable": true,
+      "steps": []
+    },
+    {
+      "case_id": "app_settings_plugin_install_all_disabled",
+      "event_name": "app.settings.plugin.install_all.disabled",
+      "operation": "appSettingsPluginInstallAllDisabled",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Desktop app > Preferences > Plugins > Install all plugins > Disable toggle"
+      ],
+      "trigger_hint": "disable plugin",
+      "automatable": true,
+      "steps": []
+    },
+    {
+      "case_id": "app_settings_plugin_app_enabled",
+      "event_name": "app.settings.plugin.app.enabled",
+      "operation": "appSettingsPluginAppEnabled",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Desktop app > Preferences > Plugins > Apps available on system > Enable plugin for app"
+      ],
+      "trigger_hint": "n/a",
+      "automatable": false,
+      "remarks": "Enable plugin for a specific installed app row",
+      "steps": []
+    },
+    {
+      "case_id": "app_settings_plugin_app_app_name_enabled",
+      "event_name": "app.settings.plugin.app.[App_name]_enabled",
+      "operation": "appSettingsPluginInstallAllDisabled",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Desktop app > Preferences > Plugins > Per-app row > Enable"
+      ],
+      "trigger_hint": "enable specific app",
+      "automatable": true,
+      "steps": []
+    },
+    {
+      "case_id": "app_settings_performance_mode_changed",
+      "event_name": "app.settings.performance_mode.changed",
+      "operation": "appSettingsPerformanceModeChanged",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Desktop app > Preferences > General > Performance mode > Select mode"
+      ],
+      "trigger_hint": "change mode when enabled",
+      "automatable": true,
+      "steps": []
+    },
+    {
+      "case_id": "app_settings_auto_performance_enabled",
+      "event_name": "app.settings.auto_performance.enabled",
+      "operation": "appSettingsAutoPerformanceEnabled",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Desktop app > Preferences > General > Auto performance management > Enable toggle"
+      ],
+      "trigger_hint": "enable performance",
+      "automatable": true,
+      "steps": []
+    },
+    {
+      "case_id": "app_settings_auto_performance_disabled",
+      "event_name": "app.settings.auto_performance.disabled",
+      "operation": "appSettingsAutoPerformanceDisabled",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Desktop app > Preferences > General > Auto performance management > Disable toggle"
+      ],
+      "trigger_hint": "disable performance",
+      "automatable": true,
+      "steps": []
+    },
+    {
+      "case_id": "app_settings_activation_mode_changed",
+      "event_name": "app.settings.activation_mode.changed",
+      "operation": "appSettingsActivationModeChanged",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Desktop app > Preferences > Plugins > Deactivate temporary fonts when > Dropdown"
+      ],
+      "trigger_hint": "No ui idea",
+      "automatable": true,
+      "steps": []
+    },
+    {
+      "case_id": "app_logs_exported",
+      "event_name": "app.logs.exported",
+      "operation": "appLogsExported",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Desktop app > Help & Support > System logs > Download system logs"
+      ],
+      "trigger_hint": "helpandsupport > download system log",
+      "automatable": true,
+      "steps": []
+    },
+    {
+      "case_id": "app_network_refreshed",
+      "event_name": "app.network.refreshed",
+      "operation": "appNetworkRefreshed",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Desktop app > Help & Support > Network status > Refresh status"
+      ],
+      "trigger_hint": "helpandsupport > refresh status",
+      "automatable": true,
+      "steps": []
+    },
+    {
+      "case_id": "app_language_changed",
+      "event_name": "app.language.changed",
+      "operation": "appLanguageChanged",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Desktop app > Preferences > General > Language > Select language"
+      ],
+      "trigger_hint": "preferences > change language",
+      "automatable": true,
+      "steps": []
+    },
+    {
+      "case_id": "app_feedback_submitted",
+      "event_name": "app.feedback.submitted",
+      "operation": "appFeedbackSubmitted",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Desktop app > Preferences > About > Send feedback / contact support"
+      ],
+      "trigger_hint": "about > share feedback",
+      "automatable": true,
+      "steps": []
+    },
+    {
+      "case_id": "app_cache_cleared",
+      "event_name": "app.cache.cleared",
+      "operation": "appCacheCleared",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Desktop app > Help & Support > Storage > Clear font cache > Confirm"
+      ],
+      "trigger_hint": "N/A",
+      "automatable": false,
+      "remarks": "Requires confirming cache clear dialog — run manually or extend steps",
+      "steps": []
+    },
+    {
+      "case_id": "font_sync_success",
+      "event_name": "fontSyncSuccess",
+      "operation": "fontSyncSuccess",
+      "category": "font_activations",
+      "navigation": [
+        "Desktop app > Font Bridge > Sync fonts"
+      ],
+      "trigger_hint": "Fontbridge",
+      "automatable": false,
+      "remarks": "Triggered by Font Bridge sync completion — may require waiting for background sync"
+    },
+    {
+      "case_id": "font_activation_type_switched",
+      "event_name": "font.activation.type.switched",
+      "operation": "fontActivationTypeSwitched",
+      "category": "font_activations",
+      "navigation": [
+        "Discover Fonts / Search / My Library > Font card > Switch temp activation to permanent"
+      ],
+      "trigger_hint": "activate family",
+      "automatable": true,
+      "steps": [
+        {
+          "action": "click",
+          "selector": "[data-testid='menu-item-Discover fonts']",
+          "xpath": "",
+          "description": "Discover fonts"
+        }
+      ]
+    },
+    {
+      "case_id": "font_temp_activated",
+      "event_name": "font.temp_activated",
+      "operation": "fontTempActivated",
+      "category": "font_activations",
+      "navigation": [
+        "Desktop app > Discover Fonts > Activate family (temporary)"
+      ],
+      "trigger_hint": "",
+      "automatable": true,
+      "steps": [
+        {
+          "action": "click",
+          "selector": "[data-testid='nav-discover-fonts']",
+          "xpath": "//a[contains(.,'Discover')]",
+          "description": "Discover Fonts"
+        },
+        {
+          "action": "click",
+          "selector": "[data-testid='activate-family-btn']:first-of-type",
+          "xpath": "(//button[contains(@aria-label,'Activate')])[1]",
+          "description": "Temp activate first family"
+        }
+      ]
+    },
+    {
+      "case_id": "font_localfont_activated",
+      "event_name": "font.localfont.activated",
+      "operation": "fontLocalfontActivated",
+      "category": "font_activations",
+      "navigation": [
+        "Desktop app > My Inventory > System fonts > Activate font (row toggle)"
+      ],
+      "trigger_hint": "plugin",
+      "automatable": true,
+      "steps": [
+        {
+          "action": "click",
+          "selector": "[data-testid='nav-my-inventory']",
+          "xpath": "//a[contains(.,'My Inventory') or contains(.,'Inventory')]",
+          "description": "My Inventory"
+        },
+        {
+          "action": "click",
+          "selector": "[data-testid='system-fonts-tab']",
+          "xpath": "//button[contains(.,'System fonts')]",
+          "description": "System fonts tab"
+        },
+        {
+          "action": "click",
+          "selector": "[data-testid='local-font-activate-toggle']:first-of-type",
+          "xpath": "(//input[@type='checkbox' and contains(@aria-label,'Activate')])[1]",
+          "description": "Activate local font"
+        }
+      ]
+    },
+    {
+      "case_id": "font_localfont_deactivated",
+      "event_name": "font.localfont.deactivated",
+      "operation": "fontLocalfontDeactivated",
+      "category": "font_activations",
+      "navigation": [
+        "Desktop app > My Inventory > System fonts > Deactivate font (row toggle)"
+      ],
+      "trigger_hint": "plugin",
+      "automatable": true,
+      "steps": [
+        {
+          "action": "click",
+          "selector": "[data-testid='nav-my-inventory']",
+          "xpath": "//a[contains(.,'My Inventory')]",
+          "description": "My Inventory"
+        },
+        {
+          "action": "click",
+          "selector": "[data-testid='system-fonts-tab']",
+          "xpath": "//button[contains(.,'System fonts')]",
+          "description": "System fonts tab"
+        },
+        {
+          "action": "click",
+          "selector": "[data-testid='local-font-activate-toggle']:first-of-type",
+          "xpath": "(//input[@type='checkbox' and contains(@aria-label,'Activate')])[1]",
+          "description": "Deactivate local font"
+        }
+      ]
+    },
+    {
+      "case_id": "user_login_initiated_app",
+      "event_name": "userLoginInitiatedApp",
+      "operation": "userLoginInitiatedApp",
+      "category": "login",
+      "navigation": [
+        "Desktop app > click on login"
+      ],
+      "trigger_hint": "login",
+      "automatable": true,
+      "steps": [
+        {
+          "action": "click",
+          "selector": "[data-testid='login-button']",
+          "xpath": "//button[contains(.,'Log in') or contains(.,'Sign in')]",
+          "description": "Open login flow"
+        }
+      ]
+    },
+    {
+      "case_id": "userloginfailureapp",
+      "event_name": "userLoginFailureApp",
+      "operation": "userLoginFailureApp",
+      "category": "login",
+      "navigation": [
+        "Desktop app > Login screen > Failed login attempt"
+      ],
+      "trigger_hint": "No ui idea",
+      "automatable": false,
+      "remarks": "Requires invalid credentials — manual/security-sensitive"
+    },
+    {
+      "case_id": "userlogoutapp",
+      "event_name": "userLogoutApp",
+      "operation": "userLogoutApp",
+      "category": "login",
+      "navigation": [
+        "Desktop app > Profile / account menu > Logout"
+      ],
+      "trigger_hint": "log out",
+      "automatable": true,
+      "steps": [
+        {
+          "action": "click",
+          "selector": "[data-testid='profile-avatar-trigger']",
+          "xpath": "",
+          "description": "Open profile menu"
+        },
+        {
+          "action": "click",
+          "selector": "",
+          "xpath": "//*[contains(.,'Log out') or contains(.,'Logout')]",
+          "description": "Log out"
+        }
+      ]
+    },
+    {
+      "case_id": "userswitchworkspaceapp",
+      "event_name": "userSwitchworkspaceApp",
+      "operation": "userSwitchWorkspaceApp",
+      "category": "login",
+      "navigation": [
+        "Desktop app > Workspace switcher > Switch workspace"
+      ],
+      "trigger_hint": "need account app",
+      "automatable": true,
+      "steps": [
+        {
+          "action": "click",
+          "selector": "[data-testid='workspace-switcher']",
+          "xpath": "//button[contains(@aria-label,'workspace') or contains(@class,'workspace')]",
+          "description": "Open workspace switcher"
+        },
+        {
+          "action": "click",
+          "selector": "[data-testid='workspace-option']:not([aria-selected='true'])",
+          "xpath": "(//li[contains(@role,'option') and not(@aria-selected='true')])[1]",
+          "description": "Select alternate workspace"
+        }
+      ]
+    },
+    {
+      "case_id": "identitylinked",
+      "event_name": "identityLinked",
+      "operation": "identityLinked",
+      "category": "login",
+      "navigation": [
+        "Desktop app > Login / SSO flow > Link identity to workspace"
+      ],
+      "trigger_hint": "on successful login",
+      "automatable": false,
+      "remarks": "Emitted after successful SSO/login — covered by login flow"
+    }
+  ]
+}

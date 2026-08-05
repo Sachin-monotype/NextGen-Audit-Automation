@@ -92,6 +92,14 @@ def ingress_results_json(root: Path) -> Path:
     return temp_path(root, "ingress-results.json")
 
 
+def desktop_ui_results_json(root: Path) -> Path:
+    return temp_path(root, "desktop-ui-results.json")
+
+
+def desktop_ui_validation_xlsx(root: Path) -> Path:
+    return result_dir(root) / "desktop-ui-validation.xlsx"
+
+
 def flows_results_json(root: Path) -> Path:
     return temp_path(root, "flows-results.json")
 

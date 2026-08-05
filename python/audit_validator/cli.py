@@ -192,6 +192,40 @@ def cmd_run_ingress(args: argparse.Namespace) -> int:
     return 1 if run.fail_count else 0
 
 
+def cmd_run_desktop_ui(args: argparse.Namespace) -> int:
+    from .desktop.config import default_log_dir
+    from .desktop.runner import run_desktop_ui_automation
+
+    root = Path(args.project_root).resolve() if args.project_root else _default_project_root()
+    log_dir = Path(args.log_dir).resolve() if args.log_dir else default_log_dir()
+    ops = {o.strip() for o in (args.operations or "").split(",") if o.strip()} or None
+
+    db = None
+    try:
+        from .config import load_config
+        from .ingestion.repository import AuditEventRepository
+
+        cfg = load_config(root)
+        if cfg.mongo.url:
+            db = AuditEventRepository(cfg.mongo)
+    except Exception:  # noqa: BLE001
+        pass
+
+    result = run_desktop_ui_automation(
+        project_root=root,
+        log_dir=log_dir,
+        operations=ops,
+        validate_only=args.validate_only,
+        connect_only=args.connect_only,
+        settle_sec=args.settle_sec,
+        post_settle_sec=args.post_settle_sec,
+        db=db,
+        progress=print,
+    )
+    print(f"Excel: {result.xlsx_path}")
+    return 1 if result.validation.summary.fail_count else 0
+
+
 def cmd_purge_ingress_queues(args: argparse.Namespace) -> int:
     from .config import load_config
     from .ingress.runner import purge_ingress_queues
@@ -544,6 +578,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="Purge PP ingress test queues before posting events",
     )
     p_ingress.set_defaults(func=cmd_run_ingress)
+
+    p_desktop = sub.add_parser(
+        "run-desktop-ui",
+        help="Trigger Monotype Connect desktop UI events and validate today's ConnectService logs",
+    )
+    p_desktop.add_argument("--project-root", default=None)
+    p_desktop.add_argument("--log-dir", default=None, help="ConnectService log directory (LOGS_PATH)")
+    p_desktop.add_argument("--operations", default=None, help="Comma-separated operation names")
+    p_desktop.add_argument(
+        "--validate-only",
+        action="store_true",
+        help="Parse today's logs only (skip UI automation)",
+    )
+    p_desktop.add_argument(
+        "--connect-only",
+        action="store_true",
+        help="Attach to running desktop app via CDP",
+    )
+    p_desktop.add_argument("--settle-sec", type=float, default=2.0)
+    p_desktop.add_argument("--post-settle-sec", type=float, default=5.0)
+    p_desktop.set_defaults(func=cmd_run_desktop_ui)
 
     p_purge_ingress = sub.add_parser(
         "purge-ingress-queues",

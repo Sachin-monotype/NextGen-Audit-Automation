@@ -7,44 +7,40 @@ from __future__ import annotations
 
 import argparse
 import subprocess
+import sys
 from pathlib import Path
-
-DEFAULT_LOG_DIR = Path(
-    r"C:\Users\Dell\AppData\Local\Monotype\Monotype Connect\Logs\ConnectService\service"
-)
-
-TARGET_URL = "https://mt-audit-log-resolver-service-preprod.monotype-pp.com/v1/audit-events"
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
-def iter_log_files(log_dir: Path, latest: bool):
-    files = [f for f in log_dir.iterdir() if f.is_file()]
+sys.path.insert(0, str(PROJECT_ROOT / "python"))
 
-    if not files:
-        return []
+from audit_validator.desktop.config import TARGET_URL, default_log_dir  # noqa: E402
+from audit_validator.desktop.log_extractor import (  # noqa: E402
+    extract_ingress_events_from_logs,
+    iter_log_files,
+)
 
-    files.sort(key=lambda f: f.stat().st_mtime)
-
-    if latest:
-        return [files[-1]]
-
-    return files
+DEFAULT_LOG_DIR = default_log_dir()
 
 
-def extract_curls(log_file: Path):
+def extract_curls(log_file: Path, *, today_only: bool = False):
+    events = extract_ingress_events_from_logs(
+        log_file.parent,
+        today_only=today_only,
+        latest_file_only=False,
+    )
+    by_file = [e for e in events if e.log_file == log_file.name]
+    if by_file:
+        return [e.raw_curl for e in by_file]
+
     curls = []
-
     with log_file.open("r", encoding="utf-8", errors="ignore") as f:
         for line in f:
             if "[CurlDebug]" not in line:
                 continue
-
             if TARGET_URL not in line:
                 continue
-
-            curl = line.split("[CurlDebug]", 1)[1].strip()
-            curls.append(curl)
-
+            curls.append(line.split("[CurlDebug]", 1)[1].strip())
     return curls
 
 
@@ -107,6 +103,12 @@ def main():
     )
 
     parser.add_argument(
+        "--today-only",
+        action="store_true",
+        help="Only consider log files and lines from the current date",
+    )
+
+    parser.add_argument(
         "--operation",
         help="Filter by source.operation",
     )
@@ -141,20 +143,25 @@ def main():
         else PROJECT_ROOT / "curls"
     )
 
-    log_files = iter_log_files(args.log_dir, args.latest)
+    log_files = iter_log_files(args.log_dir, today_only=args.today_only)
+    if args.latest and log_files:
+        log_files = [log_files[-1]]
 
     if not log_files:
         raise SystemExit("No log files found.")
 
     curls = []
 
-    for log in log_files:
-        extracted = extract_curls(log)
-
-        if extracted:
-            print(f"{log.name}: found {len(extracted)} curl(s)")
-
-        curls.extend(extracted)
+    if args.today_only:
+        for ev in extract_ingress_events_from_logs(args.log_dir, today_only=True):
+            curls.append(ev.raw_curl)
+            print(f"{ev.log_file}:{ev.line_no}: {ev.operation} xCorrelationId={ev.x_correlation_id}")
+    else:
+        for log in log_files:
+            extracted = extract_curls(log, today_only=False)
+            if extracted:
+                print(f"{log.name}: found {len(extracted)} curl(s)")
+            curls.extend(extracted)
 
     curls = filter_operation(curls, args.operation)
 
