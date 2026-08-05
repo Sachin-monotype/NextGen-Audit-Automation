@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "jira": "FDC-14091",
+  "suite": 22395,
+  "suite_section": 4066542,
+  "notes": "Monotype Connect desktop UI flows for ingress + app-scoped GraphQL. Push: local/scripts/push_ui_testrail_cases.py --pack ingress --merge-map",
+  "preconditions_template": "1. Monotype Connect desktop app installed on macOS (test machine).\n2. Test credentials available (OAUTH_USERNAME / OAUTH_PASSWORD).\n3. VPN connected; ingress tap queues configured.\n4. Capture xCorrelationId (ingress) or GraphQL correlation-id after the action.\n5. Emit AUDIT_RESULT with real UUID. Jira: FDC-14091.",
+  "cases": [
+    {
+      "case_id": 73311305,
+      "title": "UI: Monotype Connect login → Preferences → change mac performance mode",
+      "operation": "appSettingsPerformanceModeChanged",
+      "touchpoint": "Desktop UI",
+      "key": "appSettingsPerformanceModeChanged::Desktop UI",
+      "kind": "ingress",
+      "ingress_case_id": "app_settings_performance_mode_changed",
+      "custom_preconds": "1. Monotype Connect desktop app installed on macOS.\n2. Valid test user credentials.\n3. App not logged in OR ready to re-open Preferences.",
+      "custom_steps_separated": [
+        {
+          "content": "Launch Monotype Connect desktop app on macOS.",
+          "expected": "App opens to login screen or home."
+        },
+        {
+          "content": "Log in with the configured test credentials.",
+          "expected": "User is authenticated; main app UI is visible."
+        },
+        {
+          "content": "Open Preferences (Monotype Connect menu → Preferences / Settings).",
+          "expected": "Preferences window opens."
+        },
+        {
+          "content": "Navigate to General → Performance mode and select a different mode (e.g. Max capacity or Balanced).",
+          "expected": "Performance mode changes; appSettingsPerformanceModeChanged ingress event fires."
+        },
+        {
+          "content": "Capture xCorrelationId from the ingress audit event → emit AUDIT_RESULT|operation=appSettingsPerformanceModeChanged|correlation_id=<real-uuid>|touchpoint=desktop_ui|source=ingress",
+          "expected": "AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "case_id": 73311306,
+      "title": "UI: Activate family from global search in Monotype Connect app",
+      "operation": "activateFamily",
+      "touchpoint": "App (global)",
+      "key": "activateFamily::App (global)",
+      "kind": "graphql",
+      "custom_preconds": "1. Monotype Connect desktop app installed and logged in.\n2. At least one non-activated family available in Discover / Search.",
+      "custom_steps_separated": [
+        {
+          "content": "Launch Monotype Connect desktop app and log in with test credentials.",
+          "expected": "App home / Discover view is visible."
+        },
+        {
+          "content": "Open Discover or Search and locate a family that is not activated.",
+          "expected": "Family card shows inactive / not activated state."
+        },
+        {
+          "content": "Activate the family from the global discover/search view (family card Activate toggle).",
+          "expected": "Family activates; ActivateFamily GraphQL mutation fires from the app."
+        },
+        {
+          "content": "Network filter operationName=activateFamily → copy response header correlation-id → emit AUDIT_RESULT|operation=activateFamily|correlation_id=<real-uuid>|touchpoint=global_app",
+          "expected": "GraphQL activateFamily captured; AUDIT_RESULT emitted with real UUID; raw+enrich in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    }
+  ]
+}

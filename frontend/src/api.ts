@@ -12,7 +12,7 @@ export type LogRow = {
   "actor.globalUserId": string;
   occurredAt: string;
   message: Record<string, unknown>;
-  /** Scenario label when this event was minted by us, e.g. activateFamily(global)(UI). */
+  /** Scenario label when this event was minted by us, e.g. activateFamily(global) or activateFamily(global)(BE). */
   scenario?: string;
   /** UI | BE — present only for events we generated. */
   channel?: string;
@@ -92,12 +92,16 @@ export type TokenStatus = {
   can_regenerate?: boolean;
   message?: string;
   error?: string;
-  credentials?: {
+    credentials?: {
     username?: string;
+    profile_username?: string;
+    audit_target?: string;
     org?: string;
     gcid?: string;
     email?: string;
     has_password?: string;
+    grant_type?: string;
+    token_url?: string;
   };
 };
 
@@ -235,14 +239,23 @@ export type LatestComparisonItem = {
   rows: ComparisonRow[];
 };
 
-export async function fetchLatestResults() {
-  const res = await fetch(`${API}/api/results/latest`);
+export async function fetchLatestResults(target?: string) {
+  const qs = target ? `?target=${encodeURIComponent(target)}` : "";
+  const res = await fetch(`${API}/api/results/latest${qs}`);
   return res.json() as Promise<{
     operations: string[];
     items: LatestComparisonItem[];
     rows: ComparisonRow[];
     count: number;
+    audit_target?: string;
+    available_targets?: string[];
   }>;
+}
+
+export async function fetchEnrichedSample(operation: string) {
+  const res = await fetch(`${API}/api/results/enriched-sample/${encodeURIComponent(operation)}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{ operation: string; enriched: Record<string, unknown> }>;
 }
 
 export async function deleteLatestResult(operation: string) {
@@ -339,6 +352,7 @@ export type UiTriggerJob = {
     note?: string;
     generate_run_saved?: boolean;
     completed?: boolean;
+    auto_verify_pending?: boolean;
   };
 };
 
@@ -349,7 +363,7 @@ export async function startGenerateInUi(body: {
   notes?: string;
   extra?: Record<string, unknown>;
   dispatch?: boolean;
-  /** CasePilot browser mode — false = headed (default), true = headless */
+  /** CasePilot browser mode — true = headless (default), false = headed */
   headless?: boolean;
   /** 1 = serial; 2+ = parallel browsers (clamped by CasePilot PP cap); omit = env / PP default */
   max_parallel?: number;
@@ -410,6 +424,88 @@ export async function fetchGenerateInUi(jobId: string) {
   return res.json() as Promise<UiTriggerJob>;
 }
 
+export async function listGenerateInUi() {
+  const res = await fetch(`${API}/api/jobs/generate-ui`);
+  const data = await res.json();
+  return data as { jobs?: UiTriggerJob[]; count?: number; error?: string };
+}
+
+export type UiScriptCatalogRow = {
+  id?: string;
+  event_name: string;
+  scenario: string;
+  correlation_id: string;
+  has_auth_token: boolean;
+};
+
+export type UiScriptCatalog = {
+  ok: boolean;
+  target?: string;
+  path?: string;
+  filename?: string;
+  sheet?: string;
+  events?: string[];
+  scenarios?: string[];
+  rows?: UiScriptCatalogRow[];
+  count?: number;
+  error?: string;
+};
+
+export type UiScriptPair = { event_name: string; scenario: string };
+
+export async function fetchUiScriptCatalog(target: "web" | "app", file?: File | null) {
+  if (file) {
+    const fd = new FormData();
+    fd.append("target", target);
+    fd.append("file", file);
+    const res = await fetch(`${API}/api/jobs/generate-ui-script/catalog`, {
+      method: "POST",
+      body: fd,
+    });
+    const data = (await res.json()) as UiScriptCatalog;
+    if (!res.ok || data.ok === false) {
+      throw new Error(data.error || "Failed to parse uploaded Excel");
+    }
+    return data;
+  }
+  const res = await fetch(
+    `${API}/api/jobs/generate-ui-script/catalog?target=${encodeURIComponent(target)}`,
+  );
+  const data = (await res.json()) as UiScriptCatalog;
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || "Failed to load UI script catalog");
+  }
+  return data;
+}
+
+export async function importGenerateFromUiScript(opts: {
+  target: "web" | "app";
+  pairs?: UiScriptPair[];
+  file?: File | null;
+}) {
+  const fd = new FormData();
+  fd.append("target", opts.target);
+  fd.append("pairs", JSON.stringify(opts.pairs ?? []));
+  if (opts.file) fd.append("file", opts.file);
+  const res = await fetch(`${API}/api/jobs/generate-ui-script`, {
+    method: "POST",
+    body: fd,
+  });
+  const data = await res.json();
+  if (!res.ok && !data.job) {
+    throw new Error(data.error || "Failed to import UI script Excel");
+  }
+  return data as {
+    ok: boolean;
+    job: UiTriggerJob;
+    rows_parsed?: number;
+    target?: string;
+    path?: string;
+    filename?: string;
+    error?: string;
+  };
+}
+
 export async function recordGenerateInUiResults(
   jobId: string,
   results: Array<{ operation?: string; touchpoint?: string; correlation_id: string }>,
@@ -449,8 +545,12 @@ export type CasepilotStatus = {
   connection_info?: { mcp_url?: string; dashboard_url?: string; email?: string };
 };
 
-export async function fetchCasepilotStatus() {
-  const res = await fetch(`${API}/api/meta/casepilot`);
+export async function fetchCasepilotStatus(opts?: { fast?: boolean; force?: boolean }) {
+  const params = new URLSearchParams();
+  if (opts?.fast === false) params.set("fast", "false");
+  if (opts?.force) params.set("force", "true");
+  const qs = params.toString();
+  const res = await fetch(`${API}/api/meta/casepilot${qs ? `?${qs}` : ""}`);
   return res.json() as Promise<CasepilotStatus>;
 }
 
@@ -594,6 +694,8 @@ export type IngestionConsumer = {
   name: string;
   queue: string;
   collection: string;
+  target?: string;
+  vhost?: string;
   connected: boolean;
   consumed: number;
   inserted: number;
@@ -607,6 +709,15 @@ export type IngestionStatus = {
   running: boolean;
   started_at: number | null;
   mongo_connected: boolean | null;
+  mongo_databases?: string[];
+  ingest_targets?: string[];
+  ingest_lanes?: Array<{ target: string; vhost: string; mongo_db: string }>;
+  multi_target?: boolean;
+  auto_purge_enabled?: boolean;
+  auto_purge_interval_sec?: number;
+  auto_purge_min_ready?: number;
+  auto_purge_total?: number;
+  last_auto_purge_at?: number | null;
   rabbitmq_connected: boolean;
   max_docs_per_operation?: number;
   cleanup_interval_sec?: number;
@@ -659,12 +770,17 @@ export type ApiProbe = {
   hint: string;
   response_snippet: string;
   sample?: string;
+  /** Pre-built runnable curl (e.g. OAuth token); preferred over requestToCurlOrQuery. */
+  curl?: string;
+  /** Local app wrapper curl (e.g. POST /api/token/credentials). */
+  app_curl?: string;
   request?: {
     method: string;
     url: string;
     headers: Record<string, string>;
     params: Record<string, unknown>;
     body: unknown;
+    content_type?: string;
   };
 };
 
@@ -823,6 +939,7 @@ export async function startCompare(
   operations: string[],
   fieldPathsByOp?: Record<string, string[]>,
   correlationByOp?: Record<string, string>,
+  target?: string,
 ) {
   const res = await fetch(`${API}/api/jobs/compare`, {
     method: "POST",
@@ -830,6 +947,7 @@ export async function startCompare(
     body: JSON.stringify({
       operations,
       sample_source: "fresh",
+      target: target || undefined,
       field_paths_by_op: fieldPathsByOp && Object.keys(fieldPathsByOp).length
         ? fieldPathsByOp
         : undefined,
@@ -842,20 +960,50 @@ export async function startCompare(
   return res.json() as Promise<Job>;
 }
 
-/** Re-compare operations shown in Results (updates comparison-latest.json in place). */
-export async function refreshStoredComparisons(operations?: string[]) {
+/** Compare all pairable operations (~300+). */
+export async function startCompareAll() {
+  const res = await fetch(`${API}/api/jobs/compare-all`, { method: "POST" });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json() as { count: number; job: Job };
+  return data.job;
+}
+
+/** Merge missing ops from completed compare jobs into comparison-latest.json. */
+export async function restoreResultsFromJobs() {
+  const res = await fetch(`${API}/api/results/restore-from-jobs`, { method: "POST" });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{
+    ok?: boolean;
+    days?: number;
+    total_operations?: number;
+    jobs?: { restored?: number; updated?: number; merged?: number };
+    generate?: { compared?: number; candidates?: number; missing?: number };
+    error?: string;
+  }>;
+}
+
+export async function fetchComparisonOperations() {
+  const res = await fetch(`${API}/api/results/operations`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{ count: number; operations: Record<string, string> }>;
+}
+
+/** Re-compare operations shown in Results (updates comparison-latest-{target}.json in place). */
+export async function refreshStoredComparisons(operations?: string[], target?: string) {
   const res = await fetch(`${API}/api/results/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(
-      operations && operations.length ? { operations } : {},
-    ),
+    body: JSON.stringify({
+      ...(operations && operations.length ? { operations } : {}),
+      ...(target ? { target } : {}),
+    }),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<{
     ok: boolean;
     operations: string[];
     count: number;
+    target?: string;
     job: Job;
   }>;
 }
@@ -913,6 +1061,8 @@ export type GenerateScenarioStatus = {
   operation: string;
   touchpoint: string;
   label?: string;
+  target?: string | null;
+  channel?: string;
   steps?: string[];
   status: string;
   xCorrelationId?: string | null;

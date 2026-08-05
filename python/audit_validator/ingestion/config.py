@@ -9,7 +9,15 @@ validator's per-run resolver tap (``RAW_EVENTS_QUEUE`` / ``ENRICHED_EVENTS_QUEUE
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+
+from audit_validator.env_profiles import (
+    _rabbitmq_url_for_vhost,
+    get_audit_profile,
+    mongo_db_for_profile,
+)
+
+from .targets import ingest_mongo_databases, ingest_target_names
 
 
 def _env(name: str, default: str) -> str:
@@ -48,6 +56,7 @@ class IngestionConfig:
     rabbitmq_url: str
     mongo_url: str
     mongo_db: str
+    mongo_databases: tuple[str, ...]
     prefetch: int
     reconnect_delay_sec: float
     flush_interval_sec: float
@@ -56,7 +65,21 @@ class IngestionConfig:
     cleanup_interval_sec: float
     max_docs_per_operation: int
     purge_on_start: bool = False
+    auto_purge_enabled: bool = False
+    auto_purge_interval_sec: int = 3600
+    auto_purge_min_ready: int = 500
     bindings: list[QueueBinding] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class IngestLaneConfig:
+    """One audit target: dedicated vhost URL + Mongo DB + queue bindings."""
+
+    target: str
+    vhost: str
+    rabbitmq_url: str
+    mongo_db: str
+    config: IngestionConfig
 
 
 def load_ingestion_config(
@@ -77,13 +100,13 @@ def load_ingestion_config(
     """
     raw_queue = _env(
         "INGEST_RAW_QUEUE",
-        _env("RABBITMQ_RAW_QUEUE", "mt.platform,resolver.raw_events_test_queue"),
+        _env("RABBITMQ_RAW_QUEUE", "mtraw-automation(DO NOT DELETE)"),
     )
     enriched_queue = _env(
         "INGEST_ENRICHED_QUEUE",
         _env(
             "RABBITMQ_ENRICHED_QUEUE",
-            "mt.platform,resolver.enriched_events_test_queue",
+            "mtenrich-automation(DO NOT DELETE)",
         ),
     )
     dlq_queue = _env(
@@ -95,10 +118,17 @@ def load_ingestion_config(
     enriched_col = mongo_enriched or _env("MONGO_COLLECTION_ENRICHED", "enriched")
     dlq_col = mongo_dlq or _env("MONGO_COLLECTION_DLQ", "dlq")
 
+    if mongo_db:
+        databases = (mongo_db,)
+    else:
+        resolved = ingest_mongo_databases()
+        databases = tuple(resolved) if resolved else (_env("MONGO_DB_NAME", "AuditLogsPreprod"),)
+
     return IngestionConfig(
         rabbitmq_url=rabbitmq_url or _env("INGEST_RABBITMQ_URL", _env("RABBITMQ_URL", "amqp://localhost:5672/%2F")),
         mongo_url=mongo_url or _env("MONGO_DB_URL", "mongodb://localhost:27017"),
-        mongo_db=mongo_db or _env("MONGO_DB_NAME", "AuditLogsPreprod"),
+        mongo_db=databases[0],
+        mongo_databases=databases,
         prefetch=_env_int("INGEST_PREFETCH", 100),
         reconnect_delay_sec=_env_int("INGEST_RECONNECT_DELAY_MS", 5000) / 1000.0,
         flush_interval_sec=_env_int("INGEST_BATCH_FLUSH_INTERVAL_MS", 5000) / 1000.0,
@@ -110,9 +140,43 @@ def load_ingestion_config(
             _env_int("CLEANUP_MAX_DOCS_PER_OPERATION", 20),
         ),
         purge_on_start=_env_bool("INGEST_PURGE_ON_START", False),
+        auto_purge_enabled=_env_bool("INGEST_AUTO_PURGE", False),
+        auto_purge_interval_sec=_env_int("INGEST_AUTO_PURGE_INTERVAL_SEC", 3600),
+        auto_purge_min_ready=_env_int("INGEST_AUTO_PURGE_MIN_READY", 500),
         bindings=[
             QueueBinding("raw", raw_queue, raw_col),
             QueueBinding("enriched", enriched_queue, enriched_col),
             QueueBinding("dlq", dlq_queue, dlq_col),
         ],
     )
+
+
+def load_ingest_lanes(
+    base: IngestionConfig | None = None,
+    *,
+    rabbitmq_url: str | None = None,
+) -> list[IngestLaneConfig]:
+    """Build one ingestion lane per ``INGEST_TARGETS`` entry (separate vhost + Mongo DB)."""
+    root = base or load_ingestion_config(rabbitmq_url=rabbitmq_url)
+    base_rmq = rabbitmq_url or root.rabbitmq_url
+    lanes: list[IngestLaneConfig] = []
+    for target in ingest_target_names():
+        profile = get_audit_profile(target)
+        lane_rmq = _rabbitmq_url_for_vhost(base_rmq, profile.rabbitmq_vhost)
+        mongo_db = mongo_db_for_profile(profile)
+        lane_config = replace(
+            root,
+            rabbitmq_url=lane_rmq,
+            mongo_db=mongo_db,
+            mongo_databases=(mongo_db,),
+        )
+        lanes.append(
+            IngestLaneConfig(
+                target=target,
+                vhost=profile.rabbitmq_vhost,
+                rabbitmq_url=lane_rmq,
+                mongo_db=mongo_db,
+                config=lane_config,
+            )
+        )
+    return lanes

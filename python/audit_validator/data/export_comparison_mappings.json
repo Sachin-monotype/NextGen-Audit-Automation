@@ -1,0 +1,2534 @@
+{
+  "version": 1,
+  "operations": {
+    "exportFontAssets": [
+      {
+        "field_path": "xCorrelationId",
+        "field": "xCorrelationId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: x-correlation-id header we sent on the trigger"
+      },
+      {
+        "field_path": "eventId",
+        "field": "eventId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventId from trigger / service"
+      },
+      {
+        "field_path": "eventVersion",
+        "field": "eventVersion",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventVersion from trigger envelope"
+      },
+      {
+        "field_path": "occurredAt",
+        "field": "occurredAt",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: occurredAt from trigger envelope"
+      },
+      {
+        "field_path": "source.operation",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: GraphQL mutation → exportFontAssets"
+      },
+      {
+        "field_path": "source.service",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger service (mtconnect-api)"
+      },
+      {
+        "field_path": "source.operationState",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: mutation success → operationState"
+      },
+      {
+        "field_path": "source.operationIndex",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger batch index (usually 0)"
+      },
+      {
+        "field_path": "source.platform",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platform (nextGen)"
+      },
+      {
+        "field_path": "source.platformEnvironment",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platformEnvironment (web)"
+      },
+      {
+        "field_path": "source.platformVersion",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger platformVersion"
+      },
+      {
+        "field_path": "source.actorUserAgent",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: User-Agent header on the GraphQL curl"
+      },
+      {
+        "field_path": "source.type",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger source.type[]"
+      },
+      {
+        "field_path": "subject.batchId",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response batchId",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response batchId"
+      },
+      {
+        "field_path": "subject.type",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response subject.type"
+      },
+      {
+        "field_path": "subject.metadata.input.format",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation input",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation input format (CSV)"
+      },
+      {
+        "field_path": "Y",
+        "field": "subject",
+        "source_system": "subject.metadata.result.status",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "N",
+        "field": "subject",
+        "source_system": "subject.metadata.result.message",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "actor.globalUserId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT + UMS",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS profile id via JWT email / idpUserId"
+      },
+      {
+        "field_path": "actor.globalCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/gcid"
+      },
+      {
+        "field_path": "actor.orgId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim org_id"
+      },
+      {
+        "field_path": "actor.parentCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim parentCustomerId"
+      },
+      {
+        "field_path": "actor.inventories",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/inventories"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.source",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "Resolver",
+        "source_api": "constant",
+        "validate": "N",
+        "layer": "actor",
+        "notes": "Source: Resolver → user-management-service"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.email",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles (email from JWT)"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.firstName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "GET roles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS GET roles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.name",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      }
+    ],
+    "exportFontProjects": [
+      {
+        "field_path": "xCorrelationId",
+        "field": "xCorrelationId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: x-correlation-id header we sent on the trigger"
+      },
+      {
+        "field_path": "eventId",
+        "field": "eventId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventId from trigger / service"
+      },
+      {
+        "field_path": "eventVersion",
+        "field": "eventVersion",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventVersion from trigger envelope"
+      },
+      {
+        "field_path": "occurredAt",
+        "field": "occurredAt",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: occurredAt from trigger envelope"
+      },
+      {
+        "field_path": "source.operation",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: GraphQL mutation → exportFontProjects"
+      },
+      {
+        "field_path": "source.service",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger service (mtconnect-api)"
+      },
+      {
+        "field_path": "source.operationState",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: mutation success → operationState"
+      },
+      {
+        "field_path": "source.operationIndex",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger batch index (usually 0)"
+      },
+      {
+        "field_path": "source.platform",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platform (nextGen)"
+      },
+      {
+        "field_path": "source.platformEnvironment",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platformEnvironment (web)"
+      },
+      {
+        "field_path": "source.platformVersion",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger platformVersion"
+      },
+      {
+        "field_path": "source.actorUserAgent",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: User-Agent header on the GraphQL curl"
+      },
+      {
+        "field_path": "source.type",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger source.type[]"
+      },
+      {
+        "field_path": "subject.batchId",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response batchId",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response batchId"
+      },
+      {
+        "field_path": "subject.type",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response subject.type"
+      },
+      {
+        "field_path": "subject.metadata.input.format",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation input",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation input format (CSV)"
+      },
+      {
+        "field_path": "Y",
+        "field": "subject",
+        "source_system": "subject.metadata.result.status",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "N",
+        "field": "subject",
+        "source_system": "subject.metadata.result.message",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "actor.globalUserId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT + UMS",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS profile id via JWT email / idpUserId"
+      },
+      {
+        "field_path": "actor.globalCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/gcid"
+      },
+      {
+        "field_path": "actor.orgId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim org_id"
+      },
+      {
+        "field_path": "actor.parentCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim parentCustomerId"
+      },
+      {
+        "field_path": "actor.inventories",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/inventories"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.source",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "Resolver",
+        "source_api": "constant",
+        "validate": "N",
+        "layer": "actor",
+        "notes": "Source: Resolver → user-management-service"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.email",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles (email from JWT)"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.firstName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "GET roles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS GET roles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.name",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      }
+    ],
+    "exportFontUsers": [
+      {
+        "field_path": "xCorrelationId",
+        "field": "xCorrelationId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: x-correlation-id header we sent on the trigger"
+      },
+      {
+        "field_path": "eventId",
+        "field": "eventId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventId from trigger / service"
+      },
+      {
+        "field_path": "eventVersion",
+        "field": "eventVersion",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventVersion from trigger envelope"
+      },
+      {
+        "field_path": "occurredAt",
+        "field": "occurredAt",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: occurredAt from trigger envelope"
+      },
+      {
+        "field_path": "source.operation",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: GraphQL mutation → exportFontUsers"
+      },
+      {
+        "field_path": "source.service",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger service (mtconnect-api)"
+      },
+      {
+        "field_path": "source.operationState",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: mutation success → operationState"
+      },
+      {
+        "field_path": "source.operationIndex",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger batch index (usually 0)"
+      },
+      {
+        "field_path": "source.platform",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platform (nextGen)"
+      },
+      {
+        "field_path": "source.platformEnvironment",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platformEnvironment (web)"
+      },
+      {
+        "field_path": "source.platformVersion",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger platformVersion"
+      },
+      {
+        "field_path": "source.actorUserAgent",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: User-Agent header on the GraphQL curl"
+      },
+      {
+        "field_path": "source.type",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger source.type[]"
+      },
+      {
+        "field_path": "subject.batchId",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response batchId",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response batchId"
+      },
+      {
+        "field_path": "subject.type",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response subject.type"
+      },
+      {
+        "field_path": "subject.metadata.input.format",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation input",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation input format (CSV)"
+      },
+      {
+        "field_path": "Y",
+        "field": "subject",
+        "source_system": "subject.metadata.result.status",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "N",
+        "field": "subject",
+        "source_system": "subject.metadata.result.message",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "actor.globalUserId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT + UMS",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS profile id via JWT email / idpUserId"
+      },
+      {
+        "field_path": "actor.globalCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/gcid"
+      },
+      {
+        "field_path": "actor.orgId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim org_id"
+      },
+      {
+        "field_path": "actor.parentCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim parentCustomerId"
+      },
+      {
+        "field_path": "actor.inventories",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/inventories"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.source",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "Resolver",
+        "source_api": "constant",
+        "validate": "N",
+        "layer": "actor",
+        "notes": "Source: Resolver → user-management-service"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.email",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles (email from JWT)"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.firstName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "GET roles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS GET roles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.name",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      }
+    ],
+    "exportFontWebkits": [
+      {
+        "field_path": "xCorrelationId",
+        "field": "xCorrelationId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: x-correlation-id header we sent on the trigger"
+      },
+      {
+        "field_path": "eventId",
+        "field": "eventId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventId from trigger / service"
+      },
+      {
+        "field_path": "eventVersion",
+        "field": "eventVersion",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventVersion from trigger envelope"
+      },
+      {
+        "field_path": "occurredAt",
+        "field": "occurredAt",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: occurredAt from trigger envelope"
+      },
+      {
+        "field_path": "source.operation",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: GraphQL mutation → exportFontWebkits"
+      },
+      {
+        "field_path": "source.service",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger service (mtconnect-api)"
+      },
+      {
+        "field_path": "source.operationState",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: mutation success → operationState"
+      },
+      {
+        "field_path": "source.operationIndex",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger batch index (usually 0)"
+      },
+      {
+        "field_path": "source.platform",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platform (nextGen)"
+      },
+      {
+        "field_path": "source.platformEnvironment",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platformEnvironment (web)"
+      },
+      {
+        "field_path": "source.platformVersion",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger platformVersion"
+      },
+      {
+        "field_path": "source.actorUserAgent",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: User-Agent header on the GraphQL curl"
+      },
+      {
+        "field_path": "source.type",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger source.type[]"
+      },
+      {
+        "field_path": "subject.batchId",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response batchId",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response batchId"
+      },
+      {
+        "field_path": "subject.type",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response subject.type"
+      },
+      {
+        "field_path": "subject.metadata.input.format",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation input",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation input format (CSV)"
+      },
+      {
+        "field_path": "Y",
+        "field": "subject",
+        "source_system": "subject.metadata.result.status",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "N",
+        "field": "subject",
+        "source_system": "subject.metadata.result.message",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "actor.globalUserId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT + UMS",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS profile id via JWT email / idpUserId"
+      },
+      {
+        "field_path": "actor.globalCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/gcid"
+      },
+      {
+        "field_path": "actor.orgId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim org_id"
+      },
+      {
+        "field_path": "actor.parentCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim parentCustomerId"
+      },
+      {
+        "field_path": "actor.inventories",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/inventories"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.source",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "Resolver",
+        "source_api": "constant",
+        "validate": "N",
+        "layer": "actor",
+        "notes": "Source: Resolver → user-management-service"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.email",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles (email from JWT)"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.firstName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "GET roles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS GET roles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.name",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      }
+    ],
+    "exportImportedFonts": [
+      {
+        "field_path": "xCorrelationId",
+        "field": "xCorrelationId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: x-correlation-id header we sent on the trigger"
+      },
+      {
+        "field_path": "eventId",
+        "field": "eventId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventId from trigger / service"
+      },
+      {
+        "field_path": "eventVersion",
+        "field": "eventVersion",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventVersion from trigger envelope"
+      },
+      {
+        "field_path": "occurredAt",
+        "field": "occurredAt",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: occurredAt from trigger envelope"
+      },
+      {
+        "field_path": "source.operation",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: GraphQL mutation → exportImportedFonts"
+      },
+      {
+        "field_path": "source.service",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger service (mtconnect-api)"
+      },
+      {
+        "field_path": "source.operationState",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: mutation success → operationState"
+      },
+      {
+        "field_path": "source.operationIndex",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger batch index (usually 0)"
+      },
+      {
+        "field_path": "source.platform",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platform (nextGen)"
+      },
+      {
+        "field_path": "source.platformEnvironment",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platformEnvironment (web)"
+      },
+      {
+        "field_path": "source.platformVersion",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger platformVersion"
+      },
+      {
+        "field_path": "source.actorUserAgent",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: User-Agent header on the GraphQL curl"
+      },
+      {
+        "field_path": "source.type",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger source.type[]"
+      },
+      {
+        "field_path": "subject.batchId",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response batchId",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response batchId"
+      },
+      {
+        "field_path": "subject.type",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response subject.type"
+      },
+      {
+        "field_path": "subject.metadata.input.format",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation input",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation input format (CSV)"
+      },
+      {
+        "field_path": "Y",
+        "field": "subject",
+        "source_system": "subject.metadata.result.status",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "N",
+        "field": "subject",
+        "source_system": "subject.metadata.result.message",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "actor.globalUserId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT + UMS",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS profile id via JWT email / idpUserId"
+      },
+      {
+        "field_path": "actor.globalCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/gcid"
+      },
+      {
+        "field_path": "actor.orgId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim org_id"
+      },
+      {
+        "field_path": "actor.parentCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim parentCustomerId"
+      },
+      {
+        "field_path": "actor.inventories",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/inventories"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.source",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "Resolver",
+        "source_api": "constant",
+        "validate": "N",
+        "layer": "actor",
+        "notes": "Source: Resolver → user-management-service"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.email",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles (email from JWT)"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.firstName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "GET roles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS GET roles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.name",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      }
+    ],
+    "exportMyLibrary": [
+      {
+        "field_path": "xCorrelationId",
+        "field": "xCorrelationId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: x-correlation-id header we sent on the trigger"
+      },
+      {
+        "field_path": "eventId",
+        "field": "eventId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventId from trigger / service"
+      },
+      {
+        "field_path": "eventVersion",
+        "field": "eventVersion",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventVersion from trigger envelope"
+      },
+      {
+        "field_path": "occurredAt",
+        "field": "occurredAt",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: occurredAt from trigger envelope"
+      },
+      {
+        "field_path": "source.operation",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: GraphQL mutation → exportMyLibrary"
+      },
+      {
+        "field_path": "source.service",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger service (mtconnect-api)"
+      },
+      {
+        "field_path": "source.operationState",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: mutation success → operationState"
+      },
+      {
+        "field_path": "source.operationIndex",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger batch index (usually 0)"
+      },
+      {
+        "field_path": "source.platform",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platform (nextGen)"
+      },
+      {
+        "field_path": "source.platformEnvironment",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platformEnvironment (web)"
+      },
+      {
+        "field_path": "source.platformVersion",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger platformVersion"
+      },
+      {
+        "field_path": "source.actorUserAgent",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: User-Agent header on the GraphQL curl"
+      },
+      {
+        "field_path": "source.type",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger source.type[]"
+      },
+      {
+        "field_path": "subject.batchId",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response batchId",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response batchId"
+      },
+      {
+        "field_path": "subject.type",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response subject.type"
+      },
+      {
+        "field_path": "subject.metadata.input.format",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation input",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation input format (CSV)"
+      },
+      {
+        "field_path": "Y",
+        "field": "subject",
+        "source_system": "subject.metadata.result.status",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "N",
+        "field": "subject",
+        "source_system": "subject.metadata.result.message",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "actor.globalUserId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT + UMS",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS profile id via JWT email / idpUserId"
+      },
+      {
+        "field_path": "actor.globalCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/gcid"
+      },
+      {
+        "field_path": "actor.orgId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim org_id"
+      },
+      {
+        "field_path": "actor.parentCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim parentCustomerId"
+      },
+      {
+        "field_path": "actor.inventories",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/inventories"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.source",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "Resolver",
+        "source_api": "constant",
+        "validate": "N",
+        "layer": "actor",
+        "notes": "Source: Resolver → user-management-service"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.email",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles (email from JWT)"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.firstName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "GET roles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS GET roles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.name",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      }
+    ],
+    "exportNotifications": [
+      {
+        "field_path": "xCorrelationId",
+        "field": "xCorrelationId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: x-correlation-id header we sent on the trigger"
+      },
+      {
+        "field_path": "eventId",
+        "field": "eventId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventId from trigger / service"
+      },
+      {
+        "field_path": "eventVersion",
+        "field": "eventVersion",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventVersion from trigger envelope"
+      },
+      {
+        "field_path": "occurredAt",
+        "field": "occurredAt",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: occurredAt from trigger envelope"
+      },
+      {
+        "field_path": "source.operation",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: GraphQL mutation → exportNotifications"
+      },
+      {
+        "field_path": "source.service",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger service (mtconnect-api)"
+      },
+      {
+        "field_path": "source.operationState",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: mutation success → operationState"
+      },
+      {
+        "field_path": "source.operationIndex",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger batch index (usually 0)"
+      },
+      {
+        "field_path": "source.platform",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platform (nextGen)"
+      },
+      {
+        "field_path": "source.platformEnvironment",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platformEnvironment (web)"
+      },
+      {
+        "field_path": "source.platformVersion",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger platformVersion"
+      },
+      {
+        "field_path": "source.actorUserAgent",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: User-Agent header on the GraphQL curl"
+      },
+      {
+        "field_path": "source.type",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger source.type[]"
+      },
+      {
+        "field_path": "subject.batchId",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response batchId",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response batchId"
+      },
+      {
+        "field_path": "subject.type",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response subject.type"
+      },
+      {
+        "field_path": "subject.metadata.input.format",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation input",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation input format (CSV)"
+      },
+      {
+        "field_path": "Y",
+        "field": "subject",
+        "source_system": "subject.metadata.result.status",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "N",
+        "field": "subject",
+        "source_system": "subject.metadata.result.message",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "actor.globalUserId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT + UMS",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS profile id via JWT email / idpUserId"
+      },
+      {
+        "field_path": "actor.globalCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/gcid"
+      },
+      {
+        "field_path": "actor.orgId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim org_id"
+      },
+      {
+        "field_path": "actor.parentCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim parentCustomerId"
+      },
+      {
+        "field_path": "actor.inventories",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/inventories"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.source",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "Resolver",
+        "source_api": "constant",
+        "validate": "N",
+        "layer": "actor",
+        "notes": "Source: Resolver → user-management-service"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.email",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles (email from JWT)"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.firstName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "GET roles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS GET roles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.name",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      }
+    ],
+    "exportRoles": [
+      {
+        "field_path": "xCorrelationId",
+        "field": "xCorrelationId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: x-correlation-id header we sent on the trigger"
+      },
+      {
+        "field_path": "eventId",
+        "field": "eventId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventId from trigger / service"
+      },
+      {
+        "field_path": "eventVersion",
+        "field": "eventVersion",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventVersion from trigger envelope"
+      },
+      {
+        "field_path": "occurredAt",
+        "field": "occurredAt",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: occurredAt from trigger envelope"
+      },
+      {
+        "field_path": "source.operation",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: GraphQL mutation → exportRoles"
+      },
+      {
+        "field_path": "source.service",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger service (mtconnect-api)"
+      },
+      {
+        "field_path": "source.operationState",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: mutation success → operationState"
+      },
+      {
+        "field_path": "source.operationIndex",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger batch index (usually 0)"
+      },
+      {
+        "field_path": "source.platform",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platform (nextGen)"
+      },
+      {
+        "field_path": "source.platformEnvironment",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platformEnvironment (web)"
+      },
+      {
+        "field_path": "source.platformVersion",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger platformVersion"
+      },
+      {
+        "field_path": "source.actorUserAgent",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: User-Agent header on the GraphQL curl"
+      },
+      {
+        "field_path": "source.type",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger source.type[]"
+      },
+      {
+        "field_path": "subject.batchId",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response batchId",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response batchId"
+      },
+      {
+        "field_path": "subject.type",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response subject.type"
+      },
+      {
+        "field_path": "subject.metadata.input.format",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation input",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation input format (CSV)"
+      },
+      {
+        "field_path": "Y",
+        "field": "subject",
+        "source_system": "subject.metadata.result.status",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "N",
+        "field": "subject",
+        "source_system": "subject.metadata.result.message",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "actor.globalUserId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT + UMS",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS profile id via JWT email / idpUserId"
+      },
+      {
+        "field_path": "actor.globalCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/gcid"
+      },
+      {
+        "field_path": "actor.orgId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim org_id"
+      },
+      {
+        "field_path": "actor.parentCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim parentCustomerId"
+      },
+      {
+        "field_path": "actor.inventories",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/inventories"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.source",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "Resolver",
+        "source_api": "constant",
+        "validate": "N",
+        "layer": "actor",
+        "notes": "Source: Resolver → user-management-service"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.email",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles (email from JWT)"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.firstName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "GET roles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS GET roles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.name",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      }
+    ],
+    "exportTags": [
+      {
+        "field_path": "xCorrelationId",
+        "field": "xCorrelationId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: x-correlation-id header we sent on the trigger"
+      },
+      {
+        "field_path": "eventId",
+        "field": "eventId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventId from trigger / service"
+      },
+      {
+        "field_path": "eventVersion",
+        "field": "eventVersion",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: eventVersion from trigger envelope"
+      },
+      {
+        "field_path": "occurredAt",
+        "field": "occurredAt",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: occurredAt from trigger envelope"
+      },
+      {
+        "field_path": "source.operation",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: GraphQL mutation → exportTags"
+      },
+      {
+        "field_path": "source.service",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger service (mtconnect-api)"
+      },
+      {
+        "field_path": "source.operationState",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: mutation success → operationState"
+      },
+      {
+        "field_path": "source.operationIndex",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger batch index (usually 0)"
+      },
+      {
+        "field_path": "source.platform",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platform (nextGen)"
+      },
+      {
+        "field_path": "source.platformEnvironment",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: trigger platformEnvironment (web)"
+      },
+      {
+        "field_path": "source.platformVersion",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger platformVersion"
+      },
+      {
+        "field_path": "source.actorUserAgent",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "Y",
+        "layer": "event",
+        "notes": "Source: User-Agent header on the GraphQL curl"
+      },
+      {
+        "field_path": "source.type",
+        "field": "source",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "validate": "N",
+        "layer": "event",
+        "notes": "Source: trigger source.type[]"
+      },
+      {
+        "field_path": "subject.batchId",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response batchId",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response batchId"
+      },
+      {
+        "field_path": "subject.type",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation response",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation response subject.type"
+      },
+      {
+        "field_path": "subject.metadata.input.format",
+        "field": "subject",
+        "source_system": "GraphQL",
+        "source_api": "mutation input",
+        "validate": "Y",
+        "layer": "subject",
+        "notes": "Source: GraphQL mutation input format (CSV)"
+      },
+      {
+        "field_path": "Y",
+        "field": "subject",
+        "source_system": "subject.metadata.result.status",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "N",
+        "field": "subject",
+        "source_system": "subject.metadata.result.message",
+        "source_api": "GraphQL",
+        "validate": "",
+        "layer": "mutation response",
+        "notes": ""
+      },
+      {
+        "field_path": "actor.globalUserId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT + UMS",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS profile id via JWT email / idpUserId"
+      },
+      {
+        "field_path": "actor.globalCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/gcid"
+      },
+      {
+        "field_path": "actor.orgId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim org_id"
+      },
+      {
+        "field_path": "actor.parentCustomerId",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim parentCustomerId"
+      },
+      {
+        "field_path": "actor.inventories",
+        "field": "actor",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: JWT claim https://api.monotype.com/inventories"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.source",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "Resolver",
+        "source_api": "constant",
+        "validate": "N",
+        "layer": "actor",
+        "notes": "Source: Resolver → user-management-service"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.email",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles (email from JWT)"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.firstName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS POST profiles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "UMS",
+        "source_api": "GET roles",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: UMS GET roles"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.id",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.name",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.customer.displayName",
+        "field": "actor.enrichedSnapshot",
+        "source_system": "CMS",
+        "source_api": "GET customer",
+        "validate": "Y",
+        "layer": "actor",
+        "notes": "Source: CMS GET customer"
+      }
+    ]
+  }
+}

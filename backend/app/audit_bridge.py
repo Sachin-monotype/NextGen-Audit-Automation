@@ -44,7 +44,7 @@ class JobStore:
     backend reloads). Keeps the last N jobs so Compare/Generate can restore logs.
     """
 
-    def __init__(self, persist_path: Path | None = None, *, max_jobs: int = 40) -> None:
+    def __init__(self, persist_path: Path | None = None, *, max_jobs: int = 150) -> None:
         self._jobs: dict[str, JobRecord] = {}
         self._lock = threading.Lock()
         self._persist_path = persist_path
@@ -331,7 +331,29 @@ class AuditBridge:
         sample_source: str = "fresh",
         field_paths_by_op: dict[str, list[str]] | None = None,
         correlation_by_op: dict[str, str] | None = None,
+        audit_target: str | None = None,
     ) -> JobRecord:
+        from .comparison_store import _normalize_result_operation
+
+        # UI is unlabeled — strip legacy "(UI)" so Result store stays one row per scenario.
+        operations = [_normalize_result_operation(op) for op in operations if op]
+        seen_ops: set[str] = set()
+        deduped_ops: list[str] = []
+        for op in operations:
+            if op in seen_ops:
+                continue
+            seen_ops.add(op)
+            deduped_ops.append(op)
+        operations = deduped_ops
+        if field_paths_by_op:
+            field_paths_by_op = {
+                _normalize_result_operation(k): v for k, v in field_paths_by_op.items()
+            }
+        if correlation_by_op:
+            correlation_by_op = {
+                _normalize_result_operation(k): v for k, v in correlation_by_op.items()
+            }
+        target = (audit_target or os.getenv("AUDIT_TARGET") or "qa").strip().lower()
         job = self.store.create(
             "compare",
             {
@@ -339,6 +361,7 @@ class AuditBridge:
                 "sample_source": sample_source,
                 "field_paths_by_op": field_paths_by_op or {},
                 "correlation_by_op": correlation_by_op or {},
+                "audit_target": target,
             },
         )
         thread = threading.Thread(
@@ -367,7 +390,7 @@ class AuditBridge:
         from audit_validator.config import load_config
 
         cfg = load_config(self.project_root)
-        target = os.getenv("AUDIT_TARGET", "pp")
+        target = os.getenv("AUDIT_TARGET", "qa")
         gql = os.getenv("NEXTGEN_GRAPHQL_ENDPOINT", os.getenv("GRAPHQL_ENDPOINT", ""))
         rmq = cfg.rabbitmq
 
@@ -408,6 +431,10 @@ class AuditBridge:
     def _verify_mongo(self, job_id: str, operations: list[str]) -> dict[str, Any]:
         """Poll owned correlations until they land in raw + enriched (or timeout)."""
         from audit_validator.generate_run_report import save_generate_run, verify_owned_queue_landing
+        from audit_validator.generation_tracker import merge_legacy_correlation_store
+        from audit_validator.ingress.config import ingress_operation_names, ingress_settle_seconds
+
+        merge_legacy_correlation_store(project_root=self.project_root)
 
         checked = list(operations or [])
         if not checked and self.db:
@@ -427,10 +454,23 @@ class AuditBridge:
                 "enriched_queue": os.getenv("ENRICHED_EVENTS_QUEUE", ""),
             }
 
+        ingress_ops = ingress_operation_names()
+        has_ingress = any(op in ingress_ops for op in checked)
+        verify_timeout: float | None = None
+        if has_ingress:
+            buffer = float(os.getenv("INGRESS_VERIFY_BUFFER_SEC", "30"))
+            verify_timeout = ingress_settle_seconds() + buffer
+            self.store.append_log(
+                job_id,
+                f"▸ Ingress/plugin/font-bridge ops in scope — Mongo verify timeout "
+                f"{verify_timeout:.0f}s (post-ingress landing delay)",
+            )
+
         report = verify_owned_queue_landing(
             self.db,
             checked,
             project_root=self.project_root,
+            timeout_sec=verify_timeout,
             progress=lambda msg: self.store.append_log(job_id, msg),
         )
         report["job_id"] = job_id
@@ -559,10 +599,30 @@ class AuditBridge:
                     exit_code = max(exit_code, self._run_ingress_cases(job_id, ingress_cases))
                 self.store.append_log(job_id, "▸ Phase 2: Wait for scenario events in Mongo…")
                 self._verify_scenario_results(scenario_results, wait_sec=75)
+                if cron_cases:
+                    self._verify_cron_case_results(job_id, cron_cases)
                 self.store.append_log(job_id, "▸ Phase 2b: Source validation per touchpoint…")
                 # Per-touchpoint Results rows: activateFamily(global), activateFamily(list), …
                 if scenario_results:
                     val_result = self._run_scenario_source_validation(job_id, scenario_results)
+                    if cron_cases:
+                        cron_ops, cron_corr = self._cron_validate_targets(cron_cases)
+                        cron_val = self._run_source_validation(
+                            job_id, cron_ops, correlation_by_op=cron_corr
+                        )
+                        val_result = {
+                            "passed": val_result.get("passed", 0) + cron_val.get("passed", 0),
+                            "failed": val_result.get("failed", 0) + cron_val.get("failed", 0),
+                            "skipped": val_result.get("skipped", 0) + cron_val.get("skipped", 0),
+                            "rows": list(val_result.get("rows") or []) + list(cron_val.get("rows") or []),
+                            "operations": list(val_result.get("operations") or [])
+                            + list(cron_val.get("operations") or []),
+                        }
+                elif cron_cases:
+                    cron_ops, cron_corr = self._cron_validate_targets(cron_cases)
+                    val_result = self._run_source_validation(
+                        job_id, cron_ops, correlation_by_op=cron_corr
+                    )
                 else:
                     val_result = self._run_source_validation(job_id, resolved_ops)
                 ingest_status = self._ensure_ingestion(job_id)
@@ -985,15 +1045,90 @@ class AuditBridge:
         """Bounded, non-destructive config for a targeted/cron run (see _run_e2e)."""
         from dataclasses import replace
 
-        settle_sec = float(os.getenv("TARGETED_SETTLE_SEC", "60"))
+        settle_sec = float(os.getenv("TARGETED_SETTLE_SEC") or os.getenv("CRON_SETTLE_SEC") or "90")
+        catchup = float(os.getenv("CRON_ENRICHED_CATCHUP_SEC") or "45")
         return replace(
             cfg,
             settle_after_flows_sec=settle_sec,
-            enriched_catchup_sec=0.0,
+            enriched_catchup_sec=catchup,
             enriched_backlog_drain_sec=0.0,
             purge_test_queues_on_e2e=False,
             purge_queues_on_e2e=False,
         )
+
+    def _cron_validate_targets(
+        self, cron_case_ids: list[str]
+    ) -> tuple[list[str], dict[str, str]]:
+        """Case-scoped compare labels + owned correlation ids for staging."""
+        from audit_validator.case_keys import cron_case_key, cron_display_operation
+        from audit_validator.cron.payloads import load_cron_cases
+        from audit_validator.generation_tracker import get_owned_correlation
+
+        by_id = {c.case_id: c for c in load_cron_cases()}
+        display_ops: list[str] = []
+        correlation_by_op: dict[str, str] = {}
+        for cid in cron_case_ids:
+            case = by_id.get(cid)
+            if not case:
+                continue
+            label = cron_display_operation(case.operation, cid)
+            display_ops.append(label)
+            owned = get_owned_correlation(
+                case.operation,
+                project_root=self.project_root,
+                case_key=cron_case_key(cid),
+            )
+            if owned:
+                correlation_by_op[label] = owned
+        return display_ops, correlation_by_op
+
+    def _verify_cron_case_results(
+        self, job_id: str, case_ids: list[str], *, wait_sec: float | None = None
+    ) -> list[dict[str, Any]]:
+        """Poll Mongo until each cron case has raw (and enriched when expected)."""
+        from audit_validator.cron.mongo_verify import wait_for_cron_cases_in_mongo
+
+        if not case_ids:
+            return []
+        timeout = wait_sec if wait_sec is not None else float(
+            os.getenv("CRON_VERIFY_TIMEOUT_SEC") or os.getenv("GENERATE_VERIFY_TIMEOUT_SEC") or "90"
+        )
+        self.store.append_log(
+            job_id,
+            f"▸ Waiting up to {timeout:.0f}s for {len(case_ids)} cron case(s) in Mongo…",
+        )
+        statuses = wait_for_cron_cases_in_mongo(
+            case_ids,
+            project_root=self.project_root,
+            db=self.db,
+            wait_sec=timeout,
+        )
+        rows: list[dict[str, Any]] = []
+        for st in statuses:
+            rows.append(
+                {
+                    "case_id": st.case_id,
+                    "operation": st.operation,
+                    "display": st.display,
+                    "xCorrelationId": st.correlation_id,
+                    "raw": st.raw,
+                    "enriched": st.enriched,
+                    "expects_enrich": st.expects_enrich,
+                }
+            )
+            if st.raw and (st.enriched or not st.expects_enrich):
+                self.store.append_log(
+                    job_id,
+                    f"  ✓ {st.display} — raw={'yes' if st.raw else 'no'} "
+                    f"enrich={'yes' if st.enriched else 'n/a' if not st.expects_enrich else 'no'}",
+                )
+            else:
+                self.store.append_log(
+                    job_id,
+                    f"  ⚠ {st.display} — raw={'yes' if st.raw else 'no'} "
+                    f"enrich={'yes' if st.enriched else 'no'}",
+                )
+        return rows
 
     def _run_cron_cases(self, job_id: str, case_ids: list[str]) -> int:
         """Inject the selected cron/scheduler payloads and validate raw↔enriched."""
@@ -1016,6 +1151,7 @@ class AuditBridge:
             purge_before=False,
             purge_after=False,
         )
+        self._verify_cron_case_results(job_id, case_ids)
         _print_pipeline_summary(cfg, e2e)
         _write_e2e_reports(
             cfg,
@@ -1030,12 +1166,46 @@ class AuditBridge:
 
     def _run_ingress_cases(self, job_id: str, case_ids: list[str]) -> int:
         """Send the selected desktop/plugin payloads through the resolver Ingress API."""
+        from audit_validator.ingress.config import ingress_settle_seconds
         from audit_validator.ingress.runner import run_ingress_validation
         from audit_validator.report_paths import ingress_results_json
 
-        settle_sec = float(os.getenv("TARGETED_SETTLE_SEC", "60"))
+        # Re-read bearer + identity from .env (token may have been refreshed in UI).
+        try:
+            from dotenv import dotenv_values
+
+            disk = dotenv_values(self.project_root / ".env") or {}
+            for key in (
+                "BEARER_TOKEN",
+                "NEXTGEN_BEARER_TOKEN",
+                "BEARER_TOKEN_PP",
+                "OAUTH_GCID",
+                "OAUTH_ORG",
+                "OAUTH_USERNAME",
+                "INGRESS_MACHINE_ID",
+                "INGRESS_UNIQUE_ID",
+                "INGRESS_APP_VERSION",
+                "INGRESS_OS_VERSION",
+                "INGRESS_CPU_ARCH",
+                "INGRESS_DEVICE_FILE",
+            ):
+                if key in disk:
+                    os.environ[key] = str(disk.get(key) or "")
+            from audit_validator.ingress.runtime_context import clear_ingress_runtime_context_cache
+
+            clear_ingress_runtime_context_cache()
+        except Exception:  # noqa: BLE001
+            pass
+
+        settle_sec = ingress_settle_seconds()
         self.store.append_log(
-            job_id, f"▸ Sending {len(case_ids)} ingress event(s) to the Ingress API…"
+            job_id,
+            f"▸ Sending {len(case_ids)} ingress event(s) to the Ingress API…",
+        )
+        self.store.append_log(
+            job_id,
+            f"  ⏳ Will wait {settle_sec:.0f}s after the last POST before checking "
+            f"raw+enrich via queue tap + Mongo (plugin / font-bridge delay)",
         )
         run = run_ingress_validation(
             project_root=self.project_root,
@@ -1043,6 +1213,7 @@ class AuditBridge:
             report_path=ingress_results_json(self.project_root),
             settle_sec=settle_sec,
             purge_before=False,
+            db=self.db,
         )
         self.store.append_log(
             job_id,
@@ -1108,14 +1279,16 @@ class AuditBridge:
                     cfg_ua = load_simulation_config(self.project_root).nextgen_user_agent
                 except Exception:
                     pass
+                is_ui = str(sc.get("source") or "").lower() == "ui"
                 ctx = build_trigger_context(
                     operation=str(sc.get("operation") or ""),
                     correlation_id=str(sc.get("xCorrelationId") or "") or None,
                     graphql_response=resp if isinstance(resp, dict) else {},
                     graphql_input=sc.get("input") if isinstance(sc.get("input"), dict) else {},
-                    user_agent=cfg_ua,
+                    user_agent=None if is_ui else cfg_ua,
                     jwt_identity=jwt_identity(),
                     success=True,
+                    invent_client_defaults=not is_ui,
                 )
                 save_trigger_context(self.project_root, display, ctx)
             except Exception as exc:  # noqa: BLE001
@@ -1162,6 +1335,7 @@ class AuditBridge:
         routing_keys = _routing_keys_map(self.project_root)
         job = self.store.get(job_id)
         job_kind = job.kind if job else "compare"
+        audit_target = str((job.params or {}).get("audit_target") or os.getenv("AUDIT_TARGET") or "qa").strip().lower()
         saved_ops = 0
 
         def _row_dict(r: Any) -> dict[str, Any]:
@@ -1196,6 +1370,7 @@ class AuditBridge:
                     job_id=job_id,
                     job_kind=job_kind,
                     compared_at=_now(),
+                    target=audit_target,
                 )
                 saved_ops += 1
                 if saved_ops == 1 or saved_ops % 10 == 0:
@@ -1236,10 +1411,11 @@ class AuditBridge:
                 job_id=job_id,
                 job_kind=job_kind,
                 compared_at=_now(),
+                target=audit_target,
             )
             self.store.append_log(
                 job_id,
-                f"▸ Saved latest comparison snapshot for {len(ops)} operation(s)",
+                f"▸ Saved latest comparison snapshot for {len(ops)} operation(s) → {audit_target}",
             )
         except Exception as exc:  # noqa: BLE001 — persistence must not fail the job
             log.warning("Could not persist latest comparison: %s", exc)
@@ -1285,11 +1461,20 @@ class AuditBridge:
             our_profile = ""
 
         for op in ops:
+            from audit_validator.case_keys import cron_case_key, parse_display_operation
+
+            base_op, case_suffix = parse_display_operation(op)
+            case_key = cron_case_key(case_suffix) if case_suffix else None
+            lookup_op = base_op or op
             # Touchpoint variants (e.g. activateFamily(global)) don't exist as a
             # distinct source.operation in Mongo — reuse the enriched sample staged
             # during the last Generate run so Compare can re-validate them.
             owned_cid = pinned_cids.get(op) or (
-                get_owned_correlation(op, project_root=self.project_root)
+                get_owned_correlation(
+                    lookup_op,
+                    project_root=self.project_root,
+                    case_key=case_key,
+                )
                 if get_owned_correlation
                 else None
             )
@@ -1318,6 +1503,26 @@ class AuditBridge:
                         f"  ✓ Paired {op} (pinned xCorrelationId={cid}) from Mongo",
                     )
                     continue
+                r2, e2 = self.db.latest_pair(
+                    base_touch_op,
+                    require_pair=False,
+                    correlation_id=owned_cid,
+                    actor_global_user_id=our_profile or None,
+                )
+                if e2 and not r2:
+                    cid = e2.get("xCorrelationId", "") or owned_cid
+                    (enriched_dir / f"{op}.json").write_text(
+                        json_util.dumps(e2, indent=2, ensure_ascii=False),
+                        encoding="utf-8",
+                    )
+                    staged.append(op)
+                    owned_hits += 1
+                    self.store.append_log(
+                        job_id,
+                        f"  ✓ Staged {op} (enriched only; raw missing — non-blocking) "
+                        f"xCorrelationId={cid}",
+                    )
+                    continue
             if "(" in op and op.endswith(")") and not owned_cid:
                 staged_file = enriched_dir / f"{op}.json"
                 if staged_file.is_file():
@@ -1329,8 +1534,8 @@ class AuditBridge:
                 # No pre-staged sample (e.g. compare launched straight from a
                 # Generate-in-UI run). Each UI touchpoint scenario minted its own
                 # correlation id, so pair raw+enrich by that owned cid and stage it
-                # now — this keeps the compared count 1:1 with Generation Status and
-                # preserves the (UI) label on the Result row.
+                # now — this keeps the compared count 1:1 with Generation Status under
+                # the unlabeled scenario name (UI is default; no "(UI)" suffix).
                 base_touch_op = op.split("(", 1)[0].strip() or op
                 owned_cid = (
                     get_owned_correlation(op, project_root=self.project_root)
@@ -1372,6 +1577,18 @@ class AuditBridge:
                         owned_hits += 1
                     self.store.append_log(
                         job_id, f"  ✓ Paired {op} (owned xCorrelationId={cid}) from Mongo"
+                    )
+                    continue
+                if t_enriched and not t_raw:
+                    cid = t_enriched.get("xCorrelationId", "") or (owned_cid or "")
+                    (enriched_dir / f"{op}.json").write_text(
+                        json_util.dumps(t_enriched, indent=2, ensure_ascii=False), encoding="utf-8"
+                    )
+                    staged.append(op)
+                    self.store.append_log(
+                        job_id,
+                        f"  ✓ Staged {op} (enriched only; raw missing — non-blocking) "
+                        f"xCorrelationId={cid}",
                     )
                     continue
                 self.store.append_log(
@@ -1423,7 +1640,7 @@ class AuditBridge:
                         self.store.append_log(job_id, f"  ✓ Fingerprint pair for {op} via {method}")
                 if not (raw and enriched):
                     raw, enriched = self.db.latest_pair(
-                        op, require_pair=True, actor_global_user_id=our_profile or None
+                        lookup_op, require_pair=True, actor_global_user_id=our_profile or None
                     )
 
             if not (raw and enriched) and not owned_cid:
@@ -1431,13 +1648,18 @@ class AuditBridge:
                 try:
                     from audit_validator.generation_tracker import list_owned
 
-                    entry = (list_owned(project_root=self.project_root).get("by_operation") or {}).get(op) or {}
+                    owned_store = list_owned(project_root=self.project_root)
+                    entry = (
+                        (owned_store.get("by_case") or {}).get(case_key or "")
+                        if case_key
+                        else {}
+                    ) or (owned_store.get("by_operation") or {}).get(lookup_op) or {}
                 except Exception:
                     entry = {}
                 find_fp = getattr(self.db, "find_fingerprint_pair", None)
                 if callable(find_fp) and (our_profile or entry.get("profile_id") or entry.get("generated_at")):
                     raw, enriched, method = find_fp(
-                        op,
+                        lookup_op,
                         actor_global_user_id=our_profile or entry.get("profile_id"),
                         since_iso=entry.get("generated_at"),
                         event_id=entry.get("eventId") or entry.get("event_id"),
@@ -1450,9 +1672,22 @@ class AuditBridge:
             if not (raw and enriched):
                 missing_pair.append(op)
                 # Explain why: is it enriched-only, raw-only, or neither?
-                raw_only, enr_only = self.db.latest_pair(op, require_pair=False)
+                raw_only, enr_only = self.db.latest_pair(
+                    lookup_op, require_pair=False, correlation_id=owned_cid or None
+                )
                 if enr_only and not raw_only:
-                    reason = "enriched present but no matching raw"
+                    cid = enr_only.get("xCorrelationId", "") or (owned_cid or "")
+                    (enriched_dir / f"{op}.json").write_text(
+                        json_util.dumps(enr_only, indent=2, ensure_ascii=False), encoding="utf-8"
+                    )
+                    staged.append(op)
+                    missing_pair.pop()
+                    self.store.append_log(
+                        job_id,
+                        f"  ✓ Staged {op} (enriched only; raw missing — non-blocking) "
+                        f"xCorrelationId={cid}",
+                    )
+                    continue
                 elif raw_only and not enr_only:
                     reason = "raw present but no matching enriched (dead-lettered?)"
                 elif raw_only and enr_only:
@@ -1491,7 +1726,13 @@ class AuditBridge:
         correlation_by_op: dict[str, str] | None = None,
     ) -> None:
         self.store.update(job_id, status=JobStatus.RUNNING, started_at=_now())
-        self.store.append_log(job_id, f"▸ Source validation for {len(operations)} operation(s)…")
+        job = self.store.get(job_id)
+        audit_target = str(
+            ((job.params or {}).get("audit_target") if job else None)
+            or os.getenv("AUDIT_TARGET")
+            or "qa"
+        ).strip().lower()
+        self.store.append_log(job_id, f"▸ Source validation for {len(operations)} operation(s) [{audit_target.upper()}]…")
         if field_paths_by_op:
             n = sum(len(v) for v in field_paths_by_op.values())
             self.store.append_log(job_id, f"  · Selective attributes: {n} field path(s) across ops")

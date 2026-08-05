@@ -21,7 +21,7 @@ import socket
 import time
 import uuid
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 import requests
 
@@ -151,6 +151,8 @@ def _load_sample_context() -> dict[str, Any]:
         "asset_customer_id": "",
         "idp_user_id": identity.get("idp_user_id") or "",
         "email": identity.get("email") or "",
+        "invite_email": "",
+        "private_tag_id": "",
         "from_bearer": bool(identity.get("gcid")),
     }
 
@@ -231,6 +233,18 @@ def _load_sample_context() -> dict[str, Any]:
             role = snap.get("role") or {}
             if not ctx["role_id"] and isinstance(role, dict) and role.get("id") and same_tenant:
                 ctx["role_id"] = str(role["id"])
+            invs = snap.get("invitations") or []
+            if not ctx["invite_email"] and isinstance(invs, list):
+                for inv in invs:
+                    if isinstance(inv, dict) and inv.get("email"):
+                        ctx["invite_email"] = str(inv["email"])
+                        break
+            tags = snap.get("tags") or snap.get("privateTags") or []
+            if not ctx["private_tag_id"] and isinstance(tags, list):
+                for tag in tags:
+                    if isinstance(tag, dict) and tag.get("id") not in (None, ""):
+                        ctx["private_tag_id"] = str(tag["id"])
+                        break
             fam = os.getenv("SEED_FAMILY_ID", "").strip()
             if not ctx["family_id"] and fam:
                 ctx["family_id"] = fam
@@ -898,6 +912,158 @@ def probe_typesense_variations() -> dict[str, Any]:
         return _from_exception(result, exc, start)
 
 
+def probe_ums_invitations_db() -> dict[str, Any]:
+    ctx = _load_sample_context()
+    invite_email = ctx.get("invite_email") or ctx.get("email") or ""
+    sql = (
+        "SELECT Id, Email, Status, CreatedOn, RoleId, GlobalCustomerId, EmailLocale "
+        "FROM user_management.user_invitation WHERE email = %s LIMIT 1"
+    )
+    result = _base(
+        "ums_invitations",
+        "UMS · MySQL user_invitation by email",
+        "source",
+        _mysql_display(),
+        "SELECT",
+        why=(
+            "Validates createUserInvitations subject.enrichedSnapshot.invitations[] "
+            "(email, status, roleId, customerId) against user_management.user_invitation."
+        ),
+    )
+    result["sample"] = f"email={invite_email or '(set invite_email from createUserInvitations sample)'}"
+    result["request"] = {
+        "method": "SELECT",
+        "url": _mysql_display(),
+        "headers": {},
+        "params": {},
+        "body": {"sql": sql, "params": [invite_email] if invite_email else []},
+    }
+    if not invite_email:
+        result.update(
+            detail="No invite email in staged samples — generate createUserInvitations first.",
+            hint="Run createUserInvitations or set invite_email on a payload/enrich sample.",
+        )
+        return result
+    start = time.monotonic()
+    return _run_select_probe(
+        result,
+        sql,
+        (invite_email,),
+        ok_when=lambda row: bool(row),
+        start=start,
+    )
+
+
+def probe_ums_invitations() -> dict[str, Any]:
+    """HTTP-mode alias — invitation compare uses MySQL (same query as db probe)."""
+    if _source_truth_db():
+        return probe_ums_invitations_db()
+    ctx = _load_sample_context()
+    invite_email = ctx.get("invite_email") or ""
+    from .source_validation.clients import UmsClient
+
+    cfg = load_source_validation_config()
+    result = _base(
+        "ums_invitations",
+        "UMS · user_invitation lookup (MySQL via compare helper)",
+        "source",
+        "mysql:user_management.user_invitation",
+        "SELECT",
+        why=(
+            "createUserInvitations Compare reads invitation rows with "
+            "SELECT * FROM user_management.user_invitation WHERE email = ?"
+        ),
+    )
+    result["sample"] = f"email={invite_email or '(none)'}"
+    if not invite_email:
+        result.update(detail="No invite email in staged samples.", hint="Generate createUserInvitations.")
+        return result
+    start = time.monotonic()
+    try:
+        ums = UmsClient(cfg)
+        row = ums.get_invitation_by_email(
+            invite_email, ctx.get("customer_id") or cfg.gcid or "", correlation_id=_cid()
+        )
+        if row:
+            result.update(
+                ok=True,
+                state="ok",
+                detail=f"Found invitation id={row.get('id')} status={row.get('status')}",
+                elapsed_ms=int((time.monotonic() - start) * 1000),
+                response_preview=row,
+            )
+        else:
+            result.update(
+                ok=False,
+                state="fail",
+                detail=f"No row for email={invite_email}",
+                elapsed_ms=int((time.monotonic() - start) * 1000),
+            )
+    except Exception as exc:  # noqa: BLE001
+        return _from_exception(result, exc, start)
+    return result
+
+
+def probe_typesense_private_tag() -> dict[str, Any]:
+    cfg = load_source_validation_config()
+    ctx = _load_sample_context()
+    tag_id = ctx.get("private_tag_id") or ""
+    url = f"{cfg.discovery_base_url}/v1/privateTag/{tag_id or '(sample)'}"
+    auth = cfg.discovery_auth_header
+    headers = {
+        "Authorization": auth,
+        "accept": "application/json",
+        "x-correlation-id": _cid(),
+        "Content-Type": "application/json",
+    }
+    body = {"page": 1, "per_page": 10}
+    result = _base(
+        "typesense_private_tag",
+        "Typesense · POST /v1/privateTag/{id}",
+        "source",
+        url,
+        "POST",
+        why=(
+            "Validates updatePrivateTag / createPrivateTags subject.enrichedSnapshot.tags[] "
+            "(id, name, customerId, stylesCount) from Discovery middleware."
+        ),
+    )
+    result["sample"] = f"tagId={tag_id or '(none)'}"
+    result["request"] = {"method": "POST", "url": url, "headers": headers, "params": {}, "body": body}
+    if not tag_id:
+        result.update(
+            detail="No private tag id in staged samples — generate updatePrivateTag first.",
+            hint="Run updatePrivateTag or createPrivateTags.",
+        )
+        return result
+    if not auth:
+        result.update(detail="Discovery token missing.", hint="Set BEARER_TOKEN / DISCOVERY auth in .env")
+        return result
+    start = time.monotonic()
+    try:
+        from .source_validation.clients import DiscoveryClient
+
+        row = DiscoveryClient(cfg).fetch_private_tag_by_id(tag_id, correlation_id=_cid())
+        if row:
+            result.update(
+                ok=True,
+                state="ok",
+                detail=f"Tag {row.get('id')} name={row.get('name')!r}",
+                elapsed_ms=int((time.monotonic() - start) * 1000),
+                response_preview=row,
+            )
+        else:
+            result.update(
+                ok=False,
+                state="fail",
+                detail=f"No tag document for id={tag_id}",
+                elapsed_ms=int((time.monotonic() - start) * 1000),
+            )
+    except Exception as exc:  # noqa: BLE001
+        return _from_exception(result, exc, start)
+    return result
+
+
 def probe_ams() -> dict[str, Any]:
     cfg = load_source_validation_config()
     ctx = _load_sample_context()
@@ -1115,8 +1281,103 @@ def probe_mysql_source() -> dict[str, Any]:
         return result
 
 
+def probe_oauth_token() -> dict[str, Any]:
+    """Issue a Bearer via the active profile (PP password grant or QA client_credentials)."""
+    from audit_validator.auth import (
+        audit_app_token_credentials_curl,
+        jwt_expires_in_hours,
+        oauth_grant_type,
+        oauth_token_form_fields,
+        oauth_token_request_curl,
+    )
+    from audit_validator.env_profiles import get_audit_profile
+
+    profile = get_audit_profile()
+    grant = oauth_grant_type()
+    url, fields = oauth_token_form_fields()
+    encoded_body = urlencode(fields, encoding="utf-8")
+    auth_curl = oauth_token_request_curl(redact_secrets=True)
+    api_port = os.getenv("API_PORT", "3200").strip() or "3200"
+    app_base = f"http://localhost:{api_port}"
+    app_curl = audit_app_token_credentials_curl(base_url=app_base)
+
+    result = _base(
+        "oauth_token",
+        f"OAuth Bearer token ({grant}) · {profile.label}",
+        "api",
+        url,
+        "POST",
+        why=(
+            "Generate / Compare / GraphQL probes need a valid BEARER_TOKEN. "
+            "PP uses Auth0 password grant; QA uses client_credentials (M2M). "
+            "The Generate UI calls POST /api/token/credentials which runs the same OAuth flow."
+        ),
+    )
+    result["sample"] = f"AUDIT_TARGET={profile.name} · grant={grant}"
+    result["curl"] = auth_curl
+    result["app_curl"] = app_curl
+    result["request"] = {
+        "method": "POST",
+        "url": url,
+        "headers": {"Content-Type": "application/x-www-form-urlencoded"},
+        "params": {},
+        "body": encoded_body,
+        "content_type": "application/x-www-form-urlencoded",
+    }
+
+    if grant == "password" and not os.getenv("OAUTH_PASSWORD", "").strip():
+        result.update(
+            detail="OAUTH_PASSWORD not set — cannot test password grant.",
+            hint="Set OAUTH_USERNAME / OAUTH_PASSWORD in .env or use Generate → Bearer credentials.",
+        )
+        return result
+
+    start = time.monotonic()
+    try:
+        from audit_validator.token_manager import _fetch_fresh_token
+
+        token = _fetch_fresh_token()
+        ttl = jwt_expires_in_hours(token)
+        ttl_s = f"{ttl:.1f}h" if ttl is not None else "unknown"
+        result["latency_ms"] = _now_ms(start)
+        result["reachable"] = True
+        result["status_code"] = 200
+        result.update(
+            state="ok",
+            ok=True,
+            detail=f"Issued JWT · expires in {ttl_s} · len={len(token)}",
+            response_snippet=(token[:120] + "…") if len(token) > 120 else token,
+        )
+        result["hint"] = (
+            f"Auth0 curl (redacted) via Copy curl · "
+            f"app wrapper: POST {app_base}/api/token/credentials"
+        )
+        return result
+    except Exception as exc:  # noqa: BLE001
+        result["latency_ms"] = _now_ms(start)
+        msg = str(exc)
+        if "403" in msg or "401" in msg:
+            result.update(
+                state="error",
+                reachable=True,
+                ok=False,
+                detail=f"Auth0 rejected credentials: {exc}",
+                hint="Check OAUTH_CLIENT_ID/SECRET (QA) or OAUTH_USERNAME/PASSWORD (PP).",
+            )
+        else:
+            result.update(
+                state="error",
+                reachable=False,
+                ok=False,
+                detail=f"Token request failed: {exc}",
+                hint="See Copy curl — verify AUDIT_TARGET matches the environment you expect.",
+            )
+        return result
+
+
 _PROBES = {
     "rabbitmq": probe_rabbitmq,
+    "oauth_token": probe_oauth_token,
     "graphql": probe_graphql,
     "ingress": probe_ingress,
     "mysql_source": probe_mysql_source,
@@ -1127,6 +1388,8 @@ _PROBES = {
     "ums_users": probe_ums_users,
     "typesense_styles": probe_typesense_styles,
     "typesense_variations": probe_typesense_variations,
+    "typesense_private_tag": probe_typesense_private_tag,
+    "ums_invitations": probe_ums_invitations,
     "ams_asset": probe_ams,
 }
 
@@ -1136,6 +1399,7 @@ _DB_SOURCE_PROBES = {
     "ums_roles": probe_ums_roles_db,
     "ums_teams": probe_ums_teams_db,
     "ums_users": probe_ums_users_db,
+    "ums_invitations": probe_ums_invitations_db,
     "ams_asset": probe_ams_db,
 }
 

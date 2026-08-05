@@ -28,12 +28,18 @@ def default_operations(project_root: Path | None = None) -> tuple[str, ...]:
     """Operations available for validation — prefer fresh E2E captures over static queue-pairs."""
     if project_root is None:
         from ..project_root import find_project_root
+
         project_root = find_project_root()
     enriched_dir = project_root / "payload" / "enrich"
     fresh: set[str] = set(operations_with_fresh_captures(enriched_dir))
+    from ..case_keys import cron_display_operation
+
     for case in load_cron_cases():
         if (enriched_dir / f"{case.operation}.json").is_file():
             fresh.add(case.operation)
+        case_stem = f"{case.operation}__{case.case_id}"
+        if (enriched_dir / f"{case_stem}.json").is_file():
+            fresh.add(cron_display_operation(case.operation, case.case_id))
     fresh.update(_ingress_captured_operations(project_root))
     for case in load_ingress_cases():
         if case.operation not in fresh and (project_root / "payload" / "ingress" / "enrich" / f"{case.operation}.json").is_file():

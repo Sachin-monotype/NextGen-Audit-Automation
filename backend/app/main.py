@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
+import threading
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
@@ -32,19 +34,26 @@ app = FastAPI(title="NextGen Audit Automation", version="1.1.0")
 
 @app.on_event("startup")
 def _start_background_tasks() -> None:
+    try:
+        from audit_validator.env_profiles import apply_audit_profile
+
+        apply_audit_profile(project_root=settings.audit_project_root)
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger(__name__).warning("Audit profile apply on startup failed: %s", exc)
     retention.start()
     # Keep RabbitMQ → Mongo dump running so Generate/Compare always see fresh pairs.
     # Opt out with INGEST_AUTO_START=false if you want pure manual control.
-    import os
-
     if os.getenv("INGEST_AUTO_START", "true").strip().lower() in {"1", "true", "yes", "on"}:
-        try:
-            status = ingestion.start()
-            logging.getLogger(__name__).info(
-                "Live ingestion auto-started (running=%s)", status.get("running")
-            )
-        except Exception as exc:  # noqa: BLE001
-            logging.getLogger(__name__).warning("Live ingestion auto-start failed: %s", exc)
+        def _start_ingestion() -> None:
+            try:
+                status = ingestion.start()
+                logging.getLogger(__name__).info(
+                    "Live ingestion auto-started (running=%s)", status.get("running")
+                )
+            except Exception as exc:  # noqa: BLE001
+                logging.getLogger(__name__).warning("Live ingestion auto-start failed: %s", exc)
+
+        threading.Thread(target=_start_ingestion, name="ingest-autostart", daemon=True).start()
 
 
 @app.on_event("shutdown")
@@ -78,11 +87,14 @@ class CompareRequest(BaseModel):
     # Optional: operation → exact xCorrelationId to pair (Compare-from-Enrich/raw card).
     # Lets us compare the specific event on the card, including ones fired by others.
     correlation_by_op: dict[str, str] | None = None
+    # pp | qa | uat — which comparison-latest-{target}.json store to update
+    target: str | None = None
 
 
 class RefreshResultsRequest(BaseModel):
     """Re-compare operations already shown in the Result tab (updates comparison-latest.json)."""
     operations: list[str] | None = None
+    target: str | None = None
 
 
 class ExportResultsRequest(BaseModel):
@@ -140,6 +152,26 @@ def comparable_operations() -> dict[str, Any]:
     except Exception:
         pass
 
+    def _apply_catalog_meta(row: dict[str, Any]) -> None:
+        from audit_validator.event_categories import resolve_category
+        from audit_validator.ingress.catalog_meta import ingress_meta_for_operation
+
+        op = str(row.get("operation") or "")
+        base = op.split("(", 1)[0] if "(" in op else op
+        ing = ingress_meta_for_operation(op)
+        if ing:
+            if not row.get("category"):
+                row["category"] = ing.get("category") or resolve_category(base)
+            if not row.get("service"):
+                row["service"] = ing.get("service") or ""
+            if not row.get("environment"):
+                row["environment"] = ing.get("environment") or ""
+        elif not row.get("category"):
+            row["category"] = resolve_category(op) or resolve_category(base)
+
+    for row in items:
+        _apply_catalog_meta(row)
+
     seen = {i["operation"] for i in items}
 
     # Also surface touchpoint variants (activateFamily(global), (list), …) that were
@@ -167,6 +199,7 @@ def comparable_operations() -> dict[str, Any]:
                 }
             )
             seen.add(op)
+            _apply_catalog_meta(items[-1])
     except Exception:
         pass
 
@@ -192,6 +225,9 @@ def comparable_operations() -> dict[str, Any]:
             )
             if not label or label in seen:
                 continue
+            # Ingress/cron stores comparisons under bare names — skip redundant (BE) label.
+            if label.endswith("(BE)") and bare in seen:
+                continue
             # Only add if base op is comparable in Mongo
             if bare not in seen and bare not in {i["operation"].split("(", 1)[0] for i in items}:
                 continue
@@ -208,16 +244,53 @@ def comparable_operations() -> dict[str, Any]:
                 }
             )
             seen.add(label)
+            _apply_catalog_meta(items[-1])
+    except Exception:
+        pass
+
+    # Ingress / cron compares stored under bare op names — ensure catalog metadata
+    # even when Mongo has not yet paired raw+enriched for that operation.
+    try:
+        from audit_validator.event_categories import resolve_category
+        from audit_validator.ingress.catalog_meta import ingress_catalog_by_operation
+
+        from .comparison_store import list_latest
+
+        stored = list_latest(settings.audit_project_root)
+        for op in stored.get("operations") or []:
+            op = str(op)
+            if not op or op in seen:
+                continue
+            base = op.split("(", 1)[0] if "(" in op else op
+            ing = ingress_catalog_by_operation().get(base)
+            if not ing:
+                continue
+            items.append(
+                {
+                    "operation": op,
+                    "category": ing.get("category") or resolve_category(base),
+                    "environment": ing.get("environment", ""),
+                    "service": ing.get("service", ""),
+                    "occurred_at": None,
+                    "ingress": True,
+                }
+            )
+            seen.add(op)
+            _apply_catalog_meta(items[-1])
     except Exception:
         pass
 
     # Hide the bare base op when scenario variants exist (e.g. drop "activateFamily"
-    # once "activateFamily(global)" / "activateFamily(UI)" are present) so the list
-    # is maintained purely by scenario.
+    # once "activateFamily(global)" is present) so the list is maintained purely by
+    # scenario. Channel label ``(BE)`` is not a scenario variant — ingress compares
+    # store under bare operation names. Legacy ``(UI)`` labels are normalized away.
+    def _is_channel_label(op: str) -> bool:
+        return op.endswith("(BE)") or op.endswith("(UI)")
+
     bases_with_variants = {
         str(i["operation"]).split("(", 1)[0]
         for i in items
-        if "(" in str(i["operation"])
+        if "(" in str(i["operation"]) and not _is_channel_label(str(i["operation"]))
     }
     items = [
         i
@@ -233,14 +306,18 @@ def comparable_operations() -> dict[str, Any]:
 
 
 @app.get("/api/results/latest")
-def latest_comparison_results() -> dict[str, Any]:
-    """Latest stored comparison per operation (merged rows for the Result view)."""
+def latest_comparison_results(target: str | None = None) -> dict[str, Any]:
+    """Latest stored comparison per operation (merged rows for the Result view).
+
+    Optional ``target`` (pp|qa|uat) selects which environment's store to read;
+    defaults to the active ``AUDIT_TARGET``.
+    """
     from .comparison_store import list_latest
 
-    return list_latest(settings.audit_project_root)
+    return list_latest(settings.audit_project_root, target=target)
 
 
-@app.get("/api/results/latest/{operation}")
+@app.get("/api/results/latest/{operation:path}")
 def latest_comparison_operation(operation: str) -> dict[str, Any]:
     from .comparison_store import get_latest_operation
 
@@ -248,6 +325,19 @@ def latest_comparison_operation(operation: str) -> dict[str, Any]:
     if not item:
         raise HTTPException(404, f"No stored comparison for {operation}")
     return item
+
+
+@app.get("/api/results/enriched-sample/{operation:path}")
+def enriched_sample_for_operation(operation: str) -> dict[str, Any]:
+    """Staged enriched JSON for a compared operation (scenario variants included)."""
+    from audit_validator.source_validation.config import load_source_validation_config
+    from audit_validator.source_validation.runner import _load_enriched_sample
+
+    cfg = load_source_validation_config(settings.audit_project_root)
+    enriched = _load_enriched_sample(cfg, operation, sample_source="fresh")
+    if not enriched:
+        raise HTTPException(404, f"No staged enriched sample for {operation}")
+    return {"operation": operation, "enriched": enriched}
 
 
 @app.delete("/api/results/latest/{operation:path}")
@@ -259,6 +349,23 @@ def delete_comparison_operation(operation: str) -> dict[str, Any]:
     if not deleted:
         raise HTTPException(404, f"No stored comparison for {operation}")
     return {"deleted": operation, "ok": True}
+
+
+@app.post("/api/results/restore-from-jobs")
+def restore_comparison_from_jobs() -> dict[str, Any]:
+    """Rehydrate comparison-latest.json from completed compare jobs (last 7 days)."""
+    from .comparison_restore import restore_recent_comparisons
+
+    return restore_recent_comparisons(settings.audit_project_root, days=7, compare_missing=False)
+
+
+@app.get("/api/results/operations")
+def list_comparison_operations() -> dict[str, Any]:
+    """Stored comparison operations for Generate / Results badges."""
+    from .comparison_restore import stored_operation_index
+
+    index = stored_operation_index(settings.audit_project_root)
+    return {"count": len(index), "operations": index}
 
 
 @app.delete("/api/results/latest")
@@ -586,6 +693,8 @@ def pipeline_config() -> dict[str, Any]:
     try:
         from audit_validator.config import load_config
         from audit_validator.env_profiles import get_audit_profile
+        from audit_validator.ingestion.config import load_ingest_lanes
+        from audit_validator.ingestion.targets import ingest_mongo_databases, ingest_target_names
         from urllib.parse import quote, urlparse
 
         cfg = load_config(settings.audit_project_root)
@@ -603,7 +712,7 @@ def pipeline_config() -> dict[str, Any]:
             )
 
         return {
-            "target": __import__("os").getenv("AUDIT_TARGET", "pp"),
+            "target": __import__("os").getenv("AUDIT_TARGET", "qa"),
             "target_label": profile.label,
             "nextgen_url": profile.nextgen_ui_url,
             "queue_environment": "pp" if profile.rabbitmq_vhost == "mt-connect-preprod" else profile.name,
@@ -614,12 +723,19 @@ def pipeline_config() -> dict[str, Any]:
                 else ""
             ),
             "available_targets": [
-                {"id": "pp", "label": "PP", "url": "https://nextgen.monotype-pp.com"},
                 {"id": "qa", "label": "QA", "url": "https://nextgen-qa.monotype-pp.com"},
+                {"id": "pp", "label": "PP", "url": "https://nextgen.monotype-pp.com"},
                 {"id": "uat", "label": "UAT", "url": "https://nextgen.monotype-uat.com"},
             ],
             "graphql_endpoint": __import__("os").getenv("NEXTGEN_GRAPHQL_ENDPOINT", ""),
             "mongo_db": settings.mongo_db,
+            "mongo_databases": ingest_mongo_databases(),
+            "ingest_targets": ingest_target_names(),
+            "ingestion_lanes": [
+                {"target": lane.target, "vhost": lane.vhost, "mongo_db": lane.mongo_db}
+                for lane in load_ingest_lanes()
+            ],
+            "ingestion_multi_target": len(ingest_mongo_databases()) > 1,
             "mongo_url_host": (urlparse(settings.mongo_url).hostname or ""),
             "raw_queue": cfg.rabbitmq.raw_queue,
             "raw_queue_url": queue_url(cfg.rabbitmq.raw_queue),
@@ -648,6 +764,7 @@ def set_pipeline_target(req: PipelineTargetRequest) -> dict[str, Any]:
         import os
         from dotenv import set_key
         from audit_validator.env_profiles import apply_audit_profile, mongo_db_for_profile
+        from audit_validator.ingestion.targets import multi_target_ingestion_enabled
 
         os.environ["AUDIT_TARGET"] = target
         set_key(str(settings.audit_project_root / ".env"), "AUDIT_TARGET", target)
@@ -668,8 +785,42 @@ def set_pipeline_target(req: PipelineTargetRequest) -> dict[str, Any]:
             )
         settings.mongo_db = mongo_name
         db.use_database(mongo_name)
-        ingestion.reconfigure()
-        return pipeline_config()
+        if profile.oauth_username:
+            set_key(
+                str(settings.audit_project_root / ".env"),
+                "OAUTH_USERNAME",
+                profile.oauth_username,
+            )
+            os.environ["OAUTH_USERNAME"] = profile.oauth_username
+        pwd = (os.getenv("OAUTH_PASSWORD") or "").strip()
+        token_refreshed = False
+        try:
+            from audit_validator.token_manager import apply_credentials
+
+            if profile.oauth.grant_type == "client_credentials":
+                apply_credentials(
+                    settings.audit_project_root,
+                    username="",
+                    password="",
+                    persist=True,
+                )
+                token_refreshed = True
+            elif profile.oauth_username and pwd:
+                apply_credentials(
+                    settings.audit_project_root,
+                    username=profile.oauth_username,
+                    password=pwd,
+                    persist=True,
+                )
+                token_refreshed = True
+        except Exception:
+            pass
+        if not multi_target_ingestion_enabled():
+            ingestion.reconfigure()
+        out = pipeline_config()
+        out["oauth_username"] = profile.oauth_username
+        out["token_refreshed"] = token_refreshed
+        return out
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -683,14 +834,17 @@ def set_pipeline_queues(req: PipelineQueuesRequest) -> dict[str, Any]:
         if not q:
             raise HTTPException(status_code=400, detail="raw_queue cannot be empty")
         updates["RAW_EVENTS_QUEUE"] = q
+        updates["INGEST_RAW_QUEUE"] = q
     if req.enriched_queue is not None:
         q = req.enriched_queue.strip()
         if not q:
             raise HTTPException(status_code=400, detail="enriched_queue cannot be empty")
         updates["ENRICHED_EVENTS_QUEUE"] = q
+        updates["INGEST_ENRICHED_QUEUE"] = q
     if req.dlq is not None:
         q = req.dlq.strip()
         updates["DEAD_LETTER_QUEUE"] = q
+        updates["INGEST_DLQ_QUEUE"] = q
     if not updates:
         raise HTTPException(status_code=400, detail="provide raw_queue and/or enriched_queue")
     try:
@@ -726,12 +880,43 @@ def coverage() -> dict[str, Any]:
 def categories() -> dict[str, Any]:
     """Event categories (in-app notification groups) + operation → category map."""
     try:
-        from audit_validator.event_categories import category_report
-        from audit_validator.operation_registry import tracked_operations
+        from audit_validator.event_categories import category_report, known_operations
 
-        return category_report(tracked_operations())
+        return category_report(list(known_operations()))
     except Exception as exc:
         return {"categories": [], "by_operation": {}, "counts": {}, "error": str(exc)}
+
+
+@app.get("/api/meta/gql-ui-testcase-gaps")
+def gql_ui_testcase_gaps() -> dict[str, Any]:
+    """GraphQL Generate catalog items missing TestRail case ids."""
+    try:
+        from audit_validator.operation_sources import operation_source_report
+        from audit_validator.ui_testrail_map import case_id_for_selection_item
+
+        operation_source_report.cache_clear()
+        catalog = operation_source_report().get("catalog") or []
+        missing = []
+        for item in catalog:
+            if item.get("kind") != "graphql":
+                continue
+            if not case_id_for_selection_item(item):
+                missing.append(
+                    {
+                        "id": item.get("id"),
+                        "operation": item.get("operation"),
+                        "touchpoint": item.get("touchpoint"),
+                        "label": item.get("label"),
+                    }
+                )
+        return {
+            "graphql_catalog": len([c for c in catalog if c.get("kind") == "graphql"]),
+            "missing_count": len(missing),
+            "missing": missing,
+            "ok": len(missing) == 0,
+        }
+    except Exception as exc:
+        return {"missing_count": -1, "missing": [], "ok": False, "error": str(exc)}
 
 
 @app.get("/api/meta/operation-sources")
@@ -794,6 +979,25 @@ def token_status() -> dict[str, Any]:
         return {"present": False, "error": str(exc)}
 
 
+@app.get("/api/meta/ingress-runtime")
+def ingress_runtime_meta() -> dict[str, Any]:
+    """Resolved ingress envelope context (JWT actor, host OS, device ids)."""
+    try:
+        from audit_validator.ingress.runtime_context import resolve_ingress_runtime_context
+
+        ctx = resolve_ingress_runtime_context()
+        out = ctx.as_dict()
+        out["machine_id_present"] = bool(ctx.machine_id)
+        out["unique_id_present"] = bool(ctx.unique_id)
+        if not ctx.machine_id:
+            out["machine_id_hint"] = (
+                "Copy Device ID from Monotype Connect → Preferences → About into INGRESS_MACHINE_ID"
+            )
+        return out
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 @app.post("/api/token/refresh")
 def token_refresh() -> dict[str, Any]:
     """Force a Bearer-token refresh (regenerate + persist to .env)."""
@@ -806,8 +1010,8 @@ def token_refresh() -> dict[str, Any]:
 
 
 class TokenCredentialsRequest(BaseModel):
-    username: str
-    password: str
+    username: str = ""
+    password: str = ""
     org: str = ""
     gcid: str = ""
 
@@ -862,19 +1066,19 @@ class UiTriggerRequest(BaseModel):
     notes: str = ""
     extra: dict[str, Any] = Field(default_factory=dict)
     dispatch: bool = False
-    # Browser mode for CasePilot connector (default headed / visible)
-    headless: bool = False
+    # Browser mode for CasePilot connector (default headless)
+    headless: bool = True
     # Parallel UI browsers for this batch (1=serial; omit=None → env/PP cap)
     max_parallel: int | None = None
 
 
 @app.get("/api/meta/casepilot")
-def casepilot_status() -> dict[str, Any]:
+def casepilot_status(fast: bool = True, force: bool = False) -> dict[str, Any]:
     """CasePilot MCP reachability (preflight + connector online)."""
     try:
         from audit_validator.ui_trigger import casepilot_health
 
-        return casepilot_health()
+        return casepilot_health(fast=fast, force=force)
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 
@@ -991,6 +1195,7 @@ def refresh_generate_ui(job_id: str) -> dict[str, Any]:
     """Poll CasePilot run status; auto-verify raw/enrich when correlations are ready."""
     try:
         from audit_validator.ui_trigger import (
+            casepilot_batch_pending,
             finalize_ui_trigger_verification,
             get_ui_trigger_job,
             refresh_casepilot_status,
@@ -1003,11 +1208,13 @@ def refresh_generate_ui(job_id: str) -> dict[str, Any]:
         has_cids = bool(ver.get("auto_verify_pending") and (job or {}).get("results"))
         already = bool(ver.get("generate_run_saved"))
         status = str((job or {}).get("status") or "").lower()
+        cp_pending = casepilot_batch_pending(job)
         if (
             job
             and has_cids
             and not already
-            and status not in {"failed", "cancelled"}
+            and cp_pending == 0
+            and status == "completed"
             and (job.get("results") or [])
         ):
             job = finalize_ui_trigger_verification(
@@ -1024,6 +1231,122 @@ def refresh_generate_ui(job_id: str) -> dict[str, Any]:
 
 class UiTriggerResultsBody(BaseModel):
     results: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class UiScriptImportBody(BaseModel):
+    """JSON shape documented for clients; import endpoint accepts multipart Form."""
+
+    target: str = "web"
+    events: list[str] = Field(default_factory=list)
+    scenarios: list[str] = Field(default_factory=list)
+    pairs: list[dict[str, str]] = Field(default_factory=list)
+
+
+def _parse_ui_script_pairs(raw: str) -> list[dict[str, Any]]:
+    if not (raw or "").strip():
+        return []
+    parsed = json.loads(raw)
+    if not isinstance(parsed, list):
+        return []
+    return [p for p in parsed if isinstance(p, dict)]
+
+
+@app.get("/api/jobs/generate-ui-script/catalog")
+def generate_ui_script_catalog(target: str = "web") -> dict[str, Any]:
+    """List events/scenarios from Playwright datasource-latest.xlsx (web or app sheet)."""
+    try:
+        from audit_validator.ui_script_import import list_ui_script_catalog
+
+        return {"ok": True, **list_ui_script_catalog(target=target)}
+    except FileNotFoundError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+@app.post("/api/jobs/generate-ui-script/catalog")
+async def generate_ui_script_catalog_upload(
+    target: str = Form("web"),
+    file: UploadFile = File(...),
+) -> dict[str, Any]:
+    """Parse an uploaded Excel and return Web/App catalog for the picker."""
+    try:
+        from audit_validator.ui_script_import import list_ui_script_catalog
+
+        content = await file.read()
+        if not content:
+            raise HTTPException(400, "Empty file")
+        return {
+            "ok": True,
+            **list_ui_script_catalog(
+                target=target,
+                content=content,
+                filename=file.filename or "upload.xlsx",
+            ),
+        }
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+@app.post("/api/jobs/generate-ui-script")
+async def import_generate_ui_script(
+    target: str = Form("web"),
+    pairs: str = Form("[]"),
+    file: UploadFile | None = File(None),
+) -> dict[str, Any]:
+    """Import from datasource-latest.xlsx or uploaded Excel → verify → Compare."""
+    try:
+        from audit_validator.ui_script_import import (
+            import_ui_script_excel,
+            resolve_ui_script_datasource_path,
+        )
+
+        content: bytes | None = None
+        filename: str | None = None
+        if file is not None and (file.filename or "").strip():
+            content = await file.read()
+            if not content:
+                raise HTTPException(400, "Empty file")
+            filename = file.filename
+
+        pair_list = _parse_ui_script_pairs(pairs)
+        path_note: str | None = None
+        if content is None:
+            path_note = str(resolve_ui_script_datasource_path())
+
+        job = import_ui_script_excel(
+            settings.audit_project_root,
+            content,
+            target=target or "web",
+            pairs=pair_list or None,
+            db=db,
+        )
+        ready = bool((job or {}).get("verification", {}).get("generate_run_saved"))
+        rows = int(((job or {}).get("agent") or {}).get("rows_imported") or 0)
+        return {
+            "ok": ready,
+            "job": job,
+            "rows_parsed": rows,
+            "target": target or "web",
+            "path": path_note,
+            "filename": filename,
+        }
+    except FileNotFoundError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
+    except HTTPException:
+        raise
+    except json.JSONDecodeError as exc:
+        return JSONResponse({"ok": False, "error": f"Invalid pairs JSON: {exc}"}, status_code=400)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
 @app.post("/api/jobs/generate-ui/{job_id}/results")
@@ -1048,6 +1371,29 @@ def record_generate_ui_results(job_id: str, body: UiTriggerResultsBody) -> dict[
         )
         ready = bool((job or {}).get("verification", {}).get("generate_run_saved"))
         return {"ok": ready, "job": job}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+@app.post("/api/jobs/generate-ui/{job_id}/harvest-connect-log")
+def harvest_connect_log_generate_ui(job_id: str) -> dict[str, Any]:
+    """Poll Connect service log for xCorrelationId after an app/plugin UI run."""
+    try:
+        from audit_validator.ui_trigger import get_ui_trigger_job, _schedule_connect_log_harvest_if_ready
+
+        job = get_ui_trigger_job(settings.audit_project_root, job_id)
+        if not job:
+            raise HTTPException(404, f"No UI trigger job {job_id}")
+        if not job.get("connect_log_capture"):
+            return JSONResponse(
+                {"ok": False, "error": "Job has no Connect log capture baseline"},
+                status_code=400,
+            )
+        _schedule_connect_log_harvest_if_ready(settings.audit_project_root, job)
+        job = get_ui_trigger_job(settings.audit_project_root, job_id)
+        return {"ok": True, "job": job}
     except HTTPException:
         raise
     except Exception as exc:
@@ -1095,6 +1441,18 @@ def cancel_job(job_id: str) -> dict[str, Any]:
     return {"ok": True, "job": _job_payload(job)}
 
 
+@app.post("/api/jobs/compare-all")
+def start_compare_all() -> dict[str, Any]:
+    """Compare every pairable operation (~300+ tracked scenarios)."""
+    items = comparable_operations().get("items") or []
+    ops = [str(i.get("operation") or "") for i in items if i.get("operation")]
+    if not ops:
+        raise HTTPException(400, "No pairable operations to compare")
+    target = (os.getenv("AUDIT_TARGET") or "qa").strip().lower()
+    job = bridge.start_compare(ops, "fresh", audit_target=target)
+    return {"ok": True, "count": len(ops), "target": target, "job": _job_payload(job)}
+
+
 @app.post("/api/jobs/compare")
 def start_compare(body: CompareRequest) -> dict[str, Any]:
     if not body.operations:
@@ -1104,6 +1462,7 @@ def start_compare(body: CompareRequest) -> dict[str, Any]:
         body.sample_source,
         field_paths_by_op=body.field_paths_by_op,
         correlation_by_op=body.correlation_by_op,
+        audit_target=body.target,
     )
     return _job_payload(job)
 
@@ -1114,14 +1473,21 @@ def refresh_stored_comparisons(body: RefreshResultsRequest | None = None) -> dic
     from .comparison_store import list_latest
 
     req = body or RefreshResultsRequest()
+    target = (req.target or os.getenv("AUDIT_TARGET") or "qa").strip().lower()
     ops = [o.strip() for o in (req.operations or []) if o and o.strip()]
     if not ops:
-        latest = list_latest(settings.audit_project_root)
+        latest = list_latest(settings.audit_project_root, target=target)
         ops = list(latest.get("operations") or [])
     if not ops:
-        raise HTTPException(400, "No stored comparisons to refresh")
-    job = bridge.start_compare(ops, "fresh")
-    return {"ok": True, "operations": ops, "count": len(ops), "job": _job_payload(job)}
+        raise HTTPException(400, f"No stored comparisons to refresh for target={target}")
+    job = bridge.start_compare(ops, "fresh", audit_target=target)
+    return {
+        "ok": True,
+        "operations": ops,
+        "count": len(ops),
+        "target": target,
+        "job": _job_payload(job),
+    }
 
 
 @app.get("/api/meta/enriched-fields/{operation}")

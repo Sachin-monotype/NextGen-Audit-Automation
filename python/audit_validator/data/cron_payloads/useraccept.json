@@ -17,6 +17,8 @@
       "globalCustomerId": "4a949153-9cab-4023-b31c-8336a8a3ec46"
     },
     "subject": {
+      "id": "656731",
+      "type": "userInvitation",
       "triggerCode": "B-1",
       "workspaceId": "4a949153-9cab-4023-b31c-8336a8a3ec46",
       "customerId": "4a949153-9cab-4023-b31c-8336a8a3ec46",

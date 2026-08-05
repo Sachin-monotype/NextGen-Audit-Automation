@@ -47,6 +47,12 @@ def _short_touch(touch: str) -> str:
         return "project_list"
     if "favourite" in t or "favorite" in t:
         return "favourite"
+    if ("app" in t or "connect" in t) and (
+        "global" in t or "discover" in t or "search" in t
+    ):
+        return "global_app"
+    if "desktop" in t and "ui" in t:
+        return "desktop_ui"
     if t == "project" or t.startswith("project "):
         return "project"
     if "list" in t or "fontlist" in t:
@@ -105,6 +111,9 @@ def case_id_for_selection_item(item: dict[str, Any]) -> int | None:
     labels: dict[str, int] = data["label_aliases"]
 
     sid = str(item.get("id") or "").strip()
+    if sid.startswith("ingress:"):
+        if sid in by_key:
+            return by_key[sid]
     if sid in by_key:
         return by_key[sid]
 

@@ -4,13 +4,16 @@ import MultiSelect from "../components/MultiSelect";
 import {
   fetchCategories,
   fetchComparableOperations,
+  fetchComparisonOperations,
   fetchJob,
   startCompare,
+  startCompareAll,
   deleteLatestResult,
   type CategoryReport,
   type ComparableOperation,
   type Job,
 } from "../api";
+import { operationHasStoredResult, storedComparedAt } from "../utils/operationMatch";
 
 type Props = {
   /** Persist compared ops; optional navigation to Result when user clicks Open results. */
@@ -55,12 +58,21 @@ export default function ComparePage({ onCompareCompleted, adoptJobId, onAdoptCon
   const [error, setError] = useState("");
   const [activeJob, setActiveJob] = useState<Job | null>(null);
   const [fieldPathsByOp, setFieldPathsByOp] = useState<Record<string, string[]>>({});
+  const [comparisonOps, setComparisonOps] = useState<Record<string, string>>({});
+  const [verifyBusyOp, setVerifyBusyOp] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const loadComparisonOps = useCallback(() => {
+    fetchComparisonOperations()
+      .then((r) => setComparisonOps(r.operations || {}))
+      .catch(() => setComparisonOps({}));
+  }, []);
 
   useEffect(() => {
     fetchComparableOperations().then((r) => setItems(r.items ?? []));
     fetchCategories().then(setCategories).catch(() => {});
-  }, []);
+    loadComparisonOps();
+  }, [loadComparisonOps]);
 
   const pollJob = useCallback(
     (id: string) => {
@@ -75,6 +87,7 @@ export default function ComparePage({ onCompareCompleted, adoptJobId, onAdoptCon
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
             setBusy(false);
+            loadComparisonOps();
           }
         } catch {
           misses += 1;
@@ -87,7 +100,7 @@ export default function ComparePage({ onCompareCompleted, adoptJobId, onAdoptCon
         }
       }, 1500);
     },
-    [onCompareCompleted],
+    [onCompareCompleted, loadComparisonOps],
   );
 
   // Restore last compare job across tab switches / refresh.
@@ -190,6 +203,28 @@ export default function ComparePage({ onCompareCompleted, adoptJobId, onAdoptCon
     setSelected(new Set());
   }
 
+  async function runCompareAll() {
+    if (
+      !window.confirm(
+        `Compare all ${items.length} pairable operations? This may take a long time but rebuilds the full Results store.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setActiveJob(null);
+    try {
+      const job = await startCompareAll();
+      localStorage.setItem(JOB_KEY, job.id);
+      setActiveJob(job);
+      pollJob(job.id);
+    } catch (e) {
+      setError(String(e));
+      setBusy(false);
+    }
+  }
+
   async function runCompare() {
     if (!selected.size) return;
     setBusy(true);
@@ -211,6 +246,25 @@ export default function ComparePage({ onCompareCompleted, adoptJobId, onAdoptCon
     } catch (e) {
       setError(String(e));
       setBusy(false);
+    }
+  }
+
+  async function verifyOneOperation(operation: string) {
+    setVerifyBusyOp(operation);
+    setError("");
+    setActiveJob(null);
+    try {
+      const paths = fieldPathsByOp[operation]?.length ? { [operation]: fieldPathsByOp[operation] } : undefined;
+      const job = await startCompare([operation], paths);
+      localStorage.setItem(JOB_KEY, job.id);
+      setActiveJob(job);
+      setBusy(true);
+      pollJob(job.id);
+      onCompareCompleted(job.id, [operation]);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setVerifyBusyOp(null);
     }
   }
 
@@ -294,6 +348,15 @@ export default function ComparePage({ onCompareCompleted, adoptJobId, onAdoptCon
         >
           {jobRunning ? "Comparing…" : `Compare ${selected.size} selected`}
         </button>
+        <button
+          type="button"
+          className="primary outline"
+          disabled={jobRunning || items.length === 0}
+          onClick={() => void runCompareAll()}
+          title="Rebuild the full Results store (~300+ operations)"
+        >
+          Compare all pairable ({items.length})
+        </button>
         <AttributeEditor
           operations={[...selected]}
           value={fieldPathsByOp}
@@ -365,7 +428,10 @@ export default function ComparePage({ onCompareCompleted, adoptJobId, onAdoptCon
       )}
 
       <div className="op-list compare-op-list">
-        {visible.map((item) => (
+        {visible.map((item) => {
+          const hasResult = operationHasStoredResult(item.operation, comparisonOps);
+          const comparedAt = storedComparedAt(item.operation, comparisonOps);
+          return (
           <div
             key={item.operation}
             className="op-row"
@@ -394,8 +460,46 @@ export default function ComparePage({ onCompareCompleted, adoptJobId, onAdoptCon
                   .join(" · ")}
               </span>
             </span>
+            <span
+              className="op-row-verify"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              {hasResult ? (
+                <span style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+                  <span
+                    className="badge pass"
+                    title={
+                      comparedAt
+                        ? `Last compared ${new Date(comparedAt).toLocaleString()}`
+                        : "Stored in Results"
+                    }
+                  >
+                    ✓ Compared
+                  </span>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    disabled={jobRunning || verifyBusyOp === item.operation}
+                    onClick={() => void verifyOneOperation(item.operation)}
+                  >
+                    {verifyBusyOp === item.operation ? "Starting…" : "Reverify"}
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="link-btn"
+                  disabled={jobRunning || verifyBusyOp === item.operation}
+                  onClick={() => void verifyOneOperation(item.operation)}
+                >
+                  {verifyBusyOp === item.operation ? "Starting…" : "Verify"}
+                </button>
+              )}
+            </span>
           </div>
-        ))}
+        );
+        })}
         {visible.length === 0 && (
           <p className="muted compare-empty">
             No pairable operations match the current filters. Adjust category /

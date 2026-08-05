@@ -8,7 +8,7 @@ import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TypeAlias
+from typing import Any, TypeAlias
 
 from ..config import AppConfig, RabbitMQConfig, load_config
 from ..models import JsonDict, ValidationResult, ValidationStatus
@@ -16,7 +16,13 @@ from ..rabbitmq.collector import QueueEventCollector
 from ..report import print_report, write_json_report
 from ..report_paths import ensure_report_dirs, temp_path
 from .client import IngressClient, load_ingress_client_config
-from .config import IngressConfigError, ingress_queue_names, ingress_rabbitmq_url
+from .config import (
+    IngressConfigError,
+    ingress_queue_names,
+    ingress_rabbitmq_url,
+    ingress_settle_seconds,
+)
+from .mongo_lookup import lookup_pair_by_correlation
 from .payloads import IngressCase, load_ingress_cases, normalize_ingress_payload
 from .validation import expects_ingress_enrichment, validate_ingress_event_pair
 
@@ -113,6 +119,8 @@ def purge_ingress_queues(cfg: AppConfig | None = None) -> dict[str, int]:
 def _post_cases(
     client: IngressClient,
     cases: list[IngressCase],
+    *,
+    project_root: Path | None = None,
 ) -> tuple[list[PublishedIngress], list[IngressCaseResult]]:
     published: list[PublishedIngress] = []
     failures: list[IngressCaseResult] = []
@@ -145,6 +153,7 @@ def _post_cases(
                 continue
             published.append((case, payload, cid))
             try:
+                from ..case_keys import ingress_case_key
                 from ..generation_tracker import record_generation
 
                 actor = payload.get("actor") if isinstance(payload.get("actor"), dict) else {}
@@ -152,12 +161,15 @@ def _post_cases(
                     case.operation or case.case_id,
                     cid,
                     kind="ingress",
+                    project_root=project_root,
+                    case_key=ingress_case_key(case.case_id),
                     meta={
                         "case_id": case.case_id,
                         "eventId": payload.get("eventId"),
                         "profile_id": actor.get("globalUserId"),
                         "customer_id": actor.get("globalCustomerId"),
                         "event_name": case.event_name,
+                        "trigger_status": "PASS",
                     },
                 )
             except Exception:
@@ -184,17 +196,35 @@ def _post_cases(
     return published, failures
 
 
+def _resolve_ingress_pair(
+    operation: str,
+    cid: str,
+    collector: QueueEventCollector,
+    db: Any | None,
+) -> tuple[JsonDict | None, JsonDict | None, str]:
+    """Queue tap first; Mongo fallback when ingestion already drained the tap."""
+    raw_seen, enriched, _dl = collector.get_by_correlation(cid)
+    if raw_seen or enriched:
+        return raw_seen, enriched, "queue"
+    raw_m, enriched_m = lookup_pair_by_correlation(operation, cid, db=db)
+    if raw_m or enriched_m:
+        return raw_m, enriched_m, "mongo"
+    return None, None, "none"
+
+
 def summarize_ingress_results(
     published: list[PublishedIngress],
     publish_failures: list[IngressCaseResult],
     collector: QueueEventCollector,
+    *,
+    db: Any | None = None,
 ) -> IngressRunResult:
     run = IngressRunResult(cases=list(publish_failures))
 
     for case, raw_payload, cid in published:
-        raw_seen, enriched, _dl = collector.get_by_correlation(cid)
         operation = str((raw_payload.get("source") or {}).get("operation") or case.operation)
         service = str((raw_payload.get("source") or {}).get("service") or case.service)
+        raw_seen, enriched, source = _resolve_ingress_pair(operation, cid, collector, db)
 
         if not raw_seen:
             run.cases.append(
@@ -211,12 +241,20 @@ def summarize_ingress_results(
                     enrich_status="NO",
                     validation_status="FAIL",
                     error=(
-                        "Raw event not seen on ingress raw queue "
-                        "(Ingress API accepted but queue tap missed event)"
+                        "Raw event not found after settle (queue tap + Mongo). "
+                        "Confirm live ingestion is running and INGRESS_SETTLE_SEC "
+                        "allows plugin/font-bridge landing (~5 min)."
                     ),
                 )
             )
             continue
+
+        raw_label = "PASS" if raw_seen else "NO"
+        enrich_label = "PASS" if enriched else "NO"
+        if source == "mongo":
+            raw_label = "PASS(mongo)"
+            if enriched:
+                enrich_label = "PASS(mongo)"
 
         if not enriched:
             optional = not expects_ingress_enrichment(operation)
@@ -230,13 +268,15 @@ def summarize_ingress_results(
                     correlation_id=cid,
                     http_status=200,
                     publish_status="PASS",
-                    raw_status="PASS",
-                    enrich_status="NO",
+                    raw_status=raw_label,
+                    enrich_status=enrich_label,
                     validation_status="WARN" if optional else "FAIL",
                     error=(
                         "Enriched event optional for desktop/plugin ingress sample"
                         if optional
-                        else "Enriched event not received on ingress test queue"
+                        else (
+                            "Enriched event not found after settle (queue tap + Mongo)"
+                        )
                     ),
                 )
             )
@@ -256,8 +296,8 @@ def summarize_ingress_results(
                 correlation_id=cid,
                 http_status=200,
                 publish_status="PASS",
-                raw_status="PASS",
-                enrich_status="PASS",
+                raw_status=raw_label,
+                enrich_status=enrich_label,
                 validation_status=status,
                 error=err,
             )
@@ -305,6 +345,7 @@ def run_ingress_validation(
     settle_sec: float | None = None,
     report_path: Path | None = None,
     purge_before: bool = False,
+    db: Any | None = None,
 ) -> IngressRunResult:
     logging.basicConfig(
         level=logging.INFO,
@@ -314,7 +355,7 @@ def run_ingress_validation(
     base_cfg = load_config(project_root)
     cfg = ingress_app_config(base_cfg)
     ensure_report_dirs(cfg.project_root)
-    settle = settle_sec if settle_sec is not None else float(os.getenv("INGRESS_SETTLE_SEC", "45"))
+    settle = settle_sec if settle_sec is not None else ingress_settle_seconds()
 
     try:
         ingress_queue_names()
@@ -351,13 +392,23 @@ def run_ingress_validation(
     print(f" Cases: {len(cases)}")
 
     client = IngressClient(client_cfg)
-    published, publish_failures = _post_cases(client, cases)
-    print(f" - Posted {len(published)} event(s); waiting {settle:.0f}s for queue capture…")
-    collector.wait_until_settled(settle)
+    published, publish_failures = _post_cases(client, cases, project_root=cfg.project_root)
+    print(
+        f" - Posted {len(published)} event(s); waiting {settle:.0f}s after last POST "
+        f"for plugin/font-bridge raw+enrich…"
+    )
+    log.info(
+        "Ingress settle: waiting %.0fs after last POST (%d event(s))",
+        settle,
+        len(published),
+    )
+    # Plugin / FontBridge ingress events land slowly — enforce the full wait window
+    # (do not exit early when the tap queue goes briefly idle).
+    collector.wait_until_settled(settle, min_elapsed_sec=settle)
     if cfg.enriched_catchup_sec > 0:
         collector.wait_for_missing_enriched(min(cfg.enriched_catchup_sec, settle))
 
-    run = summarize_ingress_results(published, publish_failures, collector)
+    run = summarize_ingress_results(published, publish_failures, collector, db=db)
     collector.stop()
 
     out = report_path or temp_path(cfg.project_root, "ingress-results.json")

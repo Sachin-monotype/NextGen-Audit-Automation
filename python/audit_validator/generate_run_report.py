@@ -6,8 +6,8 @@ Fallback when the platform does not echo the header into the envelope:
 ``subject.id`` when recorded).
 
 UI statuses (Generation Status):
-- ``PASS`` — raw and enriched both present for our event
-- ``FAIL`` — trigger failed, or only one side landed, or not found after settle
+- ``PASS`` — enriched present (raw optional; we validate against enriched + live sources)
+- ``FAIL`` — trigger failed, enrichment missing, or not found after settle
 - ``N/A`` — skipped / no identity to verify (e.g. no cid and no actor fingerprint)
 """
 
@@ -30,7 +30,7 @@ _LAST_REL = Path("reports") / "generate-runs" / "last.json"
 _STATUS_META: dict[str, tuple[str, str]] = {
     "success": ("PASS", "Raw + enriched landed in Mongo"),
     "raw_only": ("FAIL", "Raw generated; enrichment not in Mongo yet"),
-    "enrich_only": ("FAIL", "Enriched present; raw not generated / not ingested"),
+    "enrich_only": ("PASS", "Enriched landed in Mongo (raw not ingested — non-blocking)"),
     "missing": ("FAIL", "Event not found in Mongo (check ingestion / queues)"),
     "no_correlation": (
         "N/A",
@@ -131,8 +131,38 @@ def load_last_generate_run(*, project_root: Path | None = None) -> dict[str, Any
 
 
 def _owned_entry(operation: str, *, project_root: Path | None = None) -> dict[str, Any]:
+    from .generation_tracker import merge_legacy_correlation_store
+
+    merge_legacy_correlation_store(project_root=project_root)
     data = list_owned(project_root=project_root)
     entry = (data.get("by_operation") or {}).get(operation) or {}
+    if isinstance(entry, dict) and entry.get("xCorrelationId"):
+        return entry
+    # Fallback: latest ingress run records correlations in temp/ingress-results.json
+    try:
+        from .report_paths import ingress_results_json
+
+        path = ingress_results_json(project_root)
+        if path.is_file():
+            report = json.loads(path.read_text(encoding="utf-8"))
+            for row in report.get("cases") or []:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("operation") or "") != operation:
+                    continue
+                cid = str(row.get("correlation_id") or "").strip()
+                if cid:
+                    return {
+                        "operation": operation,
+                        "xCorrelationId": cid,
+                        "kind": "ingress",
+                        "generated_at": report.get("checked_at"),
+                        "eventId": row.get("eventId"),
+                        "case_id": row.get("case_id"),
+                        "trigger_status": row.get("publish_status") or "PASS",
+                    }
+    except Exception:
+        pass
     return entry if isinstance(entry, dict) else {}
 
 
@@ -155,7 +185,7 @@ def _ui_status_and_remark(row: dict[str, Any]) -> tuple[str, str]:
     if row.get("raw") and not row.get("enriched"):
         parts.append("Cannot validate enrichment — enrich queue empty for this event")
     if row.get("enriched") and not row.get("raw"):
-        parts.append("Raw not generated / not dumped to Mongo")
+        parts.append("Raw not in Mongo (non-blocking)")
     return ui, " · ".join(parts)
 
 
@@ -236,6 +266,15 @@ def verify_owned_queue_landing(
         if timeout_sec is not None
         else float(os.getenv("GENERATE_VERIFY_TIMEOUT_SEC", "90"))
     )
+    try:
+        from .ingress.config import ingress_operation_names, ingress_settle_seconds
+
+        ingress_ops = ingress_operation_names()
+        if ingress_ops and any(op in ingress_ops for op in ops):
+            buffer = float(os.getenv("INGRESS_VERIFY_BUFFER_SEC", "30"))
+            timeout = max(timeout, ingress_settle_seconds() + buffer)
+    except Exception:
+        pass
     interval = (
         poll_sec if poll_sec is not None else float(os.getenv("GENERATE_VERIFY_POLL_SEC", "5"))
     )
@@ -308,11 +347,10 @@ def verify_owned_queue_landing(
                 row["occurred_at_enriched"] = enriched.get("occurredAt")
             if raw and enriched:
                 row["status"] = "success"
-            elif raw and not enriched:
-                row["status"] = "raw_only"
-                pending += 1
             elif enriched and not raw:
                 row["status"] = "enrich_only"
+            elif raw and not enriched:
+                row["status"] = "raw_only"
                 pending += 1
             else:
                 if row["status"] != "no_correlation":

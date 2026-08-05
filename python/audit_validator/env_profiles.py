@@ -8,6 +8,46 @@ from urllib.parse import urlparse, urlunparse
 
 
 @dataclass(frozen=True)
+class OAuthProfile:
+    token_url: str
+    client_id: str
+    client_secret: str
+    audience: str
+    organization: str = ""
+    grant_type: str = "password"
+
+
+PP_OAUTH = OAuthProfile(
+    token_url="https://secure-pp.monotype.com/oauth/token",
+    client_id="0bnAznyuRQfeaCg9qXxWKeoSZtqorUpD",
+    client_secret="W-UEo0Zaa0bsNcTbYFtg-31U-8kzp9gyHiZQ2VeJU_9phYITuztKnxWJ0poxhUlc",
+    audience="https://nextgen.monotype.com",
+    organization="",
+    grant_type="password",
+)
+
+QA_OAUTH = OAuthProfile(
+    token_url="https://secure.monotype-pp.com/v2/oauth/token",
+    client_id="LhfeUMNRvHeb0pbefR5YlvRUeV6Fk100",
+    client_secret="I9ycmyvb4ztc_1s_9AgmjzGSOzAG2uEH5TzY2GtNKUiehXv3YjLZzX9h4W0UN07v",
+    audience="https://api.monotype.com",
+    organization="",
+    grant_type="client_credentials",
+)
+
+# NextGen QA SPA client — password grant (same client as MTConnectAutomation QA).
+# Browser SSO / Excel tokens use this azp; M2M QA_OAUTH rejects password grant.
+QA_USER_OAUTH = OAuthProfile(
+    token_url="https://secure.monotype-pp.com/oauth/token",
+    client_id="s6k7gwI03MnW4EpGKirRF3VGZq5k9HLG",
+    client_secret="BYyS6kCDXMSsOFzG9q_qZrFZhWO7rAHgLZfp0zKMbba8ZGLPifcWEFDRzLfP9LRx",
+    audience="https://nextgen.monotype.com",
+    organization="",
+    grant_type="password",
+)
+
+
+@dataclass(frozen=True)
 class AuditTargetProfile:
     name: str
     label: str
@@ -30,6 +70,10 @@ class AuditTargetProfile:
     seed_family_id: str
     seed_deactivate_family_id: str
     mongo_db_name: str = ""  # empty → derived as AuditLogs{NAME}
+    oauth: OAuthProfile = PP_OAUTH
+    oauth_username: str = ""
+    # Password-grant OAuth for the Bearer credentials modal (QA uses PP user login).
+    user_oauth: OAuthProfile | None = None
 
 
 PP_PREPROD = AuditTargetProfile(
@@ -43,20 +87,20 @@ PP_PREPROD = AuditTargetProfile(
     nextgen_referer="https://nextgen.monotype-pp.com/discover-fonts/all",
     simulation_prefer_pp_bearer=True,
     rabbitmq_vhost="mt-connect-preprod",
-    # Automation taps (comma is part of the queue name in preprod). Platform
-    # resolver mains are mt.platform.raw_events.resolver.queue +
-    # mt.platform.events.notification.queue — do not compete with those consumers.
-    raw_events_queue="mt.platform,resolver.raw_events_test_queue",
-    enriched_events_queue="mt.platform,resolver.enriched_events_test_queue",
+    # Automation taps on mt-connect-preprod. Platform resolver mains are
+    # mt.platform.raw_events.resolver.queue + mt.platform.events.notification.queue.
+    raw_events_queue="mtraw-automation(DO NOT DELETE)",
+    enriched_events_queue="mtenrich-automation(DO NOT DELETE)",
     consume_dead_letter_queue=False,
     purge_test_queues_on_e2e=True,
     ingress_api_url="https://mt-audit-log-resolver-service-preprod.monotype-pp.com/v1/audit-events",
-    ingress_raw_queue="mt.platform,resolver.raw_events_test_queue",
-    ingress_enriched_queue="mt.platform,resolver.enriched_events_test_queue",
+    ingress_raw_queue="mtraw-automation(DO NOT DELETE)",
+    ingress_enriched_queue="mtenrich-automation(DO NOT DELETE)",
     ingress_rabbitmq_vhost="mt-connect-preprod",
     seed_family_id="794981",
     seed_deactivate_family_id="8kL8ZM64",
     mongo_db_name="AuditLogsPreprod",
+    oauth_username="mem.auditpreprodtest@gmail.com",
 )
 
 UAT = AuditTargetProfile(
@@ -70,13 +114,13 @@ UAT = AuditTargetProfile(
     nextgen_referer="https://nextgen.monotype-uat.com/discover-fonts/all",
     simulation_prefer_pp_bearer=False,
     rabbitmq_vhost="mt-connect-preprod",
-    raw_events_queue="mt.platform,resolver.raw_events_test_queue",
-    enriched_events_queue="mt.platform,resolver.enriched_events_test_queue",
+    raw_events_queue="mtraw-automation(DO NOT DELETE)",
+    enriched_events_queue="mtenrich-automation(DO NOT DELETE)",
     consume_dead_letter_queue=False,
     purge_test_queues_on_e2e=True,
     ingress_api_url="https://mt-audit-log-resolver-service-uat.monotype-uat.com/v1/audit-events",
-    ingress_raw_queue="mt.platform,resolver.raw_events_test_queue",
-    ingress_enriched_queue="mt.platform,resolver.enriched_events_test_queue",
+    ingress_raw_queue="mtraw-automation(DO NOT DELETE)",
+    ingress_enriched_queue="mtenrich-automation(DO NOT DELETE)",
     ingress_rabbitmq_vhost="mt-connect-preprod",
     seed_family_id="794981",
     seed_deactivate_family_id="8kL8ZM64",
@@ -93,18 +137,21 @@ QA = AuditTargetProfile(
     nextgen_origin="https://nextgen-qa.monotype-pp.com",
     nextgen_referer="https://nextgen-qa.monotype-pp.com/discover-fonts/all",
     simulation_prefer_pp_bearer=True,
-    rabbitmq_vhost="mt-connect-preprod",
-    raw_events_queue="mt.platform,resolver.raw_events_test_queue",
-    enriched_events_queue="mt.platform,resolver.enriched_events_test_queue",
+    rabbitmq_vhost="mt-connect-qa",
+    raw_events_queue="mtraw-automation(DO NOT DELETE)",
+    enriched_events_queue="mtenrich-automation(DO NOT DELETE)",
     consume_dead_letter_queue=False,
     purge_test_queues_on_e2e=True,
     ingress_api_url="https://mt-audit-log-resolver-service-preprod.monotype-pp.com/v1/audit-events",
-    ingress_raw_queue="mt.platform,resolver.raw_events_test_queue",
-    ingress_enriched_queue="mt.platform,resolver.enriched_events_test_queue",
-    ingress_rabbitmq_vhost="mt-connect-preprod",
+    ingress_raw_queue="mtraw-automation(DO NOT DELETE)",
+    ingress_enriched_queue="mtenrich-automation(DO NOT DELETE)",
+    ingress_rabbitmq_vhost="mt-connect-qa",
     seed_family_id="794981",
     seed_deactivate_family_id="8kL8ZM64",
     mongo_db_name="AuditLogsQA",
+    oauth=QA_OAUTH,
+    oauth_username="monotype.staging+testuser11new@gmail.com",
+    user_oauth=QA_USER_OAUTH,
 )
 
 EVEREST_DEV = AuditTargetProfile(
@@ -162,8 +209,39 @@ _PROFILE_KEYS: frozenset[str] = frozenset(
         "SEED_FAMILY_ID",
         "SEED_DEACTIVATE_FAMILY_ID",
         "MONGO_DB_NAME",
+        "OAUTH_TOKEN_URL",
+        "OAUTH_CLIENT_ID",
+        "OAUTH_CLIENT_SECRET",
+        "OAUTH_AUDIENCE",
+        "OAUTH_GRANT_TYPE",
+        "OAUTH_ORG",
+        "OAUTH_USERNAME",
+        "AUTH0_TOKEN_URL",
+        "AUTH0_CLIENT_ID",
+        "AUTH0_CLIENT_SECRET",
+        "AUTH0_AUDIENCE",
+        "AUTH0_ORGANIZATION",
+        "AUTH0_GRANT_TYPE",
     }
 )
+
+
+def user_oauth_for_profile(profile: AuditTargetProfile | None = None) -> OAuthProfile:
+    """OAuth client used for user password grant (Bearer credentials modal)."""
+    p = profile or get_audit_profile()
+    return p.user_oauth if p.user_oauth is not None else p.oauth
+
+
+def user_oauth_config_dict(profile: AuditTargetProfile | None = None) -> dict[str, str]:
+    o = user_oauth_for_profile(profile)
+    return {
+        "token_url": o.token_url,
+        "client_id": o.client_id,
+        "client_secret": o.client_secret,
+        "audience": o.audience,
+        "grant_type": o.grant_type,
+        "organization": o.organization,
+    }
 
 
 def mongo_db_for_profile(profile: AuditTargetProfile | None = None) -> str:
@@ -175,8 +253,8 @@ def mongo_db_for_profile(profile: AuditTargetProfile | None = None) -> str:
 
 
 def audit_target_name() -> str:
-    raw = (os.getenv("AUDIT_TARGET") or "pp").strip().lower()
-    return raw if raw in _PROFILES else "pp"
+    raw = (os.getenv("AUDIT_TARGET") or "qa").strip().lower()
+    return raw if raw in _PROFILES else "qa"
 
 
 def get_audit_profile(name: str | None = None) -> AuditTargetProfile:
@@ -196,7 +274,7 @@ def apply_audit_profile(*, project_root=None) -> AuditTargetProfile:
     """
     Apply AUDIT_TARGET profile defaults on top of .env.
 
-    Profile-owned keys always win when AUDIT_TARGET is set (default pp).
+    Profile-owned keys always win when AUDIT_TARGET is set (default qa).
     RABBITMQ_URL / INGRESS_RABBITMQ_URL keep credentials/host from .env but
     switch vhost to the profile value.
     """
@@ -235,6 +313,19 @@ def apply_audit_profile(*, project_root=None) -> AuditTargetProfile:
         "SEED_FAMILY_ID": profile.seed_family_id,
         "SEED_DEACTIVATE_FAMILY_ID": profile.seed_deactivate_family_id,
         "MONGO_DB_NAME": mongo_db_for_profile(profile),
+        "OAUTH_TOKEN_URL": profile.oauth.token_url,
+        "OAUTH_CLIENT_ID": profile.oauth.client_id,
+        "OAUTH_CLIENT_SECRET": profile.oauth.client_secret,
+        "OAUTH_AUDIENCE": profile.oauth.audience,
+        "OAUTH_GRANT_TYPE": profile.oauth.grant_type,
+        "OAUTH_ORG": profile.oauth.organization,
+        "OAUTH_USERNAME": profile.oauth_username,
+        "AUTH0_TOKEN_URL": profile.oauth.token_url,
+        "AUTH0_CLIENT_ID": profile.oauth.client_id,
+        "AUTH0_CLIENT_SECRET": profile.oauth.client_secret,
+        "AUTH0_AUDIENCE": profile.oauth.audience,
+        "AUTH0_ORGANIZATION": profile.oauth.organization,
+        "AUTH0_GRANT_TYPE": profile.oauth.grant_type,
     }
     for key, value in mapping.items():
         if key in _PROFILE_KEYS:

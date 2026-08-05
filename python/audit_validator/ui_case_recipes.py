@@ -18,6 +18,14 @@ def short_touch(touch: str) -> str:
     t = " ".join(t.split())
     if "project" in t and "list" in t:
         return "project_list"
+    if ("app" in t or "desktop" in t or "connect" in t) and (
+        "global" in t or "discover" in t or "search" in t
+    ):
+        return "global_app"
+    if "desktop" in t and "ui" in t:
+        return "desktop_ui"
+    if "performance_mode" in t or t == "app settings performance mode changed":
+        return "desktop_ui"
     if "favourite" in t or "favorite" in t:
         return "favourite"
     if "user" in t and "access" in t:
@@ -43,16 +51,67 @@ def short_touch(touch: str) -> str:
 
 def audit_emit(op: str, touch_short: str) -> str:
     return (
-        f"Network filter operationName={op} → copy response header correlation-id "
-        f"(NOT x-correlation-id) → emit exactly: "
-        f"AUDIT_RESULT|operation={op}|correlation_id=<real-uuid>|touchpoint={touch_short}"
+        f"Network filter operationName={op} → open the matching GraphQL request in DevTools → "
+        f"copy (1) response header correlation-id (NOT x-correlation-id), "
+        f"(2) request variables.input JSON, (3) response body data.{op} JSON → emit exactly two lines:\n"
+        f"AUDIT_RESULT|operation={op}|correlation_id=<real-uuid>|touchpoint={touch_short}\n"
+        f'AUDIT_GRAPHQL {{"input":<variables.input object>,"response":{{"{op}":<data.{op} object>}}}}'
     )
 
 
 def audit_expected(op: str) -> str:
     return (
-        f"GraphQL {op} fires; response has correlation-id; "
-        "AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        f"GraphQL {op} fires; correlation-id header captured; AUDIT_RESULT + AUDIT_GRAPHQL "
+        f"(input + data.{op} response) emitted with real UUID; trigger context saved for Compare."
+    )
+
+
+def audit_emit_ingress(op: str, touch_short: str) -> str:
+    return (
+        f"After the desktop action, capture the ingress audit xCorrelationId "
+        f"(resolver ingress POST or app audit trace) → emit exactly:\n"
+        f"AUDIT_RESULT|operation={op}|correlation_id=<real-uuid>|touchpoint={touch_short}|source=ingress"
+    )
+
+
+def audit_expected_ingress(op: str) -> str:
+    return (
+        f"Ingress event {op} fires from Monotype Connect; xCorrelationId captured; "
+        f"AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+    )
+
+
+def _is_connect_ingress_touch(touch: str) -> bool:
+    t = " ".join((touch or "").lower().replace("_", " ").split())
+    if t in {"desktop app", "plugin", "desktop ui", "app"}:
+        return True
+    return "desktop" in t and "ui" in t
+
+
+def recipe_connect_ingress(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
+    """Monotype Connect / plugin ingress — automation harvests xCorrelationId from service logs."""
+    ts = short_touch(touch)
+    touch_canon = touch or {"desktop_ui": "Desktop UI", "global_app": "App"}.get(ts, touch)
+    title = label or f"{op}({ts})"
+    return _S(
+        _row(
+            "Launch Monotype Connect desktop app on macOS (or open the host app for plugin flows).",
+            "App or plugin host is ready.",
+        ),
+        _row(
+            "Log in with configured test credentials if needed (OAUTH_USERNAME / OAUTH_PASSWORD).",
+            "User authenticated; main UI visible.",
+        ),
+        _row(
+            f"Perform the UI action for {title} so ingress event `{op}` fires once.",
+            f"{op} ingress event fires from Monotype Connect.",
+        ),
+        _row(
+            "Close the browser / app when done. Do not grep logs — the audit app reads Connect service logs.",
+            "Action complete; xCorrelationId will be harvested automatically.",
+        ),
+        op=op,
+        touch=touch_canon,
     )
 
 
@@ -82,20 +141,76 @@ def _S(*rows: dict[str, str], op: str, touch: str) -> list[dict[str, str]]:
     return out
 
 
-def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
+def recipe_for(op: str, touch: str, *, label: str = "", selection_id: str = "") -> list[dict[str, str]]:
     op = (op or "").strip()
     touch = (touch or "").strip()
+    sid = (selection_id or "").strip()
     ts = short_touch(touch)
     touch_canon = touch or {
         "global": "Discovery/Browse (global)",
+        "global_app": "App (global)",
         "list": "List (FONTLIST)",
         "favourite": "Favourite",
         "project": "Project",
         "project_list": "Project > List",
+        "desktop_ui": "Desktop UI",
     }.get(ts, touch)
     label = label or f"{op}({ts})"
 
+    is_app_ingress = sid.startswith("ingress:") and not sid.startswith("ingress:plugin_")
+    is_connect = is_app_ingress or _is_connect_ingress_touch(touch)
+
+    if is_connect:
+        if op == "appSettingsPerformanceModeChanged":
+            return _S(
+                _row(
+                    "Launch Monotype Connect desktop app on macOS.",
+                    "App opens to login or home.",
+                ),
+                _row(
+                    "Log in with the configured test credentials (OAUTH_USERNAME / OAUTH_PASSWORD).",
+                    "User is authenticated; main UI visible.",
+                ),
+                _row(
+                    "Open Preferences (Monotype Connect menu → Preferences / Settings).",
+                    "Preferences window is open.",
+                ),
+                _row(
+                    "Go to General → Performance mode and select a different mode "
+                    "(e.g. Max capacity or Balanced).",
+                    "Performance mode changes; appSettingsPerformanceModeChanged ingress event fires.",
+                ),
+                _row(
+                    "Close the app when done. Do not grep logs — automation harvests xCorrelationId.",
+                    "Action complete; xCorrelationId will be harvested from Connect service log.",
+                ),
+                op=op,
+                touch=touch_canon or "Desktop UI",
+            )
+        return recipe_connect_ingress(op, touch or "Desktop UI", label=label)
+
     # ── activateFamily — plain English (matches C73306719 / C73306718) ──
+    if op == "activateFamily" and ts == "global_app":
+        return _S(
+            _row(
+                "Launch Monotype Connect desktop app and log in with test credentials.",
+                "App home / Discover view is visible.",
+            ),
+            _row(
+                "Open Discover or Search and find a family that is not activated.",
+                "Family card shows inactive state.",
+            ),
+            _row(
+                "Activate the family from the global discover/search view "
+                "(family card Activate toggle). Capture ActivateFamily GraphQL mutation "
+                "with family id and correlation-id header from the app network trace.",
+                "Family activated from app; mutation and correlation-id captured.",
+            ),
+            _row(audit_emit(op, "global_app"), audit_expected(op)),
+            op=op,
+            touch="App (global)",
+        )
+
     if op == "activateFamily" and ts == "global":
         return _S(
             _row(
@@ -955,6 +1070,78 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
             op=op,
             touch=touch_canon,
         )
+    if op == "regenerateToken":
+        return _S(
+            _row(
+                "Go to Manage → Users and Teams → Servers.",
+                "Servers page is open.",
+            ),
+            _row(
+                "If no server exists, create one; otherwise right-click an existing server "
+                "→ Generate token → accept the confirmation.",
+                "Token regenerated; RegenerateToken mutation captured.",
+            ),
+            _capture(op, "user_access"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "publishProject":
+        return _S(
+            _row(
+                "Create a project if none exists (or open one you can access).",
+                "Project is available in left navigation.",
+            ),
+            _row(
+                "Right-click the project in the left navigation → Publish project → confirm.",
+                "Project published; publishProject mutation captured.",
+            ),
+            _capture(op, "project"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "updateAssetsSharingInfo":
+        return _S(
+            _row(
+                "Create a font list if none exists, or open an existing list.",
+                "Font list is visible in My Library.",
+            ),
+            _row(
+                "Right-click the list → Share list → set Who has access to Only invited → "
+                "share with any user → confirm.",
+                "List sharing updated; updateAssetsSharingInfo mutation captured.",
+            ),
+            _capture(op, "list"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "bulkUpdatePreferences":
+        return _S(
+            _row(
+                "Click the bell icon → open Notification settings.",
+                "Notification settings panel is open.",
+            ),
+            _row(
+                "Toggle any notification checkbox and click Save changes.",
+                "Preferences saved; bulkUpdatePreferences mutation captured.",
+            ),
+            _capture(op, "notifications"),
+            op=op,
+            touch=touch_canon,
+        )
+    if op == "createUploadSession":
+        return _S(
+            _row(
+                "Open Scan document (document upload flow).",
+                "Upload session UI is visible.",
+            ),
+            _row(
+                "Upload any random PDF document and wait for the session to be created.",
+                "Upload session created; createUploadSession mutation captured.",
+            ),
+            _capture(op, "global"),
+            op=op,
+            touch=touch_canon,
+        )
     if op == "bulkUpdateProfiles":
         return _S(
             _row(
@@ -1073,24 +1260,21 @@ def recipe_for(op: str, touch: str, *, label: str = "") -> list[dict[str, str]]:
 
     export_meta = export_spec(op)
     if export_meta:
-        touch_canon = touch or export_touchpoint(op)
-        ts = short_touch(touch_canon)
+        touch_canon = "Discovery/Browse (global)"
+        ts = "global"
         button = str(export_meta.get("button") or "Export")
-        gap = str(export_meta.get("web_gap") or "").strip()
         ui_steps = export_meta.get("steps") or []
         rows: list[dict[str, str]] = []
-        for step in ui_steps:
-            rows.append(
-                _row(str(step), f"{button} visible and page loaded.")
+        for step in ui_steps[:3]:
+            rows.append(_row(str(step), f"Page loaded; {button} is visible when applicable."))
+        op_name = op[0].upper() + op[1:] if op else op
+        rows.append(
+            _row(
+                f"Network filter operationName={op_name} → copy response header "
+                f"correlation-id (NOT x-correlation-id) → emit AUDIT_RESULT.",
+                audit_expected(op),
             )
-        capture = (
-            f"Network filter operationName={op[0].upper() + op[1:]} → copy response header "
-            f"correlation-id (NOT x-correlation-id) → emit AUDIT_RESULT."
         )
-        if gap:
-            capture += f" If UI is stubbed: {gap} Use GraphQL generate path instead."
-        rows.append(_row(capture, audit_expected(op)))
-        rows.append(_capture(op, ts))
         return _S(*rows, op=op, touch=touch_canon)
 
     return _S(
@@ -1113,6 +1297,7 @@ def steps_for_selection(selection: list[dict[str, Any]]) -> list[dict[str, str]]
         op = str(s.get("operation") or "").strip()
         touch = str(s.get("touchpoint") or "").strip()
         label = str(s.get("label") or op).strip()
+        sid = str(s.get("id") or "").strip()
         if n > 1:
             out.append(
                 {
@@ -1126,7 +1311,7 @@ def steps_for_selection(selection: list[dict[str, Any]]) -> list[dict[str, str]]
                     "expected": "",
                 }
             )
-        out.extend(recipe_for(op, touch, label=label))
+        out.extend(recipe_for(op, touch, label=label, selection_id=sid))
     if n > 1:
         out.append(
             {
@@ -1146,10 +1331,17 @@ def compact_checklist(selection: list[dict[str, Any]]) -> list[str]:
         touch = str(s.get("touchpoint") or "").strip()
         ts = short_touch(touch)
         label = str(s.get("label") or f"{op}({ts})")
-        lines.append(
-            f"{i}. {label} → fire {op} once (NO RETRY) → "
-            f"AUDIT_RESULT|operation={op}|correlation_id=<uuid>|touchpoint={ts}"
-        )
+        sid = str(s.get("id") or "")
+        if sid.startswith("ingress:") or _is_connect_ingress_touch(touch):
+            lines.append(
+                f"{i}. {label} → fire {op} once in Connect/plugin (NO RETRY) → "
+                "automation harvests xCorrelationId from service log"
+            )
+        else:
+            lines.append(
+                f"{i}. {label} → fire {op} once (NO RETRY) → "
+                f"AUDIT_RESULT|operation={op}|correlation_id=<uuid>|touchpoint={ts}"
+            )
     return lines
 
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import JsonTree from "../components/JsonTree";
 import EnrichDiffModal from "../components/EnrichDiffModal";
 import GenerateInUiModal from "../components/GenerateInUiModal";
+import GenerateFromUiScriptModal from "../components/GenerateFromUiScriptModal";
 import VerifyInUiModal, { type VerifyInUiContext } from "../components/VerifyInUiModal";
 import {
   fetchCategories,
@@ -27,6 +28,7 @@ import {
   sendCustomPayload,
   startCompare,
   startGenerate,
+  fetchComparisonOperations,
   verifyGenerateInUi,
   type CategoryReport,
   type CoverageReport,
@@ -41,7 +43,7 @@ import {
   type TokenStatus,
   type UiTriggerJob,
 } from "../api";
-
+import { operationHasStoredResult } from "../utils/operationMatch";
 const SOURCE_KINDS = [
   { id: "graphql", label: "GraphQL" },
   { id: "ingress", label: "Ingress" },
@@ -49,13 +51,35 @@ const SOURCE_KINDS = [
 ] as const;
 
 const DEFAULT_TARGETS = [
-  { id: "pp", label: "PP", url: "https://nextgen.monotype-pp.com" },
   { id: "qa", label: "QA", url: "https://nextgen-qa.monotype-pp.com" },
+  { id: "pp", label: "PP", url: "https://nextgen.monotype-pp.com" },
   { id: "uat", label: "UAT", url: "https://nextgen.monotype-uat.com" },
 ];
 
 const JOB_KEY = "audit-generate-job";
 const UI_JOB_KEY = "audit-generate-ui-job";
+const GENERATION_STATUS_KEY = "audit-generation-status-visible";
+
+async function restoreGenerationStatus(
+  setLastRun: (r: GenerateRunReport | null) => void,
+  setShowLastRun: (v: boolean) => void,
+) {
+  try {
+    const res = await fetchLastGenerateRun();
+    if (res.ok && res.report) {
+      setLastRun(res.report);
+      setShowLastRun(true);
+      localStorage.setItem(GENERATION_STATUS_KEY, "1");
+    }
+  } catch {
+    /* ignore — no saved report yet */
+  }
+}
+
+function casepilotPending(job: UiTriggerJob | null | undefined): number {
+  const rs = (job?.agent as { run_summary?: { pending?: number } } | undefined)?.run_summary;
+  return rs?.pending ?? 0;
+}
 
 type DropdownItem = {
   id: string;
@@ -71,6 +95,14 @@ type ListModalState = {
   columns: string[];
   rows: Array<Record<string, string | number>>;
 };
+
+function isUiOrAppEvent(item: DropdownItem): boolean {
+  if (item.id.startsWith("ingress:plugin_")) return false;
+  if (item.kind === "graphql") return true;
+  if (item.id.startsWith("ingress:app_")) return true;
+  if (item.kind === "ingress" && !item.id.startsWith("ingress:plugin")) return true;
+  return item.kind !== "ingress" && item.kind !== "cron";
+}
 
 function csvEscape(v: unknown): string {
   const s = v == null ? "" : String(v);
@@ -170,15 +202,19 @@ function isPlaceholderScenario(operation?: string | null, touchpoint?: string | 
 function scenarioDisplayName(
   operation: string,
   touchpoint?: string | null,
-  opts?: { ui?: boolean; be?: boolean },
+  opts?: { ui?: boolean; be?: boolean; app?: boolean; target?: string | null },
 ): string {
   const short = shortTouchpoint(touchpoint);
   let base = short ? `${operation}(${short})` : operation;
-  for (const legacy of ["(ui)", "(be)", "(UI)", "(BE)"]) {
+  for (const legacy of ["(ui)", "(be)", "(UI)", "(BE)", "(app)", "(APP)", "(web)", "(WEB)"]) {
     if (base.endsWith(legacy)) base = base.slice(0, -legacy.length);
   }
-  if (opts?.ui) return `${base}(UI)`;
-  if (opts?.be) return `${base}(BE)`;
+  const isApp =
+    Boolean(opts?.app) || String(opts?.target || "").trim().toLowerCase() === "app";
+  // UI/web is the default channel — no "(UI)"/"(web)" suffix.
+  // App Excel/plugin runs get "(app)". Backend runs get "(BE)".
+  if (opts?.be && !opts?.ui && !isApp) return `${base}(BE)`;
+  if (isApp) return `${base}(app)`;
   return base;
 }
 
@@ -190,7 +226,12 @@ function dedupeScenarioRows(scenarios: ScenarioRow[]): ScenarioRow[] {
   for (const s of scenarios) {
     if (isPlaceholderScenario(s.operation, s.touchpoint)) continue;
     const ui = String(s.source || "").toLowerCase() === "ui" || String((s as { kind?: string }).kind || "").includes("ui");
-    const key = scenarioDisplayName(s.operation, s.touchpoint, { ui, be: !ui });
+    const target = String((s as { target?: string }).target || "").toLowerCase();
+    const key = scenarioDisplayName(s.operation, s.touchpoint, {
+      ui,
+      be: !ui && target !== "app",
+      target,
+    });
     const prev = byKey.get(key);
     if (!prev) {
       byKey.set(key, { ...s, label: key });
@@ -252,6 +293,7 @@ function OpListModal({
 type OperationDropdownProps = {
   options: DropdownItem[];
   selected: Set<string>;
+  comparisonOps: Record<string, string>;
   onToggle: (id: string) => void;
   onSelectAll: () => void;
   onClear: () => void;
@@ -264,7 +306,23 @@ type OpGroup = {
   children: DropdownItem[];
 };
 
-function OperationDropdown({ options, selected, onToggle, onSelectAll, onClear }: OperationDropdownProps) {
+function compareStatusLabel(item: DropdownItem, stored: Record<string, string>): "Reverify" | "Verify" {
+  const key = item.label || item.id;
+  return operationHasStoredResult(key, stored) ? "Reverify" : "Verify";
+}
+
+function compareStatusClass(item: DropdownItem, stored: Record<string, string>): string {
+  return compareStatusLabel(item, stored) === "Reverify" ? "reverify" : "verify";
+}
+
+function OperationDropdown({
+  options,
+  selected,
+  comparisonOps,
+  onToggle,
+  onSelectAll,
+  onClear,
+}: OperationDropdownProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -422,6 +480,9 @@ function OperationDropdown({ options, selected, onToggle, onSelectAll, onClear }
                             onChange={() => onToggle(o.id)}
                           />
                           <span>{shortTouchpoint(o.touchpoint) || o.touchpoint || o.label}</span>
+                          <span className={`op-compare-status ${compareStatusClass(o, comparisonOps)}`}>
+                            {compareStatusLabel(o, comparisonOps)}
+                          </span>
                           {(o.steps?.length ?? 0) > 1 && (
                             <span className="muted steps-hint" title={o.steps?.join(" → ")}>
                               {o.steps!.length} steps
@@ -442,6 +503,9 @@ function OperationDropdown({ options, selected, onToggle, onSelectAll, onClear }
                   onChange={() => onToggle(o.id)}
                 />
                 <span>{o.label}</span>
+                <span className={`op-compare-status ${compareStatusClass(o, comparisonOps)}`}>
+                  {compareStatusLabel(o, comparisonOps)}
+                </span>
                 {o.kind !== "graphql" && <span className={`kind-tag ${o.kind}`}>{o.kind}</span>}
               </label>
             ))}
@@ -698,6 +762,14 @@ export default function GeneratePage({
   const [enrichPick, setEnrichPick] = useState<string[]>([]);
   const [exportPick, setExportPick] = useState<string[]>([]);
   const [compareBusy, setCompareBusy] = useState(false);
+  const [comparisonOps, setComparisonOps] = useState<Record<string, string>>({});
+  /** Filter catalog by stored source-compare result (Verify vs Reverify). */
+  const [compareFilter, setCompareFilter] = useState<"all" | "needs_verify" | "has_result">("all");
+  const loadComparisonOps = useCallback(() => {
+    fetchComparisonOperations()
+      .then((r) => setComparisonOps(r.operations || {}))
+      .catch(() => setComparisonOps({}));
+  }, []);
   const [enrichDiff, setEnrichDiff] = useState<{
     labelA: string;
     labelB: string;
@@ -705,6 +777,7 @@ export default function GeneratePage({
     dataB: unknown;
   } | null>(null);
   const [uiTriggerOpen, setUiTriggerOpen] = useState(false);
+  const [uiScriptOpen, setUiScriptOpen] = useState(false);
   const [uiJob, setUiJob] = useState<UiTriggerJob | null>(null);
   const [uiManualCid, setUiManualCid] = useState("");
   const [uiBusy, setUiBusy] = useState(false);
@@ -725,7 +798,10 @@ export default function GeneratePage({
     fetchCategories().then(setCategories).catch(() => {});
     fetchOperationSources().then(setSources).catch(() => {});
     fetchOperationStats().then(setOpStats).catch(() => {});
-  }, []);
+    // Restore Generation Status from reports/generate-runs/last.json after refresh.
+    void restoreGenerationStatus(setLastRun, setShowLastRun);
+    loadComparisonOps();
+  }, [loadComparisonOps]);
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
@@ -753,8 +829,42 @@ export default function GeneratePage({
       const catById = new Map(sources.catalog.map((c) => [c.id, c.operation]));
       items = items.filter((i) => categories.by_operation[catById.get(i.id) ?? i.id] === category);
     }
+    if (compareFilter === "needs_verify") {
+      items = items.filter(
+        (i) => !operationHasStoredResult(i.label || i.id, comparisonOps),
+      );
+    } else if (compareFilter === "has_result") {
+      items = items.filter((i) => operationHasStoredResult(i.label || i.id, comparisonOps));
+    }
     return items;
-  }, [available, category, categories, sourceKinds, sources]);
+  }, [available, category, categories, compareFilter, comparisonOps, sourceKinds, sources]);
+
+  const compareFilterCounts = useMemo(() => {
+    let base: DropdownItem[] =
+      sources?.catalog?.map((c) => ({
+        id: c.id,
+        label: c.label,
+        kind: c.kind,
+        operation: c.operation,
+        touchpoint: c.touchpoint,
+        steps: c.steps,
+      })) ?? [];
+    if (!base.length) base = available.map((op) => ({ id: op, label: op, kind: "graphql", operation: op }));
+    if (sourceKinds.size) {
+      base = base.filter((i) => sourceKinds.has(i.kind));
+    }
+    if (category !== "all" && categories && sources) {
+      const catById = new Map(sources.catalog.map((c) => [c.id, c.operation]));
+      base = base.filter((i) => categories.by_operation[catById.get(i.id) ?? i.id] === category);
+    }
+    let hasResult = 0;
+    let needsVerify = 0;
+    for (const i of base) {
+      if (operationHasStoredResult(i.label || i.id, comparisonOps)) hasResult += 1;
+      else needsVerify += 1;
+    }
+    return { total: base.length, hasResult, needsVerify };
+  }, [available, category, categories, comparisonOps, sourceKinds, sources]);
 
   const labelById = useMemo(() => {
     const m = new Map<string, string>();
@@ -795,7 +905,7 @@ export default function GeneratePage({
   function openCredentialsEditor() {
     const c = token?.credentials;
     setCredForm({
-      username: c?.username || token?.email || "",
+      username: c?.username || c?.profile_username || token?.email || "",
       password: "",
       org: c?.org || token?.org || "",
       gcid: c?.gcid || token?.gcid || "",
@@ -941,19 +1051,10 @@ export default function GeneratePage({
     }
     setUiBusy(false);
     setUiManualCid("");
-    const prev = uiJob;
-    setUiJob(null);
-    localStorage.removeItem(UI_JOB_KEY);
-    if (
-      prev?.id &&
-      (prev.status === "queued" ||
-        prev.status === "running" ||
-        prev.status === "pending_agent")
-    ) {
-      void cancelGenerateInUi(prev.id).catch(() => {});
-    }
+    // Do not cancel an in-flight CasePilot batch when reopening the modal — that
+    // was cancelling queued jobs and causing instant "9/9 failed (cancelled)" errors.
     setUiTriggerOpen(true);
-  }, [uiJob]);
+  }, []);
 
   const pollUiJob = useCallback((id: string) => {
     if (uiPollRef.current) clearInterval(uiPollRef.current);
@@ -961,44 +1062,48 @@ export default function GeneratePage({
       try {
         const res = await refreshGenerateInUi(id);
         setUiJob(res.job);
-        // refresh endpoint already auto-finalizes when cids exist (no long poll)
         if (res.job.verification?.generate_run_saved) {
           if (uiPollRef.current) clearInterval(uiPollRef.current);
           uiPollRef.current = null;
           setUiBusy(false);
-          try {
-            const last = await fetchLastGenerateRun();
-            if (last.ok && last.report) {
-              setLastRun(last.report);
-              setShowLastRun(true);
-            }
-          } catch {
-            /* ignore */
-          }
+          await restoreGenerationStatus(setLastRun, setShowLastRun);
           return;
         }
-        if (res.job.status === "failed" || res.job.status === "cancelled") {
+        if (
+          (res.job.status === "completed" ||
+            res.job.status === "failed" ||
+            res.job.status === "cancelled") &&
+          casepilotPending(res.job) === 0
+        ) {
           if (uiPollRef.current) clearInterval(uiPollRef.current);
           uiPollRef.current = null;
           setUiBusy(false);
+          if (res.job.verification?.auto_verify_pending && (res.job.results || []).length) {
+            await restoreGenerationStatus(setLastRun, setShowLastRun);
+          }
           return;
         }
-      } catch {
-        /* keep polling through transient CasePilot blips */
+      } catch (e) {
+        setError(String(e));
       }
-    }, 4000);
+    }, 8000);
   }, []);
 
   useEffect(() => {
     const savedId = localStorage.getItem(UI_JOB_KEY);
     if (!savedId) return;
     fetchGenerateInUi(savedId)
-      .then((j) => {
+      .then(async (j) => {
         setUiJob(j);
+        if (j.verification?.generate_run_saved) {
+          await restoreGenerationStatus(setLastRun, setShowLastRun);
+          return;
+        }
         if (
           j.status === "queued" ||
           j.status === "running" ||
           j.status === "pending_agent" ||
+          casepilotPending(j) > 0 ||
           (j.verification?.ready && !j.verification?.generate_run_saved)
         ) {
           pollUiJob(j.id);
@@ -1016,6 +1121,7 @@ export default function GeneratePage({
       uiJob.status === "queued" ||
       uiJob.status === "running" ||
       uiJob.status === "pending_agent" ||
+      casepilotPending(uiJob) > 0 ||
       (uiJob.verification?.ready && !uiJob.verification?.generate_run_saved)
     ) {
       pollUiJob(uiJob.id);
@@ -1045,9 +1151,7 @@ export default function GeneratePage({
       const verified = await verifyGenerateInUi(uiJob.id);
       activateUiJob(verified.job);
       if (verified.ok) {
-        const last = await fetchLastGenerateRun();
-        setLastRun(last.ok && last.report ? last.report : null);
-        setShowLastRun(true);
+        await restoreGenerationStatus(setLastRun, setShowLastRun);
       }
     } catch (e) {
       setError(String(e));
@@ -1071,9 +1175,8 @@ export default function GeneratePage({
         return;
       }
       // Same Generation Status panel as API generate
+      await restoreGenerationStatus(setLastRun, setShowLastRun);
       const last = await fetchLastGenerateRun();
-      setLastRun(last.ok && last.report ? last.report : null);
-      setShowLastRun(true);
       if (!last.ok) {
         setError(last.detail || "Verification finished but Generation Status report missing");
       }
@@ -1142,8 +1245,13 @@ export default function GeneratePage({
     setShowLastRun(true);
     try {
       const res = await fetchLastGenerateRun();
-      setLastRun(res.ok && res.report ? res.report : null);
-      if (!res.ok) setError(res.detail || "No generation status yet — run Generate first");
+      if (res.ok && res.report) {
+        setLastRun(res.report);
+        localStorage.setItem(GENERATION_STATUS_KEY, "1");
+      } else {
+        setError(res.detail || "No generation status yet — run Generate first");
+        setLastRun(null);
+      }
     } catch (e) {
       setError(String(e));
       setLastRun(null);
@@ -1152,7 +1260,10 @@ export default function GeneratePage({
     }
   }
 
-  const runReport = showLastRun && lastRun ? lastRun : mongo;
+  const runReport = lastRun ?? mongo;
+  const showGenerationStatus =
+    Boolean(runReport) &&
+    (showLastRun || Boolean(lastRun) || job?.status === "completed" || job?.status === "failed");
   const isValidateMode = Boolean(
     runReport?.validate ?? (showLastRun ? lastRun?.validate : job?.params?.validate),
   );
@@ -1180,9 +1291,14 @@ export default function GeneratePage({
   const statusRows: StatusRow[] = useMemo(() => {
     if (statusScenarios.length > 0) {
       return statusScenarios.map((s) => {
-        // Generation Status shows the clean scenario name (no "(UI)"/"(BE)" suffix).
+        // Keep "(app)" so app Excel runs stay distinct from web; strip only legacy UI/BE.
         const cleanLabel = (s.label || "").replace(/\s*\((?:UI|BE)\)\s*$/i, "");
-        const key = cleanLabel || scenarioDisplayName(s.operation, s.touchpoint);
+        const key =
+          cleanLabel ||
+          scenarioDisplayName(s.operation, s.touchpoint, {
+            ui: true,
+            target: s.target,
+          });
         return {
           key,
           operation: s.operation,
@@ -1232,6 +1348,41 @@ export default function GeneratePage({
     return { pass, fail, na, total: statusRows.length };
   }, [statusRows]);
   const scenariosWithLanding = statusRows.filter((s) => s.raw || s.enriched).length;
+
+  async function compareRowsFromStatus(keys: string[]) {
+    const keySet = new Set(keys.filter(Boolean));
+    const pool = statusRows.filter((s) => keySet.has(s.key));
+    const ops = [...new Set(pool.map((s) => s.key).filter(Boolean))];
+    const correlationByOp: Record<string, string> = {};
+    for (const s of pool) {
+      const cid = s.xCorrelationId?.trim();
+      if (s.key && cid) correlationByOp[s.key] = cid;
+    }
+    if (!ops.length) {
+      setError("No rows to compare.");
+      return;
+    }
+    setCompareBusy(true);
+    setError("");
+    try {
+      const job = await startCompare(
+        ops,
+        undefined,
+        Object.keys(correlationByOp).length ? correlationByOp : undefined,
+        pipeline?.target,
+      );
+      if (onCompareRequested) {
+        onCompareRequested(job.id);
+      } else {
+        onCompareCompleted?.(job.id, ops);
+      }
+      loadComparisonOps();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCompareBusy(false);
+    }
+  }
 
   const enrichCandidates = useMemo(() => {
     return statusRows
@@ -1321,13 +1472,7 @@ export default function GeneratePage({
       if (picked.size && !picked.has(s.key)) return false;
       return s.status === "PASS" && (s.raw || s.enriched);
     });
-    // Compare per scenario (activateFamily(global)), not bare operation (activateFamily).
     const ops = [...new Set(pool.map((s) => s.key).filter(Boolean))];
-    const correlationByOp: Record<string, string> = {};
-    for (const s of pool) {
-      const cid = s.xCorrelationId?.trim();
-      if (s.key && cid) correlationByOp[s.key] = cid;
-    }
     if (!ops.length) {
       setError(
         picked.size
@@ -1336,23 +1481,7 @@ export default function GeneratePage({
       );
       return;
     }
-    setCompareBusy(true);
-    setError("");
-    try {
-      const job = await startCompare(
-        ops,
-        undefined,
-        Object.keys(correlationByOp).length ? correlationByOp : undefined,
-      );
-      // Land on the Compare page (live) so the user sees progress, instead of
-      // jumping straight to Result and having to navigate back.
-      if (onCompareRequested) onCompareRequested(job.id);
-      else onCompareCompleted?.(job.id, ops);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setCompareBusy(false);
-    }
+    await compareRowsFromStatus(ops);
   }
 
   function openAllCoverage() {
@@ -1404,7 +1533,7 @@ export default function GeneratePage({
         <label className="inline-control">
           Environment
           <select
-            value={pipeline?.target || "pp"}
+            value={pipeline?.target || "qa"}
             disabled={targetBusy || running}
             onChange={(e) => onTargetChange(e.target.value)}
           >
@@ -1419,11 +1548,11 @@ export default function GeneratePage({
           </select>
         </label>
         {(pipeline?.nextgen_url ||
-          DEFAULT_TARGETS.find((t) => t.id === (pipeline?.target || "pp"))?.url) && (
+          DEFAULT_TARGETS.find((t) => t.id === (pipeline?.target || "qa"))?.url) && (
           <a
             href={
               pipeline?.nextgen_url ||
-              DEFAULT_TARGETS.find((t) => t.id === (pipeline?.target || "pp"))?.url
+              DEFAULT_TARGETS.find((t) => t.id === (pipeline?.target || "qa"))?.url
             }
             target="_blank"
             rel="noreferrer"
@@ -1535,9 +1664,22 @@ export default function GeneratePage({
               </button>
             </header>
             <p className="muted small">
-              Generate a fresh Bearer via OAuth password grant. Just username + password is enough —
-              org &amp; gcid are read back from the token's JWT claims and drive actor validation and
-              x-correlation-id scoping. Only set org/gcid below to force a specific organisation.
+              {token?.credentials?.grant_type === "client_credentials" ? (
+                <>
+                  <strong>QA</strong> uses Auth0 <strong>client_credentials</strong> for{" "}
+                  <code>BEARER_TOKEN</code> — click Generate token (no password needed). Username
+                  auto-switches to <code>{token.credentials.profile_username || "mem.auditqatest@gmail.com"}</code>{" "}
+                  for CasePilot / UI. For Compare JWT claims, paste a browser SSO token into{" "}
+                  <code>NEXTGEN_BEARER_TOKEN</code> in <code>.env</code>.
+                </>
+              ) : (
+                <>
+                  Generate a fresh Bearer via OAuth password grant. Username switches with{" "}
+                  <strong>Environment</strong> (PP → preprod test user, QA → QA test user); password is
+                  reused from <code>.env</code> when left blank. Org &amp; gcid are read from the JWT —
+                  override below only when needed.
+                </>
+              )}
             </p>
             <form className="token-cred-form" onSubmit={onApplyCredentials}>
               <label>
@@ -1546,7 +1688,7 @@ export default function GeneratePage({
                   value={credForm.username}
                   onChange={(e) => setCredForm((f) => ({ ...f, username: e.target.value }))}
                   autoComplete="username"
-                  required
+                  required={token?.credentials?.grant_type !== "client_credentials"}
                 />
               </label>
               <label>
@@ -1556,7 +1698,7 @@ export default function GeneratePage({
                   value={credForm.password}
                   onChange={(e) => setCredForm((f) => ({ ...f, password: e.target.value }))}
                   autoComplete="current-password"
-                  required
+                  required={token?.credentials?.grant_type !== "client_credentials"}
                   placeholder={token?.credentials?.has_password === "1" ? "••••••••" : ""}
                 />
               </label>
@@ -1597,6 +1739,7 @@ export default function GeneratePage({
           <OperationDropdown
             options={visibleOperations}
             selected={selected}
+            comparisonOps={comparisonOps}
             onToggle={toggle}
             onSelectAll={() => setSelected(new Set(visibleOperations.map((i) => i.id)))}
             onClear={() => setSelected(new Set())}
@@ -1620,6 +1763,20 @@ export default function GeneratePage({
             })}
           </div>
           <label className="category-select inline-control">
+            Compare
+            <select
+              value={compareFilter}
+              onChange={(e) => {
+                setCompareFilter(e.target.value as "all" | "needs_verify" | "has_result");
+                setSelected(new Set());
+              }}
+            >
+              <option value="all">All ({compareFilterCounts.total})</option>
+              <option value="needs_verify">Needs Verify ({compareFilterCounts.needsVerify})</option>
+              <option value="has_result">Has result · Reverify ({compareFilterCounts.hasResult})</option>
+            </select>
+          </label>
+          <label className="category-select inline-control">
             Category
             <select value={category} onChange={(e) => { setCategory(e.target.value); setSelected(new Set()); }}>
               <option value="all">All categories ({visibleOperations.length})</option>
@@ -1635,8 +1792,16 @@ export default function GeneratePage({
             <input type="checkbox" checked={skipPassed} onChange={(e) => setSkipPassed(e.target.checked)} />
             Skip passed
           </label>
-          {(sourceKinds.size > 0 || category !== "all") && (
-            <button type="button" onClick={() => { setSourceKinds(new Set()); setCategory("all"); setSelected(new Set()); }}>
+          {(sourceKinds.size > 0 || category !== "all" || compareFilter !== "all") && (
+            <button
+              type="button"
+              onClick={() => {
+                setSourceKinds(new Set());
+                setCategory("all");
+                setCompareFilter("all");
+                setSelected(new Set());
+              }}
+            >
               Reset filters
             </button>
           )}
@@ -1667,43 +1832,82 @@ export default function GeneratePage({
         />
       )}
 
+      <div className="generate-channels">
+        <section className="generate-channel">
+          <h3 className="generate-channel-title">Generate from API</h3>
+          <p className="muted small">
+            Fire GraphQL / ingress payloads directly. Uses bearer token and default payloads.
+          </p>
+          <button type="button" className="primary" disabled={running} onClick={() => run(false)}>
+            {running ? "Running…" : "Run API generate"}
+          </button>
+        </section>
+
+        <section className="generate-channel">
+          <h3 className="generate-channel-title">Generate from CasePilot</h3>
+          <p className="muted small">
+            Hand off selected scenarios to CasePilot MCP. Paste or auto-capture correlation IDs, then
+            verify here.
+          </p>
+          <button
+            type="button"
+            className="primary outline"
+            disabled={running || selected.size === 0}
+            title={
+              selected.size === 0
+                ? "Select at least one scenario"
+                : "Trigger via CasePilot — then verify with correlation-id"
+            }
+            onClick={() => openUiTrigger()}
+          >
+            Open CasePilot handoff
+          </button>
+        </section>
+
+        <section className="generate-channel">
+          <h3 className="generate-channel-title">Generate from UI Script</h3>
+          <p className="muted small">
+            Pulls Playwright <code>datasource-latest.xlsx</code> (or upload your own). Pick Web/App,
+            then event → scenario — uses Excel <code>auth_token</code> for actor JWT when present.
+          </p>
+          <button
+            type="button"
+            className="primary outline"
+            disabled={running || uiBusy}
+            onClick={() => setUiScriptOpen(true)}
+          >
+            Select &amp; verify
+          </button>
+        </section>
+      </div>
+
       <div className="actions">
-        <button type="button" className="primary" disabled={running} onClick={() => run(false)}>
-          {running ? "Running…" : "Generate"}
-        </button>
-        <button type="button" className="primary outline" disabled={running} onClick={() => run(true)}>
-          {running ? "Running…" : "Generate & validate"}
-        </button>
         {running && job?.id && (
           <button
             type="button"
             className="primary outline"
             onClick={() => void abortGenerate()}
-            title="Stop the current Generate / Generate & validate job"
+            title="Stop the current API generate job"
           >
-            Close / abort ✕
+            Close / abort API job ✕
           </button>
         )}
-        <button
-          type="button"
-          className="primary outline"
-          disabled={running || selected.size === 0}
-          title={
-            selected.size === 0
-              ? "Select at least one scenario"
-              : "Trigger via CasePilot UI — then verify here with correlation-id"
-          }
-          onClick={() => openUiTrigger()}
-        >
-          Generate in UI
-        </button>
-        <button type="button" className="primary outline" disabled={lastRunBusy} onClick={onShowLastRun}>
-          {lastRunBusy ? "Loading…" : "Generation Status"}
-        </button>
-        {job && <span className={`status-pill ${job.status}`}>{job.status}</span>}
+        {(job || uiJob) && (
+          <span className={`status-pill ${(job || uiJob)?.status}`}>{(job || uiJob)?.status}</span>
+        )}
       </div>
 
       {error && <p className="error">{error}</p>}
+
+      {uiScriptOpen && (
+        <GenerateFromUiScriptModal
+          onClose={() => setUiScriptOpen(false)}
+          onComplete={async (j) => {
+            activateUiJob(j);
+            await restoreGenerationStatus(setLastRun, setShowLastRun);
+          }}
+        />
+      )}
 
       {uiTriggerOpen && (
         <GenerateInUiModal
@@ -1720,125 +1924,250 @@ export default function GeneratePage({
         />
       )}
 
-      {uiJob && (
-        <details className="operation-summary-details generation-log-details" open>
-          <summary style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span>
-              UI trigger log · Job {uiJob.id.slice(0, 8)}
-              {" · "}
-              <span className={`status-pill ${uiJob.status}`}>{uiJob.status}</span>
-              {uiJob.verification?.ready ? " · correlation ready" : ""}
-              {uiJob.verification?.generate_run_saved ? " · Generation Status saved" : ""}
-              {" · stays open after browser closes"}
-            </span>
-            <button
-              type="button"
-              className="link-btn"
-              style={{ marginLeft: "auto" }}
-              disabled={uiBusy}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                void closeUiSession();
-              }}
-              title="Stop polling and dismiss this Generate-in-UI session"
-            >
-              Close session ✕
-            </button>
-          </summary>
-          {!!(uiJob.agent as { last_error?: string } | undefined)?.last_error && (
-            <p className="error small">
-              {(uiJob.agent as { last_error?: string }).last_error}
-            </p>
-          )}
-          <div className="log-box generation-log-box">
-            <pre ref={uiLogRef} className="job-logs">
-              {(uiJob.logs || []).join("\n") || "Waiting for CasePilot…"}
-            </pre>
-          </div>
-          {(uiJob.results || []).length > 0 && (
-            <div className="mongo-status generation-status-actions" style={{ marginTop: 8 }}>
-              <strong>Captured correlation_id(s)</strong>
-              <ul className="muted small">
-                {(uiJob.results || [])
-                  .filter((r) => {
-                    const c = String(r.correlation_id || "");
+      {uiJob && (() => {
+        const isScript =
+          (uiJob.agent as { channel?: string } | undefined)?.channel === "playwright_script";
+        const agent = (uiJob.agent || {}) as {
+          last_error?: string;
+          correlation_details?: Array<{
+            event?: string;
+            scenario?: string;
+            correlation_id?: string;
+            status?: string;
+          }>;
+          rows_imported?: number;
+        };
+        const details =
+          agent.correlation_details && agent.correlation_details.length > 0
+            ? agent.correlation_details
+            : (uiJob.results || [])
+                .filter((r) => {
+                  const c = String(r.correlation_id || "");
+                  return /^[0-9a-fA-F-]{36}$/.test(c) && !c.toLowerCase().includes("your-uuid");
+                })
+                .map((r) => ({
+                  event: r.operation || "",
+                  scenario: r.touchpoint || "",
+                  correlation_id: r.correlation_id || "",
+                  status: "OK",
+                }));
+
+        return (
+          <details className="operation-summary-details generation-log-details" open>
+            <summary style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span>
+                {isScript ? "UI Script correlations" : "Generation log · CasePilot"}
+                {" · Job "}
+                {uiJob.id.slice(0, 8)}
+                {" · "}
+                <span className={`status-pill ${uiJob.status}`}>{uiJob.status}</span>
+                {isScript ? ` · ${details.length} correlation(s)` : ""}
+                {uiJob.verification?.ready ? " · correlation ready" : ""}
+                {uiJob.verification?.generate_run_saved ? " · Generation Status saved" : ""}
+                {!isScript &&
+                  (() => {
+                    const rs = (
+                      uiJob.agent as {
+                        run_summary?: { ok?: number; failed?: number; pending?: number };
+                      }
+                    )?.run_summary;
+                    if (!rs || (rs.ok == null && rs.failed == null && rs.pending == null)) return null;
                     return (
-                      /^[0-9a-fA-F-]{36}$/.test(c) &&
-                      !c.toLowerCase().includes("your-uuid")
+                      <>
+                        {" · "}
+                        {rs.ok ?? 0} passed · {rs.failed ?? 0} failed
+                        {(rs.pending ?? 0) > 0 ? ` · ${rs.pending} pending` : ""}
+                      </>
                     );
-                  })
-                  .map((r, i) => (
-                    <li key={`${r.correlation_id}-${i}`}>
-                      <code>{r.correlation_id}</code>
-                      {r.operation
-                        ? ` · ${scenarioDisplayName(r.operation, r.touchpoint, { ui: true })}`
-                        : ""}
-                    </li>
-                  ))}
-              </ul>
-              <p className="muted small">
-                Verification runs automatically after CasePilot finishes — Generation Status opens
-                with raw/enrich. Use Continue only if auto-verify did not run.
-              </p>
-            </div>
-          )}
-          <div className="mongo-status generation-status-actions" style={{ marginTop: 8, gap: 8 }}>
-            <input
-              value={uiManualCid}
-              onChange={(e) => setUiManualCid(e.target.value)}
-              placeholder="Paste correlation-id from DevTools response header"
-              style={{ minWidth: 280 }}
-            />
-            <button type="button" disabled={uiBusy || !uiManualCid.trim()} onClick={onUiManualCid}>
-              Save correlation_id
-            </button>
-            <button
-              type="button"
-              className="primary"
-              disabled={
-                uiBusy ||
-                !(uiJob.verification?.ready || (uiJob.results || []).some((r) => r.correlation_id))
-              }
-              onClick={onContinueUiVerify}
-              title="Look up Mongo raw/enrich by correlation_id and open Generation Status"
-            >
-              {uiBusy ? "Verifying…" : "Continue verification"}
-            </button>
-            <button
-              type="button"
-              disabled={uiBusy}
-              onClick={async () => {
-                setUiBusy(true);
-                try {
-                  const res = await refreshGenerateInUi(uiJob.id);
-                  activateUiJob(res.job);
-                } catch (e) {
-                  setError(String(e));
-                } finally {
-                  setUiBusy(false);
-                }
-              }}
-            >
-              Refresh CasePilot
-            </button>
-            <button type="button" disabled={uiBusy} onClick={() => void closeUiSession()}>
-              Close session
-            </button>
-          </div>
-          <p className="muted small" style={{ marginTop: 8 }}>
-            Auto-mapped TestRail ids → Send. When CasePilot finishes we auto-capture all{" "}
-            <code>correlation-id</code>s (including createProject / list helpers) and open Generation
-            Status with raw + enrich. Paste below only if the agent omitted AUDIT_RESULT.
-          </p>
-        </details>
-      )}
+                  })()}
+              </span>
+              <button
+                type="button"
+                className="link-btn"
+                style={{ marginLeft: "auto" }}
+                disabled={uiBusy}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void closeUiSession();
+                }}
+                title="Stop polling and dismiss this session"
+              >
+                Close session ✕
+              </button>
+            </summary>
+
+            {!!agent.last_error && <p className="error small">{agent.last_error}</p>}
+
+            {isScript ? (
+              <>
+                <div className="ui-script-correlation-table-wrap">
+                  <table className="ui-script-correlation-table">
+                    <thead>
+                      <tr>
+                        <th>Event</th>
+                        <th>Scenario</th>
+                        <th>Correlation ID</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {details.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="muted">
+                            No correlation IDs imported. Use OK rows with a valid UUID in
+                            correlation_id.
+                          </td>
+                        </tr>
+                      ) : (
+                        details.map((r, i) => (
+                          <tr key={`${r.correlation_id}-${i}`}>
+                            <td>{r.event || "—"}</td>
+                            <td>{r.scenario || "—"}</td>
+                            <td>
+                              <code className="cid-cell">{r.correlation_id}</code>
+                              <button
+                                type="button"
+                                className="link-btn"
+                                onClick={() =>
+                                  void navigator.clipboard.writeText(String(r.correlation_id || ""))
+                                }
+                                title="Copy correlation ID"
+                              >
+                                copy
+                              </button>
+                            </td>
+                            <td>
+                              <span className="status-pill ok">{r.status || "OK"}</span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mongo-status generation-status-actions" style={{ marginTop: 8, gap: 8 }}>
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={
+                      uiBusy ||
+                      !(
+                        uiJob.verification?.ready ||
+                        (uiJob.results || []).some((r) => r.correlation_id)
+                      )
+                    }
+                    onClick={onContinueUiVerify}
+                    title="Look up Mongo raw/enrich by correlation_id and open Generation Status"
+                  >
+                    {uiBusy ? "Verifying…" : "Continue verification"}
+                  </button>
+                  <button type="button" disabled={uiBusy} onClick={() => void closeUiSession()}>
+                    Close session
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="log-box generation-log-box">
+                  <pre ref={uiLogRef} className="job-logs">
+                    {(uiJob.logs || []).join("\n") || "Waiting for CasePilot…"}
+                  </pre>
+                </div>
+                {(uiJob.results || []).length > 0 && (
+                  <div className="mongo-status generation-status-actions" style={{ marginTop: 8 }}>
+                    <strong>Captured correlation_id(s)</strong>
+                    <ul className="muted small">
+                      {(uiJob.results || [])
+                        .filter((r) => {
+                          const c = String(r.correlation_id || "");
+                          return (
+                            /^[0-9a-fA-F-]{36}$/.test(c) && !c.toLowerCase().includes("your-uuid")
+                          );
+                        })
+                        .map((r, i) => (
+                          <li key={`${r.correlation_id}-${i}`}>
+                            <code>{r.correlation_id}</code>
+                            {r.operation
+                              ? ` · ${scenarioDisplayName(r.operation, r.touchpoint, { ui: true })}`
+                              : ""}
+                          </li>
+                        ))}
+                    </ul>
+                    <p className="muted small">
+                      Verification runs automatically after CasePilot finishes — Generation Status
+                      opens with raw/enrich. Use Continue only if auto-verify did not run.
+                    </p>
+                  </div>
+                )}
+                <div
+                  className="mongo-status generation-status-actions"
+                  style={{ marginTop: 8, gap: 8 }}
+                >
+                  <input
+                    value={uiManualCid}
+                    onChange={(e) => setUiManualCid(e.target.value)}
+                    placeholder="Paste correlation-id from DevTools response header"
+                    style={{ minWidth: 280 }}
+                  />
+                  <button
+                    type="button"
+                    disabled={uiBusy || !uiManualCid.trim()}
+                    onClick={onUiManualCid}
+                  >
+                    Save correlation_id
+                  </button>
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={
+                      uiBusy ||
+                      !(
+                        uiJob.verification?.ready ||
+                        (uiJob.results || []).some((r) => r.correlation_id)
+                      )
+                    }
+                    onClick={onContinueUiVerify}
+                    title="Look up Mongo raw/enrich by correlation_id and open Generation Status"
+                  >
+                    {uiBusy ? "Verifying…" : "Continue verification"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={uiBusy}
+                    onClick={async () => {
+                      setUiBusy(true);
+                      try {
+                        const res = await refreshGenerateInUi(uiJob.id);
+                        activateUiJob(res.job);
+                      } catch (e) {
+                        setError(String(e));
+                      } finally {
+                        setUiBusy(false);
+                      }
+                    }}
+                  >
+                    Refresh CasePilot
+                  </button>
+                  <button type="button" disabled={uiBusy} onClick={() => void closeUiSession()}>
+                    Close session
+                  </button>
+                </div>
+                <p className="muted small" style={{ marginTop: 8 }}>
+                  Auto-mapped TestRail ids → Send. When CasePilot finishes we auto-capture all{" "}
+                  <code>correlation-id</code>s and open Generation Status. Paste below only if the
+                  agent omitted AUDIT_RESULT.
+                </p>
+              </>
+            )}
+          </details>
+        );
+      })()}
 
       {job && (
         <details className="operation-summary-details generation-log-details" open>
           <summary>
-            Live generation log · Job {job.id.slice(0, 8)}
-            {!!job.params.validate ? " · generate + validate" : ""}
+            Generation log · API · Job {job.id.slice(0, 8)}
             {" · "}
             <span className={`status-pill ${job.status}`}>{job.status}</span>
             {job.error ? ` · ${job.error}` : ""}
@@ -1850,32 +2179,38 @@ export default function GeneratePage({
         </details>
       )}
 
-      {runReport && (job?.status === "completed" || job?.status === "failed" || showLastRun) && (
+      {showGenerationStatus && (
         <div className="generate-run-status">
           <details className="operation-summary-details" open>
             <summary>
               Generation Status
-              {isValidateMode ? " · generate + validate" : " · generate only"}
+              {" · "}
+              scenarios {statusRows.length}
+              {" · "}
+              landed {scenariosWithLanding}
               {isValidateMode && (
                 <>
                   {" · "}
-                  PASS: {scenarioSummary?.pass ?? runReport.summary?.pass ?? runReport.summary?.success ?? 0}
+                  PASS: {scenarioSummary?.pass ?? runReport?.summary?.pass ?? runReport?.summary?.success ?? 0}
                   {" · "}
-                  FAIL: {scenarioSummary?.fail ?? runReport.summary?.fail ?? runReport.summary?.needs_work ?? 0}
+                  FAIL: {scenarioSummary?.fail ?? runReport?.summary?.fail ?? runReport?.summary?.needs_work ?? 0}
                   {" · "}
-                  N/A: {scenarioSummary?.na ?? runReport.summary?.na ?? 0}
-                  {(scenarioSummary?.total ?? runReport.summary?.total) != null &&
-                    ` / ${scenarioSummary?.total ?? runReport.summary?.total}`}
+                  N/A: {scenarioSummary?.na ?? runReport?.summary?.na ?? 0}
                 </>
               )}
-              {!isValidateMode && (
-                <>
-                  {" · "}
-                  scenarios {statusRows.length}
-                  {" · "}
-                  landed {scenariosWithLanding}
-                </>
-              )}
+              {" · "}
+              <button
+                type="button"
+                className="link-btn"
+                disabled={lastRunBusy}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void onShowLastRun();
+                }}
+              >
+                {lastRunBusy ? "Refreshing…" : "Refresh"}
+              </button>
             </summary>
             <div className="mongo-status generation-status-actions">
               <button type="button" className="link-btn" onClick={exportStatusCsv}>

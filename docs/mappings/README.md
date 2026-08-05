@@ -55,8 +55,8 @@ activation / library / projects / favourites / imported_fonts / documents / tags
 teams_orgs / notifications / sharing / ingress / cron.
 
 ```bash
-PYTHONPATH=python backend/.venv/bin/python scripts/build_touchpoint_modules.py
-PYTHONPATH=python backend/.venv/bin/python scripts/verify_touchpoint_live.py
+PYTHONPATH=python backend/.venv/bin/python local/scripts/build_touchpoint_modules.py
+PYTHONPATH=python backend/.venv/bin/python local/scripts/verify_touchpoint_live.py
 ```
 
 Legacy monolithic workbook (still refreshed by older builder):
@@ -82,9 +82,9 @@ The builder embeds your current `.env` `BEARER_TOKEN`, real `SEED_FAMILY_ID` /
 Postman. Rebuild when the token expires.
 
 ```bash
-PYTHONPATH=python backend/.venv/bin/python scripts/build_touchpoint_sheet.py
-PYTHONPATH=python backend/.venv/bin/python scripts/build_touchpoint_postman.py
-PYTHONPATH=python backend/.venv/bin/python scripts/test_touchpoint_payloads.py
+PYTHONPATH=python backend/.venv/bin/python local/scripts/build_touchpoint_sheet.py
+PYTHONPATH=python backend/.venv/bin/python local/scripts/build_touchpoint_postman.py
+PYTHONPATH=python backend/.venv/bin/python local/scripts/test_touchpoint_payloads.py
 ```
 
 Also refreshes `event_trigger_sheet.csv` and `trigger_sequences.json`.
@@ -105,6 +105,6 @@ Import into Postman, set `bearerToken` if expired, run folder top→bottom. Crea
 `event_trigger_sheet.csv` — lighter CSV export of Event × TouchPoint × step ops.
 
 ```bash
-python3 scripts/build_event_trigger_sheet.py   # older nav-only builder
+python3 local/scripts/build_event_trigger_sheet.py   # older nav-only builder
 # prefer build_touchpoint_sheet.py for input-shape accuracy
 ```

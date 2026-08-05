@@ -1160,6 +1160,7 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
         "exportWebkitDomains": lambda: export_webkit_scoped(seed),
         "exportWebkitFonts": lambda: export_webkit_scoped(seed),
         "exportCompanyLibrary": lambda: export_csv_only(),
+        "exportActiveFonts": lambda: export_csv_only(),
         "exportMyLibrary": lambda: export_csv_only(),
         "exportImportedFonts": lambda: export_csv_only(),
         "exportLeavingSoonFonts": lambda: export_csv_only(),
@@ -1299,6 +1300,7 @@ def assert_add_font_list_families_shape(variables: dict[str, Any]) -> None:
 FLOW_DEFS: dict[str, dict[str, list[str]]] = {
     "activateFamily": {
         "Discovery/Browse (global)": ["deactivateFamilies", "activateFamily"],
+        "App (global)": ["deactivateFamilies", "activateFamily"],
         "List (FONTLIST)": [
             "createAsset",
             "addFontListFamilies",
@@ -1328,6 +1330,7 @@ FLOW_DEFS: dict[str, dict[str, list[str]]] = {
     },
     "deactivateFamilies": {
         "Discovery/Browse (global)": ["activateFamily", "deactivateFamilies"],
+        "App (global)": ["activateFamily", "deactivateFamilies"],
         "List (FONTLIST)": [
             "createAsset",
             "addFontListFamilies",

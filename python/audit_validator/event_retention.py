@@ -1,4 +1,4 @@
-"""One JSON file per operation under payload/raw and payload/enrich."""
+"""One JSON file per operation or per cron/ingress case under payload/raw and payload/enrich."""
 
 from __future__ import annotations
 
@@ -13,18 +13,21 @@ log = logging.getLogger(__name__)
 
 _LEGACY_SUFFIX = "-mtconnect-api"
 _CORR_SUFFIX = re.compile(r"^(.+)-[0-9a-f]{8}$")
+_CASE_STEM_SEP = "__"
 
 
 def _operation_from_stem(stem: str) -> str | None:
-    """Resolve filename stem → operation name."""
+    """Resolve filename stem → operation name for legacy correlation-suffixed files."""
     if stem.endswith(_LEGACY_SUFFIX):
         return stem[: -len(_LEGACY_SUFFIX)]
+    if _CASE_STEM_SEP in stem or ("(" in stem and stem.endswith(")")):
+        # Case-scoped stems are kept as-is (prune groups by full stem).
+        return stem
     match = _CORR_SUFFIX.match(stem)
     if match:
         base = match.group(1)
         if base.endswith(_LEGACY_SUFFIX):
             return base[: -len(_LEGACY_SUFFIX)]
-        # operation-service pattern — take part before last hyphen segment if service-like
         if "-service" in base or "-mgmt-" in base:
             return base.rsplit("-", 2)[0] if base.count("-") >= 2 else base.split("-")[0]
         return base
@@ -38,7 +41,7 @@ def _canonical_path(directory: Path, operation: str) -> Path:
 
 
 def prune_payload_dir(directory: Path) -> int:
-    """Keep one `{operation}.json` per operation (newest wins)."""
+    """Keep one `{stem}.json` per distinct stem (newest wins)."""
     if not directory.is_dir():
         return 0
 

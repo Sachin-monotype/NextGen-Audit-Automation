@@ -75,12 +75,15 @@ def main() -> int:
     print("CMS:", json.dumps({"id": (cust or {}).get("id"), "displayName": (cust or {}).get("displayName"), "name": (cust or {}).get("name")}, default=str))
 
     # Column discovery for UMS
+    from .schemas import ums_schema
+
     cols = select_one(
-        """
+        f"""
         SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY ORDINAL_POSITION) AS cols
         FROM information_schema.COLUMNS
-        WHERE TABLE_SCHEMA='user_management' AND TABLE_NAME='profiles'
+        WHERE TABLE_SCHEMA=%s AND TABLE_NAME='profiles'
         """,
+        (ums_schema(),),
         cfg=cfg,
     )
     print("UMS profiles columns:", (cols or {}).get("cols"))

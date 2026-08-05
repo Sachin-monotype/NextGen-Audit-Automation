@@ -23,8 +23,10 @@ from typing import Any
 from audit_validator.casepilot_mcp import (
     CasePilotMcpClient,
     CasePilotMcpError,
+    cached_connector_online,
     extract_casepilot_batch_id,
     extract_casepilot_job_ids,
+    get_shared_casepilot_client,
     health_check,
     load_casepilot_config,
     parse_testrail_case_ids,
@@ -41,6 +43,7 @@ _AUDIT_RESULT_RE = re.compile(
     re.IGNORECASE,
 )
 _KV_RE = re.compile(r"(?P<k>[A-Za-z0-9_]+)\s*=\s*(?P<v>[^|\s]+)")
+_AUDIT_GRAPHQL_MARKER = "AUDIT_GRAPHQL"
 _CID_LINE_RE = re.compile(
     r"(?:AUDIT_CORRELATION_ID|correlation[-_ ]?id)\s*[:=]\s*[\"']?(?P<cid>[A-Za-z0-9\-_]{8,})",
     re.IGNORECASE,
@@ -156,6 +159,82 @@ def _selection_by_case_id(job: dict[str, Any]) -> dict[int, dict[str, Any]]:
     return out
 
 
+def _extract_json_after_marker(text: str, marker: str) -> dict[str, Any] | None:
+    """Parse a JSON object immediately following ``marker`` (brace-balanced)."""
+    idx = text.find(marker)
+    if idx < 0:
+        return None
+    start = idx + len(marker)
+    while start < len(text) and text[start] in " \t\n\r":
+        start += 1
+    if start >= len(text) or text[start] != "{":
+        return None
+    depth = 0
+    for i in range(start, len(text)):
+        ch = text[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                try:
+                    data = json.loads(text[start : i + 1])
+                except json.JSONDecodeError:
+                    return None
+                return data if isinstance(data, dict) else None
+    return None
+
+
+def _normalize_graphql_capture(
+    operation: str,
+    payload: dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return (graphql_input, graphql_response) from an AUDIT_GRAPHQL blob."""
+    if not isinstance(payload, dict):
+        return {}, {}
+    op = (operation or str(payload.get("operation") or "")).strip()
+    inp = payload.get("input")
+    if not isinstance(inp, dict):
+        inp = payload.get("graphql_input")
+    inp = inp if isinstance(inp, dict) else {}
+
+    resp = payload.get("response")
+    if not isinstance(resp, dict):
+        resp = payload.get("graphql_response")
+    if not isinstance(resp, dict):
+        resp = {}
+    # Accept bare mutation node: {"success": true, ...} → wrap as {operation: node}
+    if resp and op and op not in resp and "input" not in resp and "response" not in resp:
+        if any(k in resp for k in ("success", "errors", "__typename", "nodes", "families")):
+            resp = {op: resp}
+    return inp, resp
+
+
+def _parse_audit_graphql_blocks(text: str) -> list[dict[str, Any]]:
+    """Find every AUDIT_GRAPHQL JSON block in CasePilot notes."""
+    out: list[dict[str, Any]] = []
+    search_from = 0
+    while True:
+        idx = text.find(_AUDIT_GRAPHQL_MARKER, search_from)
+        if idx < 0:
+            break
+        blob = _extract_json_after_marker(text[idx:], _AUDIT_GRAPHQL_MARKER)
+        if blob:
+            out.append(blob)
+        search_from = idx + len(_AUDIT_GRAPHQL_MARKER)
+    return out
+
+
+def _graphql_extra_after_marker(after_text: str, operation: str) -> dict[str, Any]:
+    blob = _extract_json_after_marker(after_text, _AUDIT_GRAPHQL_MARKER)
+    if not blob:
+        return {}
+    inp, resp = _normalize_graphql_capture(operation, blob)
+    if not inp and not resp:
+        return {}
+    return {"graphql_input": inp, "graphql_response": resp}
+
+
 def _match_selection_item(
     selection: list[dict[str, Any]],
     *,
@@ -247,6 +326,8 @@ def extract_audit_details_from_casepilot_result(
                 "issue_key": run_status.get("issue_key"),
                 "case_id": extra.get("case_id"),
                 "recorded_at": _now(),
+                "graphql_input": extra.get("graphql_input"),
+                "graphql_response": extra.get("graphql_response"),
             }
         )
 
@@ -285,7 +366,29 @@ def extract_audit_details_from_casepilot_result(
             source="audit_result_marker",
             raw_marker=m.group(0)[:240],
             case_id=node_case_id,
+            **_graphql_extra_after_marker(
+                text[m.end() :],
+                kvs.get("operation") or kvs.get("op") or node_op,
+            ),
         )
+
+    # Standalone AUDIT_GRAPHQL blocks (when agent emits GraphQL without a paired line)
+    for blob in _parse_audit_graphql_blocks(text):
+        op_g = str(blob.get("operation") or "").strip() or node_op
+        inp, resp = _normalize_graphql_capture(op_g, blob)
+        if not inp and not resp:
+            continue
+        cid_g = str(blob.get("correlation_id") or blob.get("correlation-id") or "").strip()
+        if cid_g:
+            _add(
+                cid_g,
+                operation=op_g,
+                touchpoint=str(blob.get("touchpoint") or node_touch or "").strip(),
+                source="audit_graphql_block",
+                case_id=node_case_id,
+                graphql_input=inp,
+                graphql_response=resp,
+            )
 
     for m in _CID_LINE_RE.finditer(text):
         _add(
@@ -488,18 +591,44 @@ def apply_extracted_results(
             "issue_key": item.get("issue_key"),
             "raw_marker": item.get("raw_marker"),
             "recorded_at": item.get("recorded_at") or _now(),
+            "graphql_input": item.get("graphql_input"),
+            "graphql_response": item.get("graphql_response"),
         }
+        row_target = str(item.get("target") or "").strip().lower()
+        if not row_target:
+            row_target = str((job.get("agent") or {}).get("target") or "").strip().lower()
+        if row_target in {"web", "app"}:
+            row["target"] = row_target
+        if item.get("excel_event_name"):
+            row["excel_event_name"] = str(item.get("excel_event_name"))
+        if item.get("graphql_failed"):
+            row["graphql_failed"] = True
+        if item.get("jwt_identity") and isinstance(item.get("jwt_identity"), dict):
+            row["jwt_identity"] = item["jwt_identity"]
+        if item.get("jwt_identity_note"):
+            row["jwt_identity_note"] = str(item.get("jwt_identity_note"))
+        if item.get("jwt_from_excel"):
+            row["jwt_from_excel"] = True
+        if item.get("auth_token"):
+            row["auth_token"] = str(item.get("auth_token"))
+        if item.get("our_profile_id"):
+            row["our_profile_id"] = str(item.get("our_profile_id"))
         results.append(row)
         existing.add(cid)
+        gql_note = (
+            " + GraphQL input/response"
+            if item.get("graphql_input") or item.get("graphql_response")
+            else ""
+        )
         _append_log(
             job,
-            f"✓ captured correlation_id={cid} op={op or '?'} touch={touch or '-'}",
+            f"✓ captured correlation_id={cid} op={op or '?'} touch={touch or '-'}{gql_note}",
         )
         if record_generation and op:
             try:
                 from audit_validator.touchpoint.scenarios import scenario_display_name
 
-                display = scenario_display_name(op, touch, ui=True)
+                display = scenario_display_name(op, touch, ui=True, target=row.get("target"))
                 record_generation(
                     op,
                     cid,
@@ -510,27 +639,97 @@ def apply_extracted_results(
                         "ui_trigger_job_id": job.get("id"),
                         "source": "casepilot",
                         "display": display,
+                        "target": row.get("target"),
                     },
                 )
-                # Also register UI display name (…(ui)) for Generation Status / Compare
+                # Also register UI display name for Generation Status / Compare
                 if display != op:
                     record_generation(
                         display,
                         cid,
                         project_root=project_root,
                         kind="ui",
-                        meta={"touchpoint": touch, "ui_trigger_job_id": job.get("id")},
+                        meta={
+                            "touchpoint": touch,
+                            "ui_trigger_job_id": job.get("id"),
+                            "target": row.get("target"),
+                        },
                     )
             except Exception as exc:  # noqa: BLE001
                 _append_log(job, f"⚠ could not record_generation: {exc}")
         if build_trigger_context and save_trigger_context and op:
             try:
+                from audit_validator.touchpoint.scenarios import scenario_display_name
+
+                display = scenario_display_name(op, touch, ui=True, target=row.get("target"))
+                gql_inp = item.get("graphql_input") if isinstance(item.get("graphql_input"), dict) else {}
+                gql_resp = (
+                    item.get("graphql_response") if isinstance(item.get("graphql_response"), dict) else {}
+                )
+                jwt_ident = (
+                    item.get("jwt_identity") if isinstance(item.get("jwt_identity"), dict) else None
+                )
                 ctx = build_trigger_context(
                     operation=op,
                     correlation_id=cid,
+                    graphql_input=gql_inp,
+                    graphql_response=gql_resp,
+                    jwt_identity=jwt_ident,
                     success=True,
+                    # GraphQL Response has no UA / platformEnvironment — don't invent
+                    # Chrome+"web" (false FAIL vs Electron/"app" on enriched).
+                    invent_client_defaults=False,
                 )
-                save_trigger_context(project_root, op, ctx)
+                if item.get("jwt_identity_note"):
+                    ctx["jwt_identity_note"] = str(item.get("jwt_identity_note"))
+                if item.get("our_profile_id"):
+                    ctx["our_profile_id"] = str(item.get("our_profile_id"))
+                if item.get("auth_token"):
+                    ctx["auth_token"] = str(item.get("auth_token"))
+                note = str(item.get("jwt_identity_note") or "")
+                if (
+                    item.get("jwt_from_excel")
+                    or item.get("source") == "playwright_script"
+                    or "Excel auth_token" in note
+                    or note.startswith("JWT claims from Excel")
+                ):
+                    ctx["jwt_from_excel"] = True
+                src = str(item.get("source") or "").strip() or "casepilot_ui"
+                if gql_inp or gql_resp:
+                    ctx["capture_source"] = src
+                    # Keep playwright_script sticky so Compare prefers Excel Response/JWT.
+                    ctx["replay_mode"] = (
+                        "playwright_script" if src == "playwright_script" else "casepilot_ui"
+                    )
+                elif src == "playwright_script":
+                    # Keep Excel JWT sticky even when Response cell is empty.
+                    ctx["capture_source"] = "playwright_script"
+                    ctx["replay_mode"] = "playwright_script"
+                else:
+                    ctx["capture_source"] = src or "casepilot_minimal"
+                    # Keep Excel JWT sticky even when Response is empty / pending_raw.
+                    if ctx.get("jwt_from_excel") or src == "playwright_script":
+                        ctx["replay_mode"] = "playwright_script"
+                    else:
+                        ctx["replay_mode"] = "pending_raw"
+                # Save under bare op, scenario, and (UI) label so Compare finds Excel
+                # capture even when the operator selects activateFamily(global).
+                names = {op, display}
+                if display.endswith("(UI)"):
+                    names.add(display[: -len("(UI)")])
+                for name in names:
+                    if not name:
+                        continue
+                    save_trigger_context(project_root, name, ctx)
+                if gql_resp:
+                    gql_dir = project_root / "payload" / "graphql"
+                    gql_dir.mkdir(parents=True, exist_ok=True)
+                    for name in names:
+                        if name:
+                            (gql_dir / f"{name}.json").write_text(
+                                json.dumps(gql_resp, indent=2, default=str),
+                                encoding="utf-8",
+                            )
             except Exception as exc:  # noqa: BLE001
                 _append_log(job, f"⚠ could not save trigger context: {exc}")
 
@@ -637,8 +836,8 @@ def create_ui_trigger_job(
             "correlation_ids": [],
             "operations": [str(s.get("operation") or "") for s in selection if isinstance(s, dict)],
             "note": (
-                "When CasePilot finishes we auto-extract correlation_ids (including intermediate "
-                "mutations) and verify raw/enrich into Generation Status."
+                "When CasePilot finishes we auto-extract correlation_ids and verify raw/enrich. "
+                "App/plugin ingress uses Connect service log harvest (xCorrelationId)."
             ),
             "auto_verify": True,
         },
@@ -658,8 +857,45 @@ def create_ui_trigger_job(
         _append_log(payload, f"  plan {i}. {st.get('step')}")
     _write_job(project_root, payload)
     if dispatch:
-        payload = dispatch_ui_trigger_job(project_root, job_id) or payload
+        if _async_dispatch_enabled():
+            schedule_dispatch_ui_trigger_job(project_root, job_id)
+        else:
+            payload = dispatch_ui_trigger_job(project_root, job_id) or payload
     return payload
+
+
+def _async_dispatch_enabled() -> bool:
+    return os.getenv("CASEPILOT_ASYNC_DISPATCH", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def schedule_dispatch_ui_trigger_job(project_root: Path, job_id: str) -> None:
+    """Queue CasePilot dispatch on a background thread (fast HTTP return)."""
+    job = get_ui_trigger_job(project_root, job_id)
+    if job:
+        _append_log(job, "▸ Dispatching to CasePilot in background…")
+        job["status"] = "pending_agent"
+        _write_job(project_root, job)
+
+    def _run() -> None:
+        try:
+            dispatch_ui_trigger_job(project_root, job_id)
+        except Exception as exc:  # noqa: BLE001
+            job_now = get_ui_trigger_job(project_root, job_id)
+            if job_now:
+                agent = dict(job_now.get("agent") or {})
+                agent["send_status"] = "error"
+                agent["last_error"] = str(exc)
+                job_now["agent"] = agent
+                job_now["status"] = "failed"
+                _append_log(job_now, f"✖ Background dispatch failed: {exc}")
+                _write_job(project_root, job_now)
+
+    threading.Thread(target=_run, daemon=True, name=f"casepilot-dispatch-{job_id[:8]}").start()
 
 
 def list_ui_trigger_jobs(project_root: Path, *, limit: int = 20) -> list[dict[str, Any]]:
@@ -899,12 +1135,139 @@ def _summarize_casepilot_runs(
     return {"ok": ok, "failed": fail, "pending": pending, "errors": errors}
 
 
-def _connector_error_hint(errors: list[str]) -> str:
+def casepilot_batch_pending(job: dict[str, Any] | None) -> int:
+    """CasePilot jobs still queued/running — batch not finished yet."""
+    if not isinstance(job, dict):
+        return 0
+    agent = job.get("agent") if isinstance(job.get("agent"), dict) else {}
+    summary = agent.get("run_summary") if isinstance(agent.get("run_summary"), dict) else {}
+    return int(summary.get("pending") or 0)
+
+
+def _active_ui_jobs(
+    project_root: Path,
+    *,
+    exclude_job_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Handoffs still queued/running on CasePilot (another batch blocks the connector)."""
+    out: list[dict[str, Any]] = []
+    for job in list_ui_trigger_jobs(project_root, limit=50):
+        jid = str(job.get("id") or "")
+        if exclude_job_id and jid == exclude_job_id:
+            continue
+        st = str(job.get("status") or "").lower()
+        if st not in {"queued", "running", "pending_agent"}:
+            continue
+        agent = job.get("agent") if isinstance(job.get("agent"), dict) else {}
+        batch_id = str(agent.get("casepilot_batch_id") or "").strip()
+        cp_ids = agent.get("casepilot_job_ids") or []
+        if batch_id or cp_ids:
+            out.append(job)
+    return out
+
+
+def _stop_casepilot_for_job(
+    job: dict[str, Any],
+    client: CasePilotMcpClient,
+    *,
+    log_line: str,
+) -> bool:
+    """Best-effort CasePilot stop for one handoff; returns True if stop was attempted."""
+    agent = dict(job.get("agent") or {})
+    batch_id = str(agent.get("casepilot_batch_id") or "").strip()
+    cp_ids = [
+        int(x)
+        for x in (agent.get("casepilot_job_ids") or [])
+        if str(x).isdigit() or isinstance(x, int)
+    ]
+    if not batch_id and not cp_ids:
+        return False
+    stop_args: dict[str, Any] = {}
+    if batch_id:
+        stop_args["batch_id"] = batch_id
+    if len(cp_ids) == 1:
+        stop_args["job_id"] = cp_ids[0]
+    if not stop_args:
+        stop_args["batch_id"] = batch_id
+    try:
+        stop_resp = client.stop_ui_execution(**stop_args)
+        agent["stop_response"] = {
+            k: stop_resp.get(k)
+            for k in ("ok", "batch_id", "job_id", "cancelled", "message", "status")
+            if k in stop_resp
+        }
+    except CasePilotMcpError as exc:
+        _append_log(job, f"⚠ CasePilot stop failed: {exc}")
+        return False
+    agent["pending_case_ids"] = []
+    agent["send_status"] = "superseded"
+    agent["last_error"] = "Superseded by a newer Generate-in-UI batch"
+    job["agent"] = agent
+    job["status"] = "cancelled"
+    job["verification"] = {
+        **(job.get("verification") or {}),
+        "auto_verify_pending": False,
+        "cancelled": True,
+        "superseded": True,
+        "note": "Stopped automatically — a newer Generate-in-UI run took over the connector.",
+    }
+    _append_log(job, log_line)
+    return True
+
+
+def _stop_other_active_ui_jobs(
+    project_root: Path,
+    except_job_id: str,
+    client: CasePilotMcpClient,
+) -> list[str]:
+    """Stop queued/running CasePilot batches from other handoffs before dispatching."""
+    stopped: list[str] = []
+    for other in _active_ui_jobs(project_root, exclude_job_id=except_job_id):
+        oid = str(other.get("id") or "")
+        if not oid:
+            continue
+        if _stop_casepilot_for_job(
+            other,
+            client,
+            log_line=(
+                f"⏹ Superseded by Generate-in-UI job {except_job_id[:8]} — "
+                "connector released for the new batch"
+            ),
+        ):
+            _write_job(project_root, other)
+            stopped.append(oid)
+    return stopped
+
+
+def _connector_error_hint(
+    errors: list[str],
+    *,
+    statuses: list[dict[str, Any]] | None = None,
+) -> str:
+    if statuses:
+        states = [str(s.get("status") or "").lower() for s in statuses if isinstance(s, dict)]
+        if states and all(s in {"cancelled", "canceled"} for s in states):
+            return (
+                "All CasePilot jobs were cancelled before UI steps ran. "
+                "Usually another Generate-in-UI Send replaced this batch, Close session was clicked, "
+                "or the connector was busy. Close any open UI session, wait for the connector to finish, "
+                "then Send once with Parallel browsers = 1."
+            )
     joined = " ".join(errors).lower()
     if "connection refused" in joined or "bridge request failed" in joined:
         return (
             "CasePilot connector bridge is not reachable (Connection refused). "
             "Start the CasePilot connector on your machine and keep it online, then Send again."
+        )
+    if "tool-callback-auth-token" in joined or (
+        "cursor sdk" in joined and "bridge exited before discovery" in joined
+    ):
+        return (
+            "Cursor SDK bridge bug (not a missing CasePilot/Cursor API key): cursor-sdk "
+            "randomly generates an internal callback token starting with '-', which "
+            "cursor-sdk-bridge rejects as 'Missing value for --tool-callback-auth-token'. "
+            "Retry the run, set Parallel browsers to 1, or ask CasePilot to patch/upgrade "
+            "cursor-sdk in the local runner venv."
         )
     if errors:
         return errors[0]
@@ -915,6 +1278,80 @@ def _short_touch_label(touch: str) -> str:
     from audit_validator.ui_case_recipes import short_touch
 
     return short_touch(touch)
+
+
+def _selection_uses_connect_log_capture(selection: list[dict[str, Any]]) -> bool:
+    from audit_validator.ingress.connect_log_capture import selection_uses_connect_log_capture
+
+    return selection_uses_connect_log_capture(selection)
+
+
+def _begin_connect_log_capture(
+    job: dict[str, Any],
+    selection: list[dict[str, Any]],
+    *,
+    tag: str = "",
+) -> None:
+    from audit_validator.ingress.connect_log_capture import (
+        connect_log_capture_enabled,
+        expected_operations_from_selection,
+        prepare_connect_log_baseline,
+    )
+
+    if not connect_log_capture_enabled() or not _selection_uses_connect_log_capture(selection):
+        return
+    try:
+        baseline = prepare_connect_log_baseline(tag=tag or str(job.get("id") or "")[:8])
+        ops = expected_operations_from_selection(selection)
+        job["connect_log_capture"] = {
+            **baseline.as_dict(),
+            "status": "watching",
+            "expected_operations": ops,
+        }
+        archive = baseline.archive_path or ""
+        _append_log(
+            job,
+            f"▸ Connect log prepared ({baseline.mode}) · {baseline.path}"
+            + (f" · archived={archive}" if archive else f" · offset={baseline.byte_offset}"),
+        )
+        _append_log(
+            job,
+            f"  xCorrelationId will be harvested from Connect logs after UI run "
+            f"(poll up to {int(os.getenv('CONNECT_LOG_SETTLE_SEC', '300') or '300')}s)",
+        )
+        if baseline.mode == "truncate":
+            _append_log(
+                job,
+                "  ⚠ truncate mode can prevent Serilog from writing new lines — set "
+                "CONNECT_LOG_PREPARE=offset if harvest finds nothing",
+            )
+    except Exception as exc:  # noqa: BLE001
+        _append_log(job, f"⚠ Connect log prepare failed: {exc}")
+
+
+def _schedule_connect_log_harvest_if_ready(project_root: Path, job: dict[str, Any]) -> None:
+    from audit_validator.ingress.connect_log_capture import (
+        schedule_connect_log_harvest,
+        should_resume_connect_log_harvest,
+    )
+
+    cap = job.get("connect_log_capture")
+    if not isinstance(cap, dict):
+        return
+    status = str(cap.get("status") or "")
+    job_id = str(job.get("id") or "")
+    if status == "harvesting":
+        if should_resume_connect_log_harvest(job):
+            _append_log(job, "▸ Resuming Connect log harvest (previous worker interrupted)")
+            _write_job(project_root, job)
+            schedule_connect_log_harvest(project_root, job_id, force=True)
+        return
+    if status != "watching":
+        return
+    cap["status"] = "harvesting"
+    job["connect_log_capture"] = cap
+    _write_job(project_root, job)
+    schedule_connect_log_harvest(project_root, job_id)
 
 
 def _audit_emit_step(op: str, touch_short: str) -> str:
@@ -961,21 +1398,65 @@ def _build_context(
     primary_op = str(primary.get("operation") or "activateFamily")
     primary_touch = short_touch(str(primary.get("touchpoint") or "global"))
     checklist = compact_checklist(items)
+    connect_ingress = _selection_uses_connect_log_capture(items)
     summary = (job.get("cta_text") or "").strip()
     if not summary:
-        if len(items) == 1:
+        if connect_ingress and len(items) == 1:
+            summary = (
+                f"Trigger {primary.get('label') or primary_op} in Monotype Connect once — "
+                "no log capture needed (automation reads Connect service log)"
+            )
+        elif len(items) == 1:
             summary = f"Trigger {primary.get('label') or primary_op} once, emit AUDIT_RESULT, stop"
+        elif connect_ingress:
+            summary = (
+                f"Run {len(items)} Monotype Connect / plugin TestRail cases serially — "
+                "perform each desktop action once; automation harvests xCorrelationId from logs"
+            )
         else:
             summary = (
-                f"Trigger {len(items)} NextGen audit events in one browser session — "
-                "one AUDIT_RESULT each, reuse existing UI state, do not rebuild projects every time"
+                f"Run {len(items)} NextGen audit TestRail cases serially — "
+                "one AUDIT_RESULT (+ AUDIT_GRAPHQL) per case; reuse login/state where possible"
             )
+    ingress_block = (
+        [
+            "",
+            "## Ingress / Connect desktop",
+            "- Perform the Monotype Connect or plugin UI action only.",
+            "- Do NOT grep logs or paste xCorrelationId — the audit app reads Connect service logs.",
+            "- Close the browser/app when all steps are done.",
+        ]
+        if connect_ingress
+        else []
+    )
+    correlation_block = (
+        [
+            "## Correlation (Connect ingress)",
+            "- No AUDIT_RESULT required — xCorrelationId is harvested from Connect service logs.",
+            "- Field name in log body: xCorrelationId (NOT the HTTP x-correlation-id header).",
+        ]
+        if connect_ingress
+        else [
+            "## Correlation",
+            "- Header: correlation-id (never x-correlation-id).",
+            "- Line 1: AUDIT_RESULT|operation=<op>|correlation_id=<real-uuid>|touchpoint=<short>",
+            "- Line 2: AUDIT_GRAPHQL {\"input\":<request variables.input>,\"response\":{\"<op>\":<response data.<op>>}}",
+            "- Copy variables.input and data.<op> from DevTools Network → GraphQL request/response JSON.",
+            "- Compare uses AUDIT_GRAPHQL for join keys — do not skip the second line.",
+            "- Filter Network by operationName matching the mutation (ignore search/browse queries).",
+            "- Real UUIDs only — never YOUR-UUID or <uuid> literals.",
+            f"- Example line 1: AUDIT_RESULT|operation={primary_op}|correlation_id=<uuid>|touchpoint={primary_touch}",
+            f'- Example line 2: AUDIT_GRAPHQL {{"input":{{}},"response":{{"{primary_op}":{{}}}}}}',
+        ]
+    )
     description = "\n".join(
         [
             "NextGen Audit Automation — Generate in UI handoff",
             "",
             "## YOU ARE AN ANONYMOUS UI RUNNER",
-            "- Goal: TRIGGER GraphQL events and emit AUDIT_RESULT. Minimal assertions.",
+            "- Goal: TRIGGER GraphQL events and emit AUDIT_RESULT. Minimal assertions."
+            if not connect_ingress
+            else "- Goal: TRIGGER Monotype Connect / plugin ingress events. Minimal assertions.",
             "- Follow DETAILED STEPS in order. Locators are exact — use [data-qa-id='…'] / [data-testid='…'] as written. Do not hunt for alternate controls.",
             "- NO RETRIES: attempt each step once. If a step fails, emit what you have and move on / stop. Do not re-run the case or re-click the same control in a loop.",
             "- Pick ANY visible family/style matching ON/OFF — never invent family ids.",
@@ -994,13 +1475,9 @@ def _build_context(
             "",
             "## Extra notes",
             (job.get("notes") or "").strip() or "(none)",
+            *ingress_block,
             "",
-            "## Correlation",
-            "- Header: correlation-id (never x-correlation-id).",
-            "- Format: AUDIT_RESULT|operation=<op>|correlation_id=<real-uuid>|touchpoint=<short>",
-            "- Filter Network by operationName matching the mutation (ignore search/browse queries).",
-            "- Real UUIDs only — never YOUR-UUID or <uuid> literals.",
-            f"- Example: AUDIT_RESULT|operation={primary_op}|correlation_id=<uuid>|touchpoint={primary_touch}",
+            *correlation_block,
         ]
     )
     per_notes = []
@@ -1022,6 +1499,11 @@ def _build_context(
         "audit_result_format": (
             f"AUDIT_RESULT|operation={primary_op}|correlation_id=<real-uuid>|touchpoint={primary_touch}"
         ),
+        "audit_graphql_format": (
+            f'AUDIT_GRAPHQL {{"input":<variables.input>,"response":{{"{primary_op}":<data.{primary_op}>}}}}'
+        ),
+        "prefer_graphql_capture": "false" if connect_ingress else "true",
+        "connect_log_capture": "true" if connect_ingress else "false",
         "capture_intermediate_mutations": "false" if len(items) > 3 else "true",
         "product": "NextGen",
         "source": "nextgen-audit-automation",
@@ -1072,7 +1554,10 @@ def _connector_online(client: CasePilotMcpClient) -> bool | None:
 
 def _wait_for_connector_online(client: CasePilotMcpClient, job: dict[str, Any]) -> None:
     """Poll preflight until a runner is online (or give up after a short window)."""
-    tries = max(1, int(os.getenv("CASEPILOT_CONNECTOR_WAIT_TRIES", "6") or "6"))
+    cached = cached_connector_online()
+    if cached is True:
+        return
+    tries = max(1, int(os.getenv("CASEPILOT_CONNECTOR_WAIT_TRIES", "2") or "2"))
     for i in range(tries):
         state = _connector_online(client)
         if state is None or state:
@@ -1088,6 +1573,33 @@ def _wait_for_connector_online(client: CasePilotMcpClient, job: dict[str, Any]) 
         "⚠ Proceeding to queue although no runner reported online — "
         "start/check your CasePilot connector if this run does not begin.",
     )
+
+
+def _restore_mtfngpp_handler_for_browser(*, job: dict[str, Any] | None = None) -> None:
+    """After CasePilot Electron CDP runs, point ``mtfngpp://`` back at Monotype NextGen."""
+    if os.getenv("CASEPILOT_RESTORE_MTFPNGPP_HANDLER", "true").strip().lower() in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }:
+        return
+    if os.name != "posix" or os.uname().sysname != "Darwin":
+        return
+    try:
+        from audit_validator.macos_deeplink import current_mtfngpp_handler, restore_mtfngpp_handler
+
+        before = current_mtfngpp_handler()
+        if restore_mtfngpp_handler(quiet=True):
+            after = current_mtfngpp_handler()
+            if job is not None and before != after:
+                _append_log(
+                    job,
+                    f"▸ Restored mtfngpp:// handler: {before or 'unset'} → {after or 'com.monotype.unified'}",
+                )
+    except Exception as exc:  # noqa: BLE001
+        if job is not None:
+            _append_log(job, f"⚠ Could not restore mtfngpp:// handler: {exc}")
 
 
 def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] | None:
@@ -1109,6 +1621,8 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
     testrail["case_ids"] = case_ids
     job["testrail"] = testrail
 
+    selection_items = [s for s in (job.get("selection") or []) if isinstance(s, dict)]
+
     if not cfg.configured:
         agent.update({"send_status": "missing_api_key", "last_error": "CASEPILOT_API_KEY not set"})
         job["agent"] = agent
@@ -1126,44 +1640,75 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
         job["status"] = "failed"
         return _write_job(project_root, job)
 
-    if not cfg.ui_config_ready():
+    if not cfg.ui_config_ready(selection=selection_items):
+        from audit_validator.casepilot_mcp import selection_uses_electron_app
+
+        uses_electron = selection_uses_electron_app(selection_items)
         agent.update(
             {
                 "send_status": "credentials_required",
-                "last_error": "Set CASEPILOT_UI_BASE_URL / USERNAME / PASSWORD (or OAUTH_*)",
+                "last_error": (
+                    "Set CASEPILOT_ELECTRON_APP_PATH (Monotype Connect.app) and OAUTH_USERNAME/OAUTH_PASSWORD"
+                    if uses_electron
+                    else "Set CASEPILOT_UI_BASE_URL / USERNAME / PASSWORD (or OAUTH_*)"
+                ),
             }
         )
         job["agent"] = agent
         job["status"] = "failed"
         return _write_job(project_root, job)
 
+    _restore_mtfngpp_handler_for_browser(job=job)
+
+    _begin_connect_log_capture(job, selection_items, tag=job_id[:8])
+
     try:
         from audit_validator.env_profiles import get_audit_profile
 
         profile = get_audit_profile()
-        # Always drive CasePilot at the currently selected AUDIT_TARGET NextGen URL
-        # (not a stale CASEPILOT_UI_BASE_URL pinned to PP).
-        ui_cfg = cfg.ui_config()
-        ui_cfg["base_url"] = (
-            (os.getenv("NEXTGEN_UI_URL") or "").strip()
-            or profile.nextgen_ui_url
-            or ui_cfg.get("base_url")
-            or ""
-        )
-        # Modal / request override (headed default unless headless=true)
         extra = job.get("extra") if isinstance(job.get("extra"), dict) else {}
-        if "headless" in extra:
-            ui_cfg["headless"] = bool(extra.get("headless"))
+        # Web uses NEXTGEN_UI_URL; Electron drives Monotype Connect .app directly.
+        ui_cfg = cfg.ui_config(
+            selection=selection_items,
+            extra=extra,
+            base_url=(
+                (os.getenv("NEXTGEN_UI_URL") or "").strip()
+                or profile.nextgen_ui_url
+                or cfg.ui_base_url
+                or ""
+            ),
+        )
         max_parallel = resolve_max_parallel(
             ui_app_type=str(ui_cfg.get("app_type") or cfg.ui_app_type),
             job_extra=extra,
             cfg=cfg,
         )
-        _append_log(
-            job,
-            f"▸ Browser mode: {'headless' if ui_cfg.get('headless') else 'headed (visible)'}",
-        )
-        if max_parallel == 1:
+        app_type = str(ui_cfg.get("app_type") or "web").lower()
+        if app_type in {"electron", "desktop", "app"}:
+            attach = str(ui_cfg.get("electron_attach_mode") or "launch")
+            _append_log(
+                job,
+                f"▸ Electron mode: {attach} · app={ui_cfg.get('electron_app_path') or 'attach-only'} · "
+                f"{'headless' if ui_cfg.get('headless') else 'headed (visible)'} · "
+                f"debug_port={ui_cfg.get('electron_debug_port')}",
+            )
+        else:
+            _append_log(
+                job,
+                f"▸ Browser mode: {'headless' if ui_cfg.get('headless') else 'headed (visible)'} · "
+                f"url={ui_cfg.get('base_url')}",
+            )
+        if len(case_ids) > 1:
+            mode = (
+                f"parallel (max_parallel={max_parallel})"
+                if max_parallel and max_parallel > 1
+                else "serial (max_parallel=1)"
+            )
+            _append_log(
+                job,
+                f"▸ Multi-event batch ({len(case_ids)} TestRail cases) — {mode}",
+            )
+        elif max_parallel == 1:
             _append_log(job, "▸ Parallelism: serial (max_parallel=1)")
         elif max_parallel and max_parallel > 1:
             _append_log(
@@ -1173,29 +1718,47 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
         else:
             _append_log(job, "▸ Parallelism: CasePilot PP default (full connector cap)")
 
-        client = CasePilotMcpClient(cfg)
-        # Preview cases first (surface not_found early)
-        preview = client.fetch_testrail_cases(case_ids)
-        if preview.get("not_found"):
-            raise CasePilotMcpError(
-                f"TestRail case(s) not found: {preview.get('not_found')}",
-                payload=preview,
+        client = get_shared_casepilot_client(cfg)
+        stopped = _stop_other_active_ui_jobs(project_root, job_id, client)
+        if stopped:
+            _append_log(
+                job,
+                f"▸ Stopped {len(stopped)} prior Generate-in-UI batch(es) on connector "
+                f"({', '.join(s[:8] for s in stopped)}) — only one UI run at a time",
             )
+        preview: dict[str, Any] = {"skipped": True}
+        preview_testrail = os.getenv("CASEPILOT_PREVIEW_TESTRAIL", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        if preview_testrail:
+            preview = client.fetch_testrail_cases(case_ids)
+            if preview.get("not_found"):
+                raise CasePilotMcpError(
+                    f"TestRail case(s) not found: {preview.get('not_found')}",
+                    payload=preview,
+                )
 
-        selection_items = [s for s in (job.get("selection") or []) if isinstance(s, dict)]
-        # ONE CasePilot session for the whole selection (connector rejects 45 parallel queues).
-        # Context = compact EVENT checklist + short recipes so the AI fires mutations, not setup epics.
         env_block = (
             f"\n\n## Environment\n- AUDIT_TARGET={profile.name}\n"
-            f"- NextGen UI: {ui_cfg['base_url']}\n"
-            "Use this URL only — do not switch environments mid-run.\n"
+            + (
+                f"- Monotype Connect Electron: {ui_cfg.get('electron_app_path') or 'attach CDP'}\n"
+                if app_type in {"electron", "desktop", "app"}
+                else (
+                    f"- NextGen UI: {ui_cfg.get('base_url')}\n"
+                    "Use this URL only — do not switch environments mid-run.\n"
+                )
+            )
         )
         summary, description, hints = _build_context(job, selection_override=selection_items or None)
         hints = {
             **hints,
             "audit_target": profile.name,
-            "nextgen_ui_url": ui_cfg["base_url"],
+            "nextgen_ui_url": ui_cfg.get("base_url") or profile.nextgen_ui_url,
             "mongo_db": (os.getenv("MONGO_DB_NAME") or "").strip(),
+            "app_type": app_type,
         }
         if max_parallel and max_parallel > 1:
             hints["parallel_ui"] = (
@@ -1213,9 +1776,21 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
         run: dict[str, Any] = {}
         cp_jobs: list[int] = []
         run_tries = max(1, int(os.getenv("CASEPILOT_RUN_RETRIES", "3") or "3"))
+        # Queue every TestRail case with max_parallel=1 so CasePilot runs them serially.
+        # A single queued case only runs that case's TestRail steps — the EVENT checklist
+        # in context is not enough for the agent to fire all mutations in one session.
+        queue_case_ids = list(case_ids)
+        if len(case_ids) > 1:
+            agent["all_testrail_case_ids"] = case_ids
+            agent["expected_event_count"] = len(case_ids)
+            _append_log(
+                job,
+                f"▸ Multi-event: queuing {len(case_ids)} TestRail cases serially "
+                f"(max_parallel=1, ~3 min each — CasePilot runs C{case_ids[0]} … C{case_ids[-1]})",
+            )
         for attempt in range(run_tries):
             run = client.run_testrail_ui_tests(
-                case_ids,
+                queue_case_ids,
                 ui_config=ui_cfg,
                 context_summary=summary,
                 context_description=description + env_block,
@@ -1354,6 +1929,105 @@ def dispatch_ui_trigger_job(project_root: Path, job_id: str) -> dict[str, Any] |
         return _write_job(project_root, job)
 
 
+def _ui_batch_stale_minutes(agent: dict[str, Any], selection_count: int) -> int:
+    """Scale stale timeout for multi-case serial queues (~8 min/job)."""
+    base = max(5, int(os.getenv("CASEPILOT_UI_STALE_MINUTES", "20") or "20"))
+    sel_n = int(agent.get("expected_event_count") or 0) or selection_count or 1
+    if sel_n <= 1:
+        return base
+    per_job = max(6, int(os.getenv("CASEPILOT_UI_MINUTES_PER_JOB", "8") or "8"))
+    mp = max(1, int(agent.get("max_parallel") or 1))
+    if mp <= 1:
+        return max(base, per_job * sel_n)
+    waves = (sel_n + mp - 1) // mp
+    return max(base, per_job * waves + 5)
+
+
+def _ui_batch_stale_elapsed_seconds(
+    dispatched_at: str,
+    *,
+    stale_min: int | None = None,
+) -> float | None:
+    """Seconds past stale budget since dispatch, or None if not stale."""
+    budget = stale_min if stale_min is not None else max(
+        5, int(os.getenv("CASEPILOT_UI_STALE_MINUTES", "20") or "20")
+    )
+    dt = _parse_iso(dispatched_at)
+    if not dt:
+        return None
+    elapsed = (datetime.now(timezone.utc) - dt).total_seconds()
+    over = elapsed - budget * 60
+    return over if over > 0 else None
+
+
+def _apply_casepilot_extraction(
+    project_root: Path,
+    job: dict[str, Any],
+    statuses: list[dict[str, Any]],
+    *,
+    dispatched_at: str,
+    default_op: str,
+    default_touch: str,
+    pending_count: int,
+    fail_runs: int,
+    progress_suffix: str = "",
+) -> tuple[dict[str, Any], int]:
+    """Extract AUDIT_RESULT from terminal runs; merge into job.results incrementally."""
+    extracted = extract_audit_details_from_casepilot_statuses(
+        statuses,
+        default_operation=default_op,
+        default_touchpoint=default_touch,
+        job=job,
+        dispatched_at=dispatched_at,
+    )
+    before = len(job.get("results") or [])
+    if extracted:
+        job = apply_extracted_results(project_root, job, extracted)
+    added = len(job.get("results") or []) - before
+    if added > 0:
+        total = len(job.get("results") or [])
+        sel_n = len([s for s in (job.get("selection") or []) if isinstance(s, dict)]) or total
+        suffix = progress_suffix or (
+            f" — {pending_count} CasePilot job(s) still queued" if pending_count > 0 else ""
+        )
+        _append_log(
+            job,
+            f"✓ Captured {added} new correlation_id(s) ({total}/{sel_n} events{suffix})",
+        )
+        job["verification"] = {
+            **(job.get("verification") or {}),
+            "ready": True,
+            "auto_verify_pending": pending_count == 0,
+            "partial": pending_count > 0 or fail_runs > 0,
+            **({"failed_runs": fail_runs} if fail_runs > 0 else {}),
+        }
+    return job, added
+
+
+def _mark_terminal_jobs_extracted(
+    agent: dict[str, Any],
+    statuses: list[dict[str, Any]],
+) -> None:
+    """Track terminal CasePilot job ids so refresh skips slow MCP re-fetch."""
+    seen = {
+        int(x)
+        for x in (agent.get("extracted_casepilot_job_ids") or [])
+        if str(x).isdigit() or isinstance(x, int)
+    }
+    for st in statuses:
+        if not isinstance(st, dict):
+            continue
+        state = str(st.get("status") or "").lower()
+        if state not in _TERMINAL_CP:
+            continue
+        try:
+            seen.add(int(st.get("job_id") or st.get("id")))
+        except (TypeError, ValueError):
+            pass
+    if seen:
+        agent["extracted_casepilot_job_ids"] = sorted(seen)
+
+
 def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] | None:
     """Poll CasePilot get_run_status, extract correlation_id, keep log open for verify."""
     job = get_ui_trigger_job(project_root, job_id)
@@ -1364,13 +2038,15 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
         "cancelled"
     ):
         return job
-    # Pending cases are NOT re-queued on Refresh — retries disabled by design.
-    pending = [int(c) for c in (agent.get("pending_case_ids") or []) if str(c).isdigit() or isinstance(c, int)]
-    if pending:
+    # Cases that failed to queue at dispatch — NOT re-queued on Refresh.
+    pending_unqueued = [
+        int(c) for c in (agent.get("pending_case_ids") or []) if str(c).isdigit() or isinstance(c, int)
+    ]
+    if pending_unqueued:
         _append_log(
             job,
-            f"ℹ {len(pending)} case(s) were not queued earlier — retries disabled "
-            f"(re-Send a new Generate-in-UI job if needed): {pending[:12]}",
+            f"⚠ {len(pending_unqueued)} TestRail case(s) never reached the connector at dispatch "
+            f"(re-Send for these): {pending_unqueued[:12]}",
         )
         agent["pending_case_ids"] = []
         job["agent"] = agent
@@ -1398,8 +2074,22 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
         # here; that blocks until jobs finish and urllib times out on long UI runs.
         statuses = client.batch_run_status(cp_ids)
         dispatched_at = str(agent.get("dispatched_at") or "")
-        # REST /jobs/status can omit step notes — merge full MCP payload when jobs look terminal.
+        poll_err = next(
+            (str(s.get("error") or "").strip() for s in statuses if str(s.get("error") or "").strip()),
+            "",
+        )
+        if poll_err and all(str(s.get("status") or "").lower() in {"", "pending"} for s in statuses):
+            agent["last_error"] = poll_err
+            _append_log(job, f"⚠ CasePilot status poll failed: {poll_err[:200]}")
+            job["agent"] = agent
+            return _write_job(project_root, job)
+        # REST /jobs/status can omit step notes — merge MCP payload for terminal jobs only.
         finals_now = {str(s.get("status") or "").lower() for s in statuses}
+        extracted_job_ids = {
+            int(x)
+            for x in (agent.get("extracted_casepilot_job_ids") or [])
+            if str(x).isdigit() or isinstance(x, int)
+        }
         if finals_now & {"completed", "passed", "pass", "success", "failed", "error"}:
             enriched: list[dict[str, Any]] = []
             for st in statuses:
@@ -1409,14 +2099,18 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
                 except (TypeError, ValueError):
                     enriched.append(st)
                     continue
-                try:
-                    full = client.get_run_status(jid_int)
-                    if isinstance(full, dict):
-                        merged = {**st, **full, "job_id": jid_int}
-                        enriched.append(merged)
-                    else:
+                state = str(st.get("status") or "").lower()
+                need_notes = state in _TERMINAL_CP and jid_int not in extracted_job_ids
+                if need_notes:
+                    try:
+                        full = client.get_run_status(jid_int)
+                        if isinstance(full, dict):
+                            enriched.append({**st, **full, "job_id": jid_int})
+                        else:
+                            enriched.append(st)
+                    except CasePilotMcpError:
                         enriched.append(st)
-                except CasePilotMcpError:
+                else:
                     enriched.append(st)
             statuses = enriched or statuses
 
@@ -1429,17 +2123,100 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
         fail_runs = int(summary.get("failed") or 0)
         run_errors = list(summary.get("errors") or [])
 
+        # Always extract finished runs — do not wait for the whole batch (11 serial browsers = hours).
+        job, _added = _apply_casepilot_extraction(
+            project_root,
+            job,
+            statuses,
+            dispatched_at=dispatched_at,
+            default_op=default_op,
+            default_touch=default_touch,
+            pending_count=pending,
+            fail_runs=fail_runs,
+        )
+        _mark_terminal_jobs_extracted(agent, statuses)
+
+        sel_n = int(agent.get("expected_event_count") or 0) or len(selection) or 1
+        stale_min = _ui_batch_stale_minutes(agent, sel_n)
+        stale_over = (
+            _ui_batch_stale_elapsed_seconds(dispatched_at, stale_min=stale_min)
+            if pending > 0
+            else None
+        )
+        if pending > 0 and stale_over is not None:
+            _append_log(
+                job,
+                f"⚠ CasePilot batch exceeded {stale_min}m — stopping remaining jobs and "
+                f"finalizing {len(job.get('results') or [])} captured correlation_id(s)",
+            )
+            batch_id = str(agent.get("casepilot_batch_id") or "").strip()
+            if batch_id or cp_ids:
+                try:
+                    stop_args: dict[str, Any] = {}
+                    if batch_id:
+                        stop_args["batch_id"] = batch_id
+                    if len(cp_ids) == 1:
+                        stop_args["job_id"] = cp_ids[0]
+                    if stop_args:
+                        client.stop_ui_execution(**stop_args)
+                except CasePilotMcpError as exc:
+                    _append_log(job, f"⚠ stop_ui_execution on stale batch: {exc}")
+            pending = 0
+            ok_runs = int(summary.get("ok") or 0)
+            fail_runs = int(summary.get("failed") or 0)
+            job["status"] = "completed"
+            agent["send_status"] = "partial"
+            agent["stale_timeout"] = True
+            job["verification"] = {
+                **(job.get("verification") or {}),
+                "ready": bool(job.get("results")),
+                "auto_verify_pending": bool(job.get("results")),
+                "partial": True,
+                "stale_timeout": True,
+                "note": (
+                    f"Batch timed out after {stale_min}m — use Continue verification with "
+                    "captured correlation_ids; re-send failed events only."
+                ),
+            }
+            job["agent"] = agent
+            _restore_mtfngpp_handler_for_browser(job=job)
+            if job.get("connect_log_capture"):
+                _schedule_connect_log_harvest_if_ready(project_root, job)
+            return _write_job(project_root, job)
+
         if pending > 0:
             job["status"] = "running"
             agent["send_status"] = "running"
-            if prev not in {"running", "queued"}:
-                _append_log(job, f"▸ CasePilot running… {ok_runs} ok · {fail_runs} failed · {pending} pending")
+            captured = len(job.get("results") or [])
+            sel_n = int(agent.get("expected_event_count") or 0) or len(selection) or captured
+            last_prog = _parse_iso(str(agent.get("last_progress_at") or ""))
+            now_dt = datetime.now(timezone.utc)
+            if (
+                _added > 0
+                or not last_prog
+                or (now_dt - last_prog).total_seconds() >= 30
+            ):
+                agent["last_progress_at"] = _now()
+                _append_log(
+                    job,
+                    f"▸ CasePilot progress: {ok_runs} passed · {fail_runs} failed · "
+                    f"{pending} queued/running · {captured}/{sel_n} captured "
+                    f"(timeout {stale_min}m for {sel_n}-case batch)",
+                )
+            elif prev not in {"running", "queued"}:
+                _append_log(
+                    job,
+                    f"▸ CasePilot running… {ok_runs} ok · {fail_runs} failed · "
+                    f"{pending} pending · {captured}/{sel_n} captured",
+                )
             elif prev == "queued":
                 _append_log(job, "▸ CasePilot running on connector (UI browser open)")
+            job["agent"] = agent
+            return _write_job(project_root, job)
         elif fail_runs > 0 and ok_runs == 0:
             job["status"] = "failed"
             agent["send_status"] = "failed"
-            hint = _connector_error_hint(run_errors)
+            hint = _connector_error_hint(run_errors, statuses=statuses)
             agent["last_error"] = hint
             if prev != "failed":
                 _append_log(job, f"✖ CasePilot UI run failed ({fail_runs}/{fail_runs + ok_runs} case(s))")
@@ -1452,76 +2229,75 @@ def refresh_casepilot_status(project_root: Path, job_id: str) -> dict[str, Any] 
         elif fail_runs > 0 and ok_runs > 0:
             job["status"] = "completed"
             agent["send_status"] = "partial"
-            if prev != "completed":
+            if prev != "completed" and _added == 0:
                 _append_log(
                     job,
                     f"⚠ CasePilot partial run · {ok_runs} passed · {fail_runs} failed — "
                     "extracting correlation_id from successful case(s) only",
                 )
-            extracted = extract_audit_details_from_casepilot_statuses(
-                statuses,
-                default_operation=default_op,
-                default_touchpoint=default_touch,
-                job=job,
-                dispatched_at=dispatched_at,
-            )
-            before = len(job.get("results") or [])
-            job = apply_extracted_results(project_root, job, extracted)
-            after = len(job.get("results") or [])
-            if after == before:
+            if _added == 0 and not (job.get("results") or []):
                 _append_log(job, "⚠ No AUDIT_RESULT from successful runs — paste correlation_id manually")
-            else:
-                _append_log(
-                    job,
-                    f"✓ Captured {after - before} new correlation_id(s) ({after} total) from {ok_runs} run(s)",
-                )
-                job["verification"] = {
-                    **(job.get("verification") or {}),
-                    "ready": True,
-                    "auto_verify_pending": True,
-                    "partial": True,
-                    "failed_runs": fail_runs,
-                }
-            if run_errors:
-                _append_log(job, f"  failed: {run_errors[0][:200]}")
-        else:
-            job["status"] = "completed"
-            agent["send_status"] = "completed"
-            if prev != "completed":
-                _append_log(job, "✓ CasePilot UI run completed — extracting correlation_id…")
-            extracted = extract_audit_details_from_casepilot_statuses(
-                statuses,
-                default_operation=default_op,
-                default_touchpoint=default_touch,
-                job=job,
-                dispatched_at=dispatched_at,
-            )
-            before = len(job.get("results") or [])
-            job = apply_extracted_results(project_root, job, extracted)
-            after = len(job.get("results") or [])
-            if after == before:
-                _append_log(
-                    job,
-                    "⚠ No AUDIT_RESULT/correlation_id found in CasePilot notes — "
-                    "paste correlation_id in the log panel (fallback)",
-                )
                 job["verification"] = {
                     **(job.get("verification") or {}),
                     "ready": False,
                     "auto_verify_pending": False,
                 }
-            else:
-                added = after - before
-                _append_log(
-                    job,
-                    f"✓ Captured {added} new correlation_id(s) ({after} total) — "
-                    "auto-verifying raw/enrich…",
-                )
+            if run_errors:
+                _append_log(job, f"  failed: {run_errors[0][:200]}")
+        else:
+            sel_n = int(agent.get("expected_event_count") or 0) or len(selection) or 1
+            captured = len(job.get("results") or [])
+            partial_batch = sel_n > 1 and captured < sel_n
+            job["status"] = "completed"
+            agent["send_status"] = "partial" if partial_batch else "completed"
+            if prev != "completed" and _added == 0:
+                _append_log(job, "✓ CasePilot UI run completed — extracting correlation_id…")
+            if _added == 0 and not (job.get("results") or []):
+                if job.get("connect_log_capture"):
+                    _append_log(
+                        job,
+                        "✓ CasePilot finished — harvesting xCorrelationId from Connect service log…",
+                    )
+                    job["verification"] = {
+                        **(job.get("verification") or {}),
+                        "ready": False,
+                        "auto_verify_pending": True,
+                        "connect_log_harvest": "pending",
+                    }
+                else:
+                    _append_log(
+                        job,
+                        "⚠ No AUDIT_RESULT/correlation_id found in CasePilot notes — "
+                        "paste correlation_id in the log panel (fallback)",
+                    )
+                    job["verification"] = {
+                        **(job.get("verification") or {}),
+                        "ready": False,
+                        "auto_verify_pending": False,
+                    }
+            elif partial_batch:
+                if prev != "completed":
+                    _append_log(
+                        job,
+                        f"⚠ Partial batch: {captured}/{sel_n} correlation_ids captured — "
+                        "re-Send missing touchpoints or paste IDs manually",
+                    )
                 job["verification"] = {
                     **(job.get("verification") or {}),
-                    "ready": True,
-                    "auto_verify_pending": True,
+                    "ready": bool(captured),
+                    "auto_verify_pending": bool(captured),
+                    "partial": True,
+                    "note": (
+                        f"Only {captured}/{sel_n} events captured. "
+                        "Re-send failed scenarios or paste correlation_ids."
+                    ),
                 }
+            elif _added > 0:
+                _append_log(job, "✓ All CasePilot jobs finished — auto-verifying raw/enrich…")
+        if pending <= 0:
+            _restore_mtfngpp_handler_for_browser(job=job)
+            if job.get("connect_log_capture"):
+                _schedule_connect_log_harvest_if_ready(project_root, job)
         job["agent"] = agent
         return _write_job(project_root, job)
     except Exception as exc:
@@ -1565,6 +2341,114 @@ def record_manual_ui_results(
     return _write_job(project_root, job)
 
 
+def _doc_correlation_id(doc: dict[str, Any] | None) -> str:
+    if not isinstance(doc, dict):
+        return ""
+    return str(doc.get("xCorrelationId") or doc.get("correlationId") or "").strip()
+
+
+def _stage_ui_verified_sample(
+    project_root: Path,
+    display_key: str,
+    *,
+    raw_mongo: dict[str, Any] | None,
+    enr_mongo: dict[str, Any] | None,
+) -> None:
+    """Stage Mongo docs for Compare — keeps raw/enrich CID-aligned for one display key.
+
+    Enrich-only / raw-only hits must not leave a stale twin from a previous run
+    (that produced false Compare pairs like bulkCopyAssets raw≠enrich CID).
+    """
+    if not display_key or not (raw_mongo or enr_mongo):
+        return
+    try:
+        from bson import json_util
+
+        dump = lambda doc: json_util.dumps(doc, indent=2, ensure_ascii=False)  # noqa: E731
+    except ImportError:
+        dump = lambda doc: json.dumps(doc, indent=2, default=str)  # noqa: E731
+    enrich_dir = project_root / "payload" / "enrich"
+    raw_dir = project_root / "payload" / "raw"
+    enrich_dir.mkdir(parents=True, exist_ok=True)
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    enrich_path = enrich_dir / f"{display_key}.json"
+    raw_path = raw_dir / f"{display_key}.json"
+
+    raw_cid = _doc_correlation_id(raw_mongo)
+    enr_cid = _doc_correlation_id(enr_mongo)
+
+    if enr_mongo:
+        enrich_path.write_text(dump(enr_mongo), encoding="utf-8")
+    if raw_mongo:
+        raw_path.write_text(dump(raw_mongo), encoding="utf-8")
+
+    # Drop stale twin when only one side landed, or CIDs disagree.
+    if enr_mongo and not raw_mongo and raw_path.is_file():
+        try:
+            prev = json.loads(raw_path.read_text(encoding="utf-8"))
+        except Exception:
+            prev = None
+        if _doc_correlation_id(prev) != enr_cid:
+            raw_path.unlink(missing_ok=True)
+    if raw_mongo and not enr_mongo and enrich_path.is_file():
+        try:
+            prev = json.loads(enrich_path.read_text(encoding="utf-8"))
+        except Exception:
+            prev = None
+        if _doc_correlation_id(prev) != raw_cid:
+            enrich_path.unlink(missing_ok=True)
+    if raw_mongo and enr_mongo and raw_cid and enr_cid and raw_cid != enr_cid:
+        # Should not happen for a true pair — prefer enrich CID, drop mismatched raw.
+        raw_path.unlink(missing_ok=True)
+
+
+def _lookup_ui_mongo_pair(
+    db: Any,
+    *,
+    op: str,
+    excel_op: str,
+    cid: str,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, str]:
+    """Resolve raw/enrich for a UI correlation id.
+
+    Tries GraphQL op, Excel event_name, then CID-only (any operation) so rows
+    where Response body rewrote the op (exportTags→getProfile) still match.
+    """
+    if db is None or not cid:
+        return None, None, ""
+    names: list[str] = []
+    for name in (op, excel_op):
+        n = str(name or "").strip()
+        if n and n not in names:
+            names.append(n)
+    raw_mongo = enr_mongo = None
+    mongo_op = ""
+    for name in names:
+        try:
+            raw2, enr2 = db.latest_pair(name, require_pair=False, correlation_id=cid)
+        except Exception:
+            continue
+        raw_mongo = raw2 if isinstance(raw2, dict) else raw_mongo
+        enr_mongo = enr2 if isinstance(enr2, dict) else enr_mongo
+        if raw_mongo or enr_mongo:
+            hit = enr_mongo or raw_mongo or {}
+            src = hit.get("source") if isinstance(hit.get("source"), dict) else {}
+            mongo_op = str(src.get("operation") or name).strip()
+            break
+    if not raw_mongo and not enr_mongo and hasattr(db, "latest_by_correlation"):
+        try:
+            raw3, enr3 = db.latest_by_correlation(cid, require_pair=False)
+            raw_mongo = raw3 if isinstance(raw3, dict) else None
+            enr_mongo = enr3 if isinstance(enr3, dict) else None
+            if raw_mongo or enr_mongo:
+                hit = enr_mongo or raw_mongo or {}
+                src = hit.get("source") if isinstance(hit.get("source"), dict) else {}
+                mongo_op = str(src.get("operation") or "").strip()
+        except Exception:
+            pass
+    return raw_mongo, enr_mongo, mongo_op
+
+
 def finalize_ui_trigger_verification(
     project_root: Path,
     job_id: str,
@@ -1584,6 +2468,20 @@ def finalize_ui_trigger_verification(
             "✖ Continue verification blocked — no correlation_id yet "
             "(paste from DevTools or wait for CasePilot AUDIT_RESULT)",
         )
+        return _write_job(project_root, job)
+
+    cp_pending = casepilot_batch_pending(job)
+    if cp_pending > 0:
+        _append_log(
+            job,
+            f"▸ CasePilot batch still running ({cp_pending} job(s) queued) — "
+            f"finalize deferred until all {len(job.get('results') or [])} captured event(s) finish",
+        )
+        if str(job.get("status") or "").lower() == "completed":
+            job["status"] = "running"
+            agent = dict(job.get("agent") or {})
+            agent["send_status"] = "running"
+            job["agent"] = agent
         return _write_job(project_root, job)
 
     ops = sorted({str(r.get("operation") or "").strip() for r in results if r.get("operation")})
@@ -1634,8 +2532,73 @@ def finalize_ui_trigger_verification(
         )
         from audit_validator.touchpoint.scenarios import scenario_display_name
 
-        # UI path: look up each cid directly — do NOT run the 90s owned-landing poll
-        # (that blocks Continue verification forever when one cid never lands).
+        settle_sec = max(0.0, float(os.getenv("UI_VERIFY_SETTLE_SEC", "90") or "90"))
+        poll_sec = max(1.0, float(os.getenv("UI_VERIFY_POLL_SEC", "3") or "3"))
+        deadline = time.monotonic() + settle_sec
+
+        # Per-result lookup cache updated across settle polls.
+        found: dict[str, tuple[dict[str, Any] | None, dict[str, Any] | None, str]] = {}
+
+        def _cid_key(r: dict[str, Any]) -> str:
+            return str(r.get("correlation_id") or "").strip()
+
+        def _refresh_lookups(*, force_all: bool = False) -> tuple[int, int]:
+            complete = 0
+            pending = 0
+            for r in results:
+                cid = _cid_key(r)
+                if not cid:
+                    continue
+                if str(r.get("graphql_failed") or "").lower() in {"1", "true"} or r.get("graphql_failed") is True:
+                    continue
+                prev = found.get(cid)
+                if (
+                    not force_all
+                    and prev
+                    and isinstance(prev[0], dict)
+                    and isinstance(prev[1], dict)
+                ):
+                    complete += 1
+                    continue
+                op = str(r.get("operation") or "").strip()
+                excel_op = str(r.get("excel_event_name") or "").strip()
+                raw_m, enr_m, mongo_op = _lookup_ui_mongo_pair(
+                    db, op=op, excel_op=excel_op, cid=cid
+                )
+                # Keep best so far (don't regress if a poll blanks out)
+                if prev:
+                    raw_m = raw_m or prev[0]
+                    enr_m = enr_m or prev[1]
+                    mongo_op = mongo_op or prev[2]
+                found[cid] = (raw_m, enr_m, mongo_op)
+                if isinstance(raw_m, dict) and isinstance(enr_m, dict):
+                    complete += 1
+                else:
+                    pending += 1
+            return complete, pending
+
+        _refresh_lookups(force_all=True)
+        pending = sum(
+            1
+            for _cid, (rw, en, _) in found.items()
+            if not (isinstance(rw, dict) and isinstance(en, dict))
+        )
+        if pending and settle_sec > 0 and db is not None:
+            _log(
+                f"▸ Settling Mongo for {pending} incomplete cid(s) "
+                f"(up to {int(settle_sec)}s, poll {poll_sec:g}s)…"
+            )
+            while time.monotonic() < deadline and pending > 0:
+                time.sleep(poll_sec)
+                _refresh_lookups(force_all=False)
+                pending = sum(
+                    1
+                    for _cid, (rw, en, _) in found.items()
+                    if not (isinstance(rw, dict) and isinstance(en, dict))
+                )
+                complete = len(found) - pending
+                _log(f"  · settle {complete} complete / {pending} still open")
+
         scenarios: list[dict[str, Any]] = []
         for r in results:
             op = str(r.get("operation") or "").strip()
@@ -1652,33 +2615,97 @@ def finalize_ui_trigger_verification(
             except Exception:  # noqa: BLE001
                 if "<" in op or "<" in touch:
                     continue
-            display = scenario_display_name(op, touch, ui=True)
-            raw_doc = None
-            enr_doc = None
-            if db is not None and cid:
+            row_target = str(r.get("target") or "").strip().lower()
+            if not row_target:
+                row_target = str((job.get("agent") or {}).get("target") or "").strip().lower()
+            display = scenario_display_name(op, touch, ui=True, target=row_target or None)
+            excel_op = str(r.get("excel_event_name") or "").strip()
+            gql_failed = bool(r.get("graphql_failed"))
+            if gql_failed:
+                status = "N/A"
+                remark = (
+                    "UI-triggered · GraphQL errors / empty data — no audit event expected"
+                )
+                scenarios.append(
+                    {
+                        "scenario_id": f"{op}::{touch}" if touch else op,
+                        "operation": op,
+                        "touchpoint": touch,
+                        "target": row_target or None,
+                        "label": display,
+                        "status": status,
+                        "xCorrelationId": cid,
+                        "correlation_id": cid,
+                        "raw": False,
+                        "enriched": False,
+                        "raw_event": None,
+                        "enriched_event": None,
+                        "source": "ui",
+                        "channel": "APP" if row_target == "app" else "UI",
+                        "ui_status": status,
+                        "remark": remark,
+                        "pairing_method": "graphql_failed",
+                    }
+                )
+                _log(f"  · {display}: N/A GraphQL failed cid={(cid or '')[:8]}")
+                continue
+
+            raw_mongo, enr_mongo, mongo_op_alias = found.get(cid, (None, None, ""))
+            if mongo_op_alias and mongo_op_alias != op:
+                display = scenario_display_name(
+                    mongo_op_alias, touch, ui=True, target=row_target or None
+                )
+
+            raw_doc = _event_for_report(raw_mongo) if isinstance(raw_mongo, dict) else None
+            enr_doc = _event_for_report(enr_mongo) if isinstance(enr_mongo, dict) else None
+
+            if enr_mongo or raw_mongo:
+                _stage_ui_verified_sample(
+                    project_root,
+                    display,
+                    raw_mongo=raw_mongo if isinstance(raw_mongo, dict) else None,
+                    enr_mongo=enr_mongo if isinstance(enr_mongo, dict) else None,
+                )
+                # Also pin under owned tracker so retention won't delete mid-Compare.
                 try:
-                    raw2, enr2 = db.latest_pair(op, require_pair=False, correlation_id=cid)
-                    if raw2:
-                        raw_doc = _event_for_report(raw2)
-                    if enr2:
-                        enr_doc = _event_for_report(enr2)
-                except Exception as exc:  # noqa: BLE001
-                    _log(f"  ⚠ cid lookup for {op}: {exc}")
+                    from audit_validator.generation_tracker import record_generation
+
+                    record_generation(
+                        mongo_op_alias or op,
+                        cid,
+                        kind="ui",
+                        project_root=project_root,
+                        meta={"touchpoint": touch or None, "source": "ui_verify"},
+                    )
+                except Exception:
+                    pass
 
             raw_ok = bool(raw_doc)
             enr_ok = bool(enr_doc)
+            alias_note = (
+                f" · op alias excel={excel_op or op} mongo={mongo_op_alias}"
+                if mongo_op_alias and mongo_op_alias != (excel_op or op)
+                else ""
+            )
             if raw_ok and enr_ok:
                 status = "PASS"
-                remark = "UI-triggered · raw + enriched landed in Mongo"
+                remark = f"UI-triggered · raw + enriched landed in Mongo{alias_note}"
             elif raw_ok and not enr_ok:
                 status = "FAIL"
-                remark = "UI-triggered · raw landed; enrichment missing"
+                remark = f"UI-triggered · raw landed; enrichment missing{alias_note}"
             elif enr_ok and not raw_ok:
-                status = "FAIL"
-                remark = "UI-triggered · enriched landed; raw missing"
+                status = "PASS"
+                remark = (
+                    "UI-triggered · enriched landed (raw not in Mongo — non-blocking)"
+                    f"{alias_note}"
+                )
             elif cid:
                 status = "FAIL"
-                remark = "UI-triggered · correlation captured; event not in Mongo yet"
+                remark = (
+                    "UI-triggered · correlation captured; event not in Mongo yet "
+                    "(GraphQL correlation-id may not match audit xCorrelationId, "
+                    "or the event was never published)"
+                )
             else:
                 status = "N/A"
                 remark = "Missing correlation_id"
@@ -1686,8 +2713,9 @@ def finalize_ui_trigger_verification(
             scenarios.append(
                 {
                     "scenario_id": f"{op}::{touch}" if touch else op,
-                    "operation": op,
+                    "operation": mongo_op_alias or op,
                     "touchpoint": touch,
+                    "target": row_target or None,
                     "label": display,
                     "status": status,
                     "xCorrelationId": cid,
@@ -1697,10 +2725,12 @@ def finalize_ui_trigger_verification(
                     "raw_event": raw_doc,
                     "enriched_event": enr_doc,
                     "source": "ui",
-                    "channel": "UI",
+                    "channel": "APP" if row_target == "app" else "UI",
                     "ui_status": status,
                     "remark": remark,
                     "pairing_method": "owned_cid" if cid else None,
+                    "excel_event_name": excel_op or None,
+                    "mongo_operation": mongo_op_alias or None,
                 }
             )
             _log(
@@ -1708,20 +2738,21 @@ def finalize_ui_trigger_verification(
                 f"enrich={'yes' if enr_ok else 'no'} cid={(cid or '')[:8]}"
             )
 
-        report["scenarios"] = scenarios
         report["summary"] = summary_from_scenarios(scenarios)
+        report["scenarios"] = [
+            {k: v for k, v in s.items() if k not in ("raw_event", "enriched_event")}
+            for s in scenarios
+        ]
         report["operations"] = [
             {
                 "operation": s["label"] or s["operation"],
                 "xCorrelationId": s.get("xCorrelationId"),
                 "raw": s.get("raw"),
                 "enriched": s.get("enriched"),
-                "raw_event": s.get("raw_event"),
-                "enriched_event": s.get("enriched_event"),
                 "status": "success" if s.get("status") == "PASS" else "missing",
                 "ui_status": s.get("ui_status"),
                 "remark": s.get("remark"),
-                "channel": "UI",
+                "channel": s.get("channel") or "UI",
             }
             for s in scenarios
         ]
@@ -1729,7 +2760,7 @@ def finalize_ui_trigger_verification(
         _log(
             f"✓ Generation Status saved · "
             f"PASS={report['summary'].get('pass')} FAIL={report['summary'].get('fail')} "
-            f"(raw/enrich JSON attached)"
+            f"(samples staged under payload/ for Compare)"
         )
         job["verification"] = {
             **(job.get("verification") or {}),
@@ -1755,5 +2786,5 @@ def finalize_ui_trigger_verification(
     return _write_job(project_root, job)
 
 
-def casepilot_health() -> dict[str, Any]:
-    return health_check()
+def casepilot_health(*, fast: bool = True, force: bool = False) -> dict[str, Any]:
+    return health_check(fast=fast, force=force)

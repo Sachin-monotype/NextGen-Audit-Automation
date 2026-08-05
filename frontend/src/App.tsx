@@ -60,7 +60,9 @@ export default function App() {
   }, []);
 
   function goToSection(next: Section) {
-    if (next !== "result" && next !== "compare") {
+    if (next === "result") {
+      setComparedOps(null);
+    } else if (next !== "compare") {
       setComparedOps(null);
     }
     setSection(next);

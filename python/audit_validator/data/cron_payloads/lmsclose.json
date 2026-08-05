@@ -24,7 +24,7 @@
         "globalCustomerIds": [
             "4a949153-9cab-4023-b31c-8336a8a3ec46"
         ],
-        "eventName": "QUARTERLY_REPORT_CLOSING_7_DAYS_REMINDER",
-        "endDate": "2026-07-16T00:00:00.000Z"
+        "eventName": "QUARTERLY_REPORT_CLOSING_2_DAYS_REMINDER",
+        "endDate": "2026-07-14T00:00:00.000Z"
     }
 }

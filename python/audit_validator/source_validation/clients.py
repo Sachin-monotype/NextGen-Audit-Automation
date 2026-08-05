@@ -124,6 +124,44 @@ class DiscoveryClient:
         resp.raise_for_status()
         return _unwrap_discovery_hits(resp.json())
 
+    def fetch_styles_by_family_route(
+        self,
+        family_id: str,
+        *,
+        correlation_id: str,
+    ) -> list[dict[str, Any]]:
+        """Resolver route: POST /v1/family/{familyId}/styles (bulk /v1/styles often returns empty)."""
+        fid = str(family_id or "").strip()
+        if not fid:
+            return []
+        url = f"{self._cfg.discovery_base_url}/v1/family/{fid}/styles?skipInventoryCheck=true"
+        cid = _correlation_id(correlation_id)
+        headers = {
+            "Authorization": self._cfg.discovery_auth_header,
+            "accept": "application/json",
+            "accept-language": "en",
+            "x-correlation-id": cid,
+            "Content-Type": "application/json",
+        }
+        all_hits: list[dict[str, Any]] = []
+        page = 1
+        while page <= 20:
+            body = {"page": page, "per_page": 250}
+            resp = self._session.post(url, json=body, headers=headers, timeout=60)
+            if resp.status_code >= 400:
+                if page == 1:
+                    resp.raise_for_status()
+                log.warning("Discovery family styles %s → %s", fid, resp.status_code)
+                break
+            hits = _unwrap_discovery_hits(resp.json())
+            if not hits:
+                break
+            all_hits.extend(hits)
+            if len(hits) < 250:
+                break
+            page += 1
+        return all_hits
+
     def fetch_variations_by_family_ids(
         self,
         family_ids: list[str],
@@ -140,7 +178,7 @@ class DiscoveryClient:
         }
         params = {
             "familyIds": ",".join(family_ids[:10]),
-            "includeStyle": "false",
+            "includeStyle": "true",
             "skipInventoryCheck": "true",
             "page": 1,
             "perPage": 250,
@@ -202,6 +240,47 @@ class DiscoveryClient:
         resp = self._session.get(url, headers=headers, params=params, timeout=60)
         resp.raise_for_status()
         return _unwrap_discovery_hits(resp.json())
+
+    def fetch_private_tag_by_id(
+        self,
+        tag_id: str,
+        *,
+        correlation_id: str,
+    ) -> dict[str, Any] | None:
+        """GET/POST ``/v1/privateTag/{id}`` — private tag document (Typesense middleware)."""
+        tid = str(tag_id or "").strip()
+        if not tid:
+            return None
+        url = f"{self._cfg.discovery_base_url}/v1/privateTag/{tid}"
+        cid = _correlation_id(correlation_id)
+        headers = {
+            "Authorization": self._cfg.discovery_auth_header,
+            "accept": "application/json",
+            "accept-language": "en",
+            "x-correlation-id": cid,
+            "Content-Type": "application/json",
+        }
+        resp = self._session.post(
+            url,
+            json={"page": 1, "per_page": 10},
+            headers=headers,
+            timeout=60,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        if not isinstance(payload, dict):
+            return None
+        results = payload.get("results")
+        if isinstance(results, dict):
+            data = results.get("data")
+            if isinstance(data, list) and data and isinstance(data[0], dict):
+                return data[0]
+        data = payload.get("data")
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            return data[0]
+        if payload.get("id"):
+            return payload
+        return None
 
 
 class UmsClient:
@@ -288,12 +367,17 @@ class UmsClient:
         customer_id: str,
         *,
         correlation_id: str,
+        user_type: str | None = None,
     ) -> dict[str, Any] | None:
         """Fetch a single profile via POST-as-GET with a ``profile.id`` filter."""
         if not profile_id:
             return None
         profiles = self._profiles_post_as_get(
-            customer_id, [profile_id], correlation_id=correlation_id, limit=1
+            customer_id,
+            [profile_id],
+            correlation_id=correlation_id,
+            limit=1,
+            user_type=user_type,
         )
         pid = profile_id.strip().lower()
         for row in profiles:
@@ -340,6 +424,31 @@ class UmsClient:
                     return val
             if inner.get("idpUserId") or inner.get("userId"):
                 return inner
+        return None
+
+    def get_invitation_by_email(
+        self,
+        email: str,
+        customer_id: str = "",
+        *,
+        correlation_id: str = "",
+    ) -> dict[str, Any] | None:
+        """Lookup invitation row by email (MySQL when configured)."""
+        del correlation_id
+        em = str(email or "").strip()
+        if not em:
+            return None
+        try:
+            from .db.connection import load_mysql_config, mysql_ready
+            from .db.clients import UmsDbClient
+
+            mysql = load_mysql_config()
+            if mysql_ready(mysql):
+                return UmsDbClient(mysql).get_invitation_by_email(
+                    em, customer_id, correlation_id=correlation_id
+                )
+        except Exception:
+            pass
         return None
 
     def get_profiles_by_ids(

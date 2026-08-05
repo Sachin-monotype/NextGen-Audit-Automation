@@ -1,0 +1,1666 @@
+{
+  "version": 1,
+  "jira": "FDC-14091",
+  "suite": 22395,
+  "suite_section": 4066542,
+  "batch": 4,
+  "notes": "71 bare GraphQL catalog ops missing TestRail case ids. Push: local/scripts/push_ui_testrail_cases.py --pack batch4 --merge-map",
+  "preconditions_template": "1. NextGen PP/QA is reachable; log in if not already signed in.\n2. Prefer reuse of existing data on the page (no rebuild unless empty).\n3. Capture response header correlation-id (not x-correlation-id) from GraphQL.\n4. Follow plain-English steps; emit AUDIT_RESULT with real UUID after the mutation.\n5. Jira: FDC-14091.",
+  "operations": [
+    "addStyleComment",
+    "addStylesToWebProject",
+    "approveFontAccess",
+    "bulkAddPairsToFavorite",
+    "bulkAddStylesToFavourites",
+    "bulkMarkAsProductionFont",
+    "bulkMarkAsProductionFontsRequest",
+    "bulkNotificationAction",
+    "bulkRemovePairsFromFavorite",
+    "bulkUnmarkProductionFont",
+    "completeUploadSession",
+    "createAssetAttachmentUpload",
+    "createBYOFBatchAndCheckDuplicates",
+    "createCompanyLogoUploadUrl",
+    "createSsoMapping",
+    "createStyleDocumentsUploadUrl",
+    "deleteAllPrivateTags",
+    "deleteAssetAttachment",
+    "deleteCompanyLogo",
+    "deleteContracts",
+    "deleteImportedFonts",
+    "deletePrivateTags",
+    "deleteSsoMappings",
+    "deleteStyleComment",
+    "deleteStyleDocument",
+    "denyIntentForProduction",
+    "editWebProject",
+    "exportFontTemplate",
+    "exportLeavingSoonFonts",
+    "exportReportingWebkits",
+    "exportServiceAccount",
+    "exportSsoMappings",
+    "exportUnassignedImportedFontsTemplate",
+    "exportUserAssets",
+    "exportUserFonts",
+    "exportUserProjects",
+    "exportWebkitDomains",
+    "exportWebkitFonts",
+    "finalizeAssetAttachments",
+    "globalEmailOptOut",
+    "importFontTemplate",
+    "keepInProduction",
+    "linkContractToStyles",
+    "linkDocumentToProject",
+    "linkDocumentsToContract",
+    "markAllNotificationsRead",
+    "markCompanyLogoUploadSuccess",
+    "markProductionFonts",
+    "markSessionFileUploaded",
+    "publishAddOn",
+    "rejectFontAccess",
+    "removeFontProjectFamilies",
+    "removeStylesFromWebProject",
+    "reorderSsoMappings",
+    "requestFontAccess",
+    "resetPreferences",
+    "saveDocumentMetadata",
+    "submitFontUsageReport",
+    "unlinkDocumentFromProject",
+    "unlinkDocumentsFromContract",
+    "unlinkStyleFromContract",
+    "updateAssetSharing",
+    "updateCompanySsoStatus",
+    "updateContract",
+    "updateCustomer",
+    "updateFontsForReview",
+    "updatePreference",
+    "updateProductionFont",
+    "updateSsoMapping",
+    "updateStyleComment",
+    "updateSubToggle"
+  ],
+  "cases": [
+    {
+      "title": "Verify addStyleComment — Discovery/Browse (global)",
+      "operation": "addStyleComment",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "addStyleComment(global)",
+      "key": "addStyleComment::Discovery/Browse (global)",
+      "gql_mutation": "AddStyleComment",
+      "navigation_hint": "(UI code only — verify manually: 3 file(s))",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: (UI code only — verify manually: 3 file(s)). Perform addStyleComment from search. Capture the GraphQL addStyleComment mutation and correlation-id header.",
+          "expected": "addStyleComment completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=addStyleComment → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=addStyleComment|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL addStyleComment fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify addStylesToWebProject — Discovery/Browse (global)",
+      "operation": "addStylesToWebProject",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "addStylesToWebProject(global)",
+      "key": "addStylesToWebProject::Discovery/Browse (global)",
+      "gql_mutation": "AddStylesToWebProject",
+      "navigation_hint": "(UI code only — verify manually: 4 file(s))",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: (UI code only — verify manually: 4 file(s)). Open or create a project, then open its web/embed fonts flow (My Library embed-all-fonts drawer or project web fonts UI).",
+          "expected": "Web project fonts panel is open."
+        },
+        {
+          "content": "From search, add one or more font styles to the web project.",
+          "expected": "Styles added to web project; addStylesToWebProject mutation captured."
+        },
+        {
+          "content": "Network filter operationName=addStylesToWebProject → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=addStylesToWebProject|correlation_id=<real-uuid>|touchpoint=project",
+          "expected": "GraphQL addStylesToWebProject fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify approveFontAccess — Discovery/Browse (global)",
+      "operation": "approveFontAccess",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "approveFontAccess(global)",
+      "key": "approveFontAccess::Discovery/Browse (global)",
+      "gql_mutation": "ApproveFontAccess",
+      "navigation_hint": "Notifications > Access request > Approve",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Notifications > Access request > Approve. Perform approveFontAccess from search. Capture the GraphQL approveFontAccess mutation and correlation-id header.",
+          "expected": "approveFontAccess completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=approveFontAccess → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=approveFontAccess|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL approveFontAccess fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify bulkAddPairsToFavorite — Discovery/Browse (global)",
+      "operation": "bulkAddPairsToFavorite",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "bulkAddPairsToFavorite(global)",
+      "key": "bulkAddPairsToFavorite::Discovery/Browse (global)",
+      "gql_mutation": "BulkAddPairsToFavorite",
+      "navigation_hint": "My Library > (useFavouritesPairsTab) → Discover Fonts > Pairing > (usePairingPageModel)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: My Library > (useFavouritesPairsTab) → Discover Fonts > Pairing > (usePairingPageModel). Perform bulkAddPairsToFavorite from search. Capture the GraphQL bulkAddPairsToFavorite mutation and correlation-id header.",
+          "expected": "bulkAddPairsToFavorite completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=bulkAddPairsToFavorite → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=bulkAddPairsToFavorite|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL bulkAddPairsToFavorite fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify bulkAddStylesToFavourites — Discovery/Browse (global)",
+      "operation": "bulkAddStylesToFavourites",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "bulkAddStylesToFavourites(global)",
+      "key": "bulkAddStylesToFavourites::Discovery/Browse (global)",
+      "gql_mutation": "BulkAddStylesToFavourites",
+      "navigation_hint": "Discover Fonts > Multi-select styles > Add to favorites → Discover Fonts > Multi-select > Add All to Favroites → Multi-select toolbar > Add all to favorites → Font card context menu (shared) > (useFontCardContextMenu)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Discover Fonts > Multi-select styles > Add to favorites → Discover Fonts > Multi-select > Add All to Favroites → Multi-select toolbar > Add all to favorites → Font card context menu (shared) > (useFontCardContextMenu). Perform bulkAddStylesToFavourites from search. Capture the GraphQL bulkAddStylesToFavourites mutation and correlation-id header.",
+          "expected": "bulkAddStylesToFavourites completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=bulkAddStylesToFavourites → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=bulkAddStylesToFavourites|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL bulkAddStylesToFavourites fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify bulkMarkAsProductionFont — Discovery/Browse (global)",
+      "operation": "bulkMarkAsProductionFont",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "bulkMarkAsProductionFont(global)",
+      "key": "bulkMarkAsProductionFont::Discovery/Browse (global)",
+      "gql_mutation": "BulkMarkAsProductionFont",
+      "navigation_hint": "Projects > open project > Project fonts > multi-select font cards > bulk toolbar Mark for production > Yes → Discover fonts > All/Newly added/Leaving soon > multi-select > toolbar or right-click > Mark for production > Yes → Favourites > Font pairs > Select all > toolbar Mark for production (favourites-bulk-mark-production-button) > Yes → Search > Lists & folders > multi-select > bulk Mark for production",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Projects > open project > Project fonts > multi-select font cards > bulk toolbar Mark for production > Yes → Discover fonts > All/Newly added/Leaving soon > multi-select > toolbar or right-click > Mark for production > Yes → Favourites > Font pairs > Select all > toolbar Mark for production (favourites-bulk-mark-production-button) > Yes → Search > Lists & folders > multi-select > bulk Mark for production. Perform bulkMarkAsProductionFont from search. Capture the GraphQL bulkMarkAsProductionFont mutation and correlation-id header.",
+          "expected": "bulkMarkAsProductionFont completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=bulkMarkAsProductionFont → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=bulkMarkAsProductionFont|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL bulkMarkAsProductionFont fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify bulkMarkAsProductionFontsRequest — Discovery/Browse (global)",
+      "operation": "bulkMarkAsProductionFontsRequest",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "bulkMarkAsProductionFontsRequest(global)",
+      "key": "bulkMarkAsProductionFontsRequest::Discovery/Browse (global)",
+      "gql_mutation": "BulkMarkAsProductionFontsRequest",
+      "navigation_hint": "NextGen web UI (Manage / My Library / search as applicable)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: NextGen web UI (Manage / My Library / search as applicable). Perform bulkMarkAsProductionFontsRequest from search. Capture the GraphQL bulkMarkAsProductionFontsRequest mutation and correlation-id header.",
+          "expected": "bulkMarkAsProductionFontsRequest completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=bulkMarkAsProductionFontsRequest → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=bulkMarkAsProductionFontsRequest|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL bulkMarkAsProductionFontsRequest fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify bulkNotificationAction — Discovery/Browse (global)",
+      "operation": "bulkNotificationAction",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "bulkNotificationAction(global)",
+      "key": "bulkNotificationAction::Discovery/Browse (global)",
+      "gql_mutation": "BulkNotificationAction",
+      "navigation_hint": "Notifications > NotificationsPage",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Notifications > NotificationsPage. Perform bulkNotificationAction from search. Capture the GraphQL bulkNotificationAction mutation and correlation-id header.",
+          "expected": "bulkNotificationAction completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=bulkNotificationAction → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=bulkNotificationAction|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL bulkNotificationAction fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify bulkRemovePairsFromFavorite — Discovery/Browse (global)",
+      "operation": "bulkRemovePairsFromFavorite",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "bulkRemovePairsFromFavorite(global)",
+      "key": "bulkRemovePairsFromFavorite::Discovery/Browse (global)",
+      "gql_mutation": "BulkRemovePairsFromFavorite",
+      "navigation_hint": "My Library > (useFavouritesPairsTab) → Discover Fonts > Pairing > (usePairingPageModel)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: My Library > (useFavouritesPairsTab) → Discover Fonts > Pairing > (usePairingPageModel). Perform bulkRemovePairsFromFavorite from search. Capture the GraphQL bulkRemovePairsFromFavorite mutation and correlation-id header.",
+          "expected": "bulkRemovePairsFromFavorite completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=bulkRemovePairsFromFavorite → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=bulkRemovePairsFromFavorite|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL bulkRemovePairsFromFavorite fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify bulkUnmarkProductionFont — Discovery/Browse (global)",
+      "operation": "bulkUnmarkProductionFont",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "bulkUnmarkProductionFont(global)",
+      "key": "bulkUnmarkProductionFont::Discovery/Browse (global)",
+      "gql_mutation": "BulkUnmarkProductionFont",
+      "navigation_hint": "Discover Fonts > select multiple family > right click > mark as production",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Discover Fonts > select multiple family > right click > mark as production. Perform bulkUnmarkProductionFont from search. Capture the GraphQL bulkUnmarkProductionFont mutation and correlation-id header.",
+          "expected": "bulkUnmarkProductionFont completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=bulkUnmarkProductionFont → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=bulkUnmarkProductionFont|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL bulkUnmarkProductionFont fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify completeUploadSession — Discovery/Browse (global)",
+      "operation": "completeUploadSession",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "completeUploadSession(global)",
+      "key": "completeUploadSession::Discovery/Browse (global)",
+      "gql_mutation": "CompleteUploadSession",
+      "navigation_hint": "Document scanning > Complete session → Document scan > (useCompleteUploadSession) → Document scan > (useDocumentScanFlowState)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Document scanning > Complete session → Document scan > (useCompleteUploadSession) → Document scan > (useDocumentScanFlowState). Perform completeUploadSession from search. Capture the GraphQL completeUploadSession mutation and correlation-id header.",
+          "expected": "completeUploadSession completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=completeUploadSession → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=completeUploadSession|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL completeUploadSession fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify createAssetAttachmentUpload — Discovery/Browse (global)",
+      "operation": "createAssetAttachmentUpload",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "createAssetAttachmentUpload(global)",
+      "key": "createAssetAttachmentUpload::Discovery/Browse (global)",
+      "gql_mutation": "CreateAssetAttachmentUpload",
+      "navigation_hint": "Projects > assetAttachmentMutations → Projects > (useProjectBriefAttachments)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Projects > assetAttachmentMutations → Projects > (useProjectBriefAttachments). Perform createAssetAttachmentUpload from search. Capture the GraphQL createAssetAttachmentUpload mutation and correlation-id header.",
+          "expected": "createAssetAttachmentUpload completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=createAssetAttachmentUpload → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=createAssetAttachmentUpload|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL createAssetAttachmentUpload fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify createBYOFBatchAndCheckDuplicates — Discovery/Browse (global)",
+      "operation": "createBYOFBatchAndCheckDuplicates",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "createBYOFBatchAndCheckDuplicates(global)",
+      "key": "createBYOFBatchAndCheckDuplicates::Discovery/Browse (global)",
+      "gql_mutation": "CreateBYOFBatchAndCheckDuplicates",
+      "navigation_hint": "Manage > Imported fonts > Import fonts > Upload font file → Projects > Project fonts > Import fonts > Upload font file → Projects > Project settings > Fonts > Import Fonts > Upload font file",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Manage > Imported fonts > Import fonts > Upload font file → Projects > Project fonts > Import fonts > Upload font file → Projects > Project settings > Fonts > Import Fonts > Upload font file. Perform createBYOFBatchAndCheckDuplicates from search. Capture the GraphQL createBYOFBatchAndCheckDuplicates mutation and correlation-id header.",
+          "expected": "createBYOFBatchAndCheckDuplicates completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=createBYOFBatchAndCheckDuplicates → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=createBYOFBatchAndCheckDuplicates|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL createBYOFBatchAndCheckDuplicates fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify createCompanyLogoUploadUrl — Discovery/Browse (global)",
+      "operation": "createCompanyLogoUploadUrl",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "createCompanyLogoUploadUrl(global)",
+      "key": "createCompanyLogoUploadUrl::Discovery/Browse (global)",
+      "gql_mutation": "CreateCompanyLogoUploadUrl",
+      "navigation_hint": "Admin > Manage->Company setting",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Admin > Manage->Company setting. Perform createCompanyLogoUploadUrl from search. Capture the GraphQL createCompanyLogoUploadUrl mutation and correlation-id header.",
+          "expected": "createCompanyLogoUploadUrl completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=createCompanyLogoUploadUrl → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=createCompanyLogoUploadUrl|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL createCompanyLogoUploadUrl fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify createSsoMapping — Discovery/Browse (global)",
+      "operation": "createSsoMapping",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "createSsoMapping(global)",
+      "key": "createSsoMapping::Discovery/Browse (global)",
+      "gql_mutation": "CreateSsoMapping",
+      "navigation_hint": "Manage->Users&Team->sso->create mapping",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Manage->Users&Team->sso->create mapping. Perform createSsoMapping from search. Capture the GraphQL createSsoMapping mutation and correlation-id header.",
+          "expected": "createSsoMapping completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=createSsoMapping → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=createSsoMapping|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL createSsoMapping fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify createStyleDocumentsUploadUrl — Discovery/Browse (global)",
+      "operation": "createStyleDocumentsUploadUrl",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "createStyleDocumentsUploadUrl(global)",
+      "key": "createStyleDocumentsUploadUrl::Discovery/Browse (global)",
+      "gql_mutation": "CreateStyleDocumentsUploadUrl",
+      "navigation_hint": "(UI code only — verify manually: 2 file(s))",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: (UI code only — verify manually: 2 file(s)). Perform createStyleDocumentsUploadUrl from search. Capture the GraphQL createStyleDocumentsUploadUrl mutation and correlation-id header.",
+          "expected": "createStyleDocumentsUploadUrl completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=createStyleDocumentsUploadUrl → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=createStyleDocumentsUploadUrl|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL createStyleDocumentsUploadUrl fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify deleteAllPrivateTags — Discovery/Browse (global)",
+      "operation": "deleteAllPrivateTags",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "deleteAllPrivateTags(global)",
+      "key": "deleteAllPrivateTags::Discovery/Browse (global)",
+      "gql_mutation": "DeleteAllPrivateTags",
+      "navigation_hint": "Tags > (useDeleteAllPrivateTags)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Tags > (useDeleteAllPrivateTags). Perform deleteAllPrivateTags from search. Capture the GraphQL deleteAllPrivateTags mutation and correlation-id header.",
+          "expected": "deleteAllPrivateTags completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=deleteAllPrivateTags → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=deleteAllPrivateTags|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL deleteAllPrivateTags fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify deleteAssetAttachment — Discovery/Browse (global)",
+      "operation": "deleteAssetAttachment",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "deleteAssetAttachment(global)",
+      "key": "deleteAssetAttachment::Discovery/Browse (global)",
+      "gql_mutation": "DeleteAssetAttachment",
+      "navigation_hint": "Projects > assetAttachmentMutations → Projects > (useProjectBriefAttachments)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Projects > assetAttachmentMutations → Projects > (useProjectBriefAttachments). Perform deleteAssetAttachment from search. Capture the GraphQL deleteAssetAttachment mutation and correlation-id header.",
+          "expected": "deleteAssetAttachment completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=deleteAssetAttachment → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=deleteAssetAttachment|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL deleteAssetAttachment fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify deleteCompanyLogo — Discovery/Browse (global)",
+      "operation": "deleteCompanyLogo",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "deleteCompanyLogo(global)",
+      "key": "deleteCompanyLogo::Discovery/Browse (global)",
+      "gql_mutation": "DeleteCompanyLogo",
+      "navigation_hint": "Admin > Manage->Company setting",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Admin > Manage->Company setting. Perform deleteCompanyLogo from search. Capture the GraphQL deleteCompanyLogo mutation and correlation-id header.",
+          "expected": "deleteCompanyLogo completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=deleteCompanyLogo → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=deleteCompanyLogo|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL deleteCompanyLogo fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify deleteContracts — Discovery/Browse (global)",
+      "operation": "deleteContracts",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "deleteContracts(global)",
+      "key": "deleteContracts::Discovery/Browse (global)",
+      "gql_mutation": "DeleteContracts",
+      "navigation_hint": "Imported Fonts > Licnese > Delete License",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Imported Fonts > Licnese > Delete License. Perform deleteContracts from search. Capture the GraphQL deleteContracts mutation and correlation-id header.",
+          "expected": "deleteContracts completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=deleteContracts → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=deleteContracts|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL deleteContracts fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify deleteImportedFonts — Discovery/Browse (global)",
+      "operation": "deleteImportedFonts",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "deleteImportedFonts(global)",
+      "key": "deleteImportedFonts::Discovery/Browse (global)",
+      "gql_mutation": "DeleteImportedFonts",
+      "navigation_hint": "Manage > Impoted font > delete imported font",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Manage > Impoted font > delete imported font. Perform deleteImportedFonts from search. Capture the GraphQL deleteImportedFonts mutation and correlation-id header.",
+          "expected": "deleteImportedFonts completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=deleteImportedFonts → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=deleteImportedFonts|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL deleteImportedFonts fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify deletePrivateTags — Discovery/Browse (global)",
+      "operation": "deletePrivateTags",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "deletePrivateTags(global)",
+      "key": "deletePrivateTags::Discovery/Browse (global)",
+      "gql_mutation": "DeletePrivateTags",
+      "navigation_hint": "Discover Fonts > Tags > Delete all tags (admin) → Discover > manage > Tags> Tag Name> Delete Tag → Tags > Delete tag → Tags > TagsTable",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Discover Fonts > Tags > Delete all tags (admin) → Discover > manage > Tags> Tag Name> Delete Tag → Tags > Delete tag → Tags > TagsTable. Perform deletePrivateTags from search. Capture the GraphQL deletePrivateTags mutation and correlation-id header.",
+          "expected": "deletePrivateTags completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=deletePrivateTags → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=deletePrivateTags|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL deletePrivateTags fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify deleteSsoMappings — Discovery/Browse (global)",
+      "operation": "deleteSsoMappings",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "deleteSsoMappings(global)",
+      "key": "deleteSsoMappings::Discovery/Browse (global)",
+      "gql_mutation": "DeleteSsoMappings",
+      "navigation_hint": "Manage->Users&Team->sso->delete sso mapping",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Manage->Users&Team->sso->delete sso mapping. Perform deleteSsoMappings from search. Capture the GraphQL deleteSsoMappings mutation and correlation-id header.",
+          "expected": "deleteSsoMappings completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=deleteSsoMappings → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=deleteSsoMappings|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL deleteSsoMappings fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify deleteStyleComment — Discovery/Browse (global)",
+      "operation": "deleteStyleComment",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "deleteStyleComment(global)",
+      "key": "deleteStyleComment::Discovery/Browse (global)",
+      "gql_mutation": "DeleteStyleComment",
+      "navigation_hint": "(UI code only — verify manually: 4 file(s))",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: (UI code only — verify manually: 4 file(s)). Perform deleteStyleComment from search. Capture the GraphQL deleteStyleComment mutation and correlation-id header.",
+          "expected": "deleteStyleComment completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=deleteStyleComment → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=deleteStyleComment|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL deleteStyleComment fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify deleteStyleDocument — Discovery/Browse (global)",
+      "operation": "deleteStyleDocument",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "deleteStyleDocument(global)",
+      "key": "deleteStyleDocument::Discovery/Browse (global)",
+      "gql_mutation": "DeleteStyleDocument",
+      "navigation_hint": "(UI code only — verify manually: 4 file(s))",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: (UI code only — verify manually: 4 file(s)). Perform deleteStyleDocument from search. Capture the GraphQL deleteStyleDocument mutation and correlation-id header.",
+          "expected": "deleteStyleDocument completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=deleteStyleDocument → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=deleteStyleDocument|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL deleteStyleDocument fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify denyIntentForProduction — Discovery/Browse (global)",
+      "operation": "denyIntentForProduction",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "denyIntentForProduction(global)",
+      "key": "denyIntentForProduction::Discovery/Browse (global)",
+      "gql_mutation": "DenyIntentForProduction",
+      "navigation_hint": "NextGen web UI (Manage / My Library / search as applicable)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: NextGen web UI (Manage / My Library / search as applicable). Perform denyIntentForProduction from search. Capture the GraphQL denyIntentForProduction mutation and correlation-id header.",
+          "expected": "denyIntentForProduction completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=denyIntentForProduction → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=denyIntentForProduction|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL denyIntentForProduction fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify editWebProject — Discovery/Browse (global)",
+      "operation": "editWebProject",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "editWebProject(global)",
+      "key": "editWebProject::Discovery/Browse (global)",
+      "gql_mutation": "EditWebProject",
+      "navigation_hint": "(No UI touchpoint found in mtconnect-ui)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: (No UI touchpoint found in mtconnect-ui). Perform editWebProject from search. Capture the GraphQL editWebProject mutation and correlation-id header.",
+          "expected": "editWebProject completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=editWebProject → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=editWebProject|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL editWebProject fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify exportFontTemplate — Discovery/Browse (global)",
+      "operation": "exportFontTemplate",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportFontTemplate(global)",
+      "key": "exportFontTemplate::Discovery/Browse (global)",
+      "gql_mutation": "ExportFontTemplate",
+      "navigation_hint": "Imported Fonts > Export template",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Imported Fonts > Export template. On Imported Fonts page open export/template flow and export a font template CSV. Capture exportFontTemplate GraphQL mutation and correlation-id header.",
+          "expected": "Template export completed; exportFontTemplate mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=exportFontTemplate → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=exportFontTemplate|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL exportFontTemplate fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify exportLeavingSoonFonts — Discovery/Browse (global)",
+      "operation": "exportLeavingSoonFonts",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportLeavingSoonFonts(global)",
+      "key": "exportLeavingSoonFonts::Discovery/Browse (global)",
+      "gql_mutation": "ExportLeavingSoonFonts",
+      "navigation_hint": "NextGen web UI (Manage / My Library / search as applicable)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: NextGen web UI (Manage / My Library / search as applicable). Perform exportLeavingSoonFonts from search. Capture the GraphQL exportLeavingSoonFonts mutation and correlation-id header.",
+          "expected": "exportLeavingSoonFonts completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=exportLeavingSoonFonts → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=exportLeavingSoonFonts|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL exportLeavingSoonFonts fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify exportReportingWebkits — Discovery/Browse (global)",
+      "operation": "exportReportingWebkits",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportReportingWebkits(global)",
+      "key": "exportReportingWebkits::Discovery/Browse (global)",
+      "gql_mutation": "ExportReportingWebkits",
+      "navigation_hint": "NextGen web UI (Manage / My Library / search as applicable)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: NextGen web UI (Manage / My Library / search as applicable). Perform exportReportingWebkits from search. Capture the GraphQL exportReportingWebkits mutation and correlation-id header.",
+          "expected": "exportReportingWebkits completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=exportReportingWebkits → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=exportReportingWebkits|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL exportReportingWebkits fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify exportServiceAccount — Discovery/Browse (global)",
+      "operation": "exportServiceAccount",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportServiceAccount(global)",
+      "key": "exportServiceAccount::Discovery/Browse (global)",
+      "gql_mutation": "ExportServiceAccount",
+      "navigation_hint": "NextGen web UI (Manage / My Library / search as applicable)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: NextGen web UI (Manage / My Library / search as applicable). Perform exportServiceAccount from search. Capture the GraphQL exportServiceAccount mutation and correlation-id header.",
+          "expected": "exportServiceAccount completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=exportServiceAccount → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=exportServiceAccount|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL exportServiceAccount fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify exportSsoMappings — Discovery/Browse (global)",
+      "operation": "exportSsoMappings",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportSsoMappings(global)",
+      "key": "exportSsoMappings::Discovery/Browse (global)",
+      "gql_mutation": "ExportSsoMappings",
+      "navigation_hint": "NextGen web UI (Manage / My Library / search as applicable)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: NextGen web UI (Manage / My Library / search as applicable). Perform exportSsoMappings from search. Capture the GraphQL exportSsoMappings mutation and correlation-id header.",
+          "expected": "exportSsoMappings completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=exportSsoMappings → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=exportSsoMappings|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL exportSsoMappings fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify exportUnassignedImportedFontsTemplate — Discovery/Browse (global)",
+      "operation": "exportUnassignedImportedFontsTemplate",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportUnassignedImportedFontsTemplate(global)",
+      "key": "exportUnassignedImportedFontsTemplate::Discovery/Browse (global)",
+      "gql_mutation": "ExportUnassignedImportedFontsTemplate",
+      "navigation_hint": "(UI code only — verify manually: 3 file(s))",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: (UI code only — verify manually: 3 file(s)). On Imported Fonts page export unassigned fonts template. Capture exportUnassignedImportedFontsTemplate mutation and correlation-id.",
+          "expected": "Unassigned template export completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=exportUnassignedImportedFontsTemplate → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=exportUnassignedImportedFontsTemplate|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL exportUnassignedImportedFontsTemplate fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify exportUserAssets — Discovery/Browse (global)",
+      "operation": "exportUserAssets",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportUserAssets(global)",
+      "key": "exportUserAssets::Discovery/Browse (global)",
+      "gql_mutation": "ExportUserAssets",
+      "navigation_hint": "NextGen web UI (Manage / My Library / search as applicable)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: NextGen web UI (Manage / My Library / search as applicable). Perform exportUserAssets from search. Capture the GraphQL exportUserAssets mutation and correlation-id header.",
+          "expected": "exportUserAssets completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=exportUserAssets → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=exportUserAssets|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL exportUserAssets fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify exportUserFonts — Discovery/Browse (global)",
+      "operation": "exportUserFonts",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportUserFonts(global)",
+      "key": "exportUserFonts::Discovery/Browse (global)",
+      "gql_mutation": "ExportUserFonts",
+      "navigation_hint": "NextGen web UI (Manage / My Library / search as applicable)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: NextGen web UI (Manage / My Library / search as applicable). Perform exportUserFonts from search. Capture the GraphQL exportUserFonts mutation and correlation-id header.",
+          "expected": "exportUserFonts completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=exportUserFonts → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=exportUserFonts|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL exportUserFonts fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify exportUserProjects — Discovery/Browse (global)",
+      "operation": "exportUserProjects",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportUserProjects(global)",
+      "key": "exportUserProjects::Discovery/Browse (global)",
+      "gql_mutation": "ExportUserProjects",
+      "navigation_hint": "NextGen web UI (Manage / My Library / search as applicable)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: NextGen web UI (Manage / My Library / search as applicable). Perform exportUserProjects from search. Capture the GraphQL exportUserProjects mutation and correlation-id header.",
+          "expected": "exportUserProjects completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=exportUserProjects → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=exportUserProjects|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL exportUserProjects fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify exportWebkitDomains — Discovery/Browse (global)",
+      "operation": "exportWebkitDomains",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportWebkitDomains(global)",
+      "key": "exportWebkitDomains::Discovery/Browse (global)",
+      "gql_mutation": "ExportWebkitDomains",
+      "navigation_hint": "NextGen web UI (Manage / My Library / search as applicable)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: NextGen web UI (Manage / My Library / search as applicable). Perform exportWebkitDomains from search. Capture the GraphQL exportWebkitDomains mutation and correlation-id header.",
+          "expected": "exportWebkitDomains completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=exportWebkitDomains → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=exportWebkitDomains|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL exportWebkitDomains fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify exportWebkitFonts — Discovery/Browse (global)",
+      "operation": "exportWebkitFonts",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "exportWebkitFonts(global)",
+      "key": "exportWebkitFonts::Discovery/Browse (global)",
+      "gql_mutation": "ExportWebkitFonts",
+      "navigation_hint": "NextGen web UI (Manage / My Library / search as applicable)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: NextGen web UI (Manage / My Library / search as applicable). Perform exportWebkitFonts from search. Capture the GraphQL exportWebkitFonts mutation and correlation-id header.",
+          "expected": "exportWebkitFonts completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=exportWebkitFonts → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=exportWebkitFonts|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL exportWebkitFonts fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify finalizeAssetAttachments — Discovery/Browse (global)",
+      "operation": "finalizeAssetAttachments",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "finalizeAssetAttachments(global)",
+      "key": "finalizeAssetAttachments::Discovery/Browse (global)",
+      "gql_mutation": "FinalizeAssetAttachments",
+      "navigation_hint": "Projects > assetAttachmentMutations → Projects > (useProjectBriefAttachments)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Projects > assetAttachmentMutations → Projects > (useProjectBriefAttachments). Perform finalizeAssetAttachments from search. Capture the GraphQL finalizeAssetAttachments mutation and correlation-id header.",
+          "expected": "finalizeAssetAttachments completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=finalizeAssetAttachments → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=finalizeAssetAttachments|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL finalizeAssetAttachments fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify globalEmailOptOut — Discovery/Browse (global)",
+      "operation": "globalEmailOptOut",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "globalEmailOptOut(global)",
+      "key": "globalEmailOptOut::Discovery/Browse (global)",
+      "gql_mutation": "GlobalEmailOptOut",
+      "navigation_hint": "(No UI touchpoint found in mtconnect-ui)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: (No UI touchpoint found in mtconnect-ui). Perform globalEmailOptOut from search. Capture the GraphQL globalEmailOptOut mutation and correlation-id header.",
+          "expected": "globalEmailOptOut completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=globalEmailOptOut → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=globalEmailOptOut|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL globalEmailOptOut fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify importFontTemplate — Discovery/Browse (global)",
+      "operation": "importFontTemplate",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "importFontTemplate(global)",
+      "key": "importFontTemplate::Discovery/Browse (global)",
+      "gql_mutation": "ImportFontTemplate",
+      "navigation_hint": "Imported Fonts > Import template",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Imported Fonts > Import template. Perform importFontTemplate from search. Capture the GraphQL importFontTemplate mutation and correlation-id header.",
+          "expected": "importFontTemplate completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=importFontTemplate → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=importFontTemplate|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL importFontTemplate fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify keepInProduction — Discovery/Browse (global)",
+      "operation": "keepInProduction",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "keepInProduction(global)",
+      "key": "keepInProduction::Discovery/Browse (global)",
+      "gql_mutation": "KeepInProduction",
+      "navigation_hint": "Document scan > resolve issues > Ready for production row > Mark for production drawer > Submit → Discover > Leaving soon > (if exposed) Keep in production / Mark all for production flow",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Document scan > resolve issues > Ready for production row > Mark for production drawer > Submit → Discover > Leaving soon > (if exposed) Keep in production / Mark all for production flow. Perform keepInProduction from search. Capture the GraphQL keepInProduction mutation and correlation-id header.",
+          "expected": "keepInProduction completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=keepInProduction → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=keepInProduction|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL keepInProduction fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify linkContractToStyles — Discovery/Browse (global)",
+      "operation": "linkContractToStyles",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "linkContractToStyles(global)",
+      "key": "linkContractToStyles::Discovery/Browse (global)",
+      "gql_mutation": "LinkContractToStyles",
+      "navigation_hint": "Manage > Impoted font > License ->License(Click on license)-> Associate font -> Add Font → Manage > Impoted font > Font ->Configure-> Select license in dropdown->update",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Manage > Impoted font > License ->License(Click on license)-> Associate font -> Add Font → Manage > Impoted font > Font ->Configure-> Select license in dropdown->update. Perform linkContractToStyles from search. Capture the GraphQL linkContractToStyles mutation and correlation-id header.",
+          "expected": "linkContractToStyles completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=linkContractToStyles → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=linkContractToStyles|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL linkContractToStyles fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify linkDocumentToProject — Discovery/Browse (global)",
+      "operation": "linkDocumentToProject",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "linkDocumentToProject(global)",
+      "key": "linkDocumentToProject::Discovery/Browse (global)",
+      "gql_mutation": "LinkDocumentToProject",
+      "navigation_hint": "Side panel > projectMutations → Side panel > (useProjectLinking)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Side panel > projectMutations → Side panel > (useProjectLinking). Open a project (create one if needed) and open the document linking side panel.",
+          "expected": "Project linking UI is visible."
+        },
+        {
+          "content": "Link an existing document to the project and save.",
+          "expected": "Document linked; linkDocumentToProject mutation captured."
+        },
+        {
+          "content": "Network filter operationName=linkDocumentToProject → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=linkDocumentToProject|correlation_id=<real-uuid>|touchpoint=project",
+          "expected": "GraphQL linkDocumentToProject fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify linkDocumentsToContract — Discovery/Browse (global)",
+      "operation": "linkDocumentsToContract",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "linkDocumentsToContract(global)",
+      "key": "linkDocumentsToContract::Discovery/Browse (global)",
+      "gql_mutation": "LinkDocumentsToContract",
+      "navigation_hint": "Manage > Impoted font > License ->License(Click on license)-> Upload Document",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Manage > Impoted font > License ->License(Click on license)-> Upload Document. Perform linkDocumentsToContract from search. Capture the GraphQL linkDocumentsToContract mutation and correlation-id header.",
+          "expected": "linkDocumentsToContract completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=linkDocumentsToContract → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=linkDocumentsToContract|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL linkDocumentsToContract fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify markAllNotificationsRead — Discovery/Browse (global)",
+      "operation": "markAllNotificationsRead",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "markAllNotificationsRead(global)",
+      "key": "markAllNotificationsRead::Discovery/Browse (global)",
+      "gql_mutation": "MarkAllNotificationsRead",
+      "navigation_hint": "Discover Fonts>notification > click mark all notification read → Notifications > Mark all read → Notifications > notificationPageUtils → Notifications > NotificationsPage",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Discover Fonts>notification > click mark all notification read → Notifications > Mark all read → Notifications > notificationPageUtils → Notifications > NotificationsPage. Perform markAllNotificationsRead from search. Capture the GraphQL markAllNotificationsRead mutation and correlation-id header.",
+          "expected": "markAllNotificationsRead completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=markAllNotificationsRead → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=markAllNotificationsRead|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL markAllNotificationsRead fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify markCompanyLogoUploadSuccess — Discovery/Browse (global)",
+      "operation": "markCompanyLogoUploadSuccess",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "markCompanyLogoUploadSuccess(global)",
+      "key": "markCompanyLogoUploadSuccess::Discovery/Browse (global)",
+      "gql_mutation": "MarkCompanyLogoUploadSuccess",
+      "navigation_hint": "Admin > Manage->Company setting",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Admin > Manage->Company setting. Perform markCompanyLogoUploadSuccess from search. Capture the GraphQL markCompanyLogoUploadSuccess mutation and correlation-id header.",
+          "expected": "markCompanyLogoUploadSuccess completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=markCompanyLogoUploadSuccess → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=markCompanyLogoUploadSuccess|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL markCompanyLogoUploadSuccess fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify markProductionFonts — Discovery/Browse (global)",
+      "operation": "markProductionFonts",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "markProductionFonts(global)",
+      "key": "markProductionFonts::Discovery/Browse (global)",
+      "gql_mutation": "MarkProductionFonts",
+      "navigation_hint": "Discover Fonts > Style > Mark as production font → Font card context menu > Mark as production → Font card context menu (shared) > (useFontCardContextMenu) → My Library > (useFavouritesPairsTab)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Discover Fonts > Style > Mark as production font → Font card context menu > Mark as production → Font card context menu (shared) > (useFontCardContextMenu) → My Library > (useFavouritesPairsTab). Perform markProductionFonts from search. Capture the GraphQL markProductionFonts mutation and correlation-id header.",
+          "expected": "markProductionFonts completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=markProductionFonts → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=markProductionFonts|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL markProductionFonts fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify markSessionFileUploaded — Discovery/Browse (global)",
+      "operation": "markSessionFileUploaded",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "markSessionFileUploaded(global)",
+      "key": "markSessionFileUploaded::Discovery/Browse (global)",
+      "gql_mutation": "MarkSessionFileUploaded",
+      "navigation_hint": "Document scanning > Mark file uploaded → Document scan > (useMarkFileUploaded) → Document scan > (useDocumentScanFlowState)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Document scanning > Mark file uploaded → Document scan > (useMarkFileUploaded) → Document scan > (useDocumentScanFlowState). Perform markSessionFileUploaded from search. Capture the GraphQL markSessionFileUploaded mutation and correlation-id header.",
+          "expected": "markSessionFileUploaded completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=markSessionFileUploaded → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=markSessionFileUploaded|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL markSessionFileUploaded fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify publishAddOn — Discovery/Browse (global)",
+      "operation": "publishAddOn",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "publishAddOn(global)",
+      "key": "publishAddOn::Discovery/Browse (global)",
+      "gql_mutation": "PublishAddOn",
+      "navigation_hint": "(No UI touchpoint found in mtconnect-ui)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: (No UI touchpoint found in mtconnect-ui). Perform publishAddOn from search. Capture the GraphQL publishAddOn mutation and correlation-id header.",
+          "expected": "publishAddOn completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=publishAddOn → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=publishAddOn|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL publishAddOn fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify rejectFontAccess — Discovery/Browse (global)",
+      "operation": "rejectFontAccess",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "rejectFontAccess(global)",
+      "key": "rejectFontAccess::Discovery/Browse (global)",
+      "gql_mutation": "RejectFontAccess",
+      "navigation_hint": "Notifications > Access request > Reject",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Notifications > Access request > Reject. Perform rejectFontAccess from search. Capture the GraphQL rejectFontAccess mutation and correlation-id header.",
+          "expected": "rejectFontAccess completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=rejectFontAccess → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=rejectFontAccess|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL rejectFontAccess fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify removeFontProjectFamilies — Discovery/Browse (global)",
+      "operation": "removeFontProjectFamilies",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "removeFontProjectFamilies(global)",
+      "key": "removeFontProjectFamilies::Discovery/Browse (global)",
+      "gql_mutation": "RemoveFontProjectFamilies",
+      "navigation_hint": "Projects > Open project > Remove families → Projects > ProjectFontsTab → Projects > executeProjectFontRemoval → Projects > (useRemoveFontProjectFamilies)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Projects > Open project > Remove families → Projects > ProjectFontsTab → Projects > executeProjectFontRemoval → Projects > (useRemoveFontProjectFamilies). Open a project fonts page with families (create project + addFontProjectFamilies first if empty).",
+          "expected": "Project fonts grid shows at least one family."
+        },
+        {
+          "content": "Remove one font family from the project.",
+          "expected": "Family removed from project; removeFontProjectFamilies mutation captured."
+        },
+        {
+          "content": "Network filter operationName=removeFontProjectFamilies → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=removeFontProjectFamilies|correlation_id=<real-uuid>|touchpoint=project",
+          "expected": "GraphQL removeFontProjectFamilies fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify removeStylesFromWebProject — Discovery/Browse (global)",
+      "operation": "removeStylesFromWebProject",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "removeStylesFromWebProject(global)",
+      "key": "removeStylesFromWebProject::Discovery/Browse (global)",
+      "gql_mutation": "RemoveStylesFromWebProject",
+      "navigation_hint": "Web projects > Open project > Remove fonts",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Web projects > Open project > Remove fonts. Open a project web/embed fonts view with styles already added.",
+          "expected": "Web project shows at least one style."
+        },
+        {
+          "content": "Select and remove one or more styles from the web project.",
+          "expected": "Styles removed; removeStylesFromWebProject mutation captured."
+        },
+        {
+          "content": "Network filter operationName=removeStylesFromWebProject → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=removeStylesFromWebProject|correlation_id=<real-uuid>|touchpoint=project",
+          "expected": "GraphQL removeStylesFromWebProject fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify reorderSsoMappings — Discovery/Browse (global)",
+      "operation": "reorderSsoMappings",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "reorderSsoMappings(global)",
+      "key": "reorderSsoMappings::Discovery/Browse (global)",
+      "gql_mutation": "ReorderSsoMappings",
+      "navigation_hint": "Manage->Users&Team->sso->Update the order",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Manage->Users&Team->sso->Update the order. Perform reorderSsoMappings from search. Capture the GraphQL reorderSsoMappings mutation and correlation-id header.",
+          "expected": "reorderSsoMappings completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=reorderSsoMappings → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=reorderSsoMappings|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL reorderSsoMappings fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify requestFontAccess — Discovery/Browse (global)",
+      "operation": "requestFontAccess",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "requestFontAccess(global)",
+      "key": "requestFontAccess::Discovery/Browse (global)",
+      "gql_mutation": "RequestFontAccess",
+      "navigation_hint": "Imported Fonts > Request access → Search > SearchPage → Discover Fonts > Family page > FamilyPageStylesSection → Search > FontCardsView",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Imported Fonts > Request access → Search > SearchPage → Discover Fonts > Family page > FamilyPageStylesSection → Search > FontCardsView. Perform requestFontAccess from search. Capture the GraphQL requestFontAccess mutation and correlation-id header.",
+          "expected": "requestFontAccess completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=requestFontAccess → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=requestFontAccess|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL requestFontAccess fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify resetPreferences — Discovery/Browse (global)",
+      "operation": "resetPreferences",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "resetPreferences(global)",
+      "key": "resetPreferences::Discovery/Browse (global)",
+      "gql_mutation": "ResetPreferences",
+      "navigation_hint": "(No UI touchpoint found in mtconnect-ui)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: (No UI touchpoint found in mtconnect-ui). Perform resetPreferences from search. Capture the GraphQL resetPreferences mutation and correlation-id header.",
+          "expected": "resetPreferences completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=resetPreferences → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=resetPreferences|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL resetPreferences fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify saveDocumentMetadata — Discovery/Browse (global)",
+      "operation": "saveDocumentMetadata",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "saveDocumentMetadata(global)",
+      "key": "saveDocumentMetadata::Discovery/Browse (global)",
+      "gql_mutation": "SaveDocumentMetadata",
+      "navigation_hint": "(No UI touchpoint found in mtconnect-ui)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: (No UI touchpoint found in mtconnect-ui). Perform saveDocumentMetadata from search. Capture the GraphQL saveDocumentMetadata mutation and correlation-id header.",
+          "expected": "saveDocumentMetadata completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=saveDocumentMetadata → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=saveDocumentMetadata|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL saveDocumentMetadata fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify submitFontUsageReport — Discovery/Browse (global)",
+      "operation": "submitFontUsageReport",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "submitFontUsageReport(global)",
+      "key": "submitFontUsageReport::Discovery/Browse (global)",
+      "gql_mutation": "SubmitFontUsageReport",
+      "navigation_hint": "Compliance > Submit usage report",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Compliance > Submit usage report. Perform submitFontUsageReport from search. Capture the GraphQL submitFontUsageReport mutation and correlation-id header.",
+          "expected": "submitFontUsageReport completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=submitFontUsageReport → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=submitFontUsageReport|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL submitFontUsageReport fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify unlinkDocumentFromProject — Discovery/Browse (global)",
+      "operation": "unlinkDocumentFromProject",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "unlinkDocumentFromProject(global)",
+      "key": "unlinkDocumentFromProject::Discovery/Browse (global)",
+      "gql_mutation": "UnlinkDocumentFromProject",
+      "navigation_hint": "Side panel > projectMutations → Side panel > (useProjectLinking)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Side panel > projectMutations → Side panel > (useProjectLinking). Perform unlinkDocumentFromProject from search. Capture the GraphQL unlinkDocumentFromProject mutation and correlation-id header.",
+          "expected": "unlinkDocumentFromProject completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=unlinkDocumentFromProject → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=unlinkDocumentFromProject|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL unlinkDocumentFromProject fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify unlinkDocumentsFromContract — Discovery/Browse (global)",
+      "operation": "unlinkDocumentsFromContract",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "unlinkDocumentsFromContract(global)",
+      "key": "unlinkDocumentsFromContract::Discovery/Browse (global)",
+      "gql_mutation": "UnlinkDocumentsFromContract",
+      "navigation_hint": "Manage > Impoted font > License ->License(Click on license)-> Remove document",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Manage > Impoted font > License ->License(Click on license)-> Remove document. Perform unlinkDocumentsFromContract from search. Capture the GraphQL unlinkDocumentsFromContract mutation and correlation-id header.",
+          "expected": "unlinkDocumentsFromContract completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=unlinkDocumentsFromContract → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=unlinkDocumentsFromContract|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL unlinkDocumentsFromContract fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify unlinkStyleFromContract — Discovery/Browse (global)",
+      "operation": "unlinkStyleFromContract",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "unlinkStyleFromContract(global)",
+      "key": "unlinkStyleFromContract::Discovery/Browse (global)",
+      "gql_mutation": "UnlinkStyleFromContract",
+      "navigation_hint": "Manage > Impoted font > License ->License(Click on license)-> Associate font -> remove Font → Manage > Impoted font > Font ->Configure-> unselect license in dropdown->update",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Manage > Impoted font > License ->License(Click on license)-> Associate font -> remove Font → Manage > Impoted font > Font ->Configure-> unselect license in dropdown->update. Perform unlinkStyleFromContract from search. Capture the GraphQL unlinkStyleFromContract mutation and correlation-id header.",
+          "expected": "unlinkStyleFromContract completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=unlinkStyleFromContract → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=unlinkStyleFromContract|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL unlinkStyleFromContract fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify updateAssetSharing — Discovery/Browse (global)",
+      "operation": "updateAssetSharing",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "updateAssetSharing(global)",
+      "key": "updateAssetSharing::Discovery/Browse (global)",
+      "gql_mutation": "UpdateAssetSharing",
+      "navigation_hint": "Discover Fonts > Assets > Share list > Grant or revoke access → Discover Fonts> Mylibrary> Asset>RightClick>Share List → My Library > (useMyLibraryWebkitArchiveActions) → Font card context menu (shared) > (useFontCardContextMenu)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Discover Fonts > Assets > Share list > Grant or revoke access → Discover Fonts> Mylibrary> Asset>RightClick>Share List → My Library > (useMyLibraryWebkitArchiveActions) → Font card context menu (shared) > (useFontCardContextMenu). Open My Library, open a shareable asset or list, and open the Share panel.",
+          "expected": "Share / access panel is visible."
+        },
+        {
+          "content": "Grant or revoke sharing for a user/team and save.",
+          "expected": "Sharing updated; updateAssetSharing mutation captured."
+        },
+        {
+          "content": "Network filter operationName=updateAssetSharing → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=updateAssetSharing|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL updateAssetSharing fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify updateCompanySsoStatus — Discovery/Browse (global)",
+      "operation": "updateCompanySsoStatus",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "updateCompanySsoStatus(global)",
+      "key": "updateCompanySsoStatus::Discovery/Browse (global)",
+      "gql_mutation": "UpdateCompanySsoStatus",
+      "navigation_hint": "Manage->Users&Team->sso->Update the order",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Manage->Users&Team->sso->Update the order. Perform updateCompanySsoStatus from search. Capture the GraphQL updateCompanySsoStatus mutation and correlation-id header.",
+          "expected": "updateCompanySsoStatus completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=updateCompanySsoStatus → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=updateCompanySsoStatus|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL updateCompanySsoStatus fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify updateContract — Discovery/Browse (global)",
+      "operation": "updateContract",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "updateContract(global)",
+      "key": "updateContract::Discovery/Browse (global)",
+      "gql_mutation": "UpdateContract",
+      "navigation_hint": "Manage > Impoted font > License ->Configure->update",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Manage > Impoted font > License ->Configure->update. Perform updateContract from search. Capture the GraphQL updateContract mutation and correlation-id header.",
+          "expected": "updateContract completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=updateContract → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=updateContract|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL updateContract fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify updateCustomer — Discovery/Browse (global)",
+      "operation": "updateCustomer",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "updateCustomer(global)",
+      "key": "updateCustomer::Discovery/Browse (global)",
+      "gql_mutation": "UpdateCustomer",
+      "navigation_hint": "Setting>company > Customers >company management> Edit company",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Setting>company > Customers >company management> Edit company. Perform updateCustomer from search. Capture the GraphQL updateCustomer mutation and correlation-id header.",
+          "expected": "updateCustomer completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=updateCustomer → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=updateCustomer|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL updateCustomer fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify updateFontsForReview — Discovery/Browse (global)",
+      "operation": "updateFontsForReview",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "updateFontsForReview(global)",
+      "key": "updateFontsForReview::Discovery/Browse (global)",
+      "gql_mutation": "UpdateFontsForReview",
+      "navigation_hint": "(UI code only — verify manually: 5 file(s))",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: (UI code only — verify manually: 5 file(s)). Perform updateFontsForReview from search. Capture the GraphQL updateFontsForReview mutation and correlation-id header.",
+          "expected": "updateFontsForReview completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=updateFontsForReview → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=updateFontsForReview|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL updateFontsForReview fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify updatePreference — Discovery/Browse (global)",
+      "operation": "updatePreference",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "updatePreference(global)",
+      "key": "updatePreference::Discovery/Browse (global)",
+      "gql_mutation": "UpdatePreference",
+      "navigation_hint": "Notification>preference>updatepreferences",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Notification>preference>updatepreferences. Perform updatePreference from search. Capture the GraphQL updatePreference mutation and correlation-id header.",
+          "expected": "updatePreference completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=updatePreference → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=updatePreference|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL updatePreference fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify updateProductionFont — Discovery/Browse (global)",
+      "operation": "updateProductionFont",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "updateProductionFont(global)",
+      "key": "updateProductionFont::Discovery/Browse (global)",
+      "gql_mutation": "UpdateProductionFont",
+      "navigation_hint": "Discover Fonts > Production fonts > Update status → Font card context menu (shared) > (useFontCardContextMenu)",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Discover Fonts > Production fonts > Update status → Font card context menu (shared) > (useFontCardContextMenu). Perform updateProductionFont from search. Capture the GraphQL updateProductionFont mutation and correlation-id header.",
+          "expected": "updateProductionFont completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=updateProductionFont → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=updateProductionFont|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL updateProductionFont fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify updateSsoMapping — Discovery/Browse (global)",
+      "operation": "updateSsoMapping",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "updateSsoMapping(global)",
+      "key": "updateSsoMapping::Discovery/Browse (global)",
+      "gql_mutation": "UpdateSsoMapping",
+      "navigation_hint": "Manage->Users&Team->sso->Update sso mapping",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Manage->Users&Team->sso->Update sso mapping. Perform updateSsoMapping from search. Capture the GraphQL updateSsoMapping mutation and correlation-id header.",
+          "expected": "updateSsoMapping completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=updateSsoMapping → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=updateSsoMapping|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL updateSsoMapping fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify updateStyleComment — Discovery/Browse (global)",
+      "operation": "updateStyleComment",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "updateStyleComment(global)",
+      "key": "updateStyleComment::Discovery/Browse (global)",
+      "gql_mutation": "UpdateStyleComment",
+      "navigation_hint": "(UI code only — verify manually: 4 file(s))",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: (UI code only — verify manually: 4 file(s)). Perform updateStyleComment from search. Capture the GraphQL updateStyleComment mutation and correlation-id header.",
+          "expected": "updateStyleComment completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=updateStyleComment → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=updateStyleComment|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL updateStyleComment fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    },
+    {
+      "title": "Verify updateSubToggle — Discovery/Browse (global)",
+      "operation": "updateSubToggle",
+      "touchpoint": "Discovery/Browse (global)",
+      "label": "updateSubToggle(global)",
+      "key": "updateSubToggle::Discovery/Browse (global)",
+      "gql_mutation": "UpdateSubToggle",
+      "navigation_hint": "Notification>preference>updatepreferences",
+      "custom_steps_separated": [
+        {
+          "content": "Navigate: Notification>preference>updatepreferences. Perform updateSubToggle from search. Capture the GraphQL updateSubToggle mutation and correlation-id header.",
+          "expected": "updateSubToggle completed; mutation and correlation-id captured."
+        },
+        {
+          "content": "Network filter operationName=updateSubToggle → copy response header correlation-id (NOT x-correlation-id) → emit exactly: AUDIT_RESULT|operation=updateSubToggle|correlation_id=<real-uuid>|touchpoint=global",
+          "expected": "GraphQL updateSubToggle fires; response has correlation-id; AUDIT_RESULT emitted with real UUID; raw+enrich visible in Generation Status."
+        }
+      ],
+      "estimate": "15m",
+      "refs": "FDC-14091",
+      "priority": "P2"
+    }
+  ]
+}

@@ -7,10 +7,16 @@ import logging
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable
 
+from ..auth import (
+    _strip_bearer,
+    ensure_discovery_user_token,
+    resolve_discovery_base_url,
+    resolve_excel_discovery_token,
+)
 from ..models import JsonDict
 from .clients import DiscoveryClient
 from .db.factory import build_ums_cms_ams_clients
@@ -76,19 +82,28 @@ def _load_enriched_sample(
     )
 
     def _from_fresh() -> JsonDict | None:
+        from ..case_keys import cron_staging_stem, parse_display_operation
+
         bases = (
             enriched_dir,
             cfg.project_root / "payload" / "ingress" / "enrich",
         )
+        base_op, case_suffix = parse_display_operation(operation)
+        stems = [operation]
+        if case_suffix and base_op:
+            stems.append(cron_staging_stem(base_op, case_suffix))
+        if base_op and base_op not in stems:
+            stems.append(base_op)
         for base in bases:
             if not base.is_dir():
                 continue
-            canonical = base / f"{operation}.json"
-            if canonical.is_file():
-                return json.loads(canonical.read_text(encoding="utf-8"))
-            matches = sorted(base.glob(f"{operation}-*.json"))
-            if matches:
-                return json.loads(matches[-1].read_text(encoding="utf-8"))
+            for stem in stems:
+                canonical = base / f"{stem}.json"
+                if canonical.is_file():
+                    return json.loads(canonical.read_text(encoding="utf-8"))
+                matches = sorted(base.glob(f"{stem}-*.json"))
+                if matches:
+                    return json.loads(matches[-1].read_text(encoding="utf-8"))
         return None
 
     def _from_queue_pairs() -> JsonDict | None:
@@ -165,6 +180,22 @@ def _chunk_ids(ids: list[str], size: int = _DISCOVERY_ID_CHUNK) -> list[list[str
     return [ids[i : i + size] for i in range(0, len(ids), size)]
 
 
+def _style_ids_in_hits(hits: list[dict]) -> set[str]:
+    out: set[str] = set()
+    for hit in hits:
+        if not isinstance(hit, dict):
+            continue
+        sid = str(hit.get("id") or hit.get("style_id") or "").strip()
+        if sid:
+            out.add(sid)
+    return out
+
+
+def _missing_style_ids(style_hits: list[dict], style_id_list: list[str]) -> list[str]:
+    covered = _style_ids_in_hits(style_hits)
+    return [s for s in style_id_list if s not in covered]
+
+
 def _merge_style_hits(*groups: list[dict] | None) -> list[dict]:
     merged: list[dict] = []
     seen: set[str] = set()
@@ -184,6 +215,18 @@ def _variation_md5s_in_hits(hits: list[dict]) -> set[str]:
     return {str(h.get("md5")).strip() for h in hits if isinstance(h, dict) and h.get("md5")}
 
 
+def _note_discovery_failure(cache: dict[str, Any], exc: Exception) -> None:
+    msg = str(exc).strip()
+    if not msg:
+        return
+    label = f"Discovery/Typesense error: {msg}"
+    prev = str(cache.get("discovery_error") or "")
+    if not prev:
+        cache["discovery_error"] = label
+    elif msg not in prev:
+        cache["discovery_error"] = f"{prev}; {msg}"
+
+
 def _prefetch_discovery(
     ops: list[str],
     samples: dict[str, JsonDict],
@@ -199,7 +242,11 @@ def _prefetch_discovery(
 
     cache: dict[str, Any] = {}
     if not discovery or not cfg.discovery_ready:
-        cache["discovery_note"] = "Discovery token missing — Typesense/middleware not queried"
+        cache["discovery_note"] = (
+            "Discovery token missing — Typesense/middleware not queried "
+            "(need a non-expired user SSO token in DISCOVERY_BEARER_TOKEN or "
+            "NEXTGEN_BEARER_TOKEN; M2M BEARER_TOKEN is rejected with 401)"
+        )
         return cache
 
     family_ids: set[str] = set()
@@ -230,9 +277,29 @@ def _prefetch_discovery(
     key_parts = ["discovery", cache_key]
     cached = load_pickle(cfg.project_root, "discovery", key_parts)
     if isinstance(cached, dict) and cached.get("style_hits") is not None:
-        cached["cache_key"] = cache_key
-        cached["from_disk_cache"] = True
-        return cached
+        from .discovery_resolver import synthesize_style_hits_from_variations
+
+        style_hits = list(cached.get("style_hits") or [])
+        # Ignore stale cache entries that saved zero style docs despite font ids to fetch.
+        if not style_hits and (ids or style_id_list):
+            cached = None
+        else:
+            synth = synthesize_style_hits_from_variations(cached.get("variation_hits") or [])
+            if synth:
+                style_hits = _merge_style_hits(style_hits, synth)
+            missing = _missing_style_ids(style_hits, style_id_list)
+            if missing and style_id_list:
+                log.info(
+                    "Discovery cache missing %d/%d style id(s) — refetching",
+                    len(missing),
+                    len(style_id_list),
+                )
+                cached = None
+            else:
+                cached["style_hits"] = style_hits
+                cached["cache_key"] = cache_key
+                cached["from_disk_cache"] = True
+                return cached
 
     try:
         style_hits: list[dict] = []
@@ -242,6 +309,29 @@ def _prefetch_discovery(
                 ids,
                 correlation_id="source-validation-batch",
             )
+        # Resolver also uses POST /v1/family/{id}/styles when bulk familyIds returns empty.
+        covered_families: set[str] = set()
+        for hit in style_hits:
+            fam = hit.get("mtc_families_data") if isinstance(hit, dict) else None
+            if isinstance(fam, dict) and fam.get("id") is not None:
+                covered_families.add(str(fam["id"]))
+        for fid in ids:
+            if fid in covered_families:
+                continue
+            if not budget.can_call():
+                break
+            route_fn = getattr(discovery, "fetch_styles_by_family_route", None)
+            if not callable(route_fn):
+                break
+            try:
+                budget.record(f"POST /v1/family/{fid}/styles")
+                route_hits = route_fn(fid, correlation_id="source-validation-family-route")
+                if route_hits:
+                    style_hits = _merge_style_hits(style_hits, route_hits)
+                    covered_families.add(fid)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("Discovery family route %s failed: %s", fid, exc)
+                _note_discovery_failure(cache, exc)
         style_batches = _chunk_ids(style_id_list)
 
         def _styles_batch(batch: list[str]) -> list[dict]:
@@ -272,6 +362,7 @@ def _prefetch_discovery(
                         by_style_groups.append(fut.result())
                     except Exception as exc:  # noqa: BLE001
                         log.warning("Discovery style batch failed: %s", exc)
+                        _note_discovery_failure(cache, exc)
 
         style_hits = _merge_style_hits(style_hits, *by_style_groups)
         cache["style_hits"] = style_hits
@@ -291,6 +382,7 @@ def _prefetch_discovery(
                         by_style_var_groups.append(fut.result())
                     except Exception as exc:  # noqa: BLE001
                         log.warning("Discovery variation batch failed: %s", exc)
+                        _note_discovery_failure(cache, exc)
         if not by_style_var_groups and budget.can_call() and ids:
             budget.record(f"GET /v1/variations familyIds=[{len(ids)} ids]")
             by_family = discovery.fetch_variations_by_family_ids(
@@ -323,34 +415,62 @@ def _prefetch_discovery(
                         by_md5_groups.append(fut.result())
                     except Exception as exc:  # noqa: BLE001
                         log.warning("Discovery md5 batch failed: %s", exc)
+                        _note_discovery_failure(cache, exc)
         cache["variation_hits"] = _merge_variation_hits(variation_hits, *by_md5_groups)
         if not cache["variation_hits"] and not budget.can_call():
             cache["discovery_note"] = "Discovery budget exhausted before variations fetch"
+
+        from .discovery_resolver import synthesize_style_hits_from_variations
+
+        covered_styles = {
+            str(h.get("id") or h.get("style_id") or "").strip()
+            for h in style_hits
+            if isinstance(h, dict) and str(h.get("id") or h.get("style_id") or "").strip()
+        }
+        synth = synthesize_style_hits_from_variations(cache.get("variation_hits") or [])
+        if synth:
+            missing_before = [s for s in style_id_list if s not in covered_styles]
+            style_hits = _merge_style_hits(style_hits, synth)
+            if missing_before:
+                log.info(
+                    "Discovery synthesized %d style doc(s) from variation mtc_styles_data",
+                    len(synth),
+                )
+        cache["style_hits"] = style_hits
+        if (ids or style_id_list) and not style_hits:
+            cache["discovery_note"] = (
+                "Typesense returned no style documents for requested family/style ids"
+            )
         cache["cache_key"] = cache_key
-        save_pickle(cfg.project_root, "discovery", key_parts, cache)
+        missing = _missing_style_ids(style_hits, style_id_list)
+        if missing and style_id_list:
+            cache["discovery_note"] = (
+                f"Typesense missing {len(missing)}/{len(style_id_list)} requested style id(s)"
+            )
+        if style_hits and not missing:
+            save_pickle(cfg.project_root, "discovery", key_parts, cache)
     except Exception as exc:
         cache["discovery_error"] = f"Discovery/Typesense error: {exc}"
+        # Auth failures must not leave a stale empty pickle that masks future retries.
+        err_l = str(exc).lower()
+        if any(m in err_l for m in ("401", "unauthorized", "403", "forbidden")):
+            try:
+                from .source_cache import clear_pickle
+
+                clear_pickle(cfg.project_root, "discovery", key_parts)
+            except Exception:
+                pass
         log.warning("Discovery prefetch failed: %s", exc)
     return cache
 
 
-def _asset_ref_from_enriched(enriched: JsonDict) -> tuple[str | None, str | None]:
-    """Asset id + type for the AMS lookup (subject snapshot → subject id fallback)."""
-    subject = enriched.get("subject") or {}
-    snap = subject.get("enrichedSnapshot") or {}
-    asset = snap.get("asset") or {}
-    if isinstance(asset, dict):
-        aid = asset.get("id")
-        atype = asset.get("assetType")
-        if aid:
-            return str(aid), (str(atype) if atype else None)
-    # delete-* / no-snapshot ops carry the id on the subject envelope.
-    ids = subject.get("id")
-    if isinstance(ids, list) and ids:
-        return str(ids[0]), (str(asset.get("assetType")) if isinstance(asset, dict) and asset.get("assetType") else None)
-    if isinstance(ids, str) and ids:
-        return ids, None
-    return None, None
+def _asset_ref_from_enriched(
+    enriched: JsonDict,
+    operation: str | None = None,
+) -> tuple[str | None, str | None]:
+    from .operation_rules import asset_ref_for_operation
+
+    return asset_ref_for_operation(enriched, operation)
 
 
 def _actor_team_ids_from_enriched(enriched: JsonDict) -> list[str]:
@@ -377,7 +497,7 @@ def _collect_identity_keys(samples: dict[str, JsonDict]) -> dict[str, set[str]]:
     assets: set[str] = set()  # "assetId|assetType|gcid"
     # "gcid|teamId" — actor teams need UMS GET /teams (not profile.team UUID)
     teams: set[str] = set()
-    for enriched in samples.values():
+    for op_name, enriched in samples.items():
         actor = enriched.get("actor") or {}
         gcid = str(actor.get("globalCustomerId") or "").strip()
         if gcid:
@@ -400,6 +520,12 @@ def _collect_identity_keys(samples: dict[str, JsonDict]) -> dict[str, set[str]]:
             srid = str(subj_role.get("id") or "").strip()
             if srid:
                 roles.add(srid)
+        subj_user = subj_snap.get("user") or {}
+        subj_user_role = subj_user.get("role") if isinstance(subj_user, dict) else {}
+        if isinstance(subj_user_role, dict):
+            urid = str(subj_user_role.get("id") or "").strip()
+            if urid:
+                roles.add(urid)
         meta = subject.get("metadata") or {}
         result = meta.get("result") or {}
         role_from_result = None
@@ -417,7 +543,8 @@ def _collect_identity_keys(samples: dict[str, JsonDict]) -> dict[str, set[str]]:
         subject_pid = _subject_profile_id_from_enriched(enriched)
         if subject_pid:
             profiles.add(str(subject_pid))
-        aid, atype = _asset_ref_from_enriched(enriched)
+        op_name = str(op_name or enriched.get("source", {}).get("operation") or "")
+        aid, atype = _asset_ref_from_enriched(enriched, op_name)
         if aid:
             assets.add(f"{aid}|{atype or ''}|{gcid}")
     return {
@@ -639,10 +766,19 @@ def _prefetch_identity_sources_inner(
             try:
                 try:
                     cache["ams_by_id"].update(
-                        bulk_a(asset_ids, global_user_id=default_profile)
+                        bulk_a(
+                            asset_ids,
+                            global_user_id=default_profile,
+                            global_customer_id=default_gcid,
+                        )
                     )
                 except TypeError:
-                    cache["ams_by_id"].update(bulk_a(asset_ids))
+                    try:
+                        cache["ams_by_id"].update(
+                            bulk_a(asset_ids, global_user_id=default_profile)
+                        )
+                    except TypeError:
+                        cache["ams_by_id"].update(bulk_a(asset_ids))
             except Exception as exc:  # noqa: BLE001
                 log.warning("AMS bulk prefetch failed: %s", exc)
         for key in sorted(keys["assets"]):
@@ -680,6 +816,9 @@ def _prefetch_identity_sources_inner(
     return cache
 
 
+_INVITATION_OPS = frozenset({"createUserInvitations", "updateUserInvitations"})
+
+
 def _live_context_for_operation(
     operation: str,
     enriched: JsonDict,
@@ -699,6 +838,7 @@ def _live_context_for_operation(
     ums_team_by = ident.get("ums_team_by_id") or {}
     ams_by = ident.get("ams_by_id") or {}
     cid = str(enriched.get("xCorrelationId") or "source-validation")
+    base_op = operation.split("(", 1)[0].strip() if "(" in operation else operation
     actor = enriched.get("actor") or {}
     customer_id = str(actor.get("globalCustomerId") or cfg.gcid or "")
     global_user_id = str(actor.get("globalUserId") or "")
@@ -720,11 +860,28 @@ def _live_context_for_operation(
                         ctx["ums_role_missing"] = f"Role {rid} not found in UMS"
                 except Exception as exc:  # noqa: BLE001
                     ctx["ums_role_error"] = f"UMS subject role lookup failed: {exc}"
+        from .operation_rules import should_fetch_service_profile
+
         pid = _profile_id_from_enriched(enriched)
         if pid:
             try:
+                service_actor = should_fetch_service_profile(base_op)
+                if service_actor and pid not in ums_prof_by:
+                    bulk_svc = getattr(ums, "get_profiles_by_ids", None)
+                    if callable(bulk_svc):
+                        rows = bulk_svc(
+                            [pid],
+                            customer_id,
+                            correlation_id=cid,
+                            user_type="service",
+                        )
+                        if rows and isinstance(rows[0], dict):
+                            ums_prof_by[pid] = rows[0]
                 profile = ums_prof_by.get(pid) or ums.get_profile_by_id(
-                    pid, customer_id, correlation_id=cid
+                    pid,
+                    customer_id,
+                    correlation_id=cid,
+                    user_type="service" if service_actor else None,
                 )
                 ctx["ums_profile"] = profile
             except Exception as exc:  # noqa: BLE001
@@ -748,20 +905,22 @@ def _live_context_for_operation(
                 except Exception as exc:  # noqa: BLE001
                     ctx["ums_role_error"] = f"UMS role lookup failed: {exc}"
         subject_pid = _subject_profile_id_from_enriched(enriched)
-        if subject_pid and subject_pid != pid:
+        if subject_pid and subject_pid != pid and base_op not in _INVITATION_OPS:
             try:
                 ctx["ums_subject_profile"] = ums_prof_by.get(subject_pid) or ums.get_profile_by_id(
                     subject_pid, customer_id, correlation_id=cid
                 )
             except Exception as exc:  # noqa: BLE001
-                # Keep actor profile results — only note subject-profile failure.
-                ctx.setdefault("ums_error", f"UMS subject profile lookup failed: {exc}")
+                # Do NOT write ums_error — that pollutes unrelated actor UMS rows.
+                ctx["ums_subject_error"] = f"UMS subject profile lookup failed: {exc}"
         if not ctx.get("ums_subject_role"):
-            sub_role_id = _role_id_from_enriched(enriched)
+            sub_role_id = _subject_user_role_id_from_enriched(enriched) or _role_id_from_enriched(
+                enriched
+            )
             if not sub_role_id:
                 sub_prof = ctx.get("ums_subject_profile")
                 if isinstance(sub_prof, dict):
-                    sub_role_id = (sub_prof.get("role") or {}).get("id")
+                    sub_role_id = ((sub_prof.get("role") or {}).get("id"))
             if sub_role_id:
                 try:
                     ctx["ums_subject_role"] = ums_role_by.get(str(sub_role_id)) or ums.get_role_by_id(
@@ -769,6 +928,27 @@ def _live_context_for_operation(
                     )
                 except Exception as exc:  # noqa: BLE001
                     ctx["ums_role_error"] = f"UMS subject role lookup failed: {exc}"
+
+        # Subject team (createTeam / updateTeam) — numeric id, not a profile UUID.
+        subject_team_id = _subject_team_id_from_enriched(enriched)
+        if subject_team_id and not ctx.get("ums_team"):
+            row = ums_team_by.get(subject_team_id)
+            if not row:
+                fetch_teams = getattr(ums, "get_teams_by_ids", None)
+                if callable(fetch_teams):
+                    try:
+                        for trow in fetch_teams(
+                            [subject_team_id], customer_id, correlation_id=cid
+                        ) or []:
+                            if isinstance(trow, dict) and trow.get("id") is not None:
+                                ums_team_by[str(trow["id"])] = trow
+                                row = trow
+                    except Exception as exc:  # noqa: BLE001
+                        ctx.setdefault(
+                            "ums_team_error", f"UMS subject team lookup failed: {exc}"
+                        )
+            if isinstance(row, dict):
+                ctx["ums_team"] = row
 
         # Actor teams — UMS GET /customers/{gcid}/teams (id/name/description).
         # Profile nested team.id is a UUID and must not be used for teams[i].*
@@ -815,6 +995,26 @@ def _live_context_for_operation(
             ctx["cms_customer"] = cms_by.get(customer_id) or cms.get_customer_by_id(
                 customer_id, correlation_id=cid
             )
+            # QA Auth0 gcid can disagree with CMS/UMS customer id. Prefer the
+            # UMS profile's customerId when the JWT/actor gcid misses in CMS.
+            if not ctx.get("cms_customer"):
+                alt = ""
+                for key in ("ums_profile", "ums_subject_profile"):
+                    prof = ctx.get(key)
+                    if isinstance(prof, dict):
+                        alt = str(prof.get("customerId") or "").strip()
+                        if alt:
+                            break
+                if alt and alt != str(customer_id):
+                    ctx["cms_customer"] = cms_by.get(alt) or cms.get_customer_by_id(
+                        alt, correlation_id=cid
+                    )
+                    if ctx.get("cms_customer"):
+                        ctx["cms_customer_id_resolved"] = alt
+                        ctx["cms_note"] = (
+                            f"CMS miss for actor gcid {customer_id}; "
+                            f"resolved via UMS profile.customerId={alt}"
+                        )
         except Exception as exc:
             ctx["cms_error"] = f"CMS lookup failed: {exc}"
     elif cms and cfg.cms_ready and not customer_id:
@@ -833,7 +1033,7 @@ def _live_context_for_operation(
 
     # Asset Management — resolver uses POST /v2/assets/bulk (type-agnostic), not only typed GET.
     if ams and cfg.ams_ready:
-        asset_id, asset_type = _asset_ref_from_enriched(enriched)
+        asset_id, asset_type = _asset_ref_from_enriched(enriched, base_op)
         if asset_id:
             try:
                 cached_ams = ams_by.get(asset_id)
@@ -858,9 +1058,20 @@ def _live_context_for_operation(
                         )
                         ctx["ams_asset"] = bulk_rows.get(asset_id)
                 if not ctx.get("ams_asset"):
+                    ams_type = asset_type or (
+                        "WebProject" if base_op in {"downloadWebProject", "publishProject"} else "Folder"
+                    )
                     ctx["ams_asset"] = ams.get_asset_by_id(
                         asset_id,
-                        asset_type or "Folder",
+                        ams_type,
+                        correlation_id=cid,
+                        global_user_id=global_user_id,
+                        global_customer_id=customer_id,
+                    )
+                if not ctx.get("ams_asset") and asset_type and asset_type != "Folder":
+                    ctx["ams_asset"] = ams.get_asset_by_id(
+                        asset_id,
+                        "Folder",
                         correlation_id=cid,
                         global_user_id=global_user_id,
                         global_customer_id=customer_id,
@@ -869,6 +1080,29 @@ def _live_context_for_operation(
                     ctx["ams_error"] = f"AMS asset {asset_id} not found"
             except Exception as exc:
                 ctx["ams_error"] = f"AMS lookup failed: {exc}"
+
+    if base_op in _INVITATION_OPS:
+        from .invitation_source import fetch_invitation_for_enriched
+
+        inv, err = fetch_invitation_for_enriched(
+            enriched, customer_id=customer_id, cfg=cfg
+        )
+        if inv:
+            ctx["ums_invitation"] = inv
+        if err:
+            ctx["ums_invitation_error"] = err
+
+    if base_op in {"updatePrivateTag", "createPrivateTags", "updatePrivateTagAssociations"}:
+        tag_id = _private_tag_id_from_enriched(enriched)
+        if tag_id and cfg.discovery_ready:
+            try:
+                disc = DiscoveryClient(cfg)
+                ctx["discovery_private_tag"] = disc.fetch_private_tag_by_id(
+                    tag_id, correlation_id=cid
+                )
+            except Exception as exc:  # noqa: BLE001
+                ctx["discovery_error"] = f"Private tag lookup failed: {exc}"
+
     return ctx
 
 
@@ -1028,17 +1262,105 @@ def _subject_customer_id_from_enriched(enriched: JsonDict) -> str | None:
     return None
 
 
+def _looks_like_uuid(value: object) -> bool:
+    s = str(value or "").strip()
+    if len(s) != 36:
+        return False
+    import re
+
+    return bool(
+        re.fullmatch(
+            r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+            s,
+        )
+    )
+
+
 def _subject_profile_id_from_enriched(enriched: JsonDict) -> str | None:
+    """Profile UUID for subject-user ops only — never team/asset/tag numeric ids.
+
+    Falling back to ``subject.id`` for createTeam/updateTeam passed ``60284`` into
+    ``UUID_TO_BIN`` and wiped UMS rows with a false ``subject profile lookup failed``.
+    """
+    subject = enriched.get("subject") or {}
+    snap = subject.get("enrichedSnapshot") or {}
+    if not isinstance(snap, dict):
+        snap = {}
+    if snap.get("invitations"):
+        return None
+    # Team / asset / tag subjects are not profiles.
+    if snap.get("team") and not (isinstance(snap.get("user"), dict) and snap.get("user")):
+        return None
+    if snap.get("asset") and not (isinstance(snap.get("user"), dict) and snap.get("user")):
+        return None
+    if (snap.get("tags") or snap.get("privateTags")) and not (
+        isinstance(snap.get("user"), dict) and snap.get("user")
+    ):
+        return None
+    user = snap.get("user") or {}
+    prof = user.get("profile") if isinstance(user, dict) else None
+    if isinstance(prof, dict) and prof.get("id"):
+        return str(prof["id"])
+    # Only accept subject.id when it is a UUID (profile-targeted ops).
+    ids = subject.get("id")
+    candidates: list[object] = []
+    if isinstance(ids, list):
+        candidates.extend(ids)
+    elif ids:
+        candidates.append(ids)
+    for cand in candidates:
+        if _looks_like_uuid(cand):
+            return str(cand).strip()
+    return None
+
+
+def _subject_team_id_from_enriched(enriched: JsonDict) -> str | None:
+    subject = enriched.get("subject") or {}
+    snap = subject.get("enrichedSnapshot") or {}
+    team = snap.get("team") if isinstance(snap, dict) else None
+    if isinstance(team, dict) and team.get("id") is not None:
+        return str(team["id"]).strip()
+    return None
+
+
+def _subject_user_role_id_from_enriched(enriched: JsonDict) -> str | None:
+    """Role on ``subject.enrichedSnapshot.user`` (bulkUpdateProfiles target user)."""
     subject = enriched.get("subject") or {}
     snap = subject.get("enrichedSnapshot") or {}
     user = snap.get("user") or {}
-    prof = user.get("profile") or {}
-    if isinstance(prof, dict) and prof.get("id"):
-        return str(prof["id"])
+    if not isinstance(user, dict):
+        return None
+    role = user.get("role") or {}
+    if isinstance(role, dict) and role.get("id"):
+        return str(role["id"])
+    return None
+
+
+def _invitation_email_from_enriched(enriched: JsonDict) -> str | None:
+    from .invitation_source import invitation_email_from_enriched
+
+    return invitation_email_from_enriched(enriched)
+
+
+def _private_tag_id_from_enriched(enriched: JsonDict) -> str | None:
+    subject = enriched.get("subject") or {}
+    snap = subject.get("enrichedSnapshot") or {}
+    tags = snap.get("tags") or snap.get("privateTags") or []
+    if isinstance(tags, list):
+        for tag in tags:
+            if isinstance(tag, dict) and tag.get("id") not in (None, ""):
+                return str(tag["id"])
+    meta = subject.get("metadata") or {}
+    inp = meta.get("input") if isinstance(meta, dict) else {}
+    if isinstance(inp, dict):
+        for key in ("id", "tagId", "privateTagId"):
+            val = inp.get(key)
+            if val not in (None, "", []):
+                return str(val)
     ids = subject.get("id")
     if isinstance(ids, list) and ids:
         return str(ids[0])
-    if ids:
+    if ids not in (None, ""):
         return str(ids)
     return None
 
@@ -1332,6 +1654,41 @@ def run_source_validation(
             except Exception:  # noqa: BLE001 — progress must never break validation
                 pass
 
+    excel_tok = resolve_excel_discovery_token(cfg.project_root, ops=ops)
+    minted = ensure_discovery_user_token(project_root=cfg.project_root)
+    # Prefer auto-minted (or cached) user JWT; fall back to Excel auth_token.
+    preferred = minted or excel_tok
+    if not preferred:
+        # Last chance — mint may have been skipped because env wasn't loaded yet.
+        try:
+            from audit_validator.auth import mint_user_password_token
+
+            preferred = mint_user_password_token()
+            if preferred:
+                os.environ["DISCOVERY_BEARER_TOKEN"] = preferred
+                os.environ["NEXTGEN_BEARER_TOKEN"] = preferred
+                minted = preferred
+                _emit("▸ Discovery/Typesense minted user JWT (last-chance password grant)")
+        except Exception as exc:  # noqa: BLE001
+            _emit(f"▸ Discovery/Typesense token unavailable: {exc}")
+    if preferred and preferred != _strip_bearer(cfg.discovery_bearer_token):
+        cfg = replace(
+            cfg,
+            discovery_bearer_token=preferred,
+            discovery_base_url=resolve_discovery_base_url(),
+        )
+        src = "OAuth password grant" if minted else "Excel auth_token"
+        _emit(
+            f"▸ Discovery/Typesense using {src} via {cfg.discovery_base_url}"
+        )
+    elif cfg.discovery_ready:
+        _emit(f"▸ Discovery/Typesense base={cfg.discovery_base_url}")
+    else:
+        _emit(
+            "▸ Discovery/Typesense NOT ready — font catalog fields will FAIL auth. "
+            "Set OAUTH_USERNAME/OAUTH_PASSWORD or a user SSO DISCOVERY_BEARER_TOKEN."
+        )
+
     discovery = DiscoveryClient(cfg) if cfg.discovery_ready else None
     ums, cms, ams, truth_mode = build_ums_cms_ams_clients(cfg)
     _emit(f"Source truth: {truth_mode} (UMS/CMS/AMS); Typesense stays on HTTP")
@@ -1421,35 +1778,226 @@ def run_source_validation(
             except Exception:
                 raw_ev = None
         try:
-            from audit_validator.auth import jwt_identity, resolve_our_profile_id
+            from audit_validator.auth import (
+                _identity_is_user,
+                jwt_identity,
+                jwt_identity_from_actor,
+                resolve_our_profile_id,
+            )
             from audit_validator.simulation.trigger_context import (
                 build_trigger_from_captured_event,
                 load_trigger_context,
             )
 
-            trigger = None
-            if isinstance(raw_ev, dict):
+            saved_trigger = load_trigger_context(cfg.project_root, op)
+            trigger = saved_trigger
+            excel_note = (
+                str((saved_trigger or {}).get("jwt_identity_note") or "")
+                if isinstance(saved_trigger, dict)
+                else ""
+            )
+            excel_jwt = bool(
+                isinstance(saved_trigger, dict)
+                and (
+                    saved_trigger.get("jwt_from_excel")
+                    or "Excel auth_token" in excel_note
+                    or excel_note.startswith("JWT claims from Excel")
+                    or bool(str(saved_trigger.get("auth_token") or "").strip())
+                    or str(saved_trigger.get("capture_source") or "") == "playwright_script"
+                )
+                and (
+                    (
+                        isinstance(saved_trigger.get("jwt_identity"), dict)
+                        and saved_trigger.get("jwt_identity")
+                    )
+                    or bool(str(saved_trigger.get("auth_token") or "").strip())
+                )
+            )
+            ui_capture = bool(
+                isinstance(trigger, dict)
+                and (
+                    str(trigger.get("replay_mode") or "")
+                    in {"casepilot_ui", "playwright_script"}
+                    or excel_jwt
+                    or str(trigger.get("capture_source") or "")
+                    in {"playwright_script", "casepilot_ui"}
+                )
+                and (
+                    excel_jwt
+                    or str(trigger.get("replay_mode") or "") == "playwright_script"
+                    or (
+                        isinstance(trigger.get("graphql_response"), dict)
+                        and bool(trigger.get("graphql_response"))
+                    )
+                    or str(trigger.get("capture_source") or "") == "playwright_script"
+                )
+            )
+            enrich_cid = str(enriched.get("xCorrelationId") or "").strip()
+            raw_cid = str((raw_ev or {}).get("xCorrelationId") or "").strip()
+            raw_mismatch = bool(
+                enrich_cid and raw_cid and enrich_cid != raw_cid
+            )
+            if not ui_capture and isinstance(raw_ev, dict) and not raw_mismatch:
                 trigger = build_trigger_from_captured_event(
                     op,
                     raw_ev,
                     enriched,
                     project_root=cfg.project_root,
                 )
-            if not trigger:
+            elif not ui_capture and raw_mismatch:
+                # Stale payload/raw on disk (common for UI runs: enrich updates, raw does not).
+                trigger = build_trigger_from_captured_event(
+                    op,
+                    enriched,
+                    enriched,
+                    project_root=cfg.project_root,
+                )
+            elif not trigger:
                 trigger = load_trigger_context(cfg.project_root, op)
+
+            # Rebuild from raw/enrich drops Excel JWT — restore sheet identity when present.
+            if excel_jwt and isinstance(saved_trigger, dict):
+                if not isinstance(trigger, dict):
+                    trigger = {}
+                if isinstance(saved_trigger.get("jwt_identity"), dict) and saved_trigger.get(
+                    "jwt_identity"
+                ):
+                    trigger["jwt_identity"] = saved_trigger["jwt_identity"]
+                elif saved_trigger.get("auth_token"):
+                    try:
+                        trigger["jwt_identity"] = jwt_identity(
+                            str(saved_trigger.get("auth_token"))
+                        )
+                    except Exception:
+                        pass
+                if saved_trigger.get("jwt_identity_note"):
+                    trigger["jwt_identity_note"] = saved_trigger["jwt_identity_note"]
+                trigger["jwt_from_excel"] = True
+                if saved_trigger.get("our_profile_id"):
+                    trigger["our_profile_id"] = saved_trigger["our_profile_id"]
+                if saved_trigger.get("auth_token"):
+                    trigger["auth_token"] = saved_trigger["auth_token"]
+                saved_gql = saved_trigger.get("graphql_response")
+                if isinstance(saved_gql, dict) and saved_gql:
+                    trigger["graphql_response"] = saved_gql
+                trigger["capture_source"] = saved_trigger.get("capture_source") or "playwright_script"
+                if str(trigger.get("replay_mode") or "") in {"", "pending_raw", "None"}:
+                    trigger["replay_mode"] = (
+                        saved_trigger.get("replay_mode")
+                        if str(saved_trigger.get("replay_mode") or "")
+                        in {"casepilot_ui", "playwright_script"}
+                        else "playwright_script"
+                    )
+
             if trigger:
                 live["trigger"] = trigger
-                if not live.get("graphql_response") and isinstance(
-                    trigger.get("graphql_response"), dict
+                trigger_gql = (
+                    trigger.get("graphql_response")
+                    if isinstance(trigger.get("graphql_response"), dict)
+                    else None
+                )
+                # Prefer Excel/Playwright Response over a stale payload/graphql file.
+                if trigger_gql and (
+                    trigger.get("jwt_from_excel")
+                    or str(trigger.get("capture_source") or "") == "playwright_script"
+                    or str(trigger.get("replay_mode") or "")
+                    in {"casepilot_ui", "playwright_script"}
                 ):
-                    live["graphql_response"] = trigger["graphql_response"]
+                    live["graphql_response"] = trigger_gql
+                elif not live.get("graphql_response") and trigger_gql:
+                    live["graphql_response"] = trigger_gql
                 if isinstance(trigger.get("jwt_identity"), dict) and trigger["jwt_identity"]:
                     live["jwt_identity"] = trigger["jwt_identity"]
+                if trigger.get("jwt_identity_note"):
+                    live["jwt_identity_note"] = str(trigger.get("jwt_identity_note"))
+                if trigger.get("jwt_from_excel") or "Excel auth_token" in str(
+                    trigger.get("jwt_identity_note") or ""
+                ):
+                    live["jwt_from_excel"] = True
+                if trigger.get("our_profile_id"):
+                    live["our_profile_id"] = str(trigger.get("our_profile_id"))
+            # Never fall back to project Bearer / BE seed JWT for Excel/UI captures.
             if "jwt_identity" not in live:
-                live["jwt_identity"] = jwt_identity()
-            pid = resolve_our_profile_id(project_root=cfg.project_root)
-            if pid:
-                live["our_profile_id"] = pid
+                if excel_jwt and isinstance(saved_trigger, dict):
+                    if isinstance(saved_trigger.get("jwt_identity"), dict) and saved_trigger.get(
+                        "jwt_identity"
+                    ):
+                        live["jwt_identity"] = saved_trigger["jwt_identity"]
+                        live["jwt_from_excel"] = True
+                    elif saved_trigger.get("auth_token"):
+                        live["jwt_identity"] = jwt_identity(str(saved_trigger.get("auth_token")))
+                        live["jwt_from_excel"] = True
+                    else:
+                        live["jwt_identity"] = {}
+                        live["jwt_from_excel"] = True
+                elif ui_capture:
+                    # Prefer enriched actor over project seed Bearer for UI runs.
+                    live["jwt_identity"] = jwt_identity_from_actor(
+                        enriched.get("actor") if isinstance(enriched.get("actor"), dict) else {}
+                    )
+                    live["jwt_identity_note"] = (
+                        "JWT claims taken from enriched actor (UI capture; no Excel token)"
+                    )
+                else:
+                    live["jwt_identity"] = jwt_identity()
+            # QA M2M tokens have no user claims — fall back to actor stamps on the event
+            # so JWT Compare rows are not Source=none against a populated enriched actor.
+            # Never do this when Excel auth_token supplied the identity — that would hide mismatches.
+            ident = live.get("jwt_identity") if isinstance(live.get("jwt_identity"), dict) else {}
+            if not live.get("jwt_from_excel") and not _identity_is_user(ident):
+                from_actor = jwt_identity_from_actor(
+                    enriched.get("actor") if isinstance(enriched.get("actor"), dict) else {}
+                )
+                if _identity_is_user(from_actor):
+                    live["jwt_identity"] = from_actor
+                    live["jwt_identity_note"] = (
+                        "JWT claims taken from enriched actor "
+                        "(active Bearer is M2M / has no user claims)"
+                    )
+            if not live.get("our_profile_id"):
+                # Excel token path: never substitute the project logged-in profile.
+                if not live.get("jwt_from_excel"):
+                    pid = resolve_our_profile_id(project_root=cfg.project_root)
+                    if pid:
+                        live["our_profile_id"] = pid
+                else:
+                    # Best-effort resolve from Excel JWT idp/email only.
+                    try:
+                        from audit_validator.auth import jwt_identity as _jwt_ident_fn
+                        from audit_validator.source_validation.clients import UmsClient
+                        from audit_validator.source_validation.config import (
+                            load_source_validation_config,
+                        )
+
+                        excel_ident = live.get("jwt_identity") if isinstance(live.get("jwt_identity"), dict) else {}
+                        idp = str(excel_ident.get("idp_user_id") or "").strip()
+                        token = ""
+                        if isinstance(trigger, dict):
+                            token = str(trigger.get("auth_token") or "").strip()
+                        if token and not excel_ident:
+                            excel_ident = _jwt_ident_fn(token)
+                            live["jwt_identity"] = excel_ident
+                            idp = str(excel_ident.get("idp_user_id") or "").strip()
+                        if idp:
+                            sv_cfg = load_source_validation_config(cfg.project_root)
+                            if sv_cfg.ums_ready:
+                                user = UmsClient(sv_cfg).get_user_by_idp_user_id(
+                                    idp, correlation_id="compare-excel-auth-token-profile"
+                                )
+                                if isinstance(user, dict):
+                                    gcid = str(excel_ident.get("gcid") or "")
+                                    for pr in user.get("profiles") or []:
+                                        if not isinstance(pr, dict):
+                                            continue
+                                        pid = pr.get("id") or (pr.get("profile") or {}).get("id")
+                                        if not pid:
+                                            continue
+                                        if gcid and str(pr.get("customerId") or "") == gcid:
+                                            live["our_profile_id"] = str(pid)
+                                            break
+                                        live.setdefault("our_profile_id", str(pid))
+                    except Exception:
+                        pass
         except Exception:
             pass
         # Raw envelope is for pairing only — comparison sources GraphQL trigger/response.

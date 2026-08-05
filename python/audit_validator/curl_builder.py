@@ -37,11 +37,17 @@ def _resolve_bearer() -> tuple[str, bool]:
     Reads the real token from env so the copied curl is directly runnable.
     Falls back to the ``$BEARER_TOKEN`` shell placeholder when nothing is set.
     """
-    for key in ("INGRESS_BEARER_TOKEN", "BEARER_TOKEN_PP", "BEARER_TOKEN"):
-        token = (os.getenv(key) or "").strip()
-        if token:
-            token = token[len("Bearer ") :].strip() if token.lower().startswith("bearer ") else token
-            return f"Bearer {token}", True
+    from .auth import resolve_nextgen_bearer_token
+
+    token = resolve_nextgen_bearer_token()
+    if not token:
+        for key in ("INGRESS_BEARER_TOKEN", "BEARER_TOKEN_PP", "BEARER_TOKEN"):
+            raw = (os.getenv(key) or "").strip()
+            if raw:
+                token = raw[len("Bearer ") :].strip() if raw.lower().startswith("bearer ") else raw
+                break
+    if token:
+        return f"Bearer {token}", True
     return "Bearer $BEARER_TOKEN", False
 
 # Services that reach the resolver through the Ingress REST API (not GraphQL).

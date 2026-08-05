@@ -300,12 +300,16 @@ def default_payload(
         }
 
     if kind == "ingress":
+        from .ingress.payloads import apply_ingress_runtime_identity
+
         case = _ingress_case(key)
         if not case:
             return {"id": item_id, "kind": "ingress", "editable": False, "note": f"Unknown ingress case {key}"}
         envelope = json.loads(Path(case.path).read_text(encoding="utf-8"))
-        if isinstance(envelope, dict) and not str(envelope.get("xCorrelationId") or "").strip():
-            envelope["xCorrelationId"] = str(uuid.uuid4())
+        if isinstance(envelope, dict):
+            apply_ingress_runtime_identity(envelope)
+            if not str(envelope.get("xCorrelationId") or "").strip():
+                envelope["xCorrelationId"] = str(uuid.uuid4())
         cid = str((envelope or {}).get("xCorrelationId") or "") if isinstance(envelope, dict) else ""
         return {
             "id": item_id,
@@ -389,6 +393,8 @@ def _send_graphql(
 
 
 def _send_ingress(payload: Any, *, correlation_id: str = "") -> dict[str, Any]:
+    from .ingress.payloads import apply_ingress_runtime_identity
+
     endpoint = _ingress_endpoint()
     authorization, real = _resolve_bearer()
     envelope_list = payload if isinstance(payload, list) else [payload]
@@ -396,6 +402,7 @@ def _send_ingress(payload: Any, *, correlation_id: str = "") -> dict[str, Any]:
     for env in envelope_list:
         if not isinstance(env, dict):
             continue
+        apply_ingress_runtime_identity(env)
         if correlation_id:
             env["xCorrelationId"] = correlation_id
         elif not str(env.get("xCorrelationId") or "").strip():

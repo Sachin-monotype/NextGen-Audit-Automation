@@ -42,6 +42,7 @@ _SHORT_TOUCH = {
     "list": "list",
     "project": "project",
     "project_list": "project_list",
+    "global_app": "global_app",
 }
 
 
@@ -63,18 +64,25 @@ def scenario_display_name(
     *,
     ui: bool = False,
     be: bool = False,
+    app: bool = False,
+    target: str | None = None,
 ) -> str:
-    """e.g. ``activateFamily(global)(UI)`` or ``activateFamily(global)(BE)``."""
+    """e.g. ``activateFamily(global)``, ``activateFamily(global)(app)``, ``…(BE)``.
+
+    UI/web is the default channel — no ``(UI)`` / ``(web)`` suffix.
+    App Excel / plugin runs get ``(app)``. Backend-minted runs get ``(BE)``.
+    """
     short = short_touchpoint(touchpoint)
     base = f"{operation}({short})" if short else operation
-    # Strip legacy lowercase suffixes before applying canonical tags
-    for legacy in ("(ui)", "(be)", "(UI)", "(BE)"):
+    # Strip legacy channel / platform suffixes before applying canonical tags
+    for legacy in ("(ui)", "(be)", "(UI)", "(BE)", "(app)", "(APP)", "(web)", "(WEB)"):
         if base.endswith(legacy):
             base = base[: -len(legacy)]
-    if ui:
-        return f"{base}(UI)"
-    if be:
+    is_app = app or (str(target or "").strip().lower() == "app")
+    if be and not ui and not is_app:
         return f"{base}(BE)"
+    if is_app:
+        return f"{base}(app)"
     return base
 
 
@@ -123,6 +131,8 @@ def canonicalize_touchpoint(touch: str | None) -> str | None:
     """Collapse Search/Family/Discovery → Discovery/Browse (global)."""
     if not touch:
         return touch
+    if normalize_touchpoint(touch) == "global_app":
+        return touch.strip()
     key = " ".join(touch.lower().replace("/", " ").split())
     compact = touch.strip().lower()
     if compact in _GLOBAL_ALIASES or key in {

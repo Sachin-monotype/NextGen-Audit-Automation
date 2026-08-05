@@ -36,6 +36,8 @@ CRON_PASSTHROUGH_ROUTING_KEYS: frozenset[str] = frozenset({
     "server.token.expiring.suspended",
     "project.archival.warning.admin",
     "project.archival.warning.member",
+    "export.completed",
+    "export.failed",
 })
 
 # routingKey → resolver operation label when source.operation is absent
@@ -62,6 +64,8 @@ _ROUTING_OPERATION: dict[str, str] = {
     "user.account.deactivated": "auto_deactivated_user",
     "user.invitation.accepted": "userAccountAccepted",
     "user.invitation.expired": "user_invitation_expired",
+    "export.completed": "exportCompleted",
+    "export.failed": "exportFailed",
 }
 
 # Infer payload routingKey when sample JSON omits it (see license-management-service PR #525).
@@ -80,18 +84,6 @@ _CASE_ROUTING_OVERRIDES: dict[str, str] = {
 }
 
 _ENRICHED_ONLY_FIELDS = frozenset({"enrichedEventId", "enrichedAt", "eventSource"})
-
-# LMS / login / LFUS publish to mt.platform.raw_events with AMQP key raw.events (PR #525).
-_RAW_EVENTS_AMQP_SERVICES = frozenset(
-    {
-        "license-management-service",
-        "mt-login-service",
-        "leaving-font-usage-service",
-        "mosaic-asset-mgmt-service",
-        "scheduler",
-    }
-)
-
 
 @dataclass(frozen=True)
 class CronCase:
@@ -142,16 +134,16 @@ def _infer_routing_key(payload: JsonDict, case_id: str) -> str:
 
 
 def amqp_routing_key_for_payload(payload: JsonDict) -> str:
-    """AMQP routing key on mt.platform.raw_events (varies by publishing service)."""
+    """AMQP routing key on ``mt.platform.raw_events``.
+
+    Cron/scheduler envelopes must be published with the platform raw AMQP key
+    (default ``raw.events``). The notification routing key stays in the JSON body
+    as ``routingKey`` — it must NOT be used as the AMQP binding key, or the
+    resolver never ingests the event into Mongo (Generation Status: no raw).
+    """
     import os
 
-    default = os.getenv("RAW_EVENTS_AMQP_ROUTING_KEY", "raw.events")
-    source = payload.get("source") or {}
-    service = str(source.get("service") or "").strip()
-    if service in _RAW_EVENTS_AMQP_SERVICES:
-        return default
-    payload_rk = str(payload.get("routingKey") or "").strip()
-    return payload_rk or default
+    return (os.getenv("RAW_EVENTS_AMQP_ROUTING_KEY") or "raw.events").strip() or "raw.events"
 
 
 def _infer_gcid_from_payload(payload: JsonDict) -> str | None:
@@ -232,6 +224,55 @@ def _patch_byof_contract(payload: JsonDict, *, contract_id: str | None = None) -
     contract.setdefault("createdBy", user_id)
     if "styles" not in subject:
         subject["styles"] = []
+
+
+def _refresh_subject_ids(payload: JsonDict, *, event_id: str) -> None:
+    """Replace / set subject ids on each publish to avoid duplicate-key collisions.
+
+    Always ensures ``subject.id`` is present and unique per publish (string or
+    single-element list matching the sample shape). Also refreshes contractId,
+    batchId, exportId, and error itemIds when present.
+    """
+    subject = payload.get("subject")
+    if not isinstance(subject, dict):
+        subject = {}
+        payload["subject"] = subject
+
+    fresh = str(uuid.uuid4())
+
+    sid = subject.get("id")
+    if isinstance(sid, list):
+        subject["id"] = [fresh]
+    else:
+        # Missing, empty, or scalar — always set a fresh id for this publish.
+        subject["id"] = fresh
+
+    contract_ids = subject.get("contractId")
+    if contract_ids is not None:
+        if isinstance(contract_ids, list):
+            subject["contractId"] = [fresh]
+        elif isinstance(contract_ids, str) and contract_ids.strip():
+            subject["contractId"] = fresh
+
+    contract = subject.get("contract")
+    if isinstance(contract, dict) and str(contract.get("contractId") or "").strip():
+        contract["contractId"] = fresh
+
+    if str(subject.get("batchId") or "").strip():
+        batch = str(uuid.uuid4())
+        subject["batchId"] = batch
+        batch_details = subject.get("batchDetails")
+        if isinstance(batch_details, dict):
+            batch_details["batchId"] = batch
+
+    if str(subject.get("exportId") or "").strip():
+        subject["exportId"] = event_id
+
+    errors = subject.get("errors")
+    if isinstance(errors, list):
+        for err in errors:
+            if isinstance(err, dict) and str(err.get("itemId") or "").strip():
+                err["itemId"] = str(uuid.uuid4())
 
 
 _UUID_RE = re.compile(
@@ -330,8 +371,9 @@ def normalize_cron_payload(
             pass  # keep explicit service from sample when present
 
     now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    new_event_id = str(uuid.uuid4())
     out["xCorrelationId"] = str(uuid.uuid4())
-    out["eventId"] = str(uuid.uuid4())
+    out["eventId"] = new_event_id
     out["occurredAt"] = now_iso
     if rk:
         out["routingKey"] = rk
@@ -350,6 +392,11 @@ def normalize_cron_payload(
         )
 
     _patch_byof_contract(out, contract_id=byof_contract_id)
+    # Always mint/refresh subject ids so each publish is unique. Live BYOF contract
+    # ids are re-applied afterward (enricher needs subject.id == contractId).
+    _refresh_subject_ids(out, event_id=new_event_id)
+    if byof_contract_id:
+        _patch_byof_contract(out, contract_id=byof_contract_id)
     return out
 
 
@@ -451,7 +498,6 @@ CRON_NO_ENRICHER_OPERATIONS: frozenset[str] = frozenset({
     "fontLeavingCatalogue",
     "font_leaving_catalogue",
     "fontBridgeAuthFailed",
-    "fontSyncFailure",
     "byofLicenceExpired",
     "byofFontNoLicense",
     "subscription.fonts.deactivated",

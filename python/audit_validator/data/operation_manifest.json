@@ -591,6 +591,14 @@
       "resolverMapped": true
     },
     {
+      "auditOperation": "exportActiveFonts",
+      "exportName": "EXPORT_ACTIVE_FONTS",
+      "rootField": "exportActiveFonts",
+      "kind": "mutation",
+      "resolverMapped": false,
+      "notes": "Anticipated audit mutation for Active Fonts export (UI stub in mtconnect-ui until wired)."
+    },
+    {
       "auditOperation": "exportFontAssets",
       "exportName": "EXPORT_FONT_ASSETS",
       "rootField": "exportFontAssets",

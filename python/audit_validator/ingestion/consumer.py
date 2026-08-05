@@ -27,6 +27,8 @@ class ConsumerStats:
     name: str
     queue: str
     collection: str
+    target: str = ""
+    vhost: str = ""
     connected: bool = False
     consumed: int = 0
     inserted: int = 0
@@ -42,6 +44,8 @@ class ConsumerStats:
                 "name": self.name,
                 "queue": self.queue,
                 "collection": self.collection,
+                "target": self.target,
+                "vhost": self.vhost,
                 "connected": self.connected,
                 "consumed": self.consumed,
                 "inserted": self.inserted,
@@ -58,13 +62,21 @@ class QueueConsumer:
         binding: QueueBinding,
         config: IngestionConfig,
         writer: MongoWriter,
+        *,
+        target: str = "",
+        vhost: str = "",
     ) -> None:
         self._binding = binding
         self._config = config
         self._writer = writer
         self._stop = threading.Event()
+        label = f"{target}:{binding.name}" if target else binding.name
         self.stats = ConsumerStats(
-            name=binding.name, queue=binding.queue, collection=binding.collection
+            name=label,
+            queue=binding.queue,
+            collection=binding.collection,
+            target=target,
+            vhost=vhost,
         )
 
     def stop(self) -> None:

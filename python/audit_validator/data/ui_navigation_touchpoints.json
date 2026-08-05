@@ -829,6 +829,7 @@
       "export_name": "ACTIVATE_FAMILY",
       "ui_files_count": 42,
       "touchpoints": [
+        "Desktop app > Discover / Search > Family card > Activate toggle (App global)",
         "Discover Fonts >Family > Activate",
         "Discover Fonts >Family>family details > Activate",
         "Discover Fonts >List> click on list >family> Activate",

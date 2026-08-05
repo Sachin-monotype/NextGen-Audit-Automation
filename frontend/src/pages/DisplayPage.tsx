@@ -7,9 +7,11 @@ import {
   fetchIngestionStatus,
   fetchLogs,
   fetchOperationCurl,
+  fetchPipelineConfig,
   fetchUiConfig,
   hasActiveFilters,
   purgeIngestion,
+  setPipelineTarget,
   startCompare,
   startIngestion,
   stopIngestion,
@@ -18,8 +20,15 @@ import {
   type IngestionStatus,
   type LogRow,
   type OperationCurl,
+  type PipelineConfig,
   type Tab,
 } from "../api";
+
+const DEFAULT_TARGETS = [
+  { id: "qa", label: "QA", url: "https://nextgen-qa.monotype-pp.com" },
+  { id: "pp", label: "PP", url: "https://nextgen.monotype-pp.com" },
+  { id: "uat", label: "UAT", url: "https://nextgen.monotype-uat.com" },
+];
 
 type DisplayPageProps = {
   /** Start a compare for one operation, then land on the live Compare tab. */
@@ -207,6 +216,9 @@ function IngestionPanel() {
         {status && (
           <span className="ingestion-metrics muted">
             {status.totals.inserted} inserted · {status.totals.consumed} consumed
+            {status.multi_target && status.ingest_lanes?.length
+              ? ` · ${status.ingest_lanes.map((l) => `${l.target}@${l.vhost}`).join(", ")}`
+              : ""}
           </span>
         )}
         {notice && <span className="muted">{notice}</span>}
@@ -224,12 +236,29 @@ function IngestionPanel() {
         <div className="ingestion-details">
           <p className="muted">
             Retains latest {status.max_docs_per_operation ?? "?"} docs per operation · Mongo{" "}
-            {status.mongo_connected ? "connected" : "offline"} · pruned {status.cleanup_deleted ?? 0}
+            {status.mongo_connected ? "connected" : "offline"}
+            {status.mongo_databases?.length
+              ? ` (${status.mongo_databases.join(", ")})`
+              : ""}{" "}
+            · pruned {status.cleanup_deleted ?? 0}
+            {status.auto_purge_enabled
+              ? ` · auto-purge every ${Math.round((status.auto_purge_interval_sec ?? 3600) / 60)}m (≥${status.auto_purge_min_ready ?? 500} ready)`
+              : ""}
+            {status.auto_purge_total ? ` · purged ${status.auto_purge_total} total` : ""}
           </p>
+          {status.ingest_lanes && status.ingest_lanes.length > 1 && (
+            <p className="muted">
+              Lanes:{" "}
+              {status.ingest_lanes
+                .map((l) => `${l.target} (${l.vhost} → ${l.mongo_db})`)
+                .join(" · ")}
+            </p>
+          )}
           {connError && <p className="error">{connError}</p>}
           <table className="ingestion-table">
             <thead>
               <tr>
+                <th>Lane</th>
                 <th>Queue</th>
                 <th>→ Collection</th>
                 <th>Conn</th>
@@ -240,6 +269,7 @@ function IngestionPanel() {
             <tbody>
               {status.consumers.map((c) => (
                 <tr key={c.name}>
+                  <td className="mono">{c.target ? `${c.target}@${c.vhost}` : c.name}</td>
                   <td className="mono">{c.queue}</td>
                   <td className="mono">{c.collection}</td>
                   <td>{c.connected ? "✓" : "—"}</td>
@@ -359,12 +389,15 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
     dataA: unknown;
     dataB: unknown;
   } | null>(null);
+  const [pipeline, setPipeline] = useState<PipelineConfig | null>(null);
+  const [targetBusy, setTargetBusy] = useState(false);
 
   useEffect(() => {
     fetchUiConfig().then((cfg) => {
       if (cfg.pageSizeOptions?.length) setPageSizes(cfg.pageSizeOptions);
       if (cfg.defaultPageSize) setPageSize(cfg.defaultPageSize);
     });
+    fetchPipelineConfig().then(setPipeline).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -394,6 +427,36 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
       setLoading(false);
     }
   }, [tab, applied, page, pageSize]);
+
+  async function onTargetChange(target: string) {
+    setTargetBusy(true);
+    setError("");
+    try {
+      const next = await setPipelineTarget(target);
+      setPipeline(next);
+      setPage(1);
+      // Force reload against the new Mongo DB (page may already be 1).
+      setLoading(true);
+      try {
+        const dedupe = !hasActiveFilters(applied);
+        const data = await fetchLogs(tab, applied, 1, pageSize, dedupe);
+        setRows(data.results);
+        setTotal(data.total);
+        setUnique(data.unique ?? dedupe);
+        if ((data as { error?: string }).error) {
+          setError((data as { error?: string }).error || "");
+        }
+      } catch (e) {
+        setError(String(e));
+      } finally {
+        setLoading(false);
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setTargetBusy(false);
+    }
+  }
 
   useEffect(() => {
     load();
@@ -488,8 +551,26 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
             <h2>Enrich/raw</h2>
             <span className="muted">
               {unique ? "latest per operation" : "all matches"}
+              {pipeline?.mongo_db ? ` · ${pipeline.mongo_db}` : ""}
             </span>
           </div>
+          <label className="inline-control">
+            Environment
+            <select
+              value={pipeline?.target || "qa"}
+              disabled={targetBusy || loading}
+              onChange={(e) => onTargetChange(e.target.value)}
+            >
+              {(pipeline?.available_targets?.length
+                ? pipeline.available_targets
+                : DEFAULT_TARGETS
+              ).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="collection-select">
             Collection
             <select

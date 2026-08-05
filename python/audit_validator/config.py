@@ -80,11 +80,11 @@ def load_config(project_root: Path | None = None) -> AppConfig:
 
     enriched_queue = os.getenv(
         "ENRICHED_EVENTS_QUEUE",
-        "mt.platform,resolver.enriched_events_test_queue",
+        "mtenrich-automation(DO NOT DELETE)",
     )
     raw_queue = os.getenv(
         "RAW_EVENTS_QUEUE",
-        "mt.platform,resolver.raw_events_test_queue",
+        "mtraw-automation(DO NOT DELETE)",
     )
 
     # PP platform queues are pre-provisioned — consume passively (do not rebind).
@@ -97,6 +97,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         or enriched_queue.endswith("enrichpayload")
         or enriched_queue.endswith("notification.queue")
         or "enriched_events_test_queue" in enriched_queue
+        or enriched_queue.startswith("mtenrich-automation")
     )
     enriched_passive = _bool_env("ENRICHED_QUEUE_PASSIVE", default_enriched_passive)
 
@@ -106,8 +107,10 @@ def load_config(project_root: Path | None = None) -> AppConfig:
     default_no_dl_consume = (
         raw_queue.endswith("rawpayload")
         or "raw_events_test_queue" in raw_queue
+        or raw_queue.startswith("mtraw-automation")
         or enriched_queue.endswith(("reporing.testing", "enrichpayload"))
         or "enriched_events_test_queue" in enriched_queue
+        or enriched_queue.startswith("mtenrich-automation")
     )
     consume_dl = _bool_env("CONSUME_DEAD_LETTER_QUEUE", not default_no_dl_consume)
 

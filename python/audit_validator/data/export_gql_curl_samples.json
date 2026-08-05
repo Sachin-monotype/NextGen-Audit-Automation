@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "base_url": "https://nextgen.monotype-pp.com",
+  "samples": {
+    "exportFontAssets": {
+      "operation": "exportFontAssets",
+      "label": "exportFontAssets(global)",
+      "gql_export": "EXPORT_FONT_ASSETS",
+      "operation_name": "ExportFontAssets",
+      "variables": {
+        "input": {
+          "format": "CSV",
+          "fontId": "<familyOrStyleId>",
+          "fontName": "QA Export Font"
+        }
+      },
+      "document": "mutation ExportFontAssets($input: ExportFontAssetsInput!) { exportFontAssets(input: $input) { success batchId status errors { code message } } }",
+      "curl_pp": "curl 'https://nextgen.monotype-pp.com/graph' \\\n  -H 'accept: application/graphql-response+json,application/json;q=0.9' \\\n  -H 'authorization: Bearer <BEARER_TOKEN>' \\\n  -H 'content-type: application/json' \\\n  -H 'origin: https://nextgen.monotype-pp.com' \\\n  -H 'referer: https://nextgen.monotype-pp.com/manage/usage-activity/fonts' \\\n  -H 'x-correlation-id: <CORRELATION_UUID>' \\\n  -X POST \\\n  --data-raw '{\"operationName\": \"ExportFontAssets\", \"variables\": {\"input\": {\"format\": \"CSV\", \"fontId\": \"<familyOrStyleId>\", \"fontName\": \"QA Export Font\"}}, \"extensions\": {\"clientLibrary\": {\"name\": \"@apollo/client\", \"version\": \"4.0.9\"}}, \"query\": \"mutation ExportFontAssets($input: ExportFontAssetsInput!) { exportFontAssets(input: $input) { success batchId status errors { code message } } }\"}'"
+    },
+    "exportFontProjects": {
+      "operation": "exportFontProjects",
+      "label": "exportFontProjects(global)",
+      "gql_export": "EXPORT_FONT_PROJECTS",
+      "operation_name": "ExportFontProjects",
+      "variables": {
+        "input": {
+          "format": "CSV",
+          "fontId": "<familyOrStyleId>",
+          "fontName": "QA Export Font"
+        }
+      },
+      "document": "mutation ExportFontProjects($input: ExportFontProjectsInput!) { exportFontProjects(input: $input) { success batchId status errors { code message } } }",
+      "curl_pp": "curl 'https://nextgen.monotype-pp.com/graph' \\\n  -H 'accept: application/graphql-response+json,application/json;q=0.9' \\\n  -H 'authorization: Bearer <BEARER_TOKEN>' \\\n  -H 'content-type: application/json' \\\n  -H 'origin: https://nextgen.monotype-pp.com' \\\n  -H 'referer: https://nextgen.monotype-pp.com/manage/usage-activity/fonts' \\\n  -H 'x-correlation-id: <CORRELATION_UUID>' \\\n  -X POST \\\n  --data-raw '{\"operationName\": \"ExportFontProjects\", \"variables\": {\"input\": {\"format\": \"CSV\", \"fontId\": \"<familyOrStyleId>\", \"fontName\": \"QA Export Font\"}}, \"extensions\": {\"clientLibrary\": {\"name\": \"@apollo/client\", \"version\": \"4.0.9\"}}, \"query\": \"mutation ExportFontProjects($input: ExportFontProjectsInput!) { exportFontProjects(input: $input) { success batchId status errors { code message } } }\"}'"
+    },
+    "exportFontUsers": {
+      "operation": "exportFontUsers",
+      "label": "exportFontUsers(global)",
+      "gql_export": "EXPORT_FONT_USERS",
+      "operation_name": "ExportFontUsers",
+      "variables": {
+        "input": {
+          "format": "CSV",
+          "fontId": "<familyOrStyleId>",
+          "fontName": "QA Export Font"
+        }
+      },
+      "document": "mutation ExportFontUsers($input: ExportFontUsersInput!) { exportFontUsers(input: $input) { success batchId status errors { code message } } }",
+      "curl_pp": "curl 'https://nextgen.monotype-pp.com/graph' \\\n  -H 'accept: application/graphql-response+json,application/json;q=0.9' \\\n  -H 'authorization: Bearer <BEARER_TOKEN>' \\\n  -H 'content-type: application/json' \\\n  -H 'origin: https://nextgen.monotype-pp.com' \\\n  -H 'referer: https://nextgen.monotype-pp.com/manage/usage-activity/fonts' \\\n  -H 'x-correlation-id: <CORRELATION_UUID>' \\\n  -X POST \\\n  --data-raw '{\"operationName\": \"ExportFontUsers\", \"variables\": {\"input\": {\"format\": \"CSV\", \"fontId\": \"<familyOrStyleId>\", \"fontName\": \"QA Export Font\"}}, \"extensions\": {\"clientLibrary\": {\"name\": \"@apollo/client\", \"version\": \"4.0.9\"}}, \"query\": \"mutation ExportFontUsers($input: ExportFontUsersInput!) { exportFontUsers(input: $input) { success batchId status errors { code message } } }\"}'"
+    },
+    "exportFontWebkits": {
+      "operation": "exportFontWebkits",
+      "label": "exportFontWebkits(global)",
+      "gql_export": "EXPORT_FONT_WEBKITS",
+      "operation_name": "ExportFontWebkits",
+      "variables": {
+        "input": {
+          "format": "CSV",
+          "fontId": "<familyOrStyleId>",
+          "fontName": "QA Export Font"
+        }
+      },
+      "document": "mutation ExportFontWebkits($input: ExportFontWebkitsInput!) { exportFontWebkits(input: $input) { success batchId status errors { code message } } }",
+      "curl_pp": "curl 'https://nextgen.monotype-pp.com/graph' \\\n  -H 'accept: application/graphql-response+json,application/json;q=0.9' \\\n  -H 'authorization: Bearer <BEARER_TOKEN>' \\\n  -H 'content-type: application/json' \\\n  -H 'origin: https://nextgen.monotype-pp.com' \\\n  -H 'referer: https://nextgen.monotype-pp.com/manage/usage-activity/fonts' \\\n  -H 'x-correlation-id: <CORRELATION_UUID>' \\\n  -X POST \\\n  --data-raw '{\"operationName\": \"ExportFontWebkits\", \"variables\": {\"input\": {\"format\": \"CSV\", \"fontId\": \"<familyOrStyleId>\", \"fontName\": \"QA Export Font\"}}, \"extensions\": {\"clientLibrary\": {\"name\": \"@apollo/client\", \"version\": \"4.0.9\"}}, \"query\": \"mutation ExportFontWebkits($input: ExportFontWebkitsInput!) { exportFontWebkits(input: $input) { success batchId status errors { code message } } }\"}'"
+    },
+    "exportImportedFonts": {
+      "operation": "exportImportedFonts",
+      "label": "exportImportedFonts(global)",
+      "gql_export": "EXPORT_IMPORTED_FONTS",
+      "operation_name": "ExportImportedFonts",
+      "variables": {
+        "input": {
+          "format": "CSV"
+        }
+      },
+      "document": "mutation ExportImportedFonts($input: ExportImportedFontsInput!) { exportImportedFonts(input: $input) { batchId status message } }",
+      "curl_pp": "curl 'https://nextgen.monotype-pp.com/graph' \\\n  -H 'accept: application/graphql-response+json,application/json;q=0.9' \\\n  -H 'authorization: Bearer <BEARER_TOKEN>' \\\n  -H 'content-type: application/json' \\\n  -H 'origin: https://nextgen.monotype-pp.com' \\\n  -H 'referer: https://nextgen.monotype-pp.com/manage/imported-fonts/fonts' \\\n  -H 'x-correlation-id: <CORRELATION_UUID>' \\\n  -X POST \\\n  --data-raw '{\"operationName\": \"ExportImportedFonts\", \"variables\": {\"input\": {\"format\": \"CSV\"}}, \"extensions\": {\"clientLibrary\": {\"name\": \"@apollo/client\", \"version\": \"4.0.9\"}}, \"query\": \"mutation ExportImportedFonts($input: ExportImportedFontsInput!) { exportImportedFonts(input: $input) { batchId status message } }\"}'"
+    },
+    "exportMyLibrary": {
+      "operation": "exportMyLibrary",
+      "label": "exportMyLibrary(global)",
+      "gql_export": "EXPORT_MY_LIBRARY",
+      "operation_name": "ExportMyLibrary",
+      "variables": {
+        "input": {
+          "format": "CSV"
+        }
+      },
+      "document": "mutation ExportMyLibrary($input: ExportMyLibraryInput!) { exportMyLibrary(input: $input) { batchId status message } }",
+      "curl_pp": "curl 'https://nextgen.monotype-pp.com/graph' \\\n  -H 'accept: application/graphql-response+json,application/json;q=0.9' \\\n  -H 'authorization: Bearer <BEARER_TOKEN>' \\\n  -H 'content-type: application/json' \\\n  -H 'origin: https://nextgen.monotype-pp.com' \\\n  -H 'referer: https://nextgen.monotype-pp.com/library' \\\n  -H 'x-correlation-id: <CORRELATION_UUID>' \\\n  -X POST \\\n  --data-raw '{\"operationName\": \"ExportMyLibrary\", \"variables\": {\"input\": {\"format\": \"CSV\"}}, \"extensions\": {\"clientLibrary\": {\"name\": \"@apollo/client\", \"version\": \"4.0.9\"}}, \"query\": \"mutation ExportMyLibrary($input: ExportMyLibraryInput!) { exportMyLibrary(input: $input) { batchId status message } }\"}'"
+    },
+    "exportNotifications": {
+      "operation": "exportNotifications",
+      "label": "exportNotifications(global)",
+      "gql_export": "EXPORT_NOTIFICATIONS",
+      "operation_name": "ExportNotifications",
+      "variables": {
+        "input": {
+          "format": "CSV"
+        }
+      },
+      "document": "mutation ExportNotifications($input: ExportNotificationsInput!) { exportNotifications(input: $input) { batchId status message } }",
+      "curl_pp": "curl 'https://nextgen.monotype-pp.com/graph' \\\n  -H 'accept: application/graphql-response+json,application/json;q=0.9' \\\n  -H 'authorization: Bearer <BEARER_TOKEN>' \\\n  -H 'content-type: application/json' \\\n  -H 'origin: https://nextgen.monotype-pp.com' \\\n  -H 'referer: https://nextgen.monotype-pp.com/notifications' \\\n  -H 'x-correlation-id: <CORRELATION_UUID>' \\\n  -X POST \\\n  --data-raw '{\"operationName\": \"ExportNotifications\", \"variables\": {\"input\": {\"format\": \"CSV\"}}, \"extensions\": {\"clientLibrary\": {\"name\": \"@apollo/client\", \"version\": \"4.0.9\"}}, \"query\": \"mutation ExportNotifications($input: ExportNotificationsInput!) { exportNotifications(input: $input) { batchId status message } }\"}'"
+    },
+    "exportRoles": {
+      "operation": "exportRoles",
+      "label": "exportRoles(global)",
+      "gql_export": "EXPORT_ROLES",
+      "operation_name": "ExportRoles",
+      "variables": {
+        "input": {
+          "format": "CSV"
+        }
+      },
+      "document": "mutation ExportRoles($input: ExportRolesInput!) { exportRoles(input: $input) { batchId status message } }",
+      "curl_pp": "curl 'https://nextgen.monotype-pp.com/graph' \\\n  -H 'accept: application/graphql-response+json,application/json;q=0.9' \\\n  -H 'authorization: Bearer <BEARER_TOKEN>' \\\n  -H 'content-type: application/json' \\\n  -H 'origin: https://nextgen.monotype-pp.com' \\\n  -H 'referer: https://nextgen.monotype-pp.com/manage/users-and-teams/roles' \\\n  -H 'x-correlation-id: <CORRELATION_UUID>' \\\n  -X POST \\\n  --data-raw '{\"operationName\": \"ExportRoles\", \"variables\": {\"input\": {\"format\": \"CSV\"}}, \"extensions\": {\"clientLibrary\": {\"name\": \"@apollo/client\", \"version\": \"4.0.9\"}}, \"query\": \"mutation ExportRoles($input: ExportRolesInput!) { exportRoles(input: $input) { batchId status message } }\"}'"
+    },
+    "exportTags": {
+      "operation": "exportTags",
+      "label": "exportTags(global)",
+      "gql_export": "EXPORT_TAGS",
+      "operation_name": "ExportTags",
+      "variables": {
+        "input": {
+          "format": "CSV"
+        }
+      },
+      "document": "mutation ExportTags($input: ExportTagsInput!) { exportTags(input: $input) { batchId status message } }",
+      "curl_pp": "curl 'https://nextgen.monotype-pp.com/graph' \\\n  -H 'accept: application/graphql-response+json,application/json;q=0.9' \\\n  -H 'authorization: Bearer <BEARER_TOKEN>' \\\n  -H 'content-type: application/json' \\\n  -H 'origin: https://nextgen.monotype-pp.com' \\\n  -H 'referer: https://nextgen.monotype-pp.com/manage/tags' \\\n  -H 'x-correlation-id: <CORRELATION_UUID>' \\\n  -X POST \\\n  --data-raw '{\"operationName\": \"ExportTags\", \"variables\": {\"input\": {\"format\": \"CSV\"}}, \"extensions\": {\"clientLibrary\": {\"name\": \"@apollo/client\", \"version\": \"4.0.9\"}}, \"query\": \"mutation ExportTags($input: ExportTagsInput!) { exportTags(input: $input) { batchId status message } }\"}'"
+    }
+  }
+}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 from pathlib import Path
 from typing import Any
@@ -10,8 +11,43 @@ from typing import Any
 _lock = threading.Lock()
 
 
-def _store_path(project_root: Path) -> Path:
+def _active_target() -> str:
+    raw = (os.getenv("AUDIT_TARGET") or "qa").strip().lower()
+    return raw if raw in {"pp", "qa", "uat", "everest"} else "qa"
+
+
+def _store_path(project_root: Path, target: str | None = None) -> Path:
+    """Per-environment store so PP/QA Results never mix."""
+    t = (target or _active_target()).strip().lower()
+    if t not in {"pp", "qa", "uat", "everest"}:
+        t = "qa"
+    path = project_root / "reports" / f"comparison-latest-{t}.json"
+    return path
+
+
+def _legacy_store_path(project_root: Path) -> Path:
     return project_root / "reports" / "comparison-latest.json"
+
+
+def store_audit_target(project_root: Path | None = None, target: str | None = None) -> str:
+    return (target or _active_target()).strip().lower() or "qa"
+
+
+def _load_for_target(project_root: Path, target: str | None = None) -> dict[str, Any]:
+    t = store_audit_target(project_root, target)
+    path = _store_path(project_root, t)
+    data = _load(path)
+    # Migrate legacy shared file into pp store on first read.
+    if not data and t == "pp":
+        legacy = _load(_legacy_store_path(project_root))
+        if legacy:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(legacy, indent=2, ensure_ascii=False, default=str) + "\n",
+                encoding="utf-8",
+            )
+            return legacy
+    return data
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -22,6 +58,50 @@ def _load(path: Path) -> dict[str, Any]:
         return data if isinstance(data, dict) else {}
     except Exception:
         return {}
+
+
+_GQL_SOURCE_API = "GraphQL curl / event trigger"
+_GQL_NOTE_LIVE = "GraphQL mutation response (live replay from captured input)"
+_GQL_NOTE_META = "GraphQL mutation response (subject.metadata.result)"
+
+
+def _clean_legacy_raw_envelope_rows(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], bool]:
+    """Relabel rows that still point at the old raw-envelope source of truth."""
+    out: list[dict[str, Any]] = []
+    changed = False
+    for r in rows:
+        fp = str(r.get("field_path") or "")
+        sys = str(r.get("source_system") or "")
+        api = str(r.get("source_api") or "")
+        notes = str(r.get("notes") or "")
+        legacy = (
+            sys == "Raw"
+            or "raw event" in notes.lower()
+            or "published envelope" in notes.lower()
+            or "published envelope" in api.lower()
+        )
+        if legacy and (
+            fp.startswith("source.")
+            or fp
+            in {
+                "xCorrelationId",
+                "eventId",
+                "eventVersion",
+                "occurredAt",
+                "routingKey",
+            }
+        ):
+            r = {
+                **r,
+                "source_system": "Trigger",
+                "source_api": _GQL_SOURCE_API,
+                "notes": _GQL_NOTE_LIVE if "live replay" in notes.lower() else _GQL_NOTE_META
+                if "metadata.result" in notes.lower()
+                else _GQL_NOTE_LIVE,
+            }
+            changed = True
+        out.append(r)
+    return out, changed
 
 
 def _clean_scope_rows(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], bool]:
@@ -73,6 +153,7 @@ def save_operation_result(
     job_kind: str,
     compared_at: str,
     summary: dict[str, Any] | None = None,
+    target: str | None = None,
 ) -> None:
     """Overwrite the stored latest comparison for one operation."""
     op_rows = [r for r in rows if r.get("operation") == operation]
@@ -85,6 +166,7 @@ def save_operation_result(
         job_kind=job_kind,
         compared_at=compared_at,
         summaries={operation: summary} if summary else None,
+        target=target,
     )
 
 
@@ -97,8 +179,9 @@ def save_batch_results(
     job_kind: str,
     compared_at: str,
     summaries: dict[str, dict[str, Any] | None] | None = None,
+    target: str | None = None,
 ) -> None:
-    """Write many operations in one read/write of comparison-latest.json.
+    """Write many operations in one read/write of comparison-latest-{target}.json.
 
     Passing ``rows`` (flat list) or ``operation_rows`` (already grouped) is fine.
     Avoids the old O(n²) rewrite that reloaded a multi‑MB file per operation.
@@ -113,21 +196,34 @@ def save_batch_results(
     if not grouped:
         return
 
-    path = _store_path(project_root)
+    audit_target = store_audit_target(project_root, target)
+    path = _store_path(project_root, audit_target)
     path.parent.mkdir(parents=True, exist_ok=True)
     with _lock:
-        data = _load(path)
+        data = _load_for_target(project_root, audit_target)
+        if not data and audit_target == "pp":
+            data = _load(_legacy_store_path(project_root))
         for op, op_rows in grouped.items():
             if not op_rows:
                 continue
-            data[op] = {
-                "operation": op,
+            canon = _normalize_result_operation(op)
+            for r in op_rows:
+                if isinstance(r, dict):
+                    r["operation"] = _normalize_result_operation(
+                        str(r.get("operation") or canon)
+                    )
+            summ = (summaries or {}).get(op) or (summaries or {}).get(canon)
+            data[canon] = {
+                "operation": canon,
                 "compared_at": compared_at,
                 "job_id": job_id,
                 "job_kind": job_kind,
-                "summary": (summaries or {}).get(op) or _summary_for_rows(op_rows),
+                "summary": summ or _summary_for_rows(op_rows),
                 "rows": op_rows,
             }
+        data, _ = _dedupe_channel_variants(data)
+        if len(data) >= 20:
+            _backup_store(path)
         path.write_text(
             json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n",
             encoding="utf-8",
@@ -144,8 +240,10 @@ def reconcile_scope_rows(project_root: Path) -> dict[str, int]:
         data = _load(path)
         ops_touched = 0
         for op, item in data.items():
-            cleaned, changed = _clean_scope_rows(item.get("rows") or [])
-            if changed:
+            rows = item.get("rows") or []
+            cleaned, changed_scope = _clean_scope_rows(rows)
+            cleaned, changed_raw = _clean_legacy_raw_envelope_rows(cleaned)
+            if changed_scope or changed_raw:
                 ops_touched += 1
                 item["rows"] = cleaned
                 item["summary"] = _summary_for_rows(cleaned)
@@ -157,17 +255,96 @@ def reconcile_scope_rows(project_root: Path) -> dict[str, int]:
     return {"operations_touched": ops_touched}
 
 
-def list_latest(project_root: Path) -> dict[str, Any]:
+def _normalize_result_operation(op: str) -> str:
+    """Strip legacy ``(UI)`` channel suffix — UI is the default, unlabeled."""
+    name = str(op or "").strip()
+    if name.endswith("(UI)"):
+        return name[: -len("(UI)")]
+    if name.endswith("(ui)"):
+        return name[: -len("(ui)")]
+    return name
+
+
+def _dedupe_channel_variants(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """Drop redundant ``op(UI)`` / bare-``op(BE)`` when the canonical key exists.
+
+    - UI is unlabeled → ``activateList(list)(UI)`` collapses into ``activateList(list)``.
+    - Ingress ``op(BE)`` with no inner touchpoint collapses into bare ``op``.
+    - Touchpoint backend labels like ``activateFamily(global)(BE)`` are kept.
+    """
+    import re
+
+    changed = False
+    # 1) Rename/merge *(UI) → bare
+    ui_only = re.compile(r"^(.+)\(UI\)$", re.IGNORECASE)
+    ui_keys = [op for op in list(data.keys()) if ui_only.match(str(op))]
+    for op in ui_keys:
+        m = ui_only.match(str(op))
+        if not m:
+            continue
+        bare = m.group(1)
+        item = data.pop(op, None)
+        if item is None:
+            continue
+        changed = True
+        # Rewrite row operation labels under the bare name
+        rows = item.get("rows") or []
+        for r in rows:
+            if isinstance(r, dict):
+                r["operation"] = bare
+        item["operation"] = bare
+        if bare not in data:
+            data[bare] = item
+            continue
+        # Prefer the newer / higher-pass block
+        existing = data[bare]
+        def _score(block: dict[str, Any]) -> tuple:
+            summ = block.get("summary") or {}
+            return (
+                str(block.get("compared_at") or ""),
+                int(summ.get("pass") or summ.get("PASS") or 0),
+                len(block.get("rows") or []),
+            )
+        if _score(item) > _score(existing):
+            data[bare] = item
+
+    # 2) Drop bare-op(BE) when bare exists (ingress generate labels only)
+    be_only = re.compile(r"^([^(]+)\(BE\)$")
+    to_drop: list[str] = []
+    for op in data:
+        m = be_only.match(str(op))
+        if not m:
+            continue
+        bare = m.group(1)
+        if bare in data and bare != op:
+            to_drop.append(op)
+    for op in to_drop:
+        data.pop(op, None)
+        changed = True
+    return data, changed
+
+
+def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, Any]:
     """All operations with a stored latest comparison, newest first."""
-    path = _store_path(project_root)
-    data = _load(path)
+    audit_target = store_audit_target(project_root, target)
+    path = _store_path(project_root, audit_target)
+    data = _load_for_target(project_root, audit_target)
+    data, deduped = _dedupe_channel_variants(data)
+    if deduped:
+        path.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n",
+            encoding="utf-8",
+        )
     # Clean legacy enrichment-scope SKIP rows on read so the Result view matches
     # current validator behaviour even before the one-time migration runs.
     for item in data.values():
-        cleaned, changed = _clean_scope_rows(item.get("rows") or [])
-        if changed:
+        rows = item.get("rows") or []
+        cleaned, changed_scope = _clean_scope_rows(rows)
+        cleaned, changed_raw = _clean_legacy_raw_envelope_rows(cleaned)
+        if changed_scope or changed_raw:
             item["rows"] = cleaned
             item["summary"] = _summary_for_rows(cleaned)
+        item["audit_target"] = audit_target
     # Keep bare base ops and scenario variants side by side (e.g. activateFamily + activateFamily(global)).
     visible_ops = list(data.keys())
     items = [data[op] for op in visible_ops]
@@ -180,17 +357,24 @@ def list_latest(project_root: Path) -> dict[str, Any]:
         "items": items,
         "rows": merged_rows,
         "count": len(visible_ops),
+        "audit_target": audit_target,
+        "available_targets": ["qa", "pp", "uat"],
     }
 
 
-def get_latest_operation(project_root: Path, operation: str) -> dict[str, Any] | None:
-    data = _load(_store_path(project_root))
+def get_latest_operation(
+    project_root: Path, operation: str, *, target: str | None = None
+) -> dict[str, Any] | None:
+    data = _load_for_target(project_root, target)
     return data.get(operation)
 
 
-def delete_operation_result(project_root: Path, operation: str) -> bool:
+def delete_operation_result(
+    project_root: Path, operation: str, *, target: str | None = None
+) -> bool:
     """Remove one operation's stored comparison. Returns True if something was deleted."""
-    path = _store_path(project_root)
+    audit_target = store_audit_target(project_root, target)
+    path = _store_path(project_root, audit_target)
     with _lock:
         data = _load(path)
         if operation not in data:
@@ -203,12 +387,34 @@ def delete_operation_result(project_root: Path, operation: str) -> bool:
     return True
 
 
-def clear_all_results(project_root: Path) -> int:
+def _backup_store(path: Path) -> Path | None:
+    """Copy comparison-latest.json before destructive writes."""
+    if not path.is_file() or path.stat().st_size < 32:
+        return None
+    backup = path.with_name(f"{path.stem}.backup.json")
+    try:
+        backup.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+        return backup
+    except Exception:
+        return None
+
+
+def restore_from_jobs(project_root: Path, *, jobs_path: Path | None = None) -> dict[str, Any]:
+    """Merge newest per-operation compare rows from jobs-state (legacy 7-day restore)."""
+    from .comparison_restore import restore_from_jobs as _restore
+
+    return _restore(project_root, jobs_path=jobs_path, days=7, update_existing=True)
+
+
+def clear_all_results(project_root: Path, *, target: str | None = None) -> int:
     """Delete every stored comparison. Returns the number of operations removed."""
-    path = _store_path(project_root)
+    audit_target = store_audit_target(project_root, target)
+    path = _store_path(project_root, audit_target)
     with _lock:
         data = _load(path)
         count = len(data)
+        if count:
+            _backup_store(path)
         path.write_text("{}\n", encoding="utf-8")
     return count
 
@@ -216,13 +422,16 @@ def clear_all_results(project_root: Path) -> int:
 def export_comparison_excel(
     project_root: Path,
     operations: list[str] | None = None,
+    *,
+    target: str | None = None,
 ) -> bytes:
     """Build multi-sheet xlsx: one tab per operation with comparison rows."""
     from io import BytesIO
 
     from openpyxl import Workbook
 
-    data = _load(_store_path(project_root))
+    audit_target = store_audit_target(project_root, target)
+    data = _load_for_target(project_root, audit_target)
     ops = [o for o in (operations or []) if o and o in data]
     if not ops:
         ops = sorted(data.keys())

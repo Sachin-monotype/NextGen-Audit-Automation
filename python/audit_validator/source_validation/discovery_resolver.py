@@ -106,11 +106,14 @@ def _style_hit_for(
     *,
     style_id: str | None,
     family_id: str | None,
+    require_style_match: bool = False,
 ) -> dict[str, Any] | None:
     if style_id:
         for hit in style_hits:
             if _as_str(hit.get("id")) == style_id:
                 return hit
+        if require_style_match:
+            return None
     if family_id:
         for hit in style_hits:
             fam = hit.get("mtc_families_data") or {}
@@ -191,7 +194,10 @@ def lookup_discovery_value(
         return hit.get(key)
 
     style_hit = _style_hit_for(
-        style_hits, style_id=ctx["style_id"], family_id=ctx["family_id"]
+        style_hits,
+        style_id=ctx["style_id"],
+        family_id=ctx["family_id"],
+        require_style_match=bool(re.search(r"\.styles\[\d+\]", path)),
     )
     if not style_hit:
         return None
@@ -314,3 +320,55 @@ def normalize_compare(val: object) -> str:
     if isinstance(val, (dict, list)):
         return json.dumps(val, sort_keys=True, ensure_ascii=False)
     return str(val).strip()
+
+
+def synthesize_style_hits_from_variations(
+    variation_hits: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Build style documents from variation ``mtc_styles_data`` when /v1/styles misses them."""
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for var in variation_hits:
+        if not isinstance(var, dict):
+            continue
+        raw = var.get("mtc_styles_data")
+        if not isinstance(raw, dict):
+            continue
+        sid = _as_str(raw.get("id") or var.get("style_id"))
+        if not sid or sid in seen:
+            continue
+        seen.add(sid)
+        style_hit = dict(raw)
+        style_hit["id"] = sid
+        fid = _as_str(var.get("family_id"))
+        fname = var.get("family_name")
+        fam_url = ""
+        fuk = raw.get("font_url_key")
+        if isinstance(fuk, str) and "/" in fuk:
+            parts = [p for p in fuk.split("/") if p]
+            if len(parts) >= 2:
+                fam_url = f"{parts[0]}/{parts[1]}"
+        fdy_raw = raw.get("fdy_name")
+        fdy_name = ""
+        if isinstance(fdy_raw, list) and fdy_raw:
+            fdy_name = _as_str(fdy_raw[0]) or ""
+        elif isinstance(fdy_raw, str):
+            fdy_name = fdy_raw.strip()
+        if fid and isinstance(style_hit.get("mtc_families_data"), dict):
+            pass
+        elif fid or fname:
+            style_hit["mtc_families_data"] = {
+                "id": fid,
+                "name_en": fname,
+                "title_en": fname,
+                "family_url_key": fam_url,
+            }
+        if fdy_name:
+            handle = f"{fdy_name.lower().replace(' ', '-')}-foundry"
+            style_hit["mtc_foundries_data"] = {
+                "name_en": fdy_name,
+                "title_en": fdy_name,
+                "handle": handle,
+            }
+        out.append(style_hit)
+    return out

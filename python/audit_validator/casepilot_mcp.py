@@ -18,6 +18,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 
@@ -25,6 +26,100 @@ DEFAULT_MCP_URL = "https://casepilot.monotype-pp.com/mcp"
 
 # LB flakiness: ~30–70% of init→call pairs miss affinity. 15 tries ≈ ~99.99% if p=0.3.
 _SESSION_RETRY_MAX = int(os.getenv("CASEPILOT_SESSION_RETRIES", "15") or "15")
+_HEALTH_RETRY_MAX = int(os.getenv("CASEPILOT_HEALTH_RETRIES", "3") or "3")
+_HEALTH_CACHE_SEC = float(os.getenv("CASEPILOT_HEALTH_CACHE_SEC", "45") or "45")
+
+_shared_client: CasePilotMcpClient | None = None
+_shared_client_key: str = ""
+_health_cache: dict[str, Any] = {}
+_health_cache_ts: float = 0.0
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = (os.getenv(name) or "").strip().lower()
+    if not raw:
+        return default
+    return raw in {"1", "true", "yes", "on"}
+
+
+def _electron_app_asar_path(app_path: Path) -> Path | None:
+    """Return Contents/Resources/app.asar inside a macOS .app bundle."""
+    candidate = app_path / "Contents" / "Resources" / "app.asar"
+    return candidate if candidate.is_file() else None
+
+
+def _normalize_electron_app_path(raw: str) -> str:
+    """Resolve to a .app bundle that contains Contents/Resources/app.asar."""
+    path = Path(raw).expanduser()
+    if not path.exists():
+        return raw
+    if path.suffix == ".app" and _electron_app_asar_path(path):
+        return str(path)
+    # Parent install folder, e.g. /Applications/Monotype NextGen/
+    if path.is_dir():
+        for child in sorted(path.glob("*.app")):
+            if _electron_app_asar_path(child):
+                return str(child)
+    # Flat /Applications/Monotype NextGen.app
+    for name in ("Monotype NextGen.app", "Monotype Connect.app"):
+        candidate = path / name if path.is_dir() else Path("/Applications") / name
+        if candidate.is_dir() and _electron_app_asar_path(candidate):
+            return str(candidate)
+    return raw
+
+
+def discover_electron_app_path() -> str:
+    """Resolve Monotype Connect / NextGen .app bundle on macOS."""
+    explicit = (os.getenv("CASEPILOT_ELECTRON_APP_PATH") or "").strip()
+    if explicit:
+        return _normalize_electron_app_path(explicit)
+    for root in (Path("/Applications"), Path("/Applications/Monotype NextGen")):
+        if not root.is_dir():
+            continue
+        for name in ("Monotype NextGen.app", "Monotype Connect.app"):
+            candidate = root / name
+            if candidate.is_dir() and _electron_app_asar_path(candidate):
+                return str(candidate)
+        for child in root.glob("*.app"):
+            if _electron_app_asar_path(child):
+                return str(child)
+    return ""
+
+
+def _norm_touch(touch: str) -> str:
+    return " ".join((touch or "").lower().replace("_", " ").split())
+
+
+def selection_uses_electron_app(selection: list[dict[str, Any]]) -> bool:
+    """True when Generate-in-UI should drive Monotype Connect via Electron CDP."""
+    for item in selection:
+        if not isinstance(item, dict):
+            continue
+        sid = str(item.get("id") or "").strip()
+        touch = _norm_touch(str(item.get("touchpoint") or ""))
+        if touch in {"desktop app", "desktop ui"}:
+            return True
+        if "desktop" in touch and "ui" in touch:
+            return True
+        if sid.startswith("ingress:plugin_"):
+            return False
+        if sid.startswith("ingress:app_"):
+            return True
+    return False
+
+
+def resolve_ui_app_type(
+    selection: list[dict[str, Any]] | None,
+    cfg: "CasePilotConfig",
+    extra: dict[str, Any] | None = None,
+) -> str:
+    extra = extra or {}
+    forced = str(extra.get("app_type") or cfg.ui_app_type or "web").strip().lower()
+    if forced in {"electron", "desktop", "app"}:
+        return "electron"
+    if selection and selection_uses_electron_app(selection):
+        return "electron"
+    return "web"
 
 
 @dataclass
@@ -39,6 +134,14 @@ class CasePilotConfig:
     ui_headless: bool = False
     ui_isolated: bool = True
     ui_app_type: str = "web"
+    electron_app_path: str = ""
+    electron_attach_mode: str = "launch"
+    electron_debug_port: int = 9222
+    electron_auto_login: bool = True
+    electron_force_fresh_login: bool = False
+    electron_quit_existing_before_launch: bool = True
+    electron_use_open_on_macos: bool = True
+    electron_headless: bool = False
     # None = omit on run_testrail_ui_tests (use CasePilot PP cap); 1 = serial; 2+ = parallel batch
     max_parallel: int | None = None
 
@@ -46,20 +149,106 @@ class CasePilotConfig:
     def configured(self) -> bool:
         return bool(self.api_key.strip())
 
-    def ui_config(self) -> dict[str, Any]:
-        return {
-            "app_type": self.ui_app_type or "web",
-            "base_url": self.ui_base_url,
-            "username": self.ui_username,
-            "password": self.ui_password,
-            "browser": self.ui_browser or "chrome",
-            "headless": bool(self.ui_headless),
-            "isolated": bool(self.ui_isolated),
-        }
+    def ui_config(
+        self,
+        *,
+        selection: list[dict[str, Any]] | None = None,
+        extra: dict[str, Any] | None = None,
+        base_url: str | None = None,
+    ) -> dict[str, Any]:
+        return build_ui_config(self, selection=selection, extra=extra, base_url=base_url)
 
-    def ui_config_ready(self) -> bool:
-        cfg = self.ui_config()
-        return bool(cfg.get("base_url") and cfg.get("username") and cfg.get("password"))
+    def ui_config_ready(
+        self,
+        *,
+        selection: list[dict[str, Any]] | None = None,
+        extra: dict[str, Any] | None = None,
+    ) -> bool:
+        cfg = self.ui_config(selection=selection, extra=extra)
+        if not (cfg.get("username") and cfg.get("password")):
+            return False
+        app_type = str(cfg.get("app_type") or "web").strip().lower()
+        if app_type in {"electron", "desktop", "app"}:
+            attach = str(cfg.get("electron_attach_mode") or "launch").strip().lower()
+            if attach == "attach":
+                return bool(cfg.get("electron_debug_port"))
+            return bool(cfg.get("electron_app_path"))
+        return bool(cfg.get("base_url"))
+
+
+def build_ui_config(
+    cfg: CasePilotConfig,
+    *,
+    selection: list[dict[str, Any]] | None = None,
+    extra: dict[str, Any] | None = None,
+    base_url: str | None = None,
+) -> dict[str, Any]:
+    """Build CasePilot ``ui_config`` for web or Electron (Monotype Connect)."""
+    extra = extra or {}
+    app_type = resolve_ui_app_type(selection, cfg, extra)
+    headless_raw = extra.get("headless")
+    if headless_raw is None:
+        headless = cfg.electron_headless if app_type == "electron" else cfg.ui_headless
+    else:
+        headless = bool(headless_raw)
+    isolated_raw = extra.get("isolated")
+    isolated = bool(isolated_raw) if isolated_raw is not None else bool(cfg.ui_isolated)
+
+    if app_type == "electron":
+        attach_mode = str(
+            extra.get("electron_attach_mode") or cfg.electron_attach_mode or "launch"
+        ).strip().lower()
+        if attach_mode not in {"launch", "attach"}:
+            attach_mode = "launch"
+        out: dict[str, Any] = {
+            "app_type": "electron",
+            "electron_attach_mode": attach_mode,
+            "username": cfg.ui_username,
+            "password": cfg.ui_password,
+            "headless": headless,
+            "isolated": isolated,
+        }
+        debug_port = int(extra.get("electron_debug_port") or cfg.electron_debug_port or 9222)
+        if attach_mode == "attach":
+            out["electron_debug_port"] = debug_port
+            return out
+        app_path = str(
+            extra.get("electron_app_path")
+            or _normalize_electron_app_path(cfg.electron_app_path)
+            or discover_electron_app_path()
+        )
+        out.update(
+            {
+                "electron_app_path": app_path,
+                "electron_auto_login": bool(
+                    extra.get("electron_auto_login", cfg.electron_auto_login)
+                ),
+                "electron_force_fresh_login": bool(
+                    extra.get("electron_force_fresh_login", cfg.electron_force_fresh_login)
+                ),
+                "electron_quit_existing_before_launch": bool(
+                    extra.get(
+                        "electron_quit_existing_before_launch",
+                        cfg.electron_quit_existing_before_launch,
+                    )
+                ),
+                "electron_use_open_on_macos": bool(
+                    extra.get("electron_use_open_on_macos", cfg.electron_use_open_on_macos)
+                ),
+                "electron_debug_port": debug_port,
+            }
+        )
+        return out
+
+    return {
+        "app_type": "web",
+        "base_url": base_url or cfg.ui_base_url,
+        "username": cfg.ui_username,
+        "password": cfg.ui_password,
+        "browser": str(extra.get("browser") or cfg.ui_browser or "chrome"),
+        "headless": headless,
+        "isolated": isolated,
+    }
 
 
 def load_casepilot_config() -> CasePilotConfig:
@@ -67,7 +256,7 @@ def load_casepilot_config() -> CasePilotConfig:
         os.getenv("CASEPILOT_API_KEY", "").strip()
         or os.getenv("CASEPILOT_API_TOKEN", "").strip()
     )
-    headless_raw = os.getenv("CASEPILOT_UI_HEADLESS", "false").strip().lower()
+    headless_raw = os.getenv("CASEPILOT_UI_HEADLESS", "true").strip().lower()
     mcp_url = os.getenv("CASEPILOT_MCP_URL", "").strip() or DEFAULT_MCP_URL
     # REST base for the jobs/status fallback. Defaults to the MCP host minus /mcp.
     public_url = os.getenv("CASEPILOT_PUBLIC_URL", "").strip()
@@ -102,6 +291,18 @@ def load_casepilot_config() -> CasePilotConfig:
         ui_isolated=os.getenv("CASEPILOT_UI_ISOLATED", "true").strip().lower()
         not in {"0", "false", "no", "off"},
         ui_app_type=os.getenv("CASEPILOT_UI_APP_TYPE", "web").strip() or "web",
+        electron_app_path=discover_electron_app_path(),
+        electron_attach_mode=(
+            os.getenv("CASEPILOT_ELECTRON_ATTACH_MODE", "launch").strip().lower() or "launch"
+        ),
+        electron_debug_port=max(1, int(os.getenv("CASEPILOT_ELECTRON_DEBUG_PORT", "9222") or "9222")),
+        electron_auto_login=_env_bool("CASEPILOT_ELECTRON_AUTO_LOGIN", True),
+        electron_force_fresh_login=_env_bool("CASEPILOT_ELECTRON_FORCE_FRESH_LOGIN", False),
+        electron_quit_existing_before_launch=_env_bool(
+            "CASEPILOT_ELECTRON_QUIT_EXISTING_BEFORE_LAUNCH", True
+        ),
+        electron_use_open_on_macos=_env_bool("CASEPILOT_ELECTRON_USE_OPEN_ON_MACOS", True),
+        electron_headless=_env_bool("CASEPILOT_ELECTRON_HEADLESS", False),
         max_parallel=max_parallel,
     )
 
@@ -333,7 +534,13 @@ class CasePilotMcpClient:
             merged["batch_id"] = batch_id
         return merged
 
-    def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+    def call_tool(
+        self,
+        name: str,
+        arguments: dict[str, Any] | None = None,
+        *,
+        max_retries: int | None = None,
+    ) -> dict[str, Any]:
         """Call an MCP tool with LB-safe session retry.
 
         With the shared cookie jar the affinity cookie keeps ``initialize`` and
@@ -342,7 +549,7 @@ class CasePilotMcpClient:
         found`` (up to ``CASEPILOT_SESSION_RETRIES``). Never retries IP bans.
         """
         last_err: CasePilotMcpError | None = None
-        max_tries = max(1, _SESSION_RETRY_MAX)
+        max_tries = max(1, max_retries if max_retries is not None else _SESSION_RETRY_MAX)
         for attempt in range(max_tries):
             try:
                 # Reuse the affinity-pinned session; force a fresh one only after a
@@ -405,10 +612,28 @@ class CasePilotMcpClient:
         max_parallel: int | None = None,
     ) -> dict[str, Any]:
         cfg = ui_config if ui_config is not None else self.config.ui_config()
-        if not (cfg.get("base_url") and cfg.get("username") and cfg.get("password")):
+        app_type = str(cfg.get("app_type") or "web").strip().lower()
+        if not (cfg.get("username") and cfg.get("password")):
             raise CasePilotMcpError(
-                "ui_config requires base_url, username, and password "
+                "ui_config requires username and password "
                 "(set CASEPILOT_UI_* or OAUTH_USERNAME/OAUTH_PASSWORD)"
+            )
+        if app_type in {"electron", "desktop", "app"}:
+            attach = str(cfg.get("electron_attach_mode") or "launch").strip().lower()
+            if attach == "launch" and not cfg.get("electron_app_path"):
+                raise CasePilotMcpError(
+                    "Electron launch mode requires electron_app_path "
+                    "(set CASEPILOT_ELECTRON_APP_PATH or install Monotype Connect.app)"
+                )
+            if attach == "attach" and not cfg.get("electron_debug_port"):
+                raise CasePilotMcpError(
+                    "Electron attach mode requires electron_debug_port "
+                    "(set CASEPILOT_ELECTRON_DEBUG_PORT)"
+                )
+        elif not cfg.get("base_url"):
+            raise CasePilotMcpError(
+                "Web ui_config requires base_url, username, and password "
+                "(set CASEPILOT_UI_BASE_URL / NEXTGEN_UI_URL)"
             )
         args: dict[str, Any] = {
             "case_ids": case_ids,
@@ -741,8 +966,46 @@ def parse_testrail_case_ids(raw: str | list[Any] | None) -> list[int | str]:
     return ids
 
 
-def health_check() -> dict[str, Any]:
+def _client_cache_key(cfg: CasePilotConfig) -> str:
+    return f"{cfg.mcp_url}|{cfg.api_key[:12]}"
+
+
+def get_shared_casepilot_client(cfg: CasePilotConfig | None = None) -> CasePilotMcpClient:
+    """Reuse one MCP client + session across health checks and UI dispatch."""
+    global _shared_client, _shared_client_key
+    cfg = cfg or load_casepilot_config()
+    key = _client_cache_key(cfg)
+    if _shared_client is not None and _shared_client_key == key:
+        return _shared_client
+    _shared_client = CasePilotMcpClient(cfg)
+    _shared_client_key = key
+    return _shared_client
+
+
+def cached_connector_online() -> bool | None:
+    """Best-effort connector online flag from a recent health check."""
+    if not _health_cache or (time.time() - _health_cache_ts) > _HEALTH_CACHE_SEC:
+        return None
+    online = (_health_cache.get("connectors") or {}).get("online")
+    if isinstance(online, bool):
+        return online
+    if isinstance(online, (int, float)):
+        return online > 0
+    pre = _health_cache.get("preflight")
+    if isinstance(pre, dict):
+        conn = pre.get("connector")
+        if isinstance(conn, dict):
+            reg = conn.get("registered")
+            if isinstance(reg, (int, float)):
+                return reg > 0
+            if isinstance(reg, bool):
+                return reg
+    return None
+
+
+def health_check(*, fast: bool = True, force: bool = False) -> dict[str, Any]:
     """Connectivity smoke test for API / UI status panels."""
+    global _health_cache, _health_cache_ts
     cfg = load_casepilot_config()
     out: dict[str, Any] = {
         "configured": cfg.configured,
@@ -750,15 +1013,27 @@ def health_check() -> dict[str, Any]:
         "ui_config_ready": cfg.ui_config_ready(),
         "default_max_parallel": cfg.max_parallel,
         "ok": False,
+        "cached": False,
     }
     if not cfg.configured:
         out["error"] = "CASEPILOT_API_KEY not set"
         return out
+    if (
+        fast
+        and not force
+        and _health_cache
+        and (time.time() - _health_cache_ts) < _HEALTH_CACHE_SEC
+    ):
+        cached = dict(_health_cache)
+        cached["cached"] = True
+        return cached
     try:
-        client = CasePilotMcpClient(cfg)
-        # One resilient preflight is enough for the modal badge; avoid stacking
-        # three flaky calls that used to surface "session expired" to the UI.
-        pre = client.preflight()
+        client = get_shared_casepilot_client(cfg)
+        # Fast path: one preflight only — skip extra MCP tools that triple latency.
+        pre = client.call_tool(
+            "casepilot_preflight",
+            max_retries=_HEALTH_RETRY_MAX if fast else None,
+        )
         out.update(
             {
                 "ok": bool(pre.get("ok")),
@@ -774,23 +1049,25 @@ def health_check() -> dict[str, Any]:
                 },
             }
         )
-        # Best-effort extras — never fail health if these flake
-        try:
-            conn = client.list_connectors()
-            out["connectors"]["runners"] = conn.get("runners") or []
-        except Exception:  # noqa: BLE001
-            pass
-        try:
-            info = client.connection_info()
-            out["connection_info"].update(
-                {
-                    "mcp_url": info.get("mcp_url") or cfg.mcp_url,
-                    "dashboard_url": info.get("dashboard_url"),
-                    "email": info.get("email") or pre.get("email"),
-                }
-            )
-        except Exception:  # noqa: BLE001
-            pass
+        if not fast:
+            try:
+                conn = client.list_connectors()
+                out["connectors"]["runners"] = conn.get("runners") or []
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                info = client.connection_info()
+                out["connection_info"].update(
+                    {
+                        "mcp_url": info.get("mcp_url") or cfg.mcp_url,
+                        "dashboard_url": info.get("dashboard_url"),
+                        "email": info.get("email") or pre.get("email"),
+                    }
+                )
+            except Exception:  # noqa: BLE001
+                pass
+        _health_cache = dict(out)
+        _health_cache_ts = time.time()
     except Exception as exc:
         out["ok"] = False
         out["error"] = str(exc)

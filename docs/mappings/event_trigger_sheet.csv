@@ -1010,3 +1010,9 @@ uploadImportedFonts,Discovery/Browse (global),"{
   ""_touchpoint"": ""global"",
   ""_hint"": ""Use captured raw subject.metadata.input""
 }",global (no list/project/document scope),uploadImportedFonts,,,,,uploadImportedFonts
+exportReportingUsers,Discovery/Browse (global),"{""format"": ""CSV"", ""filters"": {""eventDateRange"": {""startDate"": ""<date>"", ""endDate"": ""<date>""}}}",reporting users tab + date filters,exportReportingUsers,,,,,exportReportingUsers
+exportReportingFonts,Discovery/Browse (global),"{""format"": ""CSV"", ""filters"": {""eventDateRange"": {""startDate"": ""<date>"", ""endDate"": ""<date>""}}}",reporting fonts tab + date filters,exportReportingFonts,,,,,exportReportingFonts
+exportCompanyLibrary,Discovery/Browse (global),"{""format"": ""CSV""}",company library export,exportCompanyLibrary,,,,,exportCompanyLibrary
+exportActiveFonts,Discovery/Browse (global),"{""format"": ""CSV""}",active fonts export (UI stub until API),exportActiveFonts,,,,,exportActiveFonts
+exportUsers,Discovery/Browse (global),"{""format"": ""CSV"", ""filters"": {""status"": [""ACTIVE""]}}",users tab export,exportUsers,,,,,exportUsers
+exportTeams,Discovery/Browse (global),"{""format"": ""CSV""}",teams tab export,exportTeams,,,,,exportTeams

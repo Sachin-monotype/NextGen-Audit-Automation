@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   fetchCasepilotStatus,
   fetchUiTestrailMap,
+  listGenerateInUi,
   startGenerateInUi,
   type UiTriggerJob,
   type UiTriggerSelectionItem,
@@ -57,6 +58,17 @@ function resolveCaseId(
   return undefined;
 }
 
+function isElectronAppSelection(selection: UiTriggerSelectionItem[]): boolean {
+  return selection.some((s) => {
+    const touch = (s.touchpoint || "").toLowerCase().replace(/_/g, " ");
+    if (touch.includes("desktop app") || touch === "desktop ui") return true;
+    if (touch.includes("desktop") && touch.includes("ui")) return true;
+    if (s.id?.startsWith("ingress:plugin_")) return false;
+    if (s.id?.startsWith("ingress:app_")) return true;
+    return false;
+  });
+}
+
 function formatCasepilotError(raw: string): string {
   const low = raw.toLowerCase();
   if (
@@ -108,12 +120,18 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
   const [error, setError] = useState("");
   const [mcpOk, setMcpOk] = useState<boolean | null>(null);
   const [mcpDetail, setMcpDetail] = useState("");
-  /** headed = visible browser (default); headless = no UI window */
-  const [browserMode, setBrowserMode] = useState<"headed" | "headless">("headed");
+  const electronApp = useMemo(() => isElectronAppSelection(selection), [selection]);
+  const [browserMode, setBrowserMode] = useState<"headed" | "headless">(
+    electronApp ? "headed" : "headless",
+  );
   /** default = PP cap / CASEPILOT_MAX_PARALLEL; 1 = serial */
-  const [parallelMode, setParallelMode] = useState<"default" | "1" | "2" | "3" | "4">("default");
+  const [parallelMode, setParallelMode] = useState<"default" | "1" | "2" | "3" | "4">(
+    selection.length > 1 ? "1" : "default",
+  );
   const [defaultParallel, setDefaultParallel] = useState<number | null>(null);
   const closedRef = useRef(false);
+  const submitRef = useRef(false);
+  const [activeUiJobId, setActiveUiJobId] = useState<string | null>(null);
 
   function requestClose() {
     closedRef.current = true;
@@ -124,6 +142,30 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
   useEffect(() => {
     setRows(initialRows);
   }, [initialRows]);
+
+  useEffect(() => {
+    if (selection.length > 1) {
+      setParallelMode("1");
+    }
+  }, [selection.length]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listGenerateInUi()
+      .then((data) => {
+        if (cancelled) return;
+        const active = (data.jobs || []).find((j) =>
+          ["queued", "running", "pending_agent"].includes(String(j.status || "")),
+        );
+        setActiveUiJobId(active?.id || null);
+      })
+      .catch(() => {
+        if (!cancelled) setActiveUiJobId(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -180,11 +222,13 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitRef.current || busy) return;
     if (missingCase) {
       setError("Each scenario needs a TestRail case id.");
       return;
     }
     closedRef.current = false;
+    submitRef.current = true;
     setBusy(true);
     setError("");
     try {
@@ -199,8 +243,12 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
       const caseIds = rows.map((r) => r.test_case_id.trim()).join(", ");
       const cta =
         rows.length === 1
-          ? `Perform ${scenarioTitle(rows[0])} in NextGen UI`
-          : `Perform ${rows.length} selected scenarios in NextGen UI`;
+          ? electronApp
+            ? `Perform ${scenarioTitle(rows[0])} in Monotype Connect`
+            : `Perform ${scenarioTitle(rows[0])} in NextGen UI`
+          : electronApp
+            ? `Perform ${rows.length} Monotype Connect scenarios`
+            : `Perform ${rows.length} selected scenarios in NextGen UI`;
       const maxParallel =
         parallelMode === "default" ? undefined : Number(parallelMode);
       const res = await startGenerateInUi({
@@ -217,12 +265,13 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
         extra: {
           headless: browserMode === "headless",
           browser_mode: browserMode,
+          ...(electronApp ? { app_type: "electron" } : {}),
           ...(maxParallel != null ? { max_parallel: maxParallel } : {}),
         },
       });
       if (closedRef.current) return;
       onActive?.(res.job);
-      if (!["queued", "running", "completed"].includes(String(res.job.status))) {
+      if (!["queued", "running", "completed", "pending_agent"].includes(String(res.job.status))) {
         const msg = formatCasepilotError(
           (res.job?.agent as { last_error?: string } | undefined)?.last_error ||
             "CasePilot send failed",
@@ -235,6 +284,7 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
       if (closedRef.current) return;
       setError(formatCasepilotError(err instanceof Error ? err.message : String(err)));
     } finally {
+      submitRef.current = false;
       setBusy(false);
     }
   }
@@ -245,37 +295,67 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
         className="modal-card generate-ui-modal generate-ui-modal-wide"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label="Generate in UI"
+        aria-label="Generate from CasePilot"
       >
         <div className="modal-head">
-          <strong>Generate in UI</strong>
+          <strong>Generate from CasePilot</strong>
           <button type="button" className="link-btn" onClick={requestClose}>
             close ✕
           </button>
         </div>
         <p className="muted small">
-          One row per event (FDC-14091 TestRail map). Edit case id or details, then Send.
-          CasePilot opens the <strong>currently selected Environment</strong> NextGen URL
-          (PP / QA / UAT) — change Environment on Generate before sending.
+          {electronApp ? (
+            <>
+              Monotype Connect <strong>Electron</strong> mode — CasePilot launches{" "}
+              <code>/Applications/Monotype Connect.app</code> (or{" "}
+              <code>CASEPILOT_ELECTRON_APP_PATH</code>). xCorrelationId is harvested from
+              Connect service logs after the run. Use <strong>headed</strong> to watch the app.
+            </>
+          ) : (
+            <>
+              One row per event (FDC-14091 TestRail map). Edit case id or details, then Send.
+              CasePilot opens the <strong>currently selected Environment</strong> NextGen URL
+              (PP / QA / UAT) — change Environment on Generate before sending.
+            </>
+          )}
         </p>
         <p className={`small ${mcpOk ? "ok" : mcpOk === false ? "error" : "muted"}`}>
           {mcpDetail || "Checking CasePilot…"}
+          {mcpOk ? "" : mcpOk === null ? " (Send works while status loads)" : ""}
         </p>
+        {activeUiJobId ? (
+          <p className="small warn">
+            Another Generate-in-UI session is active ({activeUiJobId.slice(0, 8)}). Sending will
+            stop that batch on the connector and start this one. Use Close session on the log
+            panel if you want to cancel without starting a new run.
+          </p>
+        ) : null}
+        {rows.length > 1 && !electronApp ? (
+          <p className="muted small">
+            Multi-event batch: set <strong>Parallel browsers</strong> to 2–4 to run cases concurrently
+            on CasePilot (~10 min for 5). Serial (1) runs one-after-another (~8 min/case).
+          </p>
+        ) : null}
 
         <form onSubmit={onSubmit} className="token-cred-form">
           <label style={{ display: "block", marginBottom: 12, maxWidth: 360 }}>
-            Browser mode
+            {electronApp ? "Electron mode" : "Browser mode"}
             <select
               value={browserMode}
               onChange={(e) => setBrowserMode(e.target.value as "headed" | "headless")}
               disabled={busy}
               style={{ display: "block", width: "100%", marginTop: 4 }}
             >
-              <option value="headed">Headed (visible browser) — default</option>
-              <option value="headless">Headless (no browser window)</option>
+              <option value="headed">
+                {electronApp ? "Headed (visible Connect app) — recommended" : "Headed (visible browser)"}
+              </option>
+              <option value="headless">
+                {electronApp ? "Headless (no visible window)" : "Headless (no browser window) — default"}
+              </option>
             </select>
           </label>
 
+          {!electronApp ? (
           <label style={{ display: "block", marginBottom: 12, maxWidth: 360 }}>
             Parallel browsers
             <select
@@ -300,6 +380,7 @@ export default function GenerateInUiModal({ selection, onClose, onActive }: Prop
               own browser + login. Electron/desktop tests stay serial on the connector.
             </span>
           </label>
+          ) : null}
 
           <div className="generate-ui-scenario-list">
             {rows.map((r, i) => {

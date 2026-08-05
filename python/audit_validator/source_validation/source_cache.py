@@ -60,3 +60,11 @@ def save_pickle(project_root: Path, name: str, key_parts: list[str], payload: An
         log.info("Source cache SAVE %s", path.name)
     except Exception as exc:  # noqa: BLE001
         log.warning("Source cache write failed %s: %s", path, exc)
+
+
+def clear_pickle(project_root: Path, name: str, key_parts: list[str]) -> None:
+    path = _cache_dir(project_root) / f"{name}_{_key_hash(key_parts)}.pkl"
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        pass

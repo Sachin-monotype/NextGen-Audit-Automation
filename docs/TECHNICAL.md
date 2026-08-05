@@ -285,7 +285,7 @@ Excel columns match `source-comparison.xlsx`:
 | POST | `/api/ingestion/stop` | Stop the ingestion service |
 | POST | `/api/ingestion/purge` | Purge remaining queued backlog (keep only fresh events) |
 | POST | `/api/mongo/prune` | Trim collections to latest N docs/op (`?max_docs=N`, default 20) |
-| GET | `/api/health/apis` | Reachability + workability of every dependency (Mongo, RabbitMQ, GraphQL, Ingress, CMS, UMS, Discovery) |
+| GET | `/api/health/apis` | Reachability + workability of every dependency (Mongo, RabbitMQ, GraphQL, Ingress, CMS, UMS, Discovery, **user_invitation SQL**, **privateTag**) |
 | POST | `/api/health/probe/{target}` | Re-run one probe on demand (button click) |
 
 ### Network / VPN requirement (important)
@@ -345,8 +345,12 @@ After enrichment, the validator probes live APIs:
 | Source | API | Validates |
 |--------|-----|-----------|
 | Discovery | `POST /v1/styles`, `GET /v1/variations` | Font catalog data in `subject.enrichedSnapshot` |
+| Discovery | `POST /v1/privateTag/{id}` | Private tag fields (`tags[].id`, `name`, `customerId`, …) on updatePrivateTag |
 | UMS | `POST /api/v3/customers/{gcid}/profiles` | Actor profile + role |
+| UMS / MySQL | `SELECT * FROM user_management.user_invitation WHERE email = ?` | createUserInvitations `invitations[]` (email, status, roleId, customerId) |
 | CMS | `GET /api/v2/customers/{gcid}` | Actor customer |
+
+**API Health** tab includes dedicated probes: `ums_invitations` (SQL above) and `typesense_private_tag` (`POST /v1/privateTag/{id}`). Sample email/tag id are taken from staged `createUserInvitations` / `updatePrivateTag` enrich payloads when available.
 
 Postman: `docs/postman/Verification.postman_collection.json`
 

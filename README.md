@@ -82,11 +82,18 @@ Jira: [FDC-14091](https://monotype.atlassian.net/browse/FDC-14091)
 
 | Doc | Topic |
 |-----|--------|
+| [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md) | Directory layout + high-level data flow |
 | [docs/CASEPILOT_INTEGRATION.md](docs/CASEPILOT_INTEGRATION.md) | CasePilot MCP, correlation-id, APIs |
 | [docs/TECHNICAL.md](docs/TECHNICAL.md) | Architecture |
 | [docs/mappings/README.md](docs/mappings/README.md) | Field mapping / trigger-as-source |
 
 Scratch notes → `temp/` (gitignored). Do not put one-off notes in `docs/`.
+
+## Local-only scripts
+
+Maintenance tools (TestRail push, export pack builders, touchpoint generators) live in
+**`local/scripts/`** and are **gitignored** — they stay on your machine. See
+[local/README.md](local/README.md). Tracked dev scripts: `scripts/dev.sh`, `ingest.sh`, `playwright.sh`.
 
 ## Key `.env` variables
 

@@ -55,9 +55,26 @@ def _parse_source(data_mapping: str) -> tuple[str, str]:
     """Return (Source label, API hint) — labels: Typesense, UMS, Raw, CMS, AMS, Resolver, JWT."""
     dm = data_mapping or ""
     lower = dm.lower()
+    # Resolver / enricher constants first — "mt-connect-middleware-discovery" contains
+    # the substring "discovery" and must NOT be classified as Typesense.
+    if "resolver" in lower or "enricher constant" in lower or "middleware-discovery" in lower:
+        return "Resolver", "enricher constant"
     if "variation" in lower and ("discovery" in lower or "typesense" in lower):
         return "Typesense", "GET /v1/variations"
-    if "discovery" in lower or "typesense" in lower:
+    if (
+        "typesense" in lower
+        or "/v1/styles" in lower
+        or "/v1/variations" in lower
+        or "discovery post" in lower
+        or "discovery get" in lower
+        or "discovery →" in lower
+        or "discovery/" in lower
+        or "mtc_families" in lower
+        or "mtc_foundries" in lower
+    ):
+        return "Typesense", "POST /v1/styles"
+    # Bare "discovery" only when it is clearly the catalog source (not middleware-discovery).
+    if re.search(r"(?<![a-z-])discovery(?![a-z-])", lower) or "discovery " in lower:
         return "Typesense", "POST /v1/styles"
     if "ums" in lower or "user-management" in lower:
         return "UMS", "POST/GET /api/v3/customers/{gcid}/profiles"
@@ -69,8 +86,6 @@ def _parse_source(data_mapping: str) -> tuple[str, str]:
         return "JWT", "Bearer token claims"
     if "auth0" in lower:
         return "Auth0", "GET /api/v2/users/{id}"
-    if "resolver" in lower:
-        return "Resolver", "enricher constant"
     if "raw" in lower or "mtconnect-api" in lower or "graphql" in lower or "trigger" in lower or "curl" in lower:
         return "Trigger", "GraphQL curl / event trigger"
     return "Unknown", dm[:80] if dm else ""
@@ -262,6 +277,13 @@ def _font_envelope_fields(operation: str) -> list[MappingField]:
         ("subject.enrichedSnapshot", "fontDetails[0]", "family.foundry.name_en", "", "Discovery mtc_foundries_data.name_en", "Y"),
         ("subject.enrichedSnapshot", "fontDetails[0]", "styles[0].id", "", "Discovery style document id", "Y"),
         ("subject.enrichedSnapshot", "fontDetails[0]", "styles[0].variations[0].catalog.md5", "", "Discovery GET /v1/variations md5", "Y"),
+        ("subject.metadata", "input", "familyIds[0]", "", "Source: GraphQL mutation input familyIds", "Y"),
+        ("subject.metadata", "input", "listIds[0]", "", "Source: GraphQL mutation input listIds (touchpoint)", "Y"),
+        ("subject.metadata", "input", "listType", "", "Source: GraphQL mutation input listType (FONTLIST/PROJECT)", "Y"),
+        ("subject.metadata", "input", "projectIds[0]", "", "Source: GraphQL mutation input projectIds (touchpoint)", "Y"),
+        ("subject.metadata", "input", "activationType", "", "Source: GraphQL mutation input activationType", "Y"),
+        ("subject.metadata", "input", "activationMode", "", "Source: GraphQL mutation input activationMode", "Y"),
+        ("subject.metadata", "result", "families.totalCount", "", "Source: GraphQL mutation response families.totalCount", "Y"),
     ]
     if operation in {"bulkActivateStyles", "bulkDeactivateStyles"}:
         base.extend([
@@ -379,13 +401,13 @@ def _tag_fields() -> list[MappingField]:
     return [
         MappingField(
             "subject.enrichedSnapshot", "tags[0]", "id", "",
-            "Source: UMS/Search private tags", "", "Y",
-            "subject.enrichedSnapshot.tags[0].id", "UMS/Search", "private tags index", "subject",
+            "Source: Discovery GET /v1/privateTag/{id}", "", "Y",
+            "subject.enrichedSnapshot.tags[0].id", "UMS/Search", "GET /v1/privateTag/{id}", "subject",
         ),
         MappingField(
             "subject.enrichedSnapshot", "tags[0]", "name", "",
-            "Source: UMS/Search private tags", "", "Y",
-            "subject.enrichedSnapshot.tags[0].name", "UMS/Search", "private tags index", "subject",
+            "Source: Discovery GET /v1/privateTag/{id}", "", "Y",
+            "subject.enrichedSnapshot.tags[0].name", "UMS/Search", "GET /v1/privateTag/{id}", "subject",
         ),
     ]
 
@@ -490,6 +512,18 @@ def _actor_fields() -> list[MappingField]:
             "Source: CMS GET customer", "", "Y",
             "actor.enrichedSnapshot.customer.displayName", "CMS", "GET customer", "actor",
         ),
+        MappingField(
+            "actor.enrichedSnapshot", "customer", "metaData.customLogoUrl", "",
+            "Source: CMS GET customer metaData.customLogoUrl", "", "Y",
+            "actor.enrichedSnapshot.customer.metaData.customLogoUrl", "CMS",
+            "GET /api/v2/customers/{gcid} (metaData)", "actor",
+        ),
+        MappingField(
+            "actor.enrichedSnapshot", "customer", "metaData.customLogoUploadedAt", "",
+            "Source: CMS GET customer metaData.customLogoUploadedAt", "", "Y",
+            "actor.enrichedSnapshot.customer.metaData.customLogoUploadedAt", "CMS",
+            "GET /api/v2/customers/{gcid} (metaData)", "actor",
+        ),
     ]
 
 
@@ -549,7 +583,7 @@ def _event_header_fields(operation: str) -> list[MappingField]:
         ),
         MappingField(
             "source", "platformEnvironment", "", "",
-            "Source: trigger platformEnvironment (web)", "", "Y",
+            "Source: platformEnvironment from actorUserAgent (Electron→app, browser→web)", "", "Y",
             "source.platformEnvironment", trigger, api, "event",
         ),
         MappingField(
@@ -559,7 +593,7 @@ def _event_header_fields(operation: str) -> list[MappingField]:
         ),
         MappingField(
             "source", "actorUserAgent", "", "",
-            "Source: User-Agent header on the GraphQL curl", "", "Y",
+            "Source: captured client User-Agent (skip when not on GraphQL response)", "", "Y",
             "source.actorUserAgent", trigger, api, "event",
         ),
         MappingField(
@@ -624,9 +658,29 @@ _FONT_OPS = frozenset({
     "activateFamily", "activateStyle", "deactivateStyle", "activateVariation",
     "bulkActivateStyles", "bulkDeactivateStyles", "addFavoriteStyles", "addFavoriteFamilies",
 })
-_ROLE_OPS = frozenset({"createRole", "updateRole", "deleteRoles"})
+_EXPORT_OPS = frozenset({
+    "exportFontAssets",
+    "exportFontProjects",
+    "exportFontUsers",
+    "exportFontWebkits",
+    "exportImportedFonts",
+    "exportMyLibrary",
+    "exportNotifications",
+    "exportRoles",
+    "exportTags",
+    "exportCompanyLibrary",
+    "exportTeams",
+    "exportUsers",
+    "exportReportingFonts",
+    "exportReportingUsers",
+    "exportActiveFonts",
+})
+_ROLE_OPS = frozenset({"createRole", "updateRole"})
+_DELETE_ROLE_OPS = frozenset({"deleteRoles"})
+_DELETE_TEAM_OPS = frozenset({"deleteTeams"})
 _ASSET_OPS = frozenset({
-    "createProject", "publishProject", "createAsset", "updateAsset", "createWebProject",
+    "createProject", "publishProject", "createWebProject", "createAsset", "updateAsset",
+    "downloadWebProject", "updateAssetsSharingInfo",
 })
 _EXCEL_SHEET_BY_OP = {
     "activateFamily": "ActivateFamily",
@@ -634,11 +688,108 @@ _EXCEL_SHEET_BY_OP = {
 }
 
 
+def _export_batch_fields(operation: str) -> list[MappingField]:
+    """Async batch export mutations — source is GraphQL input + response batchId."""
+    fields = _event_header_fields(operation)
+    fields.extend(
+        [
+            MappingField(
+                "subject", "batchId", "", "",
+                "Source: GraphQL mutation response batchId", "", "Y",
+                "subject.batchId", "GraphQL", "mutation response batchId", "subject",
+            ),
+            MappingField(
+                "subject", "type", "", "",
+                "Source: GraphQL mutation response subject.type", "", "Y",
+                "subject.type", "GraphQL", "mutation response", "subject",
+            ),
+            MappingField(
+                "subject", "metadata", "input", "format",
+                "Source: GraphQL mutation input format (CSV)", "", "Y",
+                "subject.metadata.input.format", "GraphQL", "mutation input", "subject",
+            ),
+            MappingField(
+                "subject", "metadata", "result", "status", "",
+                "Source: GraphQL mutation response status", "", "Y",
+                "subject.metadata.result.status", "GraphQL", "mutation response", "subject",
+            ),
+            MappingField(
+                "subject", "metadata", "result", "message", "",
+                "Source: GraphQL mutation response message", "", "N",
+                "subject.metadata.result.message", "GraphQL", "mutation response", "subject",
+            ),
+        ]
+    )
+    fields.extend(_actor_fields())
+    return fields
+
+
+def _delete_teams_fields() -> list[MappingField]:
+    fields = _event_header_fields("deleteTeams")
+    fields.extend(
+        [
+            MappingField(
+                "subject", "id", "", "",
+                "Source: GraphQL mutation input ids", "", "Y",
+                "subject.id", "GraphQL", "mutation input ids", "subject",
+            ),
+            MappingField(
+                "subject", "type", "", "",
+                "Source: GraphQL mutation subject.type", "", "Y",
+                "subject.type", "GraphQL", "mutation response", "subject",
+            ),
+            MappingField(
+                "subject.enrichedSnapshot", "teams", "id", "",
+                "Source: GraphQL mutation input ids (teamIds)", "", "Y",
+                "subject.enrichedSnapshot.teams[0].id", "GraphQL", "mutation input ids", "subject",
+            ),
+        ]
+    )
+    fields.extend(_actor_fields())
+    return fields
+
+
+def _delete_roles_fields() -> list[MappingField]:
+    fields = _event_header_fields("deleteRoles")
+    fields.extend(
+        [
+            MappingField(
+                "subject", "id", "", "",
+                "Source: GraphQL mutation input ids", "", "Y",
+                "subject.id", "GraphQL", "mutation input ids", "subject",
+            ),
+            MappingField(
+                "subject", "type", "", "",
+                "Source: GraphQL mutation subject.type", "", "Y",
+                "subject.type", "GraphQL", "mutation response", "subject",
+            ),
+            MappingField(
+                "subject.enrichedSnapshot", "role", "id", "",
+                "Source: GraphQL mutation input ids (deleted role)", "", "Y",
+                "subject.enrichedSnapshot.role.id", "GraphQL", "mutation input ids", "subject",
+            ),
+            MappingField(
+                "subject.enrichedSnapshot", "roles", "id", "",
+                "Source: GraphQL mutation input ids (deleted role)", "", "Y",
+                "subject.enrichedSnapshot.roles[0].id", "GraphQL", "mutation input ids", "subject",
+            ),
+        ]
+    )
+    fields.extend(_actor_fields())
+    return fields
+
+
 def _builtin_mapping(operation: str) -> list[MappingField]:
+    if operation in _EXPORT_OPS:
+        return _export_batch_fields(operation)
     if operation in _FONT_OPS:
         return _font_envelope_fields(operation)
     if operation == "activateList":
         return _font_envelope_fields(operation) + _asset_fields(operation)
+    if operation in _DELETE_TEAM_OPS:
+        return _delete_teams_fields()
+    if operation in _DELETE_ROLE_OPS:
+        return _delete_roles_fields()
     if operation in _ROLE_OPS:
         return _role_fields(operation)
     if operation == "createTeam":
@@ -687,18 +838,39 @@ def get_operation_mapping(
     reference_xlsx: Path | None = None,
     audit_events_xlsx: Path | None = None,
 ) -> list[MappingField]:
+    from .cron_mappings import cron_mapping_for_operation
+
+    cron_rows = cron_mapping_for_operation(operation)
+    if cron_rows:
+        return cron_rows
+
     xlsx = audit_events_xlsx or DEFAULT_AUDIT_EVENTS_XLSX
     registry = events_by_operation(str(xlsx))
     spec = registry.get(operation)
     if spec:
         return _mapping_for_event_spec(spec)
 
+    from ..case_keys import parse_display_operation
+
+    base, _case = parse_display_operation(operation)
+    if base != operation:
+        cron_rows = cron_mapping_for_operation(base)
+        if cron_rows:
+            return cron_rows
+        spec = registry.get(base)
+        if spec:
+            return _mapping_for_event_spec(spec)
+
     excel_maps = load_reference_excel(reference_xlsx)
     if operation in excel_maps and excel_maps[operation]:
         return excel_maps[operation]
+    if base in excel_maps and excel_maps[base]:
+        return excel_maps[base]
     if operation in _FONT_OPS or operation == "activateList":
         return _font_template(reference_xlsx)
-    return _builtin_mapping(operation)
+    if base in _FONT_OPS or base == "activateList":
+        return _font_template(reference_xlsx)
+    return _builtin_mapping(operation if operation in _EXPORT_OPS or operation in _FONT_OPS else base)
 
 
 def all_operation_mappings(

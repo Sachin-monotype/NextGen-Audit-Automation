@@ -137,6 +137,7 @@ def inject_cron_payloads(
             _publish_case(cfg, payload)
             published.append((case, payload, cid))
             try:
+                from ..case_keys import cron_case_key
                 from ..generation_tracker import record_generation
 
                 actor = payload.get("actor") if isinstance(payload.get("actor"), dict) else {}
@@ -145,6 +146,7 @@ def inject_cron_payloads(
                     cid,
                     kind="cron",
                     project_root=cfg.project_root,
+                    case_key=cron_case_key(case.case_id),
                     meta={
                         "case_id": case.case_id,
                         "eventId": payload.get("eventId"),
@@ -190,29 +192,47 @@ def summarize_cron_results(
         service = str((raw_payload.get("source") or {}).get("service") or case.service)
         routing_key = str(raw_payload.get("routingKey") or case.routing_key or "")
 
+        if not raw_seen:
+            # Ingestion often drains the tap before we read it; check Mongo like ingress.
+            try:
+                from ..ingress.mongo_lookup import lookup_pair_by_correlation
+
+                raw_m, enr_m = lookup_pair_by_correlation(operation, cid)
+            except Exception:  # noqa: BLE001
+                raw_m, enr_m = None, None
+            if raw_m:
+                raw_seen = raw_m
+                if enr_m and not enriched:
+                    enriched = enr_m
+                log.info(
+                    "Cron Mongo fallback hit for %s correlation=%s (enrich=%s)",
+                    case.case_id,
+                    cid[:8],
+                    bool(enr_m),
+                )
+            else:
+                run.cases.append(
+                    CronCaseResult(
+                        case_id=case.case_id,
+                        routing_key=routing_key,
+                        operation=operation,
+                        service=service,
+                        correlation_id=cid,
+                        publish_status="FAIL",
+                        enrich_status="NO",
+                        validation_status="FAIL",
+                        error="Raw event not seen on tap queue after publish",
+                        jira_refs=case.jira_refs,
+                    )
+                )
+                continue
+
         vr = (validation_by_cid or {}).get(cid)
         if vr is None and enriched and raw_seen:
             template_id = OPERATION_TEMPLATE_MAP.get(operation, "cron-scheduler")
             vr = validate_cron_event_pair(operation, service, enriched, raw_seen)
             vr.template_id = template_id
             run.validation_results.append(vr)
-
-        if not raw_seen:
-            run.cases.append(
-                CronCaseResult(
-                    case_id=case.case_id,
-                    routing_key=routing_key,
-                    operation=operation,
-                    service=service,
-                    correlation_id=cid,
-                    publish_status="FAIL",
-                    enrich_status="NO",
-                    validation_status="FAIL",
-                    error="Raw event not seen on tap queue after publish",
-                    jira_refs=case.jira_refs,
-                )
-            )
-            continue
 
         if not enriched:
             no_enricher = operation in CRON_NO_ENRICHER_OPERATIONS or not expects_cron_enrichment(

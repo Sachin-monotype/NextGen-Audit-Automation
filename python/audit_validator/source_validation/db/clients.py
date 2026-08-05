@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .connection import MysqlConfig, load_mysql_config, select_all, select_one
+from .schemas import ams_schema, cms_schema, ums_schema
 
 log = logging.getLogger(__name__)
 
@@ -185,9 +186,9 @@ class CmsDbClient:
         if not customer_id:
             return None
         row = select_one(
-            """
+            f"""
             SELECT *
-            FROM customer_management.customers
+            FROM {cms_schema()}.customers
             WHERE id = %s
             LIMIT 1
             """,
@@ -210,7 +211,7 @@ class CmsDbClient:
         rows = select_all(
             f"""
             SELECT *
-            FROM customer_management.customers
+            FROM {cms_schema()}.customers
             WHERE id IN ({placeholders})
             """,
             tuple(ids),
@@ -237,7 +238,7 @@ class CmsDbClient:
             rows = select_all(
                 f"""
                 SELECT *
-                FROM customer_management.customer_subscription
+                FROM {cms_schema()}.customer_subscription
                 WHERE customer_id IN ({placeholders})
                   AND (is_deleted = 0 OR is_deleted IS NULL)
                 ORDER BY id DESC
@@ -286,11 +287,11 @@ class CmsDbClient:
             "isTestDemo": _as_bool(_pick(row, "is_test_demo", "isTestDemo")),
             "createdAt": _iso(_pick(row, "created_on", "created_at", "createdAt")),
             "modifiedAt": _iso(_pick(row, "modified_on", "modified_at", "modifiedAt")),
-            "_source": "mysql:customer_management.customers",
+            "_source": f"mysql:{cms_schema()}.customers",
         }
         if subscription:
             out["subscription"] = subscription
-            out["_source"] = "mysql:customer_management.customers+customer_subscription"
+            out["_source"] = f"mysql:{cms_schema()}.customers+customer_subscription"
         return out
 
 
@@ -303,7 +304,7 @@ class UmsDbClient:
 
     def _uses_view(self) -> bool:
         if self._has_view is None:
-            self._has_view = _table_exists("user_management", "vw_profile_details", cfg=self._mysql)
+            self._has_view = _table_exists(ums_schema(), "vw_profile_details", cfg=self._mysql)
         return self._has_view
 
     def get_profile_by_id(
@@ -312,16 +313,18 @@ class UmsDbClient:
         customer_id: str,
         *,
         correlation_id: str = "",
+        user_type: str | None = None,
     ) -> dict[str, Any] | None:
-        del correlation_id
+        # ``user_type`` is HTTP-only (POST-as-GET filter); MySQL rows are untyped.
+        del correlation_id, user_type
         if not profile_id:
             return None
 
         row: dict[str, Any] | None = None
         if self._uses_view():
-            sql = """
+            sql = f"""
                 SELECT *
-                FROM user_management.vw_profile_details
+                FROM {ums_schema()}.vw_profile_details
                 WHERE profile_Id_uuid = %s
                   AND (is_deleted = 0 OR is_deleted IS NULL)
             """
@@ -333,9 +336,9 @@ class UmsDbClient:
             row = select_one(sql, tuple(params), cfg=self._mysql)
             if not row and customer_id:
                 row = select_one(
-                    """
+                    f"""
                     SELECT *
-                    FROM user_management.vw_profile_details
+                    FROM {ums_schema()}.vw_profile_details
                     WHERE profile_Id_uuid = %s
                       AND (is_deleted = 0 OR is_deleted IS NULL)
                     LIMIT 1
@@ -346,7 +349,7 @@ class UmsDbClient:
         if not row:
             # Legacy binary(16) profiles table — same pattern as MTConnectAutomation helper.
             row = select_one(
-                """
+                f"""
                 SELECT
                   LOWER(BIN_TO_UUID(id)) AS profile_Id_uuid,
                   LOWER(BIN_TO_UUID(user_id)) AS user_id_uuid,
@@ -357,7 +360,7 @@ class UmsDbClient:
                   created_on,
                   modified_on,
                   meta_data AS meta
-                FROM user_management.profiles
+                FROM {ums_schema()}.profiles
                 WHERE id = UUID_TO_BIN(%s)
                 LIMIT 1
                 """,
@@ -402,7 +405,7 @@ class UmsDbClient:
             rows = select_all(
                 f"""
                 SELECT *
-                FROM user_management.vw_profile_details
+                FROM {ums_schema()}.vw_profile_details
                 WHERE profile_Id_uuid IN ({placeholders})
                   AND (is_deleted = 0 OR is_deleted IS NULL)
                 """,
@@ -443,7 +446,7 @@ class UmsDbClient:
               type_id,
               description,
               LOWER(BIN_TO_UUID(customer_id)) AS customer_id
-            FROM user_management.roles
+            FROM {ums_schema()}.roles
             WHERE id IN ({placeholders})
             """,
             tuple(ids),
@@ -461,7 +464,7 @@ class UmsDbClient:
                 "typeId": _pick(row, "type_id", "typeId"),
                 "description": _pick(row, "description"),
                 "permissions": perms_by_role.get(rid) or [],
-                "_source": "mysql:user_management.roles",
+                "_source": f"mysql:{ums_schema()}.roles",
             }
         return out
 
@@ -477,7 +480,7 @@ class UmsDbClient:
                 SELECT
                   LOWER(BIN_TO_UUID(role_id)) AS role_id,
                   permission_id
-                FROM user_management.role_permissions_mapping
+                FROM {ums_schema()}.role_permissions_mapping
                 WHERE role_id IN ({placeholders})
                 ORDER BY permission_id
                 """,
@@ -520,9 +523,9 @@ class UmsDbClient:
             return None
         if self._uses_view():
             rows = select_all(
-                """
+                f"""
                 SELECT *
-                FROM user_management.vw_profile_details
+                FROM {ums_schema()}.vw_profile_details
                 WHERE idp_user_id = %s
                   AND (is_deleted = 0 OR is_deleted IS NULL)
                 LIMIT 20
@@ -541,13 +544,13 @@ class UmsDbClient:
                     "profiles": [
                         {"id": p.get("id"), "customerId": p.get("customerId")} for p in profiles
                     ],
-                    "_source": "mysql:user_management.vw_profile_details",
+                    "_source": f"mysql:{ums_schema()}.vw_profile_details",
                 }
         try:
             row = select_one(
-                """
+                f"""
                 SELECT *
-                FROM user_management.deleted_profiles
+                FROM {ums_schema()}.deleted_profiles
                 WHERE idp_user_id = %s
                 LIMIT 1
                 """,
@@ -563,9 +566,96 @@ class UmsDbClient:
                 "lastName": _pick(row, "last_name", "lastName"),
                 "email": _pick(row, "email"),
                 "profiles": [],
-                "_source": "mysql:user_management.deleted_profiles",
+                "_source": f"mysql:{ums_schema()}.deleted_profiles",
             }
         return None
+
+    @staticmethod
+    def _invitation_to_api(row: dict[str, Any]) -> dict[str, Any]:
+        role_id = _pick(row, "RoleId", "role_id", "roleId")
+        gcid = _pick(row, "GlobalCustomerId", "global_customer_id", "globalCustomerId")
+        inv_id = _pick(row, "Id", "id", "invitationId")
+        role_obj: dict[str, Any] = {}
+        if role_id:
+            role_obj = {"id": _str(role_id)}
+        gcid_str = _str(gcid) if gcid else None
+        return {
+            "invitationId": inv_id,
+            "id": inv_id,
+            "email": _pick(row, "Email", "email"),
+            "status": _pick(row, "Status", "status"),
+            "roleId": _str(role_id) if role_id else None,
+            "role": role_obj,
+            "globalCustomerId": gcid_str,
+            "customerId": gcid_str,
+            "createdAt": _iso(_pick(row, "CreatedOn", "created_on", "createdAt")),
+            "emailLocale": _pick(row, "EmailLocale", "email_locale", "emailLocale"),
+            "teamIds": _parse_json(_pick(row, "TeamIds", "team_ids", "teamIds")),
+            "_source": f"mysql:{ums_schema()}.user_invitation",
+        }
+
+    def get_invitation_by_email(
+        self,
+        email: str,
+        customer_id: str = "",
+        *,
+        correlation_id: str = "",
+    ) -> dict[str, Any] | None:
+        """``user_management.user_invitation`` row for the invited email."""
+        del correlation_id
+        em = str(email or "").strip()
+        if not em:
+            return None
+        row = select_one(
+            f"""
+            SELECT *
+            FROM {ums_schema()}.user_invitation
+            WHERE email = %s
+            LIMIT 1
+            """,
+            (em,),
+            cfg=self._mysql,
+        )
+        if not row:
+            return None
+        mapped = self._invitation_to_api(row)
+        role_id = mapped.get("roleId")
+        gcid = customer_id or mapped.get("globalCustomerId") or mapped.get("customerId") or ""
+        if role_id and gcid:
+            hydrated = self.get_role_by_id(str(role_id), str(gcid), correlation_id="db")
+            if hydrated:
+                mapped["role"] = {
+                    "id": hydrated.get("id"),
+                    "displayName": hydrated.get("displayName"),
+                    "name": hydrated.get("displayName"),
+                    "permissions": hydrated.get("permissions"),
+                }
+        return mapped
+
+    def get_invitation_by_id(
+        self,
+        invitation_id: str,
+        *,
+        correlation_id: str = "",
+    ) -> dict[str, Any] | None:
+        """``user_management.user_invitation`` row by numeric Id."""
+        del correlation_id
+        iid = str(invitation_id or "").strip()
+        if not iid or not iid.isdigit():
+            return None
+        row = select_one(
+            f"""
+            SELECT *
+            FROM {ums_schema()}.user_invitation
+            WHERE Id = %s
+            LIMIT 1
+            """,
+            (int(iid),),
+            cfg=self._mysql,
+        )
+        if not row:
+            return None
+        return self._invitation_to_api(row)
 
     @staticmethod
     def _profile_to_api(row: dict[str, Any]) -> dict[str, Any]:
@@ -580,21 +670,34 @@ class UmsDbClient:
             if role_desc:
                 role_obj["description"] = role_desc
         meta = _parse_json(_pick(row, "meta", "meta_data", "metaData"))
+        first = _pick(row, "first_name", "firstName")
+        last = _pick(row, "last_name", "lastName")
+        email = _pick(row, "email")
+        idp = _pick(row, "idp_user_id", "idpUserId")
+        user_id = _pick(row, "user_id_uuid", "user_id", "userId")
         return {
             "id": _str(_pick(row, "profile_Id_uuid", "id", "profile_id")),
             "customerId": _str(_pick(row, "customer_id_uuid", "customer_id", "customerId")),
             "isActive": _as_bool(_pick(row, "is_active", "isActive")),
-            "firstName": _pick(row, "first_name", "firstName"),
-            "lastName": _pick(row, "last_name", "lastName"),
-            "email": _pick(row, "email"),
-            "idpUserId": _pick(row, "idp_user_id", "idpUserId"),
-            "userId": _pick(row, "user_id_uuid", "user_id", "userId"),
+            "firstName": first,
+            "lastName": last,
+            "email": email,
+            "idpUserId": idp,
+            "userId": user_id,
             "externalUserId": _pick(row, "externaluser_id", "externalUserId"),
             "createdAt": _iso(_pick(row, "created_on", "createdAt")),
+            # Mirror HTTP UMS shape used by enriched actor.enrichedSnapshot.user.*
+            "user": {
+                "id": _str(user_id) if user_id else None,
+                "firstName": first,
+                "lastName": last,
+                "email": email,
+                "idpUserId": idp,
+            },
             "role": role_obj,
             "team": {},
             "meta": meta if isinstance(meta, dict) else {},
-            "_source": "mysql:user_management.vw_profile_details",
+            "_source": f"mysql:{ums_schema()}.vw_profile_details",
         }
 
     def get_teams_by_ids(
@@ -617,21 +720,44 @@ class UmsDbClient:
         params: list[Any] = list(ids)
         sql = f"""
             SELECT
-              id,
-              name,
-              description,
-              LOWER(BIN_TO_UUID(customer_id)) AS customerId
-            FROM user_management.teams
-            WHERE id IN ({placeholders})
+              t.id,
+              t.name,
+              t.description,
+              LOWER(BIN_TO_UUID(t.customer_id)) AS customerId,
+              (
+                SELECT COUNT(*)
+                FROM {ums_schema()}.profile_teams pt
+                WHERE pt.team_id = t.id
+              ) AS profilesCount
+            FROM {ums_schema()}.teams t
+            WHERE t.id IN ({placeholders})
         """
         if customer_id:
-            sql += " AND customer_id = UUID_TO_BIN(%s)"
+            sql += " AND t.customer_id = UUID_TO_BIN(%s)"
             params.append(customer_id)
         try:
             rows = select_all(sql, tuple(params), cfg=self._mysql)
         except Exception as exc:  # noqa: BLE001
-            log.warning("UMS teams DB lookup failed: %s", exc)
-            return []
+            # Older schemas may lack profile_teams — fall back without count.
+            log.warning("UMS teams DB lookup failed (%s); retrying without profilesCount", exc)
+            sql = f"""
+                SELECT
+                  id,
+                  name,
+                  description,
+                  LOWER(BIN_TO_UUID(customer_id)) AS customerId
+                FROM {ums_schema()}.teams
+                WHERE id IN ({placeholders})
+            """
+            params2: list[Any] = list(ids)
+            if customer_id:
+                sql += " AND customer_id = UUID_TO_BIN(%s)"
+                params2.append(customer_id)
+            try:
+                rows = select_all(sql, tuple(params2), cfg=self._mysql)
+            except Exception as exc2:  # noqa: BLE001
+                log.warning("UMS teams DB lookup failed: %s", exc2)
+                return []
         out: list[dict[str, Any]] = []
         for row in rows or []:
             out.append(
@@ -640,7 +766,8 @@ class UmsDbClient:
                     "name": _pick(row, "name"),
                     "description": _pick(row, "description"),
                     "customerId": _str(_pick(row, "customerId", "customer_id")),
-                    "_source": "mysql:user_management.teams",
+                    "profilesCount": _pick(row, "profilesCount", "profiles_count"),
+                    "_source": f"mysql:{ums_schema()}.teams",
                 }
             )
         return out
@@ -651,14 +778,17 @@ class AmsDbClient:
 
     The ``assets`` table only stores path / created_at / meta. API fields
     ``name``, ``parentId``, ``updatedAt``, ``description`` live on
-    ``projects`` (binary UUID ``id``). ``accessIds`` are effective ACL ids
-    from ``asset_user_access`` on the asset + ancestors (+ SuperAdmin for
-    Company Admin profiles).
+    ``projects`` (binary UUID ``id``). ``accessIds`` are effective ACL ids from:
+
+    - ``asset_user_access`` (caller grants on asset + ancestors)
+    - ``asset_group_access`` (group grants on asset + ancestors)
+    - ``asset_public_access`` (customer-level public grants)
+
+    Schema follows ``ams_schema()`` (``asset_management_nextgenqa`` on QA).
     """
 
     def __init__(self, mysql: MysqlConfig | None = None) -> None:
         self._mysql = mysql or load_mysql_config()
-        self._super_admin_by_type: dict[str, int] | None = None
 
     @staticmethod
     def ams_asset_type(asset_type: str) -> str | None:
@@ -685,9 +815,9 @@ class AmsDbClient:
         del correlation_id
         if not asset_id:
             return None
-        sql = """
+        sql = f"""
             SELECT *
-            FROM asset_management.assets
+            FROM {ams_schema()}.assets
             WHERE asset_id = %s
         """
         params: list[Any] = [asset_id]
@@ -702,13 +832,17 @@ class AmsDbClient:
         row = select_one(sql, tuple(params), cfg=self._mysql)
         if not row and (ams_type or global_customer_id):
             row = select_one(
-                "SELECT * FROM asset_management.assets WHERE asset_id = %s LIMIT 1",
+                f"SELECT * FROM {ams_schema()}.assets WHERE asset_id = %s LIMIT 1",
                 (asset_id,),
                 cfg=self._mysql,
             )
         if not row:
             return None
-        return self._hydrate(row, global_user_id=global_user_id)
+        return self._hydrate(
+            row,
+            global_user_id=global_user_id,
+            global_customer_id=global_customer_id,
+        )
 
     def get_assets_by_ids_only(
         self,
@@ -719,14 +853,19 @@ class AmsDbClient:
         global_customer_id: str = "",
     ) -> dict[str, dict[str, Any]]:
         """Type-agnostic bulk lookup — mirrors HTTP ``POST /v2/assets/bulk``."""
-        del correlation_id, global_customer_id
-        return self.get_assets_by_ids(asset_ids, global_user_id=global_user_id)
+        del correlation_id
+        return self.get_assets_by_ids(
+            asset_ids,
+            global_user_id=global_user_id,
+            global_customer_id=global_customer_id,
+        )
 
     def get_assets_by_ids(
         self,
         asset_ids: list[str],
         *,
         global_user_id: str = "",
+        global_customer_id: str = "",
     ) -> dict[str, dict[str, Any]]:
         ids = [str(a).strip() for a in asset_ids if str(a or "").strip()]
         if not ids:
@@ -735,14 +874,18 @@ class AmsDbClient:
         rows = select_all(
             f"""
             SELECT *
-            FROM asset_management.assets
+            FROM {ams_schema()}.assets
             WHERE asset_id IN ({placeholders})
             """,
             tuple(ids),
             cfg=self._mysql,
         )
         proj = self._projects_for(ids)
-        access = self._access_ids_for(ids, global_user_id=global_user_id)
+        access = self._access_ids_for(
+            ids,
+            global_user_id=global_user_id,
+            global_customer_id=global_customer_id,
+        )
         out: dict[str, dict[str, Any]] = {}
         for row in rows:
             mapped = self._to_api(
@@ -755,10 +898,24 @@ class AmsDbClient:
                 out[aid] = mapped
         return out
 
-    def _hydrate(self, row: dict[str, Any], *, global_user_id: str = "") -> dict[str, Any]:
+    def _hydrate(
+        self,
+        row: dict[str, Any],
+        *,
+        global_user_id: str = "",
+        global_customer_id: str = "",
+    ) -> dict[str, Any]:
         aid = _str(_pick(row, "asset_id", "id"))
         proj = self._projects_for([aid]).get(aid) if aid else None
-        access = self._access_ids_for([aid], global_user_id=global_user_id).get(aid) if aid else None
+        access = (
+            self._access_ids_for(
+                [aid],
+                global_user_id=global_user_id,
+                global_customer_id=global_customer_id,
+            ).get(aid)
+            if aid
+            else None
+        )
         return self._to_api(row, project=proj, access_ids=access)
 
     def _projects_for(self, asset_ids: list[str]) -> dict[str, dict[str, Any]]:
@@ -779,7 +936,7 @@ class AmsDbClient:
                   END AS parent_id,
                   created_at,
                   updated_at
-                FROM asset_management.projects
+                FROM {ams_schema()}.projects
                 WHERE id IN ({placeholders})
                 """,
                 tuple(ids),
@@ -795,8 +952,15 @@ class AmsDbClient:
         asset_ids: list[str],
         *,
         global_user_id: str = "",
+        global_customer_id: str = "",
     ) -> dict[str, list[int]]:
-        """Effective accessIds ≈ grants on asset + ancestors (+ SuperAdmin)."""
+        """Effective accessIds ≈ user + group + public grants on asset (+ ancestors).
+
+        Matches enricher ``accessIds`` (e.g. FullAccess from ``asset_user_access``
+        plus ViewOnly from ``asset_public_access``). Does **not** invent SuperAdmin
+        just because the caller is Company Admin — that produced false FAILs vs
+        the snapshot.
+        """
         ids = [str(i).strip() for i in asset_ids if str(i or "").strip()]
         if not ids:
             return {}
@@ -804,33 +968,45 @@ class AmsDbClient:
         placeholders = ",".join(["%s"] * len(ids))
         path_rows = select_all(
             f"""
-            SELECT asset_id, asset_path, asset_type
-            FROM asset_management.assets
+            SELECT asset_id, asset_path, asset_type, global_customer_id
+            FROM {ams_schema()}.assets
             WHERE asset_id IN ({placeholders})
             """,
             tuple(ids),
             cfg=self._mysql,
         )
         path_by: dict[str, list[str]] = {}
-        type_by: dict[str, str] = {}
+        customer_by: dict[str, str] = {}
         all_nodes: set[str] = set(ids)
         for row in path_rows:
             aid = _str(_pick(row, "asset_id"))
-            type_by[aid] = _str(_pick(row, "asset_type"))
+            customer_by[aid] = _str(_pick(row, "global_customer_id"))
             raw_path = _str(_pick(row, "asset_path"))
             ancestors = [p for p in raw_path.split("|") if p]
             path_by[aid] = ancestors
             all_nodes.update(ancestors)
 
-        grants: dict[str, list[int]] = {n: [] for n in all_nodes}
-        if all_nodes and global_user_id:
-            node_list = sorted(all_nodes)
-            ph = ",".join(["%s"] * len(node_list))
+        user_grants: dict[str, list[int]] = {n: [] for n in all_nodes}
+        group_grants: dict[str, list[int]] = {n: [] for n in all_nodes}
+        public_grants: dict[str, list[int]] = {n: [] for n in all_nodes}
+
+        def _append_grant(bucket: dict[str, list[int]], nid: str, aid_val: Any) -> None:
+            if not nid or aid_val is None:
+                return
+            try:
+                bucket.setdefault(nid, []).append(int(aid_val))
+            except (TypeError, ValueError):
+                pass
+
+        node_list = sorted(all_nodes)
+        ph = ",".join(["%s"] * len(node_list)) if node_list else ""
+
+        if node_list and global_user_id:
             try:
                 acc_rows = select_all(
                     f"""
                     SELECT asset_id, access_id
-                    FROM asset_management.asset_user_access
+                    FROM {ams_schema()}.asset_user_access
                     WHERE user_id = %s
                       AND asset_id IN ({ph})
                     """,
@@ -838,69 +1014,64 @@ class AmsDbClient:
                     cfg=self._mysql,
                 )
                 for r in acc_rows:
-                    nid = _str(_pick(r, "asset_id"))
-                    aid_val = _pick(r, "access_id")
-                    if nid and aid_val is not None:
-                        try:
-                            grants.setdefault(nid, []).append(int(aid_val))
-                        except (TypeError, ValueError):
-                            pass
+                    _append_grant(user_grants, _str(_pick(r, "asset_id")), _pick(r, "access_id"))
             except Exception as exc:  # noqa: BLE001
-                log.warning("AMS access lookup failed: %s", exc)
+                log.warning("AMS user access lookup failed: %s", exc)
 
-        is_company_admin = self._is_company_admin(global_user_id) if global_user_id else False
+        if node_list:
+            try:
+                grp_rows = select_all(
+                    f"""
+                    SELECT asset_id, access_id
+                    FROM {ams_schema()}.asset_group_access
+                    WHERE asset_id IN ({ph})
+                    """,
+                    tuple(node_list),
+                    cfg=self._mysql,
+                )
+                for r in grp_rows:
+                    _append_grant(group_grants, _str(_pick(r, "asset_id")), _pick(r, "access_id"))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("AMS group access lookup failed: %s", exc)
+
+            try:
+                # Public / company-wide grants (e.g. ViewOnly=25) — required for
+                # updateAssetSharing snapshots. Prefer filter by customer when known.
+                pub_sql = f"""
+                    SELECT asset_id, access_id, customer_id
+                    FROM {ams_schema()}.asset_public_access
+                    WHERE asset_id IN ({ph})
+                """
+                pub_params: list[Any] = list(node_list)
+                # When every requested asset shares one customer (or caller passed
+                # one), narrow the public ACL to that customer.
+                customers = {
+                    global_customer_id.strip()
+                    for c in (global_customer_id, *[customer_by.get(i, "") for i in ids])
+                    if str(c or "").strip()
+                }
+                if len(customers) == 1:
+                    pub_sql += " AND customer_id = %s"
+                    pub_params.append(next(iter(customers)))
+                pub_rows = select_all(pub_sql, tuple(pub_params), cfg=self._mysql)
+                for r in pub_rows:
+                    _append_grant(public_grants, _str(_pick(r, "asset_id")), _pick(r, "access_id"))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("AMS public access lookup failed: %s", exc)
+
         out: dict[str, list[int]] = {}
         for aid in ids:
             ordered: list[int] = []
             seen: set[int] = set()
+            # Order mirrors enricher: direct user → group → public, then ancestors.
             for node in [aid, *path_by.get(aid, [])]:
-                for acc in grants.get(node) or []:
-                    if acc not in seen:
-                        seen.add(acc)
-                        ordered.append(acc)
-            if is_company_admin:
-                sa = self._super_admin_id(type_by.get(aid) or "")
-                if sa is not None and sa not in seen:
-                    ordered.append(sa)
+                for bucket in (user_grants, group_grants, public_grants):
+                    for acc in bucket.get(node) or []:
+                        if acc not in seen:
+                            seen.add(acc)
+                            ordered.append(acc)
             out[aid] = ordered
         return out
-
-    def _super_admin_id(self, asset_type: str) -> int | None:
-        if self._super_admin_by_type is None:
-            self._super_admin_by_type = {}
-            try:
-                rows = select_all(
-                    """
-                    SELECT id, asset_type
-                    FROM asset_management.access
-                    WHERE name = 'SuperAdmin'
-                    """,
-                    cfg=self._mysql,
-                )
-                for r in rows:
-                    self._super_admin_by_type[_str(_pick(r, "asset_type"))] = int(_pick(r, "id"))
-            except Exception as exc:  # noqa: BLE001
-                log.warning("AMS SuperAdmin lookup failed: %s", exc)
-        return self._super_admin_by_type.get(asset_type)
-
-    def _is_company_admin(self, profile_id: str) -> bool:
-        if not profile_id:
-            return False
-        try:
-            row = select_one(
-                """
-                SELECT role_name
-                FROM user_management.vw_profile_details
-                WHERE profile_Id_uuid = %s
-                LIMIT 1
-                """,
-                (profile_id,),
-                cfg=self._mysql,
-            )
-        except Exception:
-            row = None
-        name = _str(_pick(row or {}, "role_name")).casefold()
-        return "company admin" in name or name in {"admin", "super admin"}
 
     def _to_api(
         self,
@@ -936,7 +1107,7 @@ class AmsDbClient:
             "depth": _pick(row, "asset_level", "depth", "assetLevel"),
             "accessIds": list(access_ids or []),
             "metaData": meta if isinstance(meta, dict) else {},
-            "_source": "mysql:asset_management.assets+projects",
+            "_source": f"mysql:{ams_schema()}.assets+projects",
         }
         return out
 
