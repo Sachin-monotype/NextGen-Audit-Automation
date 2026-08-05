@@ -199,13 +199,15 @@ def infer_source_system(path: str, operation: str | None = None) -> tuple[str, s
     # Actor identity (globalUserId / globalCustomerId / orgId) is carried by the
     # Bearer token (JWT) that triggered the event — it isn't fetched from an external
     # source. Label it as such so the Result view shows "Bearer token" instead of "-".
+    # Actor identity: web GraphQL → JWT; app/desktop ingress → envelope actor
+    # (resolver DesktopApp* enrichers read actor.globalUserId/globalCustomerId from the POST body).
     if p.startswith("actor.") and p.split(".")[-1] in {
         "globaluserid",
         "globalcustomerid",
         "orgid",
         "parentcustomerid",
     }:
-        return "Bearer token", "JWT claim (actor identity)"
+        return "Bearer token", "JWT claim (actor identity) — app/ingress overrides via trigger"
     if p.startswith("actor.") and p.split(".")[-1] in {
         "machineid",
         "uniqueid",

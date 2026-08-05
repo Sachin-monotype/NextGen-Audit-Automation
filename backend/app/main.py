@@ -27,7 +27,12 @@ db = AuditDatabase(settings)
 job_store = JobStore(persist_path=settings.audit_project_root / "reports" / "jobs-state.json")
 ingestion = IngestionManager(settings)
 bridge = AuditBridge(settings.audit_project_root, job_store, db, ingestion=ingestion)
-retention = RetentionScheduler(db, settings.retention_max_docs, settings.retention_interval_sec)
+retention = RetentionScheduler(
+    db,
+    settings.retention_max_docs,
+    settings.retention_interval_sec,
+    keep_hours=settings.retention_keep_hours,
+)
 
 app = FastAPI(title="NextGen Audit Automation", version="1.1.0")
 

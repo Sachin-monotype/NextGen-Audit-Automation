@@ -23,6 +23,7 @@ class Settings:
     cors_origins: list[str]
     retention_max_docs: int
     retention_interval_sec: int
+    retention_keep_hours: float
 
 
 def load_settings() -> Settings:
@@ -51,4 +52,5 @@ def load_settings() -> Settings:
         cors_origins=[x.strip() for x in cors.split(",") if x.strip()],
         retention_max_docs=int(os.getenv("MONGO_RETENTION_MAX_DOCS_PER_OPERATION", "20")),
         retention_interval_sec=int(os.getenv("MONGO_RETENTION_INTERVAL_SEC", "3600")),
+        retention_keep_hours=float(os.getenv("MONGO_RETENTION_KEEP_HOURS", "3") or "3"),
     )

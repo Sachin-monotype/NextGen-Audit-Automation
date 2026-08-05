@@ -20,10 +20,18 @@ log = logging.getLogger(__name__)
 
 
 class RetentionScheduler:
-    def __init__(self, db: "AuditDatabase", max_docs: int, interval_sec: int) -> None:
+    def __init__(
+        self,
+        db: "AuditDatabase",
+        max_docs: int,
+        interval_sec: int,
+        *,
+        keep_hours: float = 3.0,
+    ) -> None:
         self._db = db
         self._max_docs = max(1, int(max_docs))
         self._interval = max(60, int(interval_sec))
+        self._keep_hours = float(keep_hours)
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self.last_removed: dict[str, int] = {}
@@ -39,8 +47,10 @@ class RetentionScheduler:
             total = sum(removed.values())
             if total:
                 log.info(
-                    "Mongo retention sweep removed %s docs (keep latest %s/op): %s",
+                    "Mongo retention sweep removed %s docs "
+                    "(keep %sh then latest %s/op): %s",
                     total,
+                    self._keep_hours,
                     self._max_docs,
                     removed,
                 )
@@ -66,7 +76,8 @@ class RetentionScheduler:
         self._thread = threading.Thread(target=self._loop, name="mongo-retention", daemon=True)
         self._thread.start()
         log.info(
-            "Mongo retention scheduler started (keep latest %s/op, every %ss).",
+            "Mongo retention scheduler started (keep %sh then latest %s/op, every %ss).",
+            self._keep_hours,
             self._max_docs,
             self._interval,
         )

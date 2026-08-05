@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import re
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from pymongo import ASCENDING, DESCENDING, MongoClient
@@ -19,6 +21,50 @@ FILTER_FIELDS = (
     "source.service",
     "source.operationState",
 )
+
+
+def _parse_occurred_at(raw: object) -> datetime | None:
+    if raw is None:
+        return None
+    if isinstance(raw, datetime):
+        dt = raw
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt
+    text = str(raw).strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    # Trim over-precise fractional seconds (e.g. .1450000Z)
+    if "." in text:
+        head, rest = text.split(".", 1)
+        frac = ""
+        tz = ""
+        for i, ch in enumerate(rest):
+            if ch.isdigit():
+                frac += ch
+            else:
+                tz = rest[i:]
+                break
+        text = f"{head}.{frac[:6]}{tz}" if frac else f"{head}{tz}"
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _is_within_keep_hours(occurred_at: object, keep_hours: float, *, now: datetime | None = None) -> bool:
+    if keep_hours <= 0:
+        return False
+    dt = _parse_occurred_at(occurred_at)
+    if dt is None:
+        return False
+    anchor = now or datetime.now(timezone.utc)
+    return dt >= anchor - timedelta(hours=keep_hours)
 
 
 class AuditDatabase:
@@ -163,8 +209,10 @@ class AuditDatabase:
     def has_active_filters(filters: dict[str, str]) -> bool:
         return any((filters.get(key) or "").strip() for key in FILTER_FIELDS)
 
-    # When filtering by a single operation, only the latest few entries are useful.
-    OPERATION_FILTER_CAP = 5
+    # When filtering by a single operation (browse), cap latest entries.
+    # Correlation-id search never uses this cap (_single_operation_filter is false
+    # when xCorrelationId is set). Env override: MONGO_OPERATION_FILTER_CAP.
+    OPERATION_FILTER_CAP = int(os.getenv("MONGO_OPERATION_FILTER_CAP", "20") or "20")
 
     @staticmethod
     def _single_operation_filter(filters: dict[str, str]) -> bool:
@@ -174,6 +222,10 @@ class AuditDatabase:
             return False
         values = [v for v in (x.strip() for x in raw.split(",")) if v]
         if len(values) != 1:
+            return False
+        # Correlation / actor search must not be capped — frequent ops push older
+        # CIDs out of the browse window but they remain queryable by id.
+        if (filters.get("xCorrelationId") or "").strip():
             return False
         # No other narrowing filter active → treat as "browse this operation".
         others = [k for k in FILTER_FIELDS if k != "source.operation"]
@@ -628,25 +680,48 @@ class AuditDatabase:
                 return raw, enr, "actor_latest"
         return None, None, "none"
 
-    def prune_collection(self, tab: str, max_retain: int) -> int:
-        """Keep only the latest ``max_retain`` docs per source.operation in one collection."""
+    def prune_collection(
+        self,
+        tab: str,
+        max_retain: int,
+        *,
+        keep_hours: float | None = None,
+    ) -> int:
+        """Keep recent docs + latest ``max_retain`` older docs per operation.
+
+        Docs with ``occurredAt`` within ``keep_hours`` are always retained.
+        Older docs are trimmed to the newest ``max_retain`` per ``source.operation``.
+        """
         col = self.collection(tab)
         self._ensure_sort_index(col)
+        hours = (
+            float(keep_hours)
+            if keep_hours is not None
+            else float(getattr(self._settings, "retention_keep_hours", 3.0) or 3.0)
+        )
+        now = datetime.now(timezone.utc)
         pipeline = [
             {"$sort": {"occurredAt": -1}},
-            {"$group": {"_id": "$source.operation", "docs": {"$push": "$_id"}, "count": {"$sum": 1}}},
-            {"$match": {"count": {"$gt": max_retain}}},
             {
-                "$project": {
-                    "idsToDelete": {
-                        "$slice": ["$docs", max_retain, {"$subtract": ["$count", max_retain]}]
-                    }
+                "$group": {
+                    "_id": "$source.operation",
+                    "docs": {"$push": {"_id": "$_id", "occurredAt": "$occurredAt"}},
+                    "count": {"$sum": 1},
                 }
             },
         ]
         ids_to_delete: list[Any] = []
         for group in col.aggregate(pipeline, allowDiskUse=True):
-            ids_to_delete.extend(group.get("idsToDelete") or [])
+            docs = list(group.get("docs") or [])
+            recent_ids = {
+                d.get("_id")
+                for d in docs
+                if _is_within_keep_hours(d.get("occurredAt"), hours, now=now)
+            }
+            older = [d for d in docs if d.get("_id") not in recent_ids]
+            # Always keep all recent; among older keep newest max_retain.
+            drop_older = older[max(0, int(max_retain)) :]
+            ids_to_delete.extend(d["_id"] for d in drop_older if d.get("_id") is not None)
         if not ids_to_delete:
             return 0
         return col.delete_many({"_id": {"$in": ids_to_delete}}).deleted_count or 0
@@ -656,6 +731,7 @@ class AuditDatabase:
         max_retain: int,
         *,
         protect_cids: set[str] | None = None,
+        keep_hours: float | None = None,
     ) -> dict[str, int]:
         """Prune raw + enriched together so a kept enriched always keeps its raw twin.
 
@@ -663,14 +739,21 @@ class AuditDatabase:
         the raw side of a pair while leaving the enriched orphan — Compare then fails
         to find a true pair. Strategy per ``source.operation``:
 
-        1. Keep the latest ``max_retain`` **paired** xCorrelationIds (by enriched time).
-        2. Delete older paired cids from **both** collections.
-        3. For unpaired docs in each collection, keep the latest ``max_retain``, delete rest.
+        1. Keep **all** paired cids with occurredAt within ``keep_hours``.
+        2. Among older paired cids, keep the latest ``max_retain`` (by enriched time).
+        3. Delete other older paired cids from **both** collections.
+        4. For unpaired docs, same recent-vs-old rule.
 
         ``protect_cids`` — owned generate/UI correlations that must never be deleted
         (otherwise Generation Status PASS samples vanish before Compare).
         """
         protected = {str(c).strip() for c in (protect_cids or set()) if str(c or "").strip()}
+        hours = (
+            float(keep_hours)
+            if keep_hours is not None
+            else float(getattr(self._settings, "retention_keep_hours", 3.0) or 3.0)
+        )
+        now = datetime.now(timezone.utc)
         raw_col = self.collection("raw")
         enr_col = self.collection("enriched")
         self._ensure_sort_index(raw_col)
@@ -732,7 +815,21 @@ class AuditDatabase:
                 key=lambda c: str((enr_by_cid[c][0] or {}).get("occurredAt") or ""),
                 reverse=True,
             )
-            keep_paired = set(paired_cids[:max_retain]) | (set(paired_cids) & protected)
+
+            def _cid_recent(cid: str) -> bool:
+                enr_occ = (enr_by_cid.get(cid) or [{}])[0].get("occurredAt")
+                raw_occ = (raw_by_cid.get(cid) or [{}])[0].get("occurredAt")
+                return _is_within_keep_hours(enr_occ, hours, now=now) or _is_within_keep_hours(
+                    raw_occ, hours, now=now
+                )
+
+            recent_paired = [c for c in paired_cids if _cid_recent(c)]
+            older_paired = [c for c in paired_cids if c not in set(recent_paired)]
+            keep_paired = (
+                set(recent_paired)
+                | set(older_paired[: max(0, int(max_retain))])
+                | (set(paired_cids) & protected)
+            )
             drop_paired = set(paired_cids) - keep_paired
 
             for cid in drop_paired:
@@ -763,12 +860,18 @@ class AuditDatabase:
 
             unpaired_raw = _unprotected(unpaired_raw)
             unpaired_enr = _unprotected(unpaired_enr)
-            for d in unpaired_raw[max_retain:]:
-                if d.get("_id") is not None:
-                    raw_delete.append(d["_id"])
-            for d in unpaired_enr[max_retain:]:
-                if d.get("_id") is not None:
-                    enr_delete.append(d["_id"])
+
+            def _trim_unpaired(docs: list[dict[str, Any]]) -> list[Any]:
+                recent_ids = {
+                    d.get("_id")
+                    for d in docs
+                    if _is_within_keep_hours(d.get("occurredAt"), hours, now=now)
+                }
+                older = [d for d in docs if d.get("_id") not in recent_ids]
+                return [d["_id"] for d in older[max(0, int(max_retain)) :] if d.get("_id") is not None]
+
+            raw_delete.extend(_trim_unpaired(unpaired_raw))
+            enr_delete.extend(_trim_unpaired(unpaired_enr))
 
         removed = {"raw": 0, "enriched": 0}
         if raw_delete:

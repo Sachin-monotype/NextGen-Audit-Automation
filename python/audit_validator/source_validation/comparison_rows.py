@@ -1154,7 +1154,13 @@ def _resolve_source_value(
         return _dig(enriched, path), f"{spec.source_system} (accepted; not probed)"
 
     if spec.source_system in {"JWT", "Bearer token"}:
-        # Compare enriched actor identity to JWT claims (sheet: decrypt token).
+        # App/desktop ingress: actor.globalUserId / globalCustomerId are on the
+        # audit POST body (resolver uses those for UMS/CMS). Do not map from JWT.
+        trigger = live.get("trigger") if isinstance(live.get("trigger"), dict) else {}
+        if trigger and _trigger_looks_like_app_ui(trigger, enriched):
+            from_ingress = _trigger_value(path, trigger, enriched)
+            if from_ingress is not None and str(from_ingress).strip():
+                return from_ingress, "Audit ingress body (actor)"
         return _jwt_actor_value(path, enriched, live)
 
     return None, ""

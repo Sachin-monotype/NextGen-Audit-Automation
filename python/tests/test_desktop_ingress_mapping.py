@@ -104,8 +104,29 @@ def test_trigger_and_compare_prefer_ingress_over_be_defaults():
     assert ctx["source"]["osName"] == "mac"
     assert _trigger_value("source.service", ctx, {}) == "mtconnect-ui"
     assert _trigger_value("actor.machineId", ctx, {}) == "M1"
+    assert _trigger_value("actor.globalUserId", ctx, {}) == "gu"
+    assert _trigger_value("actor.globalCustomerId", ctx, {}) == "gc"
     assert _trigger_value("subject.id[0]", ctx, {}) == "910"
     assert _trigger_value("subject.styles[0].id", ctx, {}) == "920"
+
+    from audit_validator.source_validation.comparison_rows import _resolve_source_value
+    from audit_validator.source_validation.mapping_registry import MappingField
+
+    for path, expected in (
+        ("actor.globalUserId", "gu"),
+        ("actor.globalCustomerId", "gc"),
+    ):
+        spec = MappingField(
+            path, "", "", "", "", "", "Y", path, "Bearer token", "JWT claim", "actor"
+        )
+        val, note = _resolve_source_value(
+            spec,
+            {"actor": {"globalUserId": "gu", "globalCustomerId": "gc"}, "source": {"service": "mtconnect-ui", "platformEnvironment": "app"}},
+            live={"trigger": ctx},
+            operation="fontTempActivated",
+        )
+        assert val == expected
+        assert "ingress" in note.lower()
 
     legacy = {
         "source": {"service": "mtconnect-api", "platformVersion": "1.0.0"},

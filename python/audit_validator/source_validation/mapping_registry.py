@@ -642,6 +642,16 @@ def _desktop_ingress_fields(operation: str) -> list[MappingField]:
                 "actor.authenticationState", trigger, api, "actor",
             ),
             MappingField(
+                "actor", "globalUserId", "", "",
+                "Source: audit ingress actor.globalUserId (resolver uses envelope actor, not JWT)", "", "Y",
+                "actor.globalUserId", trigger, api, "actor",
+            ),
+            MappingField(
+                "actor", "globalCustomerId", "", "",
+                "Source: audit ingress actor.globalCustomerId (resolver uses envelope actor, not JWT)", "", "Y",
+                "actor.globalCustomerId", trigger, api, "actor",
+            ),
+            MappingField(
                 "subject", "type", "", "",
                 "Source: audit ingress subject.type", "", "Y",
                 "subject.type", trigger, api, "subject",
