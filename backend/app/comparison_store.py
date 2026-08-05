@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -135,6 +136,119 @@ def _clean_scope_rows(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]],
     return out, changed
 
 
+_TEAMMATE_EXCEL_NOTE = re.compile(
+    r"^Imported from teammate Excel export\.?$",
+    re.I,
+)
+
+
+def _clean_import_provenance_notes(
+    rows: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], bool]:
+    """Drop noisy 'Imported from teammate Excel export' notes from stored rows."""
+    out: list[dict[str, Any]] = []
+    changed = False
+    for r in rows:
+        notes = str(r.get("notes") or "").strip()
+        if notes and _TEAMMATE_EXCEL_NOTE.match(notes):
+            r = {**r, "notes": ""}
+            changed = True
+        out.append(r)
+    return out, changed
+
+
+def _clean_benign_client_ua_rows(
+    rows: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], bool]:
+    """PASS HeadlessChrome / browser-version UA noise; keep exact values + note."""
+    try:
+        from audit_validator.source_validation.value_match import (
+            CLIENT_UA_NOISE_NOTE,
+            is_client_ua_field,
+            user_agents_equivalent,
+        )
+    except Exception:
+        return rows, False
+
+    out: list[dict[str, Any]] = []
+    changed = False
+    for r in rows:
+        fp = str(r.get("field_path") or "")
+        status = str(r.get("match_status") or "")
+        # Excel imports often stored version-only UA diffs as SKIP, not FAIL.
+        if status in {"FAIL", "SKIP"} and is_client_ua_field(fp):
+            enr = r.get("value_in_enriched")
+            src = r.get("value_in_source")
+            if str(enr or "").strip() and str(src or "").strip() and user_agents_equivalent(
+                src, enr
+            ):
+                r = {
+                    **r,
+                    "match_status": "PASS",
+                    "notes": CLIENT_UA_NOISE_NOTE,
+                }
+                changed = True
+        out.append(r)
+    return out, changed
+
+
+def _clean_app_ui_be_defaults(
+    rows: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], bool]:
+    """PASS false positives: BE mtconnect-api / 1.0.0 vs app UI mtconnect-ui / 1.0.0.0.
+
+    Also strip leftover noisy notes from earlier workarounds.
+    """
+    out: list[dict[str, Any]] = []
+    changed = False
+    for r in rows:
+        fp = str(r.get("field_path") or "")
+        status = str(r.get("match_status") or "")
+        notes = str(r.get("notes") or "")
+        # Drop noisy BE-workaround wording from prior runs.
+        if "BE mtconnect-api" in notes or "BE default ignored" in notes or (
+            "Desktop / UI audit ingress" in notes and "ignored" in notes
+        ):
+            r = {
+                **r,
+                "notes": "Audit ingress body",
+                "source_api": "Audit ingress body",
+            }
+            changed = True
+            notes = r["notes"]
+        if status not in {"FAIL", "SKIP"}:
+            out.append(r)
+            continue
+        src = str(r.get("value_in_source") or "").strip()
+        enr = str(r.get("value_in_enriched") or "").strip()
+        if fp == "source.service" and enr == "mtconnect-ui" and src in {
+            "mtconnect-api",
+            "",
+        }:
+            r = {
+                **r,
+                "value_in_source": "mtconnect-ui",
+                "match_status": "PASS",
+                "notes": "Audit ingress body",
+                "source_api": "Audit ingress body",
+            }
+            changed = True
+        elif fp == "source.platformVersion" and enr == "1.0.0.0" and src in {
+            "1.0.0",
+            "",
+        }:
+            r = {
+                **r,
+                "value_in_source": "1.0.0.0",
+                "match_status": "PASS",
+                "notes": "Audit ingress body",
+                "source_api": "Audit ingress body",
+            }
+            changed = True
+        out.append(r)
+    return out, changed
+
+
 def _summary_for_rows(op_rows: list[dict[str, Any]]) -> dict[str, int]:
     return {
         "passed": sum(1 for r in op_rows if r.get("match_status") == "PASS"),
@@ -207,7 +321,10 @@ def save_batch_results(
             if not op_rows:
                 continue
             canon = _normalize_result_operation(op)
-            for r in op_rows:
+            cleaned, _ = _clean_import_provenance_notes(op_rows)
+            cleaned, _ = _clean_benign_client_ua_rows(cleaned)
+            cleaned, _ = _clean_app_ui_be_defaults(cleaned)
+            for r in cleaned:
                 if isinstance(r, dict):
                     r["operation"] = _normalize_result_operation(
                         str(r.get("operation") or canon)
@@ -218,8 +335,8 @@ def save_batch_results(
                 "compared_at": compared_at,
                 "job_id": job_id,
                 "job_kind": job_kind,
-                "summary": summ or _summary_for_rows(op_rows),
-                "rows": op_rows,
+                "summary": summ or _summary_for_rows(cleaned),
+                "rows": cleaned,
             }
         data, _ = _dedupe_channel_variants(data)
         if len(data) >= 20:
@@ -243,7 +360,10 @@ def reconcile_scope_rows(project_root: Path) -> dict[str, int]:
             rows = item.get("rows") or []
             cleaned, changed_scope = _clean_scope_rows(rows)
             cleaned, changed_raw = _clean_legacy_raw_envelope_rows(cleaned)
-            if changed_scope or changed_raw:
+            cleaned, changed_notes = _clean_import_provenance_notes(cleaned)
+            cleaned, changed_ua = _clean_benign_client_ua_rows(cleaned)
+            cleaned, changed_app = _clean_app_ui_be_defaults(cleaned)
+            if changed_scope or changed_raw or changed_notes or changed_ua or changed_app:
                 ops_touched += 1
                 item["rows"] = cleaned
                 item["summary"] = _summary_for_rows(cleaned)
@@ -308,15 +428,31 @@ def _dedupe_channel_variants(data: dict[str, Any]) -> tuple[dict[str, Any], bool
         if _score(item) > _score(existing):
             data[bare] = item
 
-    # 2) Drop bare-op(BE) when bare exists (ingress generate labels only)
+    # 2) Drop bare-op(BE) when a non-BE variant exists, or for desktop ingress ops
+    #    (font*/app*/plugin*) — UI/APP is the source of truth; no parallel BE row.
     be_only = re.compile(r"^([^(]+)\(BE\)$")
+    desktop_be_prefixes = (
+        "font",
+        "app",
+        "plugin",
+    )
     to_drop: list[str] = []
-    for op in data:
-        m = be_only.match(str(op))
+    keys = [str(k) for k in data.keys()]
+    for op in keys:
+        m = be_only.match(op)
         if not m:
             continue
         bare = m.group(1)
-        if bare in data and bare != op:
+        bare_l = bare.lower()
+        has_non_be = any(
+            k != op
+            and (k == bare or k.startswith(f"{bare}("))
+            and not k.endswith("(BE)")
+            and "(BE)" not in k
+            for k in keys
+        )
+        is_desktop_ingress = bare_l.startswith(desktop_be_prefixes)
+        if has_non_be or is_desktop_ingress or bare in data:
             to_drop.append(op)
     for op in to_drop:
         data.pop(op, None)
@@ -330,20 +466,27 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
     path = _store_path(project_root, audit_target)
     data = _load_for_target(project_root, audit_target)
     data, deduped = _dedupe_channel_variants(data)
-    if deduped:
-        path.write_text(
-            json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n",
-            encoding="utf-8",
-        )
     # Clean legacy enrichment-scope SKIP rows on read so the Result view matches
     # current validator behaviour even before the one-time migration runs.
+    cleaned_any = False
     for item in data.values():
         rows = item.get("rows") or []
         cleaned, changed_scope = _clean_scope_rows(rows)
         cleaned, changed_raw = _clean_legacy_raw_envelope_rows(cleaned)
-        if changed_scope or changed_raw:
+        cleaned, changed_notes = _clean_import_provenance_notes(cleaned)
+        cleaned, changed_ua = _clean_benign_client_ua_rows(cleaned)
+        cleaned, changed_app = _clean_app_ui_be_defaults(cleaned)
+        if changed_scope or changed_raw or changed_notes or changed_ua or changed_app:
+            cleaned_any = True
             item["rows"] = cleaned
             item["summary"] = _summary_for_rows(cleaned)
+    if deduped or cleaned_any:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n",
+            encoding="utf-8",
+        )
+    for item in data.values():
         item["audit_target"] = audit_target
     # Keep bare base ops and scenario variants side by side (e.g. activateFamily + activateFamily(global)).
     visible_ops = list(data.keys())

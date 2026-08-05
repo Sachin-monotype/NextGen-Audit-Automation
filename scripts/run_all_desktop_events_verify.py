@@ -62,8 +62,8 @@ def main() -> int:
     apply_audit_profile(project_root=ROOT)
 
     from audit_validator.correlation import mongo_correlation_filter
-    from audit_validator.desktop.config import TARGET_URL, default_log_dir
-    from audit_validator.desktop.log_extractor import _extract_payload_from_curl
+    from audit_validator.desktop.config import TARGET_URL, default_log_dir, is_audit_ingress_curl
+    from audit_validator.desktop.log_extractor import _extract_payloads_from_curl
     from audit_validator.desktop.navigation import load_desktop_events
     from audit_validator.desktop.runner import run_desktop_ui_automation
     from audit_validator.mongo_client import create_mongo_client
@@ -137,23 +137,23 @@ def main() -> int:
         if "[CurlDebug]" not in line:
             continue
         curl = line.split("[CurlDebug]", 1)[1].strip()
-        if TARGET_URL not in curl and "audit-events" not in curl:
+        if not is_audit_ingress_curl(curl):
             continue
-        payload = _extract_payload_from_curl(curl) or {}
-        cid = str(payload.get("xCorrelationId") or "")
-        if not cid or cid in seen:
-            continue
-        seen.add(cid)
-        src = payload.get("source") or {}
-        fresh.append(
-            {
-                "operation": src.get("operation") or "",
-                "xCorrelationId": cid,
-                "occurredAt": payload.get("occurredAt") or "",
-                "eventId": payload.get("eventId") or "",
-                "curl_preview": curl[:320],
-            }
-        )
+        for payload in _extract_payloads_from_curl(curl):
+            cid = str(payload.get("xCorrelationId") or "")
+            if not cid or cid in seen:
+                continue
+            seen.add(cid)
+            src = payload.get("source") or {}
+            fresh.append(
+                {
+                    "operation": src.get("operation") or "",
+                    "xCorrelationId": cid,
+                    "occurredAt": payload.get("occurredAt") or "",
+                    "eventId": payload.get("eventId") or "",
+                    "curl_preview": curl[:320],
+                }
+            )
 
     print(f"\nFresh CurlDebug CIDs: {len(fresh)}")
     for row in fresh:
@@ -182,6 +182,9 @@ def main() -> int:
                 elif raw:
                     row["status"] = "RAW_ONLY"
                     pending += 1
+                elif enr:
+                    # Enrich without raw is a pipeline anomaly — stop waiting on it.
+                    row["status"] = "ENRICH_ONLY"
                 else:
                     row["status"] = "MISSING"
                     pending += 1

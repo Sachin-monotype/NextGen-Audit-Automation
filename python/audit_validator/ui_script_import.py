@@ -120,24 +120,109 @@ def _graphql_root_operation(gql: dict[str, Any] | None) -> str | None:
     return None
 
 
-def _response_body_correlation_id(full: dict[str, Any] | None) -> str | None:
-    """CID from ingress/audit Response body (preferred over a stale Excel column)."""
+def _looks_like_audit_envelope(node: dict[str, Any] | None) -> bool:
+    """True for desktop/UI audit POST bodies (source + actor/subject/CID)."""
+    if not isinstance(node, dict) or not node:
+        return False
+    src = node.get("source")
+    if not isinstance(src, dict) or not src:
+        return False
+    if not (src.get("service") or src.get("operation") or src.get("platformVersion")):
+        return False
+    return bool(
+        node.get("actor")
+        or node.get("subject")
+        or node.get("xCorrelationId")
+        or node.get("eventId")
+        or src.get("osName")
+        or src.get("actorUserAgent")
+    )
+
+
+def _unwrap_audit_envelope(full: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Return the audit envelope from a top-level body or ``{op: envelope}`` wrap."""
     if not isinstance(full, dict):
         return None
+    if _looks_like_audit_envelope(full):
+        return full
+    data = full.get("data")
+    if isinstance(data, dict) and data is not full:
+        nested = _unwrap_audit_envelope(data)
+        if nested is not None:
+            return nested
+    skip = {"data", "errors", "extensions", "__typename"}
+    candidates = [
+        v
+        for k, v in full.items()
+        if k not in skip and isinstance(v, dict) and _looks_like_audit_envelope(v)
+    ]
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
+
+
+def _response_body_correlation_id(full: dict[str, Any] | None) -> str | None:
+    """CID from ingress/audit Response body (preferred over a stale Excel column)."""
+    env = _unwrap_audit_envelope(full) or (full if isinstance(full, dict) else None)
+    if not isinstance(env, dict):
+        return None
     for key in ("xCorrelationId", "correlationId", "correlation_id", "x_correlation_id"):
-        val = full.get(key)
+        val = env.get(key)
         if isinstance(val, str) and val.strip():
             return val.strip()
     return None
 
 
 def _response_body_operation(full: dict[str, Any] | None, gql: dict[str, Any] | None) -> str | None:
-    """Audit/ingress ``operation`` field, else GraphQL root field."""
-    if isinstance(full, dict):
-        op = full.get("operation")
+    """Audit/ingress ``source.operation`` field, else GraphQL root field."""
+    env = _unwrap_audit_envelope(full)
+    if isinstance(env, dict):
+        op = env.get("operation")
         if isinstance(op, str) and op.strip():
             return op.strip()
+        src = env.get("source")
+        if isinstance(src, dict):
+            sop = src.get("operation")
+            if isinstance(sop, str) and sop.strip():
+                return sop.strip()
     return _graphql_root_operation(gql)
+
+
+def _ingress_source_from_response(full: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Extract audit envelope ``source`` from Excel Response (desktop curl body)."""
+    env = _unwrap_audit_envelope(full)
+    if not isinstance(env, dict):
+        return None
+    src = env.get("source")
+    return src if isinstance(src, dict) and src else None
+
+
+def _ingress_actor_from_response(full: dict[str, Any] | None) -> dict[str, Any] | None:
+    env = _unwrap_audit_envelope(full)
+    if not isinstance(env, dict):
+        return None
+    actor = env.get("actor")
+    return actor if isinstance(actor, dict) and actor else None
+
+
+def _ingress_subject_from_response(full: dict[str, Any] | None) -> dict[str, Any] | None:
+    env = _unwrap_audit_envelope(full)
+    if not isinstance(env, dict):
+        return None
+    subject = env.get("subject")
+    return subject if isinstance(subject, dict) and subject else None
+
+
+def _ingress_headers_from_response(full: dict[str, Any] | None) -> dict[str, Any]:
+    """Top-level envelope leaves (eventId / occurredAt / …) from Excel Response."""
+    env = _unwrap_audit_envelope(full)
+    if not isinstance(env, dict):
+        return {}
+    out: dict[str, Any] = {}
+    for key in ("xCorrelationId", "eventId", "eventVersion", "occurredAt", "routingKey"):
+        if env.get(key) not in (None, "", [], {}):
+            out[key] = env.get(key)
+    return out
 
 
 def _graphql_call_failed(full: dict[str, Any] | None) -> bool:
@@ -377,6 +462,10 @@ def parse_ui_script_excel(
             row_target = _norm_target(target)
 
         gql_failed = _graphql_call_failed(full_resp)
+        ingress_source = _ingress_source_from_response(full_resp)
+        ingress_actor = _ingress_actor_from_response(full_resp)
+        ingress_subject = _ingress_subject_from_response(full_resp)
+        ingress_headers = _ingress_headers_from_response(full_resp)
         rows.append(
             {
                 "operation": op,
@@ -389,8 +478,13 @@ def parse_ui_script_excel(
                 "auth_token": auth_token,
                 "status": "OK",
                 "response": resp_raw if resp_raw is not None else "",
-                "graphql_response": gql_resp,
+                # Keep envelope under graphql_response only for true GraphQL mutations.
+                "graphql_response": gql_resp if not ingress_source else None,
                 "graphql_failed": gql_failed,
+                "ingress_source": ingress_source,
+                "ingress_actor": ingress_actor,
+                "ingress_subject": ingress_subject,
+                "ingress_headers": ingress_headers or None,
             }
         )
     return rows
@@ -598,10 +692,18 @@ def create_ui_script_job(
             item["excel_event_name"] = str(r.get("excel_event_name"))
         if r.get("graphql_failed"):
             item["graphql_failed"] = True
+        if isinstance(r.get("ingress_source"), dict) and r.get("ingress_source"):
+            item["ingress_source"] = r["ingress_source"]
+        if isinstance(r.get("ingress_actor"), dict) and r.get("ingress_actor"):
+            item["ingress_actor"] = r["ingress_actor"]
+        if isinstance(r.get("ingress_subject"), dict) and r.get("ingress_subject"):
+            item["ingress_subject"] = r["ingress_subject"]
+        if isinstance(r.get("ingress_headers"), dict) and r.get("ingress_headers"):
+            item["ingress_headers"] = r["ingress_headers"]
         gql = _normalize_graphql_response(
             op, r.get("graphql_response") if isinstance(r.get("graphql_response"), dict) else None
         )
-        if gql:
+        if gql and not item.get("ingress_source"):
             item["graphql_response"] = gql
         extracted.append(item)
     if not extracted:

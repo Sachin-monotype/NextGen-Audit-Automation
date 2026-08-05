@@ -74,6 +74,12 @@
           "value": "general"
         },
         {
+          "action": "toggle_on",
+          "selector": "[data-qa-id='preferences-general-auto-performance-toggle']",
+          "xpath": "",
+          "description": "Auto performance ON (enables mode dropdown)"
+        },
+        {
           "action": "select_option",
           "selector": "[data-qa-id='preferences-general-performance-mode-dropdown'],[data-testid='preferences-general-performance-mode-dropdown']",
           "xpath": "",
@@ -104,8 +110,22 @@
           "action": "select_option",
           "selector": "[data-qa-id='preferences-language-dropdown']",
           "xpath": "",
-          "description": "Language",
-          "value": "Deutsch|Fran\u00e7ais|Espa\u00f1ol|English|\u65e5\u672c\u8a9e"
+          "description": "Language (non-English to emit event)",
+          "value": "Deutsch|Fran\u00e7ais|Espa\u00f1ol|\u65e5\u672c\u8a9e"
+        },
+        {
+          "action": "sleep",
+          "selector": "",
+          "xpath": "",
+          "description": "Settle language change",
+          "value": "1.5"
+        },
+        {
+          "action": "select_option",
+          "selector": "[data-qa-id='preferences-language-dropdown']",
+          "xpath": "",
+          "description": "Restore English for remaining automation",
+          "value": "English|Englisch"
         }
       ]
     },
@@ -207,10 +227,10 @@
         },
         {
           "action": "select_option",
-          "selector": "md-dropdown[aria-label='Deactivate temporary fonts when']",
+          "selector": "[data-qa-id='preferences-plugins-page'] md-dropdown, md-dropdown.mtc-plugins-page__dropdown, md-dropdown",
           "xpath": "",
           "description": "Deactivate temporary fonts when",
-          "value": "Quit|Close|Never|Always|When|App"
+          "value": "Quit|Close|Never|Always|When|App|Beenden|Schlie\u00dfen|Nie|Immer"
         }
       ]
     },
@@ -235,7 +255,7 @@
         {
           "action": "click",
           "selector": "",
-          "xpath": "//md-link[contains(.,'Share feedback')]",
+          "xpath": "//md-link[contains(.,'Share feedback') or contains(.,'Feedback teilen') or contains(.,'Feedback')]",
           "description": "Share feedback"
         },
         {
@@ -349,6 +369,7 @@
       ],
       "trigger_hint": "temp activate family",
       "automatable": true,
+      "remarks": "App often posts operation=fontActivationTypeSwitched (source.type includes Font temp activation), sometimes batched with multiple CIDs",
       "steps": [
         {
           "action": "goto",
@@ -368,7 +389,7 @@
           "selector": "",
           "xpath": "",
           "description": "Activate temporarily",
-          "value": "Activate temporarily|Temporary activate|Temp activate|Activate for temporary"
+          "value": "Temporarily activate family|Activate temporarily|Temporary activate|Temp activate|Activate for temporary"
         }
       ]
     },
@@ -401,7 +422,7 @@
           "selector": "",
           "xpath": "",
           "description": "Activate permanently",
-          "value": "Activate permanently|Make permanent|Permanent|Activate"
+          "value": "Permanently activate family|Activate permanently|Make permanent|Activate family|Permanent"
         }
       ]
     },
@@ -430,11 +451,10 @@
           "description": "Manage"
         },
         {
-          "action": "click_text",
-          "selector": "",
+          "action": "click",
+          "selector": "[data-testid='menu-item-Imported fonts'], [data-qa-id='menu-item-Imported fonts']",
           "xpath": "",
-          "description": "System fonts",
-          "value": "System fonts|Local fonts|Installed fonts"
+          "description": "Imported fonts"
         },
         {
           "action": "toggle_on",
@@ -469,11 +489,10 @@
           "description": "Manage"
         },
         {
-          "action": "click_text",
-          "selector": "",
+          "action": "click",
+          "selector": "[data-testid='menu-item-Imported fonts'], [data-qa-id='menu-item-Imported fonts']",
           "xpath": "",
-          "description": "System fonts",
-          "value": "System fonts|Local fonts|Installed fonts"
+          "description": "Imported fonts"
         },
         {
           "action": "toggle_off",

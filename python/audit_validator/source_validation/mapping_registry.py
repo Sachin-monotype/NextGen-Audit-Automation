@@ -563,7 +563,7 @@ def _event_header_fields(operation: str) -> list[MappingField]:
         ),
         MappingField(
             "source", "service", "", "",
-            "Source: trigger service (mtconnect-api)", "", "Y",
+            "Source: trigger service (mtconnect-ui for app/desktop UI; mtconnect-api for web GraphQL)", "", "Y",
             "source.service", trigger, api, "event",
         ),
         MappingField(
@@ -588,7 +588,7 @@ def _event_header_fields(operation: str) -> list[MappingField]:
         ),
         MappingField(
             "source", "platformVersion", "", "",
-            "Source: trigger platformVersion", "", "N",
+            "Source: trigger platformVersion (app/desktop UI → 1.0.0.0)", "", "N",
             "source.platformVersion", trigger, api, "event",
         ),
         MappingField(
@@ -601,7 +601,91 @@ def _event_header_fields(operation: str) -> list[MappingField]:
             "Source: trigger source.type[]", "", "N",
             "source.type", trigger, api, "event",
         ),
+        MappingField(
+            "source", "osName", "", "",
+            "Source: audit ingress source.osName (often stripped on enrich)", "", "N",
+            "source.osName", trigger, api, "event",
+        ),
+        MappingField(
+            "source", "osVersion", "", "",
+            "Source: audit ingress source.osVersion (often stripped on enrich)", "", "N",
+            "source.osVersion", trigger, api, "event",
+        ),
+        MappingField(
+            "source", "cpuArch", "", "",
+            "Source: audit ingress source.cpuArch (often stripped on enrich)", "", "N",
+            "source.cpuArch", trigger, api, "event",
+        ),
     ]
+
+
+def _desktop_ingress_fields(operation: str) -> list[MappingField]:
+    """App/desktop audit POST body — map Excel Response source/actor/subject."""
+    trigger = "Trigger"
+    api = "Audit ingress body"
+    fields = _event_header_fields(operation)
+    fields.extend(
+        [
+            MappingField(
+                "actor", "machineId", "", "",
+                "Source: audit ingress actor.machineId", "", "Y",
+                "actor.machineId", trigger, api, "actor",
+            ),
+            MappingField(
+                "actor", "uniqueId", "", "",
+                "Source: audit ingress actor.uniqueId", "", "Y",
+                "actor.uniqueId", trigger, api, "actor",
+            ),
+            MappingField(
+                "actor", "authenticationState", "", "",
+                "Source: audit ingress actor.authenticationState", "", "Y",
+                "actor.authenticationState", trigger, api, "actor",
+            ),
+            MappingField(
+                "subject", "type", "", "",
+                "Source: audit ingress subject.type", "", "Y",
+                "subject.type", trigger, api, "subject",
+            ),
+            MappingField(
+                "subject", "id[0]", "", "",
+                "Source: audit ingress subject.id", "", "Y",
+                "subject.id[0]", trigger, api, "subject",
+            ),
+            MappingField(
+                "subject", "counts", "styleCount", "",
+                "Source: audit ingress subject.counts.styleCount", "", "Y",
+                "subject.counts.styleCount", trigger, api, "subject",
+            ),
+            MappingField(
+                "subject", "counts", "variationCount", "",
+                "Source: audit ingress subject.counts.variationCount", "", "Y",
+                "subject.counts.variationCount", trigger, api, "subject",
+            ),
+            MappingField(
+                "subject", "activationType", "", "",
+                "Source: audit ingress subject.activationType", "", "Y",
+                "subject.activationType", trigger, api, "subject",
+            ),
+            MappingField(
+                "subject", "activationMode", "", "",
+                "Source: audit ingress subject.activationMode", "", "Y",
+                "subject.activationMode", trigger, api, "subject",
+            ),
+        ]
+    )
+    # Font desktop ops still enrich fontDetails from Discovery/Typesense.
+    if operation.lower().startswith("font"):
+        fields.extend(
+            f
+            for f in _font_envelope_fields(operation)
+            if f.layer == "subject" and "enrichedSnapshot" in f.enriched_path
+        )
+        fields.extend(
+            f
+            for f in _font_envelope_fields(operation)
+            if f.layer == "actor" and "enrichedSnapshot" in f.enriched_path
+        )
+    return fields
 
 
 def _subject_structural_field(key: str, source_label: str) -> MappingField:
@@ -657,6 +741,27 @@ def _mapping_for_event_spec(spec: AuditEventSpec) -> list[MappingField]:
 _FONT_OPS = frozenset({
     "activateFamily", "activateStyle", "deactivateStyle", "activateVariation",
     "bulkActivateStyles", "bulkDeactivateStyles", "addFavoriteStyles", "addFavoriteFamilies",
+})
+_DESKTOP_INGRESS_OPS = frozenset({
+    "appSettingsAutoPerformanceEnabled",
+    "appSettingsAutoPerformanceDisabled",
+    "appSettingsPerformanceModeChanged",
+    "appLanguageChanged",
+    "appSettingsPluginInstallAllEnabled",
+    "appSettingsPluginInstallAllDisabled",
+    "appSettingsPluginAppEnabled",
+    "appSettingsActivationModeChanged",
+    "appFeedbackSubmitted",
+    "appLogsExported",
+    "appNetworkRefreshed",
+    "appHealthStatusRefreshed",
+    "appCacheCleared",
+    "fontTempActivated",
+    "fontActivationTypeSwitched",
+    "fontLocalfontActivated",
+    "fontLocalfontDeactivated",
+    "fontSyncSuccess",
+    "userSwitchWorkspaceApp",
 })
 _EXPORT_OPS = frozenset({
     "exportFontAssets",
@@ -782,6 +887,8 @@ def _delete_roles_fields() -> list[MappingField]:
 def _builtin_mapping(operation: str) -> list[MappingField]:
     if operation in _EXPORT_OPS:
         return _export_batch_fields(operation)
+    if operation in _DESKTOP_INGRESS_OPS:
+        return _desktop_ingress_fields(operation)
     if operation in _FONT_OPS:
         return _font_envelope_fields(operation)
     if operation == "activateList":
@@ -870,6 +977,10 @@ def get_operation_mapping(
         return _font_template(reference_xlsx)
     if base in _FONT_OPS or base == "activateList":
         return _font_template(reference_xlsx)
+    if operation in _DESKTOP_INGRESS_OPS:
+        return _desktop_ingress_fields(operation)
+    if base in _DESKTOP_INGRESS_OPS:
+        return _desktop_ingress_fields(base)
     return _builtin_mapping(operation if operation in _EXPORT_OPS or operation in _FONT_OPS else base)
 
 

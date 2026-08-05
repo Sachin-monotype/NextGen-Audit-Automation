@@ -45,6 +45,10 @@ def build_trigger_context(
     jwt_identity: dict[str, Any] | None = None,
     success: bool | None = None,
     invent_client_defaults: bool = True,
+    ingress_source: dict[str, Any] | None = None,
+    ingress_actor: dict[str, Any] | None = None,
+    ingress_subject: dict[str, Any] | None = None,
+    ingress_headers: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the trigger payload we compare enriched envelope fields against.
 
@@ -52,6 +56,10 @@ def build_trigger_context(
     Chrome UA and hardcoded ``web`` platform — those are not on the GraphQL
     response. Compare then derives platformEnvironment from the enriched UA
     (Electron → app) and SKIPs actorUserAgent when it was never captured.
+
+    App / desktop UI captures use ``mtconnect-ui`` + ``platformVersion`` ``1.0.0.0``
+    (not BE ``mtconnect-api`` / ``1.0.0``). Pass ``ingress_source`` / actor /
+    subject from the audit curl body when available to mirror the real envelope.
     """
     if invent_client_defaults:
         ua = (
@@ -62,7 +70,6 @@ def build_trigger_context(
     else:
         ua = (user_agent or "").strip()
 
-    service = os.getenv("AUDIT_SOURCE_SERVICE", "mtconnect-api").strip() or "mtconnect-api"
     platform = os.getenv("AUDIT_SOURCE_PLATFORM", "nextGen").strip() or "nextGen"
     if platform_environment and str(platform_environment).strip():
         env = str(platform_environment).strip().lower()
@@ -75,7 +82,50 @@ def build_trigger_context(
     else:
         # Prefer UA-derived env when we have a real fingerprint; else leave blank.
         env = platform_environment_from_user_agent(ua) or ""
-    version = os.getenv("AUDIT_SOURCE_PLATFORM_VERSION", "1.0.0").strip() or "1.0.0"
+
+    # Ingress Excel body may already carry the real source block.
+    ing = ingress_source if isinstance(ingress_source, dict) else {}
+    if not env and isinstance(ing.get("platformEnvironment"), str):
+        env = str(ing.get("platformEnvironment") or "").strip().lower()
+    if not ua and isinstance(ing.get("actorUserAgent"), str):
+        ua = str(ing.get("actorUserAgent") or "").strip()
+        if not env:
+            env = platform_environment_from_user_agent(ua) or ""
+
+    is_app_ui = (not invent_client_defaults) and (
+        env == "app"
+        or bool(ua and ("electron" in ua.lower() or "monotypenextgen" in ua.lower()))
+        or str(ing.get("service") or "").strip().lower() == "mtconnect-ui"
+    )
+
+    if is_app_ui:
+        # Desktop/UI ingress — prefer Excel/curl source over BE defaults.
+        service = (
+            str(ing.get("service") or "").strip()
+            or "mtconnect-ui"
+        )
+        version = (
+            str(ing.get("platformVersion") or "").strip()
+            or "1.0.0.0"
+        )
+        env_svc = os.getenv("AUDIT_SOURCE_SERVICE", "").strip()
+        env_ver = os.getenv("AUDIT_SOURCE_PLATFORM_VERSION", "").strip()
+        # Only honor env overrides that already look like app UI values.
+        if env_svc == "mtconnect-ui" and not str(ing.get("service") or "").strip():
+            service = env_svc
+        if not str(ing.get("platformVersion") or "").strip():
+            if env_ver.startswith("1.0.0"):
+                version = env_ver if env_ver.count(".") >= 3 else "1.0.0.0"
+            if version == "1.0.0":
+                version = "1.0.0.0"
+    else:
+        service = os.getenv("AUDIT_SOURCE_SERVICE", "mtconnect-api").strip() or "mtconnect-api"
+        version = os.getenv("AUDIT_SOURCE_PLATFORM_VERSION", "1.0.0").strip() or "1.0.0"
+        # Prefer explicit ingress values when present (desktop curl / Excel response).
+        if str(ing.get("service") or "").strip():
+            service = str(ing.get("service")).strip()
+        if str(ing.get("platformVersion") or "").strip():
+            version = str(ing.get("platformVersion")).strip()
 
     op_state = "success"
     if success is False:
@@ -86,6 +136,8 @@ def build_trigger_context(
             if isinstance(node, dict) and node.get("success") is False:
                 op_state = "failure"
                 break
+    if isinstance(ing.get("operationState"), str) and ing.get("operationState"):
+        op_state = str(ing.get("operationState"))
 
     request: dict[str, Any] = {
         "service": service,
@@ -101,9 +153,12 @@ def build_trigger_context(
         "platform": platform,
         "platformVersion": version,
         "operationState": op_state,
-        "operationIndex": 0,
-        "type": ["user"],
+        "operationIndex": int(ing.get("operationIndex") or 0),
+        "type": ing.get("type") if isinstance(ing.get("type"), list) else ["user"],
     }
+    if isinstance(ing.get("platform"), str) and ing.get("platform"):
+        source["platform"] = str(ing.get("platform"))
+        request["platform"] = source["platform"]
     if env:
         request["platformEnvironment"] = env
         source["platformEnvironment"] = env
@@ -112,19 +167,56 @@ def build_trigger_context(
         request["user-agent"] = ua
         source["actorUserAgent"] = ua
 
-    return {
+    # Overlay remaining ingress source leaves (osName / osVersion / cpuArch / …).
+    for key, val in ing.items():
+        if key in source and source.get(key) not in (None, "", [], {}):
+            continue
+        if val in (None, "", [], {}):
+            continue
+        source[key] = val
+        if key in {"service", "platform", "platformVersion", "operation", "operationState", "operationIndex"}:
+            request[key] = val
+
+    headers = ingress_headers if isinstance(ingress_headers, dict) else {}
+    actor = ingress_actor if isinstance(ingress_actor, dict) else {}
+    subject = ingress_subject if isinstance(ingress_subject, dict) else {}
+
+    ctx: dict[str, Any] = {
         "operation": operation,
-        "xCorrelationId": correlation_id or "",
+        "xCorrelationId": (
+            (headers.get("xCorrelationId") if isinstance(headers.get("xCorrelationId"), str) else None)
+            or correlation_id
+            or ""
+        ),
         "correlation_id": correlation_id or "",
-        "eventVersion": os.getenv("AUDIT_EVENT_VERSION", "1").strip() or "1",
+        "eventVersion": (
+            headers.get("eventVersion")
+            if headers.get("eventVersion") not in (None, "")
+            else (os.getenv("AUDIT_EVENT_VERSION", "1").strip() or "1")
+        ),
         "graphql_response": graphql_response or {},
         "graphql_input": graphql_input or {},
         "jwt_identity": jwt_identity or {},
-        # BE curls: UA is what we sent. Excel/UI: only true when a real client UA was passed.
-        "ua_captured": bool(ua) and (invent_client_defaults or bool(user_agent)),
+        # BE curls: UA is what we sent. Excel/UI: true when ingress/UA was passed.
+        "ua_captured": bool(ua) and (
+            invent_client_defaults
+            or bool(user_agent)
+            or bool(ing.get("actorUserAgent"))
+        ),
         "request": request,
         "source": source,
     }
+    if headers.get("eventId") not in (None, ""):
+        ctx["eventId"] = headers.get("eventId")
+    if headers.get("occurredAt") not in (None, ""):
+        ctx["occurredAt"] = headers.get("occurredAt")
+    if actor:
+        ctx["ingress_actor"] = actor
+    if subject:
+        ctx["ingress_subject"] = subject
+    if ing:
+        ctx["ingress_source"] = ing
+    return ctx
 
 
 def save_trigger_context(

@@ -109,15 +109,28 @@ def _all_pages(browser: Any) -> list[Any]:
 
 
 def _pick_main_page(browser: Any) -> Any | None:
+    """Prefer Discover/Manage content over Preferences/Help tabs in the same shell."""
     pages = _all_pages(browser)
-    for page in pages:
-        url = page.url or ""
-        if "nextgen.monotype-pp.com" in url and url.startswith("https"):
+    https_pages = [p for p in pages if (p.url or "").startswith("https")]
+
+    def _url(p: Any) -> str:
+        return (p.url or "").lower()
+
+    for page in https_pages:
+        if "discover-fonts" in _url(page):
             return page
-    for page in pages:
-        if (page.url or "").startswith("https"):
+    for page in https_pages:
+        u = _url(page)
+        if any(k in u for k in ("/manage", "/projects", "/library", "/assets")):
             return page
-    return pages[0] if pages else None
+    for page in https_pages:
+        u = _url(page)
+        if "nextgen" in u and "preference" not in u and "help-support" not in u:
+            return page
+    for page in https_pages:
+        if "nextgen" in _url(page):
+            return page
+    return https_pages[0] if https_pages else (pages[0] if pages else None)
 
 
 def _pick_preferences_page(browser: Any) -> Any | None:
@@ -148,7 +161,7 @@ def _wait_for_main_ui(page: Any, *, timeout_ms: int = 60_000) -> None:
 
 
 def _open_native_preferences(main_page: Any, browser: Any) -> Any:
-    """Open the desktop Preferences window (macOS: ⌘,). Returns the active page."""
+    """Open Preferences via ⌘, or profile menu. Returns the preferences page."""
     main_page.bring_to_front()
     if sys.platform == "darwin":
         main_page.keyboard.press("Meta+Comma")
@@ -156,13 +169,47 @@ def _open_native_preferences(main_page: Any, browser: Any) -> Any:
         main_page.keyboard.press("Control+Comma")
     time.sleep(2.0)
     pref = _pick_preferences_page(browser)
-    if pref:
+    if pref and "preference" in (pref.url or "").lower():
         pref.bring_to_front()
         try:
             pref.wait_for_load_state("domcontentloaded", timeout=15_000)
         except Exception:  # noqa: BLE001
             pass
         return pref
+
+    # Fallback: profile avatar → Preferences (reliable in Electron shell tabs).
+    try:
+        _open_profile_menu(main_page, timeout_ms=10_000)
+        for sel in (
+            "[data-qa-id='profile-menu-item-preferences']",
+            "[data-testid='profile-menu-item-preferences']",
+        ):
+            loc = main_page.locator(sel).first
+            if loc.count() > 0:
+                _force_click(loc, timeout_ms=10_000)
+                main_page.wait_for_timeout(1500)
+                break
+        # Header tab click if Preferences tab already exists
+        try:
+            header = main_page.locator("[data-qa-id='mac-header']")
+            tab = header.get_by_text("Preferences", exact=True).first
+            if tab.count() > 0 and tab.is_visible(timeout=800):
+                tab.click(timeout=5000, force=True)
+                main_page.wait_for_timeout(1000)
+        except Exception:  # noqa: BLE001
+            pass
+    except Exception:  # noqa: BLE001
+        pass
+
+    pref = _pick_preferences_page(browser)
+    if pref:
+        pref.bring_to_front()
+        return pref
+    # Last resort: any page whose URL contains preferences
+    for page in _all_pages(browser):
+        if "preference" in (page.url or "").lower():
+            page.bring_to_front()
+            return page
     return main_page
 
 
@@ -179,21 +226,32 @@ def _ensure_preferences_section(
     active = page
     if "help-support" in (active.url or "") or "help" in (active.url or "").lower():
         try:
-            active.locator("[data-qa-id='mac-header']").get_by_text("Preferences", exact=True).first.click(
-                timeout=timeout_ms, force=True
-            )
-            active.wait_for_timeout(1000)
+            header = active.locator("[data-qa-id='mac-header']")
+            for lab in ("Preferences", "Einstellungen"):
+                try:
+                    header.get_by_text(lab, exact=True).first.click(timeout=3000, force=True)
+                    active.wait_for_timeout(1000)
+                    break
+                except Exception:  # noqa: BLE001
+                    continue
         except Exception:  # noqa: BLE001
             pass
-    if "preferences" not in (active.url or ""):
+    if "preferences" not in (active.url or "").lower():
         active = _open_native_preferences(main_page or page, browser)
-    # Prefer sidebar menu item
+    if "preferences" not in (active.url or "").lower():
+        # Re-pick after shell tab switch — Playwright page handle may be stale.
+        picked = _pick_preferences_page(browser)
+        if picked is not None:
+            active = picked
+            active.bring_to_front()
     menu = active.locator(f"[data-testid='menu-item-{section}']").first
     try:
         menu.wait_for(state="visible", timeout=5000)
         menu.click(timeout=timeout_ms, force=True)
     except Exception:  # noqa: BLE001
-        active.get_by_text(section.capitalize(), exact=False).first.click(timeout=timeout_ms, force=True)
+        raise RuntimeError(
+            f"Preferences section menu-item-{section} not visible on {active.url}"
+        ) from None
     active.wait_for_timeout(1000)
     return active
 
@@ -204,6 +262,73 @@ def _qa_base_url() -> str:
         or os.getenv("NEXTGEN_QA_URL")
         or "https://nextgen-qa.monotype-pp.com"
     ).rstrip("/")
+
+
+def _page_matching_path(browser: Any | None, path: str, fallback: Any) -> Any:
+    if browser is None:
+        return fallback
+    needle = (path or "").lower().rstrip("/")
+    for page in _all_pages(browser):
+        url = (page.url or "").lower().rstrip("/")
+        if needle and needle in url:
+            return page
+    if needle.startswith("/discover-fonts"):
+        picked = _pick_main_page(browser)
+        if picked is not None:
+            return picked
+    return fallback
+
+
+def _goto_via_desktop_shell(
+    page: Any, path: str, *, timeout_ms: int, browser: Any | None = None
+) -> Any:
+    """Navigate Electron app routes that ignore page.goto (stays on Help/Prefs tabs)."""
+    target = (path or "").strip()
+    if not target.startswith("/"):
+        target = f"/{target}"
+    active = page
+    # Home button / Discover tab → discover-fonts/all
+    if target.startswith("/discover-fonts") or target in {"/", "/home"}:
+        home = active.locator("[data-qa-id='home-btn']").first
+        if home.count() > 0:
+            _force_click(home, timeout_ms=timeout_ms)
+            active.wait_for_timeout(1500)
+        # Header tab may already exist from a prior Home navigation.
+        for lab in ("Discover fonts", "Discover"):
+            try:
+                tab = active.locator("[data-qa-id='mac-header']").get_by_text(lab, exact=False).first
+                if tab.count() > 0 and tab.is_visible(timeout=800):
+                    tab.click(timeout=timeout_ms, force=True)
+                    active.wait_for_timeout(1000)
+                    break
+            except Exception:  # noqa: BLE001
+                continue
+        active = _page_matching_path(browser, "/discover-fonts", active)
+        try:
+            active.bring_to_front()
+        except Exception:  # noqa: BLE001
+            pass
+        if "discover-fonts" in (active.url or ""):
+            return active
+    # Manage section from primary nav
+    if target.startswith("/manage"):
+        if "discover-fonts" not in (active.url or "") and "/manage" not in (active.url or ""):
+            active = _goto_via_desktop_shell(
+                active, "/discover-fonts/all", timeout_ms=timeout_ms, browser=browser
+            )
+        manage = active.locator(
+            "[data-testid='menu-item-Manage'], button:has-text('Manage')"
+        ).first
+        if manage.count() > 0:
+            _force_click(manage, timeout_ms=timeout_ms)
+            active.wait_for_timeout(1500)
+            return _page_matching_path(browser, "/manage", active)
+    # Prefer in-app link if present
+    link = active.locator(f"a[href='{target}'], a[href$='{target}']").first
+    if link.count() > 0:
+        _force_click(link, timeout_ms=timeout_ms)
+        active.wait_for_timeout(1200)
+    return _page_matching_path(browser, target, active)
 
 
 def _md_toggle_checked(loc: Any) -> bool | None:
@@ -256,9 +381,20 @@ def _open_profile_menu(page: Any, *, timeout_ms: int = 10_000) -> None:
 
 
 def _open_help_support(page: Any, browser: Any, *, timeout_ms: int = 15_000) -> Any:
-    """Profile menu → Help & support. Returns the help page."""
+    """Profile menu → Help & support (EN/DE). Returns the help page."""
     _open_profile_menu(page, timeout_ms=timeout_ms)
-    page.get_by_text("Help & support", exact=False).first.click(timeout=timeout_ms, force=True)
+    opened = False
+    for lab in ("Help & support", "Hilfe & Support", "Help & Support", "Hilfe und Support"):
+        try:
+            loc = page.get_by_text(lab, exact=False).first
+            if loc.is_visible(timeout=800):
+                loc.click(timeout=timeout_ms, force=True)
+                opened = True
+                break
+        except Exception:  # noqa: BLE001
+            continue
+    if not opened:
+        raise RuntimeError("Could not open Help & support from profile menu")
     page.wait_for_timeout(1500)
     for p in _all_pages(browser):
         if "help-support" in (p.url or "") or "help" in (p.url or "").lower():
@@ -273,12 +409,20 @@ def _open_help_support(page: Any, browser: Any, *, timeout_ms: int = 15_000) -> 
 
 def _select_dropdown_option(page: Any, step: UiStep, *, timeout_ms: int) -> None:
     loc = _locator_for(page, step)
+    current = ""
+    try:
+        current = (loc.inner_text(timeout=1500) or "").strip()
+    except Exception:  # noqa: BLE001
+        current = ""
     _force_click(loc, timeout_ms=timeout_ms)
     page.wait_for_timeout(700)
     options = [o.strip() for o in (step.value or "").split("|") if o.strip()]
     if not options:
         options = [step.description] if step.description else []
     for label in options:
+        # Skip the already-selected label so we actually emit a change event.
+        if current and label.casefold() in current.casefold():
+            continue
         candidate = page.get_by_text(label, exact=False).first
         try:
             if candidate.is_visible(timeout=800):
@@ -356,13 +500,27 @@ def _execute_step(
         path = (step.value or "").strip()
         if not path:
             raise ValueError("goto step requires value URL/path")
-        url = path if path.startswith("http") else f"{_qa_base_url()}{path if path.startswith('/') else '/' + path}"
+        path = path if path.startswith("/") or path.startswith("http") else f"/{path}"
+        # Prefer shell nav — Electron often ignores / stalls on page.goto.
+        if not path.startswith("http"):
+            if path.rstrip("/") not in (page.url or "").rstrip("/"):
+                page = _goto_via_desktop_shell(
+                    page, path, timeout_ms=timeout_ms, browser=browser
+                )
+            if path.rstrip("/") in (page.url or "").rstrip("/"):
+                page.wait_for_timeout(800)
+                return page
+        url = path if path.startswith("http") else f"{_qa_base_url()}{path}"
         try:
-            page.goto(url, wait_until="domcontentloaded", timeout=min(timeout_ms, 20_000))
+            page.goto(url, wait_until="domcontentloaded", timeout=min(timeout_ms, 8_000))
         except Exception:
-            # Electron SPA sometimes stalls on goto — fall through; caller may still be on a usable page.
             pass
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(800)
+        if not path.startswith("http") and path.rstrip("/") not in (page.url or "").rstrip("/"):
+            page = _goto_via_desktop_shell(
+                page, path, timeout_ms=timeout_ms, browser=browser
+            )
+        page.wait_for_timeout(800)
         return page
 
     if action == "click_text":
@@ -382,11 +540,21 @@ def _execute_step(
         if action == "toggle":
             _force_click(loc, timeout_ms=timeout_ms)
             return page
+        # Already in the desired state → flip away then back so CurlDebug still fires.
         if want_on and state is True:
+            _force_click(loc, timeout_ms=timeout_ms)
+            page.wait_for_timeout(2000)
+            _force_click(loc, timeout_ms=timeout_ms)
+            page.wait_for_timeout(1500)
             return page
         if want_off and state is False:
+            _force_click(loc, timeout_ms=timeout_ms)
+            page.wait_for_timeout(2000)
+            _force_click(loc, timeout_ms=timeout_ms)
+            page.wait_for_timeout(1500)
             return page
         _force_click(loc, timeout_ms=timeout_ms)
+        page.wait_for_timeout(1500)
         return page
 
     if action == "sleep":

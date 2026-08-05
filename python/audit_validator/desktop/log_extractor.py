@@ -9,7 +9,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Iterator
 
-from .config import TARGET_URL, today_local
+from .config import TARGET_URL, ingress_target_url, is_audit_ingress_curl, today_local
 
 _CURL_DEBUG = "[CurlDebug]"
 # Prefer -d / --data body (handles nested subject JSON). Fallback is raw_decode.
@@ -76,32 +76,47 @@ def _first_json_value(text: str) -> object | None:
 
 
 def _payload_from_json_value(val: object) -> dict[str, Any] | None:
-    if isinstance(val, list) and val and isinstance(val[0], dict):
-        return val[0]
+    payloads = _payloads_from_json_value(val)
+    return payloads[0] if payloads else None
+
+
+def _payloads_from_json_value(val: object) -> list[dict[str, Any]]:
+    if isinstance(val, list):
+        return [item for item in val if isinstance(item, dict)]
     if isinstance(val, dict):
-        return val
-    return None
+        return [val]
+    return []
 
 
 def _extract_payload_from_curl(curl: str) -> dict[str, Any] | None:
-    """Extract the audit envelope from a CurlDebug command.
+    payloads = _extract_payloads_from_curl(curl)
+    return payloads[0] if payloads else None
 
-    Nested subject trees (e.g. fontActivationTypeSwitched) break naive
-    non-greedy ``[{…}]`` regexes — prefer the ``-d '…'`` body and json.raw_decode.
-    """
+
+def _extract_payloads_from_curl(curl: str) -> list[dict[str, Any]]:
+    """Extract all audit envelopes from a CurlDebug command (batch POSTs included)."""
     m = _DATA_FLAG_RE.search(curl)
     if m:
         body = m.group("body")
         for candidate in (body, body.replace('\\"', '"').replace("\\'", "'")):
             parsed = _first_json_value(candidate)
-            payload = _payload_from_json_value(parsed) if parsed is not None else None
-            if payload:
-                return payload
+            payloads = _payloads_from_json_value(parsed) if parsed is not None else []
+            if payloads:
+                return payloads
 
-    idx = curl.find(TARGET_URL)
+    idx = curl.find(ingress_target_url())
+    if idx < 0:
+        for marker in (
+            "mt-audit-log-resolver-service-qa.monotype-pp.com/v1/audit-events",
+            "mt-audit-log-resolver-service-preprod.monotype-pp.com/v1/audit-events",
+            "/v1/audit-events",
+        ):
+            idx = curl.find(marker)
+            if idx >= 0:
+                break
     search_from = idx if idx >= 0 else 0
     parsed = _first_json_value(curl[search_from:])
-    return _payload_from_json_value(parsed) if parsed is not None else None
+    return _payloads_from_json_value(parsed) if parsed is not None else []
 
 
 def _operation_from_payload(payload: dict[str, Any]) -> str:
@@ -135,7 +150,7 @@ def iter_curl_debug_lines(
         for line_no, line in enumerate(fh, start=1):
             if _CURL_DEBUG not in line:
                 continue
-            if TARGET_URL not in line:
+            if not is_audit_ingress_curl(line):
                 continue
             if today_only and not _line_is_today(line, today=today):
                 continue
@@ -167,32 +182,30 @@ def extract_ingress_events_from_logs(
         for line_no, curl in iter_curl_debug_lines(
             log_file, today_only=today_only, start_offset=offset
         ):
-            payload = _extract_payload_from_curl(curl)
-            if not payload:
-                continue
-            op = _operation_from_payload(payload)
-            cid = str(payload.get("xCorrelationId") or "").strip()
-            if not op or not cid:
-                continue
-            if operations and op not in operations:
-                continue
-            key = (op, cid)
-            if key in seen:
-                continue
-            seen.add(key)
-            ts = str(payload.get("occurredAt") or "")
-            found.append(
-                IngressLogEvent(
-                    operation=op,
-                    x_correlation_id=cid,
-                    event_name=op,
-                    log_file=log_file.name,
-                    line_no=line_no,
-                    occurred_at=ts,
-                    raw_curl=curl,
-                    payload=payload,
+            for payload in _extract_payloads_from_curl(curl):
+                op = _operation_from_payload(payload)
+                cid = str(payload.get("xCorrelationId") or "").strip()
+                if not op or not cid:
+                    continue
+                if operations and op not in operations:
+                    continue
+                key = (op, cid)
+                if key in seen:
+                    continue
+                seen.add(key)
+                ts = str(payload.get("occurredAt") or "")
+                found.append(
+                    IngressLogEvent(
+                        operation=op,
+                        x_correlation_id=cid,
+                        event_name=op,
+                        log_file=log_file.name,
+                        line_no=line_no,
+                        occurred_at=ts,
+                        raw_curl=curl,
+                        payload=payload,
+                    )
                 )
-            )
     return found
 
 

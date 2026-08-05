@@ -38,3 +38,19 @@ def test_extract_nested_font_activation_payload():
     assert payload["subject"]["styles"][0]["variations"][0]["md5"] == (
         "b0ea66753942c1028f90a0b27ea2dd17"
     )
+
+
+def test_extract_batch_payloads_all_cids():
+    from audit_validator.desktop.log_extractor import _extract_payloads_from_curl
+
+    curl = (
+        "curl -X POST 'https://mt-audit-log-resolver-service-qa.monotype-pp.com/v1/audit-events' "
+        "-H 'Content-Type: application/json' "
+        "-d '["
+        '{"xCorrelationId":"aaa-1","source":{"operation":"fontActivationTypeSwitched"}},'
+        '{"xCorrelationId":"bbb-2","source":{"operation":"fontActivationTypeSwitched"}},'
+        '{"xCorrelationId":"ccc-3","source":{"operation":"fontActivationTypeSwitched"}}'
+        "]'"
+    )
+    payloads = _extract_payloads_from_curl(curl)
+    assert [p["xCorrelationId"] for p in payloads] == ["aaa-1", "bbb-2", "ccc-3"]

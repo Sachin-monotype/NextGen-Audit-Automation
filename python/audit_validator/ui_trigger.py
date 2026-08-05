@@ -669,6 +669,57 @@ def apply_extracted_results(
                 jwt_ident = (
                     item.get("jwt_identity") if isinstance(item.get("jwt_identity"), dict) else None
                 )
+                ingress_src = (
+                    item.get("ingress_source") if isinstance(item.get("ingress_source"), dict) else None
+                )
+                ingress_actor = (
+                    item.get("ingress_actor") if isinstance(item.get("ingress_actor"), dict) else None
+                )
+                ingress_subject = (
+                    item.get("ingress_subject")
+                    if isinstance(item.get("ingress_subject"), dict)
+                    else None
+                )
+                ingress_headers = (
+                    item.get("ingress_headers")
+                    if isinstance(item.get("ingress_headers"), dict)
+                    else None
+                )
+                # Legacy Excel/desktop rows stored the audit envelope under graphql_response.
+                if not ingress_src and isinstance(gql_resp, dict) and gql_resp:
+                    try:
+                        from audit_validator.ui_script_import import (
+                            _ingress_actor_from_response,
+                            _ingress_headers_from_response,
+                            _ingress_source_from_response,
+                            _ingress_subject_from_response,
+                        )
+
+                        ingress_src = _ingress_source_from_response(gql_resp)
+                        ingress_actor = ingress_actor or _ingress_actor_from_response(gql_resp)
+                        ingress_subject = ingress_subject or _ingress_subject_from_response(
+                            gql_resp
+                        )
+                        ingress_headers = ingress_headers or _ingress_headers_from_response(
+                            gql_resp
+                        )
+                        if ingress_src:
+                            gql_resp = {}
+                    except Exception:  # noqa: BLE001
+                        pass
+                row_target = str(row.get("target") or item.get("target") or "").strip().lower()
+                plat_env = None
+                if row_target in {"app", "desktop"}:
+                    plat_env = "app"
+                elif isinstance(ingress_src, dict):
+                    pe = ingress_src.get("platformEnvironment")
+                    if isinstance(pe, str) and pe.strip():
+                        plat_env = pe.strip().lower()
+                ua = None
+                if isinstance(ingress_src, dict):
+                    ua_cand = ingress_src.get("actorUserAgent")
+                    if isinstance(ua_cand, str) and ua_cand.strip():
+                        ua = ua_cand.strip()
                 ctx = build_trigger_context(
                     operation=op,
                     correlation_id=cid,
@@ -679,6 +730,12 @@ def apply_extracted_results(
                     # GraphQL Response has no UA / platformEnvironment — don't invent
                     # Chrome+"web" (false FAIL vs Electron/"app" on enriched).
                     invent_client_defaults=False,
+                    user_agent=ua,
+                    platform_environment=plat_env,
+                    ingress_source=ingress_src,
+                    ingress_actor=ingress_actor,
+                    ingress_subject=ingress_subject,
+                    ingress_headers=ingress_headers,
                 )
                 if item.get("jwt_identity_note"):
                     ctx["jwt_identity_note"] = str(item.get("jwt_identity_note"))

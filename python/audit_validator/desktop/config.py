@@ -11,6 +11,22 @@ TARGET_URL = (
     os.getenv("INGRESS_API_URL") or "https://mt-audit-log-resolver-service-preprod.monotype-pp.com/v1/audit-events"
 ).strip()
 
+
+def ingress_target_url() -> str:
+    """Resolver URL for the active AUDIT_TARGET (re-reads env after profile apply)."""
+    return (
+        os.getenv("INGRESS_API_URL") or TARGET_URL
+    ).strip()
+
+
+def is_audit_ingress_curl(line_or_curl: str) -> bool:
+    """True when CurlDebug targets any audit-events resolver (QA / PP / UAT)."""
+    text = line_or_curl or ""
+    if "audit-events" in text:
+        return True
+    url = ingress_target_url()
+    return bool(url) and url in text
+
 _DEFAULT_LOG_DIRS: tuple[Path, ...] = (
     Path(
         r"C:\Users\Dell\AppData\Local\Monotype\Monotype Connect\Logs\ConnectService\service"

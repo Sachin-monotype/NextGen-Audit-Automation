@@ -86,6 +86,16 @@ function splitEventScenario(operation: string): { base: string; scenario: string
   return { base: op, scenario: tags.join(" · ") || "default" };
 }
 
+/** Prefer app scenarios above default, web last. */
+function scenarioChannelRank(operation: string): number {
+  const op = String(operation || "").toLowerCase();
+  const { scenario } = splitEventScenario(operation);
+  const s = scenario.toLowerCase();
+  if (op.endsWith("(app)") || /(^|[·\s])app($|[·\s])/.test(s)) return 0;
+  if (op.endsWith("(web)") || /(^|[·\s])web($|[·\s])/.test(s)) return 2;
+  return 1;
+}
+
 type CoverageRow = {
   operation: string;
   category: string;
@@ -606,23 +616,26 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     const groups: CoverageEventGroup[] = [];
     for (const [base, scenarios] of byBase) {
       const sortScenario = (a: CoverageRow, b: CoverageRow) => {
+        const channel = scenarioChannelRank(a.operation) - scenarioChannelRank(b.operation);
         const sa = splitEventScenario(a.operation).scenario;
         const sb = splitEventScenario(b.operation).scenario;
         const byName = sa.localeCompare(sb);
         if (coverageSort.key === "scenario") {
+          if (channel !== 0) return coverageSort.dir === "asc" ? channel : -channel;
           return coverageSort.dir === "asc" ? byName : -byName;
         }
         if (coverageSort.key === "compared") {
           const byDate = (a.comparedAt || "").localeCompare(b.comparedAt || "");
           const ordered = coverageSort.dir === "asc" ? byDate : -byDate;
-          return ordered !== 0 ? ordered : byName;
+          return ordered !== 0 ? ordered : channel || byName;
         }
         if (coverageSort.key === "fail") {
           const byFail = a.failed - b.failed;
           const ordered = coverageSort.dir === "asc" ? byFail : -byFail;
-          return ordered !== 0 ? ordered : byName;
+          return ordered !== 0 ? ordered : channel || byName;
         }
-        return byName;
+        // Default: app → other → web, then scenario name.
+        return channel || byName;
       };
       scenarios.sort(sortScenario);
       groups.push({
@@ -1890,12 +1903,16 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                 const open = expanded.has(operation);
                 const failCount = opRows.filter((r) => r.match_status === "FAIL").length;
                 const total = opRows.length;
+                const { base, scenario } = splitEventScenario(operation);
                 return (
                   <section key={operation} className="result-group" id={`op-${operation}`}>
                     <button type="button" className="result-group-head" onClick={() => toggleGroup(operation)}>
                       <span className="result-group-title">
                         <span className={`result-status-dot ${failCount ? "fail" : "pass"}`} aria-hidden />
-                        {operation}
+                        <span className="result-group-event">{base}</span>
+                        {scenario && scenario !== "default" ? (
+                          <span className="result-group-scenario">{scenario}</span>
+                        ) : null}
                       </span>
                       <span className="result-group-meta">
                         <span className="result-group-fields">{total} field{total === 1 ? "" : "s"}</span>

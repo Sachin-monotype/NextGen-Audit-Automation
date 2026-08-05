@@ -104,7 +104,14 @@ def scan_enriched_fields(enriched: JsonDict) -> list[tuple[str, object]]:
 
     actor = enriched.get("actor")
     if isinstance(actor, dict):
-        for key in ("globalUserId", "globalCustomerId", "orgId"):
+        for key in (
+            "globalUserId",
+            "globalCustomerId",
+            "orgId",
+            "machineId",
+            "uniqueId",
+            "authenticationState",
+        ):
             val = actor.get(key)
             if _is_scalar(val):
                 out.append((f"actor.{key}", val))
@@ -125,6 +132,15 @@ def scan_enriched_fields(enriched: JsonDict) -> list[tuple[str, object]]:
             for idx, val in enumerate(ids[:3]):
                 if _is_scalar(val):
                     out.append((f"subject.id[{idx}]", val))
+        counts = subject.get("counts")
+        if isinstance(counts, dict):
+            for ck, cv in counts.items():
+                if _is_scalar(cv):
+                    out.append((f"subject.counts.{ck}", cv))
+        styles = subject.get("styles")
+        if isinstance(styles, list) and styles:
+            # Compact ingress subject.styles tree (not Discovery fontDetails).
+            _walk(styles, "subject.styles", out)
         meta = subject.get("metadata")
         if isinstance(meta, dict):
             inp = meta.get("input")
@@ -161,11 +177,19 @@ def infer_source_system(path: str, operation: str | None = None) -> tuple[str, s
             return "GraphQL", "mutation input ids (deleted entity)"
     # Subject envelope — validated against the GraphQL mutation response we sent.
     if p == "subject.type":
-        return "GraphQL", "mutation response / subject.type"
+        return "Trigger", "Audit ingress / mutation subject.type"
     if p.startswith("subject.id"):
         if (operation or "").split("(", 1)[0].strip() == "getPackageId":
             return "Trigger", "GraphQL getPackageId response packageId (same event)"
-        return "GraphQL", "mutation response subject.id (mutation target)"
+        return "Trigger", "Audit ingress / mutation subject.id"
+    if p.startswith("subject.counts.") or p.startswith("subject.styles"):
+        return "Trigger", "Audit ingress body (subject)"
+    if p.startswith("subject.") and p.split(".")[-1] in {
+        "activationtype",
+        "activationmode",
+        "deactivationtype",
+    }:
+        return "Trigger", "Audit ingress body (subject)"
     if "customlogo" in p and ".customer." in p:
         return "CMS", "GET /api/v2/customers/{gcid} (metaData.customLogo*)"
     if p.startswith("subject.metadata.input."):
@@ -182,6 +206,12 @@ def infer_source_system(path: str, operation: str | None = None) -> tuple[str, s
         "parentcustomerid",
     }:
         return "Bearer token", "JWT claim (actor identity)"
+    if p.startswith("actor.") and p.split(".")[-1] in {
+        "machineid",
+        "uniqueid",
+        "authenticationstate",
+    }:
+        return "Trigger", "Audit ingress body (actor)"
     # Mutation input / subject join keys — compare to GraphQL curl response, not Raw echo.
     leaf = p.split(".")[-1].split("[")[0]
     if leaf in {
@@ -196,7 +226,10 @@ def infer_source_system(path: str, operation: str | None = None) -> tuple[str, s
     } or p.endswith(".familyids") or ".familyids[" in p or ".styleids[" in p or ".md5s[" in p:
         return "GraphQL", "mutation response id list (join key)"
 
-    if "fontdetails" in p or ".family." in p or ".styles[" in p or "variations" in p:
+    if "fontdetails" in p or (
+        "enrichedsnapshot" in p
+        and (".family." in p or ".styles[" in p or "variations" in p)
+    ):
         # fontDetails.* (family/styles/variations catalog objects) are enriched from
         # Discovery/Typesense per the QA sheet — NOT the GraphQL mutation echo. Route
         # every catalog leaf (including `.catalog.id`) to Typesense so we compare

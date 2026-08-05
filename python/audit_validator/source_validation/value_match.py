@@ -155,6 +155,52 @@ def _datetimes_equivalent(a: str, b: str) -> bool:
     return fa[:3] == fb[:3]
 
 
+# Browser tokens whose version bumps (and HeadlessChrome vs Chrome) are env noise.
+_UA_BROWSER_TOKEN = re.compile(
+    r"(Chrome|CriOS|Edg|Firefox|Safari|AppleWebKit|Version)/[\d.]+",
+    re.I,
+)
+_UA_CLIENT_PATHS = frozenset(
+    {
+        "source.actorUserAgent",
+        "actorUserAgent",
+    }
+)
+
+CLIENT_UA_NOISE_NOTE = (
+    "Client UA differs only by HeadlessChrome / browser version — "
+    "accepted (exact values kept)"
+)
+
+
+def _normalize_user_agent(ua: str) -> str:
+    """Collapse HeadlessChrome↔Chrome and strip browser version tokens for compare."""
+    s = ua.strip()
+    if not s:
+        return ""
+    s = re.sub(r"HeadlessChrome", "Chrome", s, flags=re.I)
+    s = _UA_BROWSER_TOKEN.sub(r"\1", s)
+    return re.sub(r"\s+", " ", s).casefold().strip()
+
+
+def user_agents_equivalent(source_val: object, enriched_val: object) -> bool:
+    """True when UAs match aside from headless mode / browser version noise."""
+    sv = str(source_val or "").strip()
+    ev = str(enriched_val or "").strip()
+    if not sv or not ev:
+        return False
+    if sv == ev:
+        return True
+    return _normalize_user_agent(sv) == _normalize_user_agent(ev)
+
+
+def is_client_ua_field(field_path: str) -> bool:
+    path = (field_path or "").strip()
+    if path in _UA_CLIENT_PATHS:
+        return True
+    return path.endswith(".actorUserAgent") or path.rsplit(".", 1)[-1] == "actorUserAgent"
+
+
 def values_equivalent(
     source_val: object,
     enriched_val: object,
@@ -200,6 +246,10 @@ def values_equivalent(
         pass
 
     if _is_name_like_field(field_path) and (rsv in rev or rev in rsv):
+        return True
+
+    # Playwright HeadlessChrome vs trigger Chrome / version bumps — not a product bug.
+    if is_client_ua_field(field_path) and user_agents_equivalent(sv, ev):
         return True
 
     return False

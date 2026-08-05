@@ -1758,8 +1758,8 @@ button:disabled {
 .coverage-event-name {
   border: none;
   background: transparent;
-  color: #111;
-  font-weight: 700;
+  color: var(--text-muted);
+  font-weight: 600;
   font-size: 0.92rem;
   padding: 0;
   margin: 0;
@@ -2392,6 +2392,16 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.result-group-event {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.result-group-scenario {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .result-status-dot {

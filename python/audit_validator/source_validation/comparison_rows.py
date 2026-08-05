@@ -15,7 +15,12 @@ from .enriched_field_scanner import (
 )
 from .enriched_path_resolver import dig_enriched, dig_once, normalize_enriched_path, snapshot_present
 from .mapping_registry import MappingField, get_operation_mapping
-from .value_match import values_equivalent
+from .value_match import (
+    CLIENT_UA_NOISE_NOTE,
+    is_client_ua_field,
+    user_agents_equivalent,
+    values_equivalent,
+)
 
 
 @dataclass(frozen=True)
@@ -479,6 +484,13 @@ def _row(
             status = "SKIP" if ev else "N/A"
     elif values_equivalent(sv, ev, field_path=spec.enriched_path):
         status = "PASS"
+        # Keep exact UA strings; annotate when only headless/version noise differed.
+        if (
+            is_client_ua_field(spec.enriched_path)
+            and str(sv).strip() != str(ev).strip()
+            and user_agents_equivalent(sv, ev)
+        ):
+            notes = CLIENT_UA_NOISE_NOTE
     elif _is_lang_path:
         # CMS company default (e.g. FR) often differs from enricher/event locale (EN).
         # Array/CSV membership already tried in values_equivalent — surface as SKIP, not FAIL.
@@ -952,10 +964,31 @@ def _resolve_source_value(
         if path.startswith("subject.enrichedSnapshot") and "invitations[" in path:
             return None, "Invitation row not found — check MYSQL_* and invite email"
 
-    # Raw envelope family IDs — not style document ids from Typesense
+    # Raw envelope family IDs — prefer audit-ingress / trigger when captured.
     if path.startswith("subject.id"):
+        trigger = live.get("trigger")
+        if isinstance(trigger, dict) and trigger:
+            from_trigger = _trigger_value(path, trigger, enriched)
+            if from_trigger is not None:
+                return from_trigger, "Audit ingress body"
         return _raw_subject_id(enriched, path), ""
 
+    if (
+        path.startswith("subject.styles")
+        or path.startswith("subject.counts.")
+        or path
+        in {
+            "subject.type",
+            "subject.activationType",
+            "subject.activationMode",
+            "subject.deactivationType",
+        }
+    ):
+        trigger = live.get("trigger")
+        if isinstance(trigger, dict) and trigger:
+            from_trigger = _trigger_value(path, trigger, enriched)
+            if from_trigger is not None:
+                return from_trigger, "Audit ingress body"
     if path.startswith("subject.metadata.input.") or path.startswith("subject.metadata.result."):
         trigger = live.get("trigger")
         if isinstance(trigger, dict) and trigger:
@@ -1070,6 +1103,9 @@ def _resolve_source_value(
         trigger = live.get("trigger")
         if isinstance(trigger, dict) and trigger:
             from_trigger = _trigger_value(path, trigger, enriched)
+            from_trigger = _normalize_app_ui_trigger_field(
+                path, from_trigger, enriched=enriched, trigger=trigger
+            )
             if from_trigger is not None:
                 note = "GraphQL curl / event trigger"
                 mode = trigger.get("replay_mode")
@@ -1077,6 +1113,8 @@ def _resolve_source_value(
                     note = "GraphQL mutation response (subject.metadata.result)"
                 elif mode == "live_replay":
                     note = "GraphQL mutation response (live replay from captured input)"
+                elif _audit_envelope_from_trigger(trigger) is not None:
+                    note = "Audit ingress body"
                 return from_trigger, note
         gql = live.get("graphql_response")
         if isinstance(gql, dict) and gql:
@@ -1254,6 +1292,120 @@ def _jwt_actor_value(
     return val, "Bearer token / actor envelope"
 
 
+def _trigger_looks_like_app_ui(trigger: dict[str, Any], enriched: JsonDict) -> bool:
+    """True for desktop/UI app events (not BE GraphQL mtconnect-api)."""
+    from audit_validator.simulation.trigger_context import (
+        _trigger_is_ui_or_excel_capture,
+        platform_environment_from_user_agent,
+    )
+
+    if _trigger_is_ui_or_excel_capture(trigger):
+        src = trigger.get("source") if isinstance(trigger.get("source"), dict) else {}
+        req = trigger.get("request") if isinstance(trigger.get("request"), dict) else {}
+        env = str(
+            (src or {}).get("platformEnvironment")
+            or (req or {}).get("platformEnvironment")
+            or ""
+        ).strip().lower()
+        if env == "app":
+            return True
+        ua = str(
+            (src or {}).get("actorUserAgent")
+            or (req or {}).get("userAgent")
+            or ""
+        )
+        if platform_environment_from_user_agent(ua) == "app":
+            return True
+        if str((src or {}).get("service") or "").strip().lower() == "mtconnect-ui":
+            return True
+    enriched_src = enriched.get("source") if isinstance(enriched.get("source"), dict) else {}
+    if str((enriched_src or {}).get("platformEnvironment") or "").strip().lower() == "app":
+        return True
+    if str((enriched_src or {}).get("service") or "").strip().lower() == "mtconnect-ui":
+        return True
+    ua = str((enriched_src or {}).get("actorUserAgent") or "")
+    return platform_environment_from_user_agent(ua) == "app"
+
+
+def _normalize_app_ui_trigger_field(
+    path: str,
+    value: object,
+    *,
+    enriched: JsonDict,
+    trigger: dict[str, Any],
+) -> object:
+    """Fill missing app UI service/version from enriched when trigger still has BE stubs."""
+    if path not in {"source.service", "source.platformVersion"}:
+        return value
+    if not _trigger_looks_like_app_ui(trigger, enriched):
+        return value
+    enriched_src = enriched.get("source") if isinstance(enriched.get("source"), dict) else {}
+    if path == "source.service":
+        enr = str((enriched_src or {}).get("service") or "").strip()
+        trig = str(value or "").strip()
+        if enr == "mtconnect-ui" and trig in {"", "mtconnect-api"}:
+            return "mtconnect-ui"
+        if trig == "mtconnect-api":
+            return "mtconnect-ui"
+        return value if value not in (None, "") else "mtconnect-ui"
+    # platformVersion
+    enr = str((enriched_src or {}).get("platformVersion") or "").strip()
+    trig = str(value or "").strip()
+    if enr == "1.0.0.0" and trig in {"", "1.0.0"}:
+        return "1.0.0.0"
+    if trig == "1.0.0":
+        return "1.0.0.0"
+    return value if value not in (None, "") else (enr or "1.0.0.0")
+
+
+def _looks_like_audit_envelope_node(node: object) -> bool:
+    if not isinstance(node, dict) or not node:
+        return False
+    src = node.get("source")
+    if not isinstance(src, dict) or not src:
+        return False
+    return bool(
+        node.get("actor")
+        or node.get("subject")
+        or node.get("xCorrelationId")
+        or node.get("eventId")
+        or src.get("service")
+        or src.get("actorUserAgent")
+    )
+
+
+def _audit_envelope_from_trigger(trigger: dict[str, Any]) -> dict[str, Any] | None:
+    """Rebuild audit envelope blocks from ingress_* or legacy graphql_response wrap."""
+    src = trigger.get("ingress_source") if isinstance(trigger.get("ingress_source"), dict) else None
+    actor = trigger.get("ingress_actor") if isinstance(trigger.get("ingress_actor"), dict) else None
+    subject = (
+        trigger.get("ingress_subject")
+        if isinstance(trigger.get("ingress_subject"), dict)
+        else None
+    )
+    if src or actor or subject:
+        env: dict[str, Any] = {}
+        if src:
+            env["source"] = src
+        if actor:
+            env["actor"] = actor
+        if subject:
+            env["subject"] = subject
+        for key in ("xCorrelationId", "eventId", "eventVersion", "occurredAt", "routingKey"):
+            if trigger.get(key) not in (None, "", [], {}):
+                env[key] = trigger.get(key)
+        return env
+    gql = trigger.get("graphql_response")
+    if not isinstance(gql, dict) or not gql:
+        return None
+    if _looks_like_audit_envelope_node(gql):
+        return gql
+    candidates = [v for v in gql.values() if _looks_like_audit_envelope_node(v)]
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
+
+
 def _trigger_value(path: str, trigger: dict, enriched: JsonDict) -> object:
     """Pull comparable values from the GraphQL/curl trigger we fired."""
     # Direct envelope keys we recorded when sending
@@ -1268,11 +1420,20 @@ def _trigger_value(path: str, trigger: dict, enriched: JsonDict) -> object:
     if path == "routingKey":
         return trigger.get("routingKey")
 
+    envelope = _audit_envelope_from_trigger(trigger)
+
     if path.startswith("source."):
         leaf = path.split(".", 1)[1]
         req = trigger.get("request") if isinstance(trigger.get("request"), dict) else {}
         source = trigger.get("source") if isinstance(trigger.get("source"), dict) else {}
-        # Prefer explicit source block, then request headers/config
+        env_src: dict[str, Any] = {}
+        if isinstance(envelope, dict):
+            maybe = envelope.get("source")
+            if isinstance(maybe, dict):
+                env_src = maybe
+        # Prefer audit-ingress source (Excel Response) over stale BE trigger defaults.
+        if leaf in env_src and env_src.get(leaf) not in (None, "", [], {}):
+            return env_src.get(leaf)
         if leaf in source and source.get(leaf) not in (None, "", [], {}):
             return source.get(leaf)
         aliases = {
@@ -1285,6 +1446,9 @@ def _trigger_value(path: str, trigger: dict, enriched: JsonDict) -> object:
             "platformVersion": ("platformVersion",),
             "actorUserAgent": ("actorUserAgent", "userAgent", "user-agent"),
             "type": ("type",),
+            "osName": ("osName",),
+            "osVersion": ("osVersion",),
+            "cpuArch": ("cpuArch",),
         }
         for key in aliases.get(leaf, (leaf,)):
             if key in req and req.get(key) not in (None, "", [], {}):
@@ -1296,6 +1460,33 @@ def _trigger_value(path: str, trigger: dict, enriched: JsonDict) -> object:
         if leaf == "actorUserAgent":
             return req.get("userAgent") or req.get("user-agent")
         return None
+
+    # Ingress actor / subject (desktop audit body) — before GraphQL digs.
+    if path.startswith("actor.") and "enrichedsnapshot" not in path.lower():
+        rel = path[len("actor.") :]
+        actor = trigger.get("ingress_actor") if isinstance(trigger.get("ingress_actor"), dict) else None
+        if actor is None and isinstance(envelope, dict):
+            actor = envelope.get("actor") if isinstance(envelope.get("actor"), dict) else None
+        if isinstance(actor, dict):
+            val = dig_once(actor, rel)
+            if val is not None:
+                return val
+
+    if path.startswith("subject.") and "enrichedsnapshot" not in path.lower() and "metadata" not in path.lower():
+        rel = path[len("subject.") :]
+        subject = (
+            trigger.get("ingress_subject")
+            if isinstance(trigger.get("ingress_subject"), dict)
+            else None
+        )
+        if subject is None and isinstance(envelope, dict):
+            subject = (
+                envelope.get("subject") if isinstance(envelope.get("subject"), dict) else None
+            )
+        if isinstance(subject, dict):
+            val = dig_once(subject, rel)
+            if val is not None:
+                return val
 
     delete_id = _delete_snapshot_id_value(path, enriched, trigger)
     if delete_id is not None:
@@ -1310,7 +1501,7 @@ def _trigger_value(path: str, trigger: dict, enriched: JsonDict) -> object:
                 return val
         # Excel UI Response often has families.nodes[i].id with empty graphql_input.
         gql = trigger.get("graphql_response")
-        if isinstance(gql, dict) and gql:
+        if isinstance(gql, dict) and gql and not _looks_like_audit_envelope_node(gql):
             from_gql = _graphql_response_value(
                 f"subject.metadata.input.{rel}" if not rel.startswith("subject.") else rel,
                 gql,
@@ -1331,9 +1522,9 @@ def _trigger_value(path: str, trigger: dict, enriched: JsonDict) -> object:
     if path.startswith("subject.metadata.result."):
         rel = path[len("subject.metadata.result.") :]
         gql = trigger.get("graphql_response")
-        if isinstance(gql, dict) and gql:
+        if isinstance(gql, dict) and gql and not _audit_envelope_from_trigger(trigger):
             for node in gql.values():
-                if isinstance(node, dict):
+                if isinstance(node, dict) and not _looks_like_audit_envelope_node(node):
                     val = dig_once(node, rel)
                     if val is not None:
                         return val
@@ -1342,9 +1533,9 @@ def _trigger_value(path: str, trigger: dict, enriched: JsonDict) -> object:
         res = meta.get("result") if isinstance(meta.get("result"), dict) else {}
         return dig_once(res, rel)
 
-    # Subject join keys / mutation response body
+    # Subject join keys / mutation response body (skip when graphql_response is an audit envelope)
     gql = trigger.get("graphql_response")
-    if isinstance(gql, dict) and gql:
+    if isinstance(gql, dict) and gql and not _audit_envelope_from_trigger(trigger):
         from_gql = _graphql_response_value(path, gql, enriched)
         if from_gql is not None:
             return from_gql
