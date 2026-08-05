@@ -1,79 +1,33 @@
 {
-  "source": "Desktop UI Navigation spreadsheet + ingress manifest + ui_navigation.json",
+  "source": "Desktop UI Navigation \u2014 selectors captured from NextGen QA Preferences / Help & Support / Profile (2026-08-05)",
   "target_url": "https://mt-audit-log-resolver-service-preprod.monotype-pp.com/v1/audit-events",
+  "base_app_url": "https://nextgen-qa.monotype-pp.com",
   "events": [
-    {
-      "case_id": "app_settings_plugin_install_all_enabled",
-      "event_name": "app.settings.plugin.install_all.enabled",
-      "operation": "appSettingsPluginInstallAllEnabled",
-      "category": "desktop_app_preference_page",
-      "navigation": [
-        "Desktop app > Preferences > Plugins > Install all plugins > Enable toggle"
-      ],
-      "trigger_hint": "enable plugin",
-      "automatable": true,
-      "steps": []
-    },
-    {
-      "case_id": "app_settings_plugin_install_all_disabled",
-      "event_name": "app.settings.plugin.install_all.disabled",
-      "operation": "appSettingsPluginInstallAllDisabled",
-      "category": "desktop_app_preference_page",
-      "navigation": [
-        "Desktop app > Preferences > Plugins > Install all plugins > Disable toggle"
-      ],
-      "trigger_hint": "disable plugin",
-      "automatable": true,
-      "steps": []
-    },
-    {
-      "case_id": "app_settings_plugin_app_enabled",
-      "event_name": "app.settings.plugin.app.enabled",
-      "operation": "appSettingsPluginAppEnabled",
-      "category": "desktop_app_preference_page",
-      "navigation": [
-        "Desktop app > Preferences > Plugins > Apps available on system > Enable plugin for app"
-      ],
-      "trigger_hint": "n/a",
-      "automatable": false,
-      "remarks": "Enable plugin for a specific installed app row",
-      "steps": []
-    },
-    {
-      "case_id": "app_settings_plugin_app_app_name_enabled",
-      "event_name": "app.settings.plugin.app.[App_name]_enabled",
-      "operation": "appSettingsPluginInstallAllDisabled",
-      "category": "desktop_app_preference_page",
-      "navigation": [
-        "Desktop app > Preferences > Plugins > Per-app row > Enable"
-      ],
-      "trigger_hint": "enable specific app",
-      "automatable": true,
-      "steps": []
-    },
-    {
-      "case_id": "app_settings_performance_mode_changed",
-      "event_name": "app.settings.performance_mode.changed",
-      "operation": "appSettingsPerformanceModeChanged",
-      "category": "desktop_app_preference_page",
-      "navigation": [
-        "Desktop app > Preferences > General > Performance mode > Select mode"
-      ],
-      "trigger_hint": "change mode when enabled",
-      "automatable": true,
-      "steps": []
-    },
     {
       "case_id": "app_settings_auto_performance_enabled",
       "event_name": "app.settings.auto_performance.enabled",
       "operation": "appSettingsAutoPerformanceEnabled",
       "category": "desktop_app_preference_page",
       "navigation": [
-        "Desktop app > Preferences > General > Auto performance management > Enable toggle"
+        "Preferences > General > Auto performance management > Enable"
       ],
-      "trigger_hint": "enable performance",
+      "trigger_hint": "enable auto performance",
       "automatable": true,
-      "steps": []
+      "steps": [
+        {
+          "action": "open_preferences_section",
+          "selector": "",
+          "xpath": "",
+          "description": "Preferences general",
+          "value": "general"
+        },
+        {
+          "action": "toggle_on",
+          "selector": "[data-qa-id='preferences-general-auto-performance-toggle']",
+          "xpath": "",
+          "description": "Auto performance ON"
+        }
+      ]
     },
     {
       "case_id": "app_settings_auto_performance_disabled",
@@ -81,47 +35,52 @@
       "operation": "appSettingsAutoPerformanceDisabled",
       "category": "desktop_app_preference_page",
       "navigation": [
-        "Desktop app > Preferences > General > Auto performance management > Disable toggle"
+        "Preferences > General > Auto performance management > Disable"
       ],
-      "trigger_hint": "disable performance",
+      "trigger_hint": "disable auto performance",
       "automatable": true,
-      "steps": []
+      "steps": [
+        {
+          "action": "open_preferences_section",
+          "selector": "",
+          "xpath": "",
+          "description": "Preferences general",
+          "value": "general"
+        },
+        {
+          "action": "toggle_off",
+          "selector": "[data-qa-id='preferences-general-auto-performance-toggle']",
+          "xpath": "",
+          "description": "Auto performance OFF"
+        }
+      ]
     },
     {
-      "case_id": "app_settings_activation_mode_changed",
-      "event_name": "app.settings.activation_mode.changed",
-      "operation": "appSettingsActivationModeChanged",
+      "case_id": "app_settings_performance_mode_changed",
+      "event_name": "app.settings.performance_mode.changed",
+      "operation": "appSettingsPerformanceModeChanged",
       "category": "desktop_app_preference_page",
       "navigation": [
-        "Desktop app > Preferences > Plugins > Deactivate temporary fonts when > Dropdown"
+        "Preferences > General > Performance mode"
       ],
-      "trigger_hint": "No ui idea",
+      "trigger_hint": "change performance mode",
       "automatable": true,
-      "steps": []
-    },
-    {
-      "case_id": "app_logs_exported",
-      "event_name": "app.logs.exported",
-      "operation": "appLogsExported",
-      "category": "desktop_app_preference_page",
-      "navigation": [
-        "Desktop app > Help & Support > System logs > Download system logs"
-      ],
-      "trigger_hint": "helpandsupport > download system log",
-      "automatable": true,
-      "steps": []
-    },
-    {
-      "case_id": "app_network_refreshed",
-      "event_name": "app.network.refreshed",
-      "operation": "appNetworkRefreshed",
-      "category": "desktop_app_preference_page",
-      "navigation": [
-        "Desktop app > Help & Support > Network status > Refresh status"
-      ],
-      "trigger_hint": "helpandsupport > refresh status",
-      "automatable": true,
-      "steps": []
+      "steps": [
+        {
+          "action": "open_preferences_section",
+          "selector": "",
+          "xpath": "",
+          "description": "Preferences general",
+          "value": "general"
+        },
+        {
+          "action": "select_option",
+          "selector": "[data-qa-id='preferences-general-performance-mode-dropdown'],[data-testid='preferences-general-performance-mode-dropdown']",
+          "xpath": "",
+          "description": "Performance mode",
+          "value": "Max performance|Max capacity|Optimal|Balanced"
+        }
+      ]
     },
     {
       "case_id": "app_language_changed",
@@ -129,11 +88,131 @@
       "operation": "appLanguageChanged",
       "category": "desktop_app_preference_page",
       "navigation": [
-        "Desktop app > Preferences > General > Language > Select language"
+        "Preferences > General > Language"
       ],
-      "trigger_hint": "preferences > change language",
+      "trigger_hint": "change language",
       "automatable": true,
-      "steps": []
+      "steps": [
+        {
+          "action": "open_preferences_section",
+          "selector": "",
+          "xpath": "",
+          "description": "Preferences general",
+          "value": "general"
+        },
+        {
+          "action": "select_option",
+          "selector": "[data-qa-id='preferences-language-dropdown']",
+          "xpath": "",
+          "description": "Language",
+          "value": "Deutsch|Fran\u00e7ais|Espa\u00f1ol|English|\u65e5\u672c\u8a9e"
+        }
+      ]
+    },
+    {
+      "case_id": "app_settings_plugin_install_all_enabled",
+      "event_name": "app.settings.plugin.install_all.enabled",
+      "operation": "appSettingsPluginInstallAllEnabled",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Preferences > Plugins > Install all plugins > Enable"
+      ],
+      "trigger_hint": "enable install all plugins",
+      "automatable": true,
+      "steps": [
+        {
+          "action": "open_preferences_section",
+          "selector": "",
+          "xpath": "",
+          "description": "Preferences plugins",
+          "value": "plugins"
+        },
+        {
+          "action": "toggle_on",
+          "selector": "[data-qa-id='preferences-plugins-page'] md-toggle.mtc-plugins-page__toggle",
+          "xpath": "",
+          "description": "Install all plugins ON"
+        }
+      ]
+    },
+    {
+      "case_id": "app_settings_plugin_install_all_disabled",
+      "event_name": "app.settings.plugin.install_all.disabled",
+      "operation": "appSettingsPluginInstallAllDisabled",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Preferences > Plugins > Install all plugins > Disable"
+      ],
+      "trigger_hint": "disable install all plugins",
+      "automatable": true,
+      "steps": [
+        {
+          "action": "open_preferences_section",
+          "selector": "",
+          "xpath": "",
+          "description": "Preferences plugins",
+          "value": "plugins"
+        },
+        {
+          "action": "toggle_off",
+          "selector": "[data-qa-id='preferences-plugins-page'] md-toggle.mtc-plugins-page__toggle",
+          "xpath": "",
+          "description": "Install all plugins OFF"
+        }
+      ]
+    },
+    {
+      "case_id": "app_settings_plugin_app_enabled",
+      "event_name": "app.settings.plugin.app.enabled",
+      "operation": "appSettingsPluginAppEnabled",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Preferences > Plugins > Apps available > Enable app plugin"
+      ],
+      "trigger_hint": "enable plugin for installed app",
+      "automatable": true,
+      "steps": [
+        {
+          "action": "open_preferences_section",
+          "selector": "",
+          "xpath": "",
+          "description": "Preferences plugins",
+          "value": "plugins"
+        },
+        {
+          "action": "toggle",
+          "selector": "[data-testid='plugin-app-row'] md-toggle.mtc-plugins-page__toggle",
+          "xpath": "",
+          "description": "Toggle first app plugin row"
+        }
+      ]
+    },
+    {
+      "case_id": "app_settings_activation_mode_changed",
+      "event_name": "app.settings.activation_mode.changed",
+      "operation": "appSettingsActivationModeChanged",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Preferences > Plugins > Deactivate temporary fonts when"
+      ],
+      "trigger_hint": "change temp font deactivation mode",
+      "automatable": true,
+      "steps": [
+        {
+          "action": "open_preferences_section",
+          "selector": "",
+          "xpath": "",
+          "description": "Preferences plugins",
+          "value": "plugins"
+        },
+        {
+          "action": "select_option",
+          "selector": "md-dropdown[aria-label='Deactivate temporary fonts when']",
+          "xpath": "",
+          "description": "Deactivate temporary fonts when",
+          "value": "Quit|Close|Never|Always|When|App"
+        }
+      ]
     },
     {
       "case_id": "app_feedback_submitted",
@@ -141,11 +220,84 @@
       "operation": "appFeedbackSubmitted",
       "category": "desktop_app_preference_page",
       "navigation": [
-        "Desktop app > Preferences > About > Send feedback / contact support"
+        "Preferences > About > Share feedback"
       ],
-      "trigger_hint": "about > share feedback",
+      "trigger_hint": "share feedback",
       "automatable": true,
-      "steps": []
+      "steps": [
+        {
+          "action": "open_preferences_section",
+          "selector": "",
+          "xpath": "",
+          "description": "Preferences about",
+          "value": "about"
+        },
+        {
+          "action": "click",
+          "selector": "",
+          "xpath": "//md-link[contains(.,'Share feedback')]",
+          "description": "Share feedback"
+        },
+        {
+          "action": "press",
+          "selector": "body",
+          "xpath": "",
+          "description": "Dismiss modal",
+          "value": "Escape"
+        }
+      ]
+    },
+    {
+      "case_id": "app_logs_exported",
+      "event_name": "app.logs.exported",
+      "operation": "appLogsExported",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Profile > Help & support > Download system logs"
+      ],
+      "trigger_hint": "download system logs",
+      "automatable": true,
+      "steps": [
+        {
+          "action": "open_help_support",
+          "selector": "",
+          "xpath": "",
+          "description": "Open Help & support",
+          "value": ""
+        },
+        {
+          "action": "click",
+          "selector": "[data-qa-id='download-logs-button']",
+          "xpath": "",
+          "description": "Download system logs"
+        }
+      ]
+    },
+    {
+      "case_id": "app_network_refreshed",
+      "event_name": "app.network.refreshed",
+      "operation": "appNetworkRefreshed",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Profile > Help & support > Refresh status"
+      ],
+      "trigger_hint": "refresh network status",
+      "automatable": true,
+      "steps": [
+        {
+          "action": "open_help_support",
+          "selector": "",
+          "xpath": "",
+          "description": "Open Help & support",
+          "value": ""
+        },
+        {
+          "action": "click",
+          "selector": "[data-qa-id='refresh-status-button']",
+          "xpath": "",
+          "description": "Refresh status"
+        }
+      ]
     },
     {
       "case_id": "app_cache_cleared",
@@ -153,41 +305,37 @@
       "operation": "appCacheCleared",
       "category": "desktop_app_preference_page",
       "navigation": [
-        "Desktop app > Help & Support > Storage > Clear font cache > Confirm"
+        "Profile > Help & support > Clear cache"
       ],
-      "trigger_hint": "N/A",
-      "automatable": false,
-      "remarks": "Requires confirming cache clear dialog — run manually or extend steps",
-      "steps": []
-    },
-    {
-      "case_id": "font_sync_success",
-      "event_name": "fontSyncSuccess",
-      "operation": "fontSyncSuccess",
-      "category": "font_activations",
-      "navigation": [
-        "Desktop app > Font Bridge > Sync fonts"
-      ],
-      "trigger_hint": "Fontbridge",
-      "automatable": false,
-      "remarks": "Triggered by Font Bridge sync completion — may require waiting for background sync"
-    },
-    {
-      "case_id": "font_activation_type_switched",
-      "event_name": "font.activation.type.switched",
-      "operation": "fontActivationTypeSwitched",
-      "category": "font_activations",
-      "navigation": [
-        "Discover Fonts / Search / My Library > Font card > Switch temp activation to permanent"
-      ],
-      "trigger_hint": "activate family",
+      "trigger_hint": "clear font cache",
       "automatable": true,
       "steps": [
         {
-          "action": "click",
-          "selector": "[data-testid='menu-item-Discover fonts']",
+          "action": "open_help_support",
+          "selector": "",
           "xpath": "",
-          "description": "Discover fonts"
+          "description": "Open Help & support",
+          "value": ""
+        },
+        {
+          "action": "click",
+          "selector": "[data-qa-id='clear-cache-button']",
+          "xpath": "",
+          "description": "Clear cache"
+        },
+        {
+          "action": "click_text",
+          "selector": "",
+          "xpath": "",
+          "description": "Confirm clear cache",
+          "value": "Clear|Confirm|Yes|OK"
+        },
+        {
+          "action": "press",
+          "selector": "body",
+          "xpath": "",
+          "description": "Dismiss",
+          "value": "Escape"
         }
       ]
     },
@@ -197,22 +345,63 @@
       "operation": "fontTempActivated",
       "category": "font_activations",
       "navigation": [
-        "Desktop app > Discover Fonts > Activate family (temporary)"
+        "Discover fonts > Options > Activate temporarily"
       ],
-      "trigger_hint": "",
+      "trigger_hint": "temp activate family",
       "automatable": true,
       "steps": [
         {
-          "action": "click",
-          "selector": "[data-testid='nav-discover-fonts']",
-          "xpath": "//a[contains(.,'Discover')]",
-          "description": "Discover Fonts"
+          "action": "goto",
+          "selector": "",
+          "xpath": "",
+          "description": "Discover fonts",
+          "value": "/discover-fonts/all"
         },
         {
           "action": "click",
-          "selector": "[data-testid='activate-family-btn']:first-of-type",
-          "xpath": "(//button[contains(@aria-label,'Activate')])[1]",
-          "description": "Temp activate first family"
+          "selector": "button[aria-label='Open options menu']",
+          "xpath": "",
+          "description": "Open options menu"
+        },
+        {
+          "action": "click_text",
+          "selector": "",
+          "xpath": "",
+          "description": "Activate temporarily",
+          "value": "Activate temporarily|Temporary activate|Temp activate|Activate for temporary"
+        }
+      ]
+    },
+    {
+      "case_id": "font_activation_type_switched",
+      "event_name": "font.activation.type.switched",
+      "operation": "fontActivationTypeSwitched",
+      "category": "font_activations",
+      "navigation": [
+        "Discover fonts > Options > Activate permanently"
+      ],
+      "trigger_hint": "switch temp to permanent",
+      "automatable": true,
+      "steps": [
+        {
+          "action": "goto",
+          "selector": "",
+          "xpath": "",
+          "description": "Discover fonts",
+          "value": "/discover-fonts/all"
+        },
+        {
+          "action": "click",
+          "selector": "button[aria-label='Open options menu']",
+          "xpath": "",
+          "description": "Open options menu"
+        },
+        {
+          "action": "click_text",
+          "selector": "",
+          "xpath": "",
+          "description": "Activate permanently",
+          "value": "Activate permanently|Make permanent|Permanent|Activate"
         }
       ]
     },
@@ -222,28 +411,36 @@
       "operation": "fontLocalfontActivated",
       "category": "font_activations",
       "navigation": [
-        "Desktop app > My Inventory > System fonts > Activate font (row toggle)"
+        "Manage > System / local fonts > Activate"
       ],
-      "trigger_hint": "plugin",
+      "trigger_hint": "activate local font",
       "automatable": true,
       "steps": [
         {
-          "action": "click",
-          "selector": "[data-testid='nav-my-inventory']",
-          "xpath": "//a[contains(.,'My Inventory') or contains(.,'Inventory')]",
-          "description": "My Inventory"
+          "action": "goto",
+          "selector": "",
+          "xpath": "",
+          "description": "Home/discover",
+          "value": "/discover-fonts/all"
         },
         {
           "action": "click",
-          "selector": "[data-testid='system-fonts-tab']",
-          "xpath": "//button[contains(.,'System fonts')]",
-          "description": "System fonts tab"
+          "selector": "[data-testid='menu-item-Manage']",
+          "xpath": "//button[@data-testid='menu-item-Manage' or contains(.,'Manage')]",
+          "description": "Manage"
         },
         {
-          "action": "click",
-          "selector": "[data-testid='local-font-activate-toggle']:first-of-type",
-          "xpath": "(//input[@type='checkbox' and contains(@aria-label,'Activate')])[1]",
-          "description": "Activate local font"
+          "action": "click_text",
+          "selector": "",
+          "xpath": "",
+          "description": "System fonts",
+          "value": "System fonts|Local fonts|Installed fonts"
+        },
+        {
+          "action": "toggle_on",
+          "selector": "md-toggle, [role='switch']",
+          "xpath": "",
+          "description": "Activate local font row"
         }
       ]
     },
@@ -253,28 +450,165 @@
       "operation": "fontLocalfontDeactivated",
       "category": "font_activations",
       "navigation": [
-        "Desktop app > My Inventory > System fonts > Deactivate font (row toggle)"
+        "Manage > System / local fonts > Deactivate"
       ],
-      "trigger_hint": "plugin",
+      "trigger_hint": "deactivate local font",
       "automatable": true,
       "steps": [
         {
-          "action": "click",
-          "selector": "[data-testid='nav-my-inventory']",
-          "xpath": "//a[contains(.,'My Inventory')]",
-          "description": "My Inventory"
+          "action": "goto",
+          "selector": "",
+          "xpath": "",
+          "description": "Home/discover",
+          "value": "/discover-fonts/all"
         },
         {
           "action": "click",
-          "selector": "[data-testid='system-fonts-tab']",
-          "xpath": "//button[contains(.,'System fonts')]",
-          "description": "System fonts tab"
+          "selector": "[data-testid='menu-item-Manage']",
+          "xpath": "//button[@data-testid='menu-item-Manage' or contains(.,'Manage')]",
+          "description": "Manage"
+        },
+        {
+          "action": "click_text",
+          "selector": "",
+          "xpath": "",
+          "description": "System fonts",
+          "value": "System fonts|Local fonts|Installed fonts"
+        },
+        {
+          "action": "toggle_off",
+          "selector": "md-toggle[checked], md-toggle, [role='switch'][aria-checked='true']",
+          "xpath": "",
+          "description": "Deactivate local font row"
+        }
+      ]
+    },
+    {
+      "case_id": "font_sync_success",
+      "event_name": "fontSyncSuccess",
+      "operation": "fontSyncSuccess",
+      "category": "font_activations",
+      "navigation": [
+        "App > sync / Font Bridge"
+      ],
+      "trigger_hint": "trigger font sync",
+      "automatable": true,
+      "remarks": "Best-effort: click Sync if present; otherwise relies on background sync after activation",
+      "steps": [
+        {
+          "action": "goto",
+          "selector": "",
+          "xpath": "",
+          "description": "Discover",
+          "value": "/discover-fonts/all"
+        },
+        {
+          "action": "click_text",
+          "selector": "",
+          "xpath": "",
+          "description": "Sync fonts",
+          "value": "Sync fonts|Sync|Font Bridge|Refresh fonts"
+        }
+      ]
+    },
+    {
+      "case_id": "user_switch_workspace_app",
+      "event_name": "userSwitchworkspaceApp",
+      "operation": "userSwitchWorkspaceApp",
+      "category": "login",
+      "navigation": [
+        "Profile > switch workspace"
+      ],
+      "trigger_hint": "switch workspace",
+      "automatable": true,
+      "steps": [
+        {
+          "action": "open_profile_menu",
+          "selector": "",
+          "xpath": "",
+          "description": "Open profile menu"
+        },
+        {
+          "action": "click_text",
+          "selector": "",
+          "xpath": "",
+          "description": "Workspace entry",
+          "value": "Workspace|Switch workspace|Audit Co|Change workspace"
         },
         {
           "action": "click",
-          "selector": "[data-testid='local-font-activate-toggle']:first-of-type",
-          "xpath": "(//input[@type='checkbox' and contains(@aria-label,'Activate')])[1]",
-          "description": "Deactivate local font"
+          "selector": "[data-testid='workspace-option']:not([aria-selected='true']), [role='option']:not([aria-selected='true'])",
+          "xpath": "(//*[@role='option' or @data-testid='workspace-option'])[2]",
+          "description": "Select another workspace"
+        }
+      ]
+    },
+    {
+      "case_id": "user_logout_app",
+      "event_name": "userLogoutApp",
+      "operation": "userLogoutApp",
+      "category": "login",
+      "navigation": [
+        "Profile > Sign out"
+      ],
+      "trigger_hint": "sign out",
+      "automatable": true,
+      "remarks": "Runs near end of suite \u2014 signs the user out",
+      "steps": [
+        {
+          "action": "open_profile_menu",
+          "selector": "",
+          "xpath": "",
+          "description": "Open profile menu"
+        },
+        {
+          "action": "click_text",
+          "selector": "",
+          "xpath": "",
+          "description": "Sign out",
+          "value": "Sign out|Log out|Logout"
+        }
+      ]
+    },
+    {
+      "case_id": "user_login_failure_app",
+      "event_name": "userLoginFailureApp",
+      "operation": "userLoginFailureApp",
+      "category": "login",
+      "navigation": [
+        "Login > invalid credentials"
+      ],
+      "trigger_hint": "failed login",
+      "automatable": true,
+      "remarks": "Requires logged-out state; uses obviously invalid password",
+      "steps": [
+        {
+          "action": "click_text",
+          "selector": "",
+          "xpath": "",
+          "description": "Log in",
+          "value": "Log in|Sign in|Login"
+        },
+        {
+          "action": "fill",
+          "selector": "input[type='email'], input[name='email'], input[type='text']",
+          "xpath": "",
+          "description": "Email",
+          "value": "audit-invalid@example.com"
+        },
+        {
+          "action": "fill",
+          "selector": "input[type='password']",
+          "xpath": "",
+          "description": "Bad password",
+          "value": "DefinitelyWrongPassword!123"
+        },
+        {
+          "action": "click_text",
+          "selector": "",
+          "xpath": "",
+          "description": "Submit login",
+          "value": "Continue|Log in|Sign in|Next"
         }
       ]
     },
@@ -284,92 +618,74 @@
       "operation": "userLoginInitiatedApp",
       "category": "login",
       "navigation": [
-        "Desktop app > click on login"
+        "Login screen > start login"
       ],
-      "trigger_hint": "login",
+      "trigger_hint": "login initiated",
       "automatable": true,
+      "remarks": "After logout/failure \u2014 starts a real login click (does not complete SSO automatically)",
       "steps": [
         {
-          "action": "click",
-          "selector": "[data-testid='login-button']",
-          "xpath": "//button[contains(.,'Log in') or contains(.,'Sign in')]",
-          "description": "Open login flow"
-        }
-      ]
-    },
-    {
-      "case_id": "userloginfailureapp",
-      "event_name": "userLoginFailureApp",
-      "operation": "userLoginFailureApp",
-      "category": "login",
-      "navigation": [
-        "Desktop app > Login screen > Failed login attempt"
-      ],
-      "trigger_hint": "No ui idea",
-      "automatable": false,
-      "remarks": "Requires invalid credentials — manual/security-sensitive"
-    },
-    {
-      "case_id": "userlogoutapp",
-      "event_name": "userLogoutApp",
-      "operation": "userLogoutApp",
-      "category": "login",
-      "navigation": [
-        "Desktop app > Profile / account menu > Logout"
-      ],
-      "trigger_hint": "log out",
-      "automatable": true,
-      "steps": [
-        {
-          "action": "click",
-          "selector": "[data-testid='profile-avatar-trigger']",
-          "xpath": "",
-          "description": "Open profile menu"
-        },
-        {
-          "action": "click",
+          "action": "click_text",
           "selector": "",
-          "xpath": "//*[contains(.,'Log out') or contains(.,'Logout')]",
-          "description": "Log out"
-        }
-      ]
-    },
-    {
-      "case_id": "userswitchworkspaceapp",
-      "event_name": "userSwitchworkspaceApp",
-      "operation": "userSwitchWorkspaceApp",
-      "category": "login",
-      "navigation": [
-        "Desktop app > Workspace switcher > Switch workspace"
-      ],
-      "trigger_hint": "need account app",
-      "automatable": true,
-      "steps": [
-        {
-          "action": "click",
-          "selector": "[data-testid='workspace-switcher']",
-          "xpath": "//button[contains(@aria-label,'workspace') or contains(@class,'workspace')]",
-          "description": "Open workspace switcher"
+          "xpath": "",
+          "description": "Log in",
+          "value": "Log in|Sign in|Login"
         },
         {
           "action": "click",
-          "selector": "[data-testid='workspace-option']:not([aria-selected='true'])",
-          "xpath": "(//li[contains(@role,'option') and not(@aria-selected='true')])[1]",
-          "description": "Select alternate workspace"
+          "selector": "[data-testid='login-button'], button",
+          "xpath": "//button[contains(.,'Log in') or contains(.,'Sign in')]",
+          "description": "Confirm login start"
         }
       ]
     },
     {
-      "case_id": "identitylinked",
+      "case_id": "identity_linked",
       "event_name": "identityLinked",
       "operation": "identityLinked",
       "category": "login",
       "navigation": [
-        "Desktop app > Login / SSO flow > Link identity to workspace"
+        "Login / SSO > link identity"
       ],
-      "trigger_hint": "on successful login",
-      "automatable": false,
-      "remarks": "Emitted after successful SSO/login — covered by login flow"
+      "trigger_hint": "emitted after successful SSO",
+      "automatable": true,
+      "remarks": "Best-effort: same as login start; full event needs completed SSO in the build under test",
+      "steps": [
+        {
+          "action": "click_text",
+          "selector": "",
+          "xpath": "",
+          "description": "Log in / continue SSO",
+          "value": "Log in|Sign in|Continue|Login"
+        }
+      ]
+    },
+    {
+      "case_id": "app_settings_plugin_app_app_name_enabled",
+      "event_name": "app.settings.plugin.app.[App_name]_enabled",
+      "operation": "appSettingsPluginAppEnabled",
+      "category": "desktop_app_preference_page",
+      "navigation": [
+        "Preferences > Plugins > Per-app row toggle (alias)"
+      ],
+      "trigger_hint": "alias of plugin app enable \u2014 kept for spreadsheet parity",
+      "automatable": true,
+      "remarks": "Duplicate spreadsheet row; shares operation appSettingsPluginAppEnabled",
+      "steps": [
+        {
+          "action": "open_preferences_section",
+          "selector": "",
+          "xpath": "",
+          "description": "Preferences plugins",
+          "value": "plugins"
+        },
+        {
+          "action": "toggle",
+          "selector": "[data-testid='plugin-app-row'] md-toggle.mtc-plugins-page__toggle",
+          "xpath": "",
+          "description": "Toggle app plugin row"
+        }
+      ]
     }
   ]
 }

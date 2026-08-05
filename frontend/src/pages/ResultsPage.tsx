@@ -747,6 +747,32 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     return { pass, failed, partial, all: allCoverageRows.length };
   }, [allCoverageRows]);
 
+  /** Unique event bases vs scenario variants shown in the coverage table. */
+  const eventGroupCounts = useMemo(() => {
+    const events = new Set<string>();
+    for (const r of coverageRows) {
+      events.add(r.operation.split("(", 1)[0] || r.operation);
+    }
+    return { events: events.size, scenarios: coverageRows.length };
+  }, [coverageRows]);
+
+  const coverageTotals = useMemo(() => {
+    return coverageRows.reduce(
+      (acc, r) => {
+        acc.ops += 1;
+        acc.passed += r.passed;
+        acc.failed += r.failed;
+        acc.skipped += r.skipped;
+        acc.na += r.na;
+        if (r.track === "covered") acc.covered += 1;
+        if (r.track === "needs_enhancement") acc.needs += 1;
+        if (r.track === "unreviewed") acc.unreviewed += 1;
+        return acc;
+      },
+      { ops: 0, passed: 0, failed: 0, skipped: 0, na: 0, covered: 0, needs: 0, unreviewed: 0 },
+    );
+  }, [coverageRows]);
+
   const unreachableCount = useMemo(
     () =>
       rows.filter((r) =>
@@ -1429,7 +1455,17 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
       {allCoverageRows.length > 0 && (
         <div className="coverage-panel" ref={coverageListRef}>
           <div className="coverage-head">
-            <h3>Results</h3>
+            <div>
+              <h3>Results</h3>
+              <p className="muted">
+                {eventGroupCounts.events} events · {eventGroupCounts.scenarios} scenarios ·{" "}
+                {coverageTotals.passed} pass · {coverageTotals.failed} fail · {coverageTotals.skipped} skip
+                <span className="coverage-track-summary">
+                  {" "}· track {coverageTotals.covered} covered / {coverageTotals.needs} enhance /{" "}
+                  {coverageTotals.unreviewed} open
+                </span>
+              </p>
+            </div>
             <div className="coverage-toolbar">
               <label className="filter-field coverage-op-search">
                 <span>Search</span>

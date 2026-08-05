@@ -34,6 +34,7 @@ def run_desktop_ui_automation(
     operations: set[str] | None = None,
     validate_only: bool = False,
     connect_only: bool = False,
+    include_manual: bool = False,
     today_only: bool = True,
     settle_sec: float = 2.0,
     post_settle_sec: float = 5.0,
@@ -42,7 +43,10 @@ def run_desktop_ui_automation(
 ) -> DesktopRunResult:
     root = project_root or find_project_root()
     logs = log_dir or default_log_dir()
-    events = load_desktop_events(operations=operations, automatable_only=not validate_only)
+    events = load_desktop_events(
+        operations=operations,
+        automatable_only=not validate_only and not include_manual,
+    )
 
     def _progress(msg: str) -> None:
         if progress:

@@ -67,8 +67,8 @@ def main() -> int:
     parser.add_argument(
         "--post-settle-sec",
         type=float,
-        default=5.0,
-        help="Wait before reading logs after all triggers",
+        default=120.0,
+        help="Wait before reading logs after all triggers (ConnectService often lags ~2 min)",
     )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
@@ -89,14 +89,20 @@ def main() -> int:
 
     db = None
     try:
-        from audit_validator.config import load_config
-        from audit_validator.ingestion.repository import AuditEventRepository
+        import os
 
-        cfg = load_config(project_root=root)
-        if cfg.mongo.url:
-            db = AuditEventRepository(cfg.mongo)
-    except Exception:  # noqa: BLE001
-        pass
+        sys.path.insert(0, str(ROOT / "backend"))
+        from app.config import load_settings
+        from app.db import AuditDatabase
+
+        settings = load_settings()
+        # Connect/ingress events land in Preprod even when AUDIT_TARGET=qa.
+        mongo_db = (os.getenv("DESKTOP_MONGO_DB") or "AuditLogsPreprod").strip()
+        settings.mongo_db = mongo_db
+        db = AuditDatabase(settings)
+        print(f"Mongo verify db: {mongo_db}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"Mongo verify disabled: {exc}", file=sys.stderr)
 
     result = run_desktop_ui_automation(
         project_root=root,
@@ -104,6 +110,7 @@ def main() -> int:
         operations=ops,
         validate_only=args.validate_only,
         connect_only=args.connect_only,
+        include_manual=args.include_manual,
         settle_sec=args.settle_sec,
         post_settle_sec=args.post_settle_sec,
         db=db,

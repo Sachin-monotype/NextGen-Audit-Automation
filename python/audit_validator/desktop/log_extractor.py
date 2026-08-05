@@ -12,7 +12,11 @@ from typing import Any, Iterator
 from .config import TARGET_URL, today_local
 
 _CURL_DEBUG = "[CurlDebug]"
-_JSON_ARRAY_RE = re.compile(r"(\[\s*\{[\s\S]*?\}\s*\])")
+# Prefer -d / --data body (handles nested subject JSON). Fallback is raw_decode.
+_DATA_FLAG_RE = re.compile(
+    r"""(?:--data-raw|--data-binary|--data|-d)\s+(?P<q>['"])(?P<body>.*?)(?P=q)""",
+    re.DOTALL,
+)
 _ISO_LINE_PREFIX = re.compile(
     r"^(?P<ts>\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)"
 )
@@ -50,19 +54,54 @@ def _line_is_today(line: str, *, today: date) -> bool:
     return ts.date() == today
 
 
-def _extract_payload_from_curl(curl: str) -> dict[str, Any] | None:
-    m = _JSON_ARRAY_RE.search(curl)
-    if not m:
+def _first_json_value(text: str) -> object | None:
+    """Parse the first JSON value in ``text`` (array or object)."""
+    start = -1
+    for i, ch in enumerate(text):
+        if ch in "[{":
+            start = i
+            break
+    if start < 0:
         return None
     try:
-        arr = json.loads(m.group(1))
+        return json.loads(text[start:])
+    except json.JSONDecodeError:
+        pass
+    try:
+        decoder = json.JSONDecoder()
+        val, _ = decoder.raw_decode(text[start:])
+        return val
     except json.JSONDecodeError:
         return None
-    if isinstance(arr, list) and arr and isinstance(arr[0], dict):
-        return arr[0]
-    if isinstance(arr, dict):
-        return arr
+
+
+def _payload_from_json_value(val: object) -> dict[str, Any] | None:
+    if isinstance(val, list) and val and isinstance(val[0], dict):
+        return val[0]
+    if isinstance(val, dict):
+        return val
     return None
+
+
+def _extract_payload_from_curl(curl: str) -> dict[str, Any] | None:
+    """Extract the audit envelope from a CurlDebug command.
+
+    Nested subject trees (e.g. fontActivationTypeSwitched) break naive
+    non-greedy ``[{…}]`` regexes — prefer the ``-d '…'`` body and json.raw_decode.
+    """
+    m = _DATA_FLAG_RE.search(curl)
+    if m:
+        body = m.group("body")
+        for candidate in (body, body.replace('\\"', '"').replace("\\'", "'")):
+            parsed = _first_json_value(candidate)
+            payload = _payload_from_json_value(parsed) if parsed is not None else None
+            if payload:
+                return payload
+
+    idx = curl.find(TARGET_URL)
+    search_from = idx if idx >= 0 else 0
+    parsed = _first_json_value(curl[search_from:])
+    return _payload_from_json_value(parsed) if parsed is not None else None
 
 
 def _operation_from_payload(payload: dict[str, Any]) -> str:
@@ -75,7 +114,7 @@ def _operation_from_payload(payload: dict[str, Any]) -> str:
 def iter_log_files(log_dir: Path, *, today_only: bool = True) -> list[Path]:
     if not log_dir.is_dir():
         return []
-    files = [f for f in log_dir.iterdir() if f.is_file()]
+    files = [f for f in log_dir.iterdir() if f.is_file() and f.name.startswith("file-")]
     if today_only:
         today = today_local()
         files = [f for f in files if datetime.fromtimestamp(f.stat().st_mtime).date() == today]

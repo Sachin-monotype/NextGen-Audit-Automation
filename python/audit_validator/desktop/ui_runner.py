@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -165,6 +166,152 @@ def _open_native_preferences(main_page: Any, browser: Any) -> Any:
     return main_page
 
 
+def _ensure_preferences_section(
+    page: Any,
+    browser: Any,
+    main_page: Any,
+    section: str,
+    *,
+    timeout_ms: int = 15_000,
+) -> Any:
+    """Land on Preferences > general|plugins|about|updates."""
+    section = (section or "general").strip().lower()
+    active = page
+    if "help-support" in (active.url or "") or "help" in (active.url or "").lower():
+        try:
+            active.locator("[data-qa-id='mac-header']").get_by_text("Preferences", exact=True).first.click(
+                timeout=timeout_ms, force=True
+            )
+            active.wait_for_timeout(1000)
+        except Exception:  # noqa: BLE001
+            pass
+    if "preferences" not in (active.url or ""):
+        active = _open_native_preferences(main_page or page, browser)
+    # Prefer sidebar menu item
+    menu = active.locator(f"[data-testid='menu-item-{section}']").first
+    try:
+        menu.wait_for(state="visible", timeout=5000)
+        menu.click(timeout=timeout_ms, force=True)
+    except Exception:  # noqa: BLE001
+        active.get_by_text(section.capitalize(), exact=False).first.click(timeout=timeout_ms, force=True)
+    active.wait_for_timeout(1000)
+    return active
+
+
+def _qa_base_url() -> str:
+    return (
+        os.getenv("DESKTOP_APP_BASE_URL")
+        or os.getenv("NEXTGEN_QA_URL")
+        or "https://nextgen-qa.monotype-pp.com"
+    ).rstrip("/")
+
+
+def _md_toggle_checked(loc: Any) -> bool | None:
+    """Best-effort checked state for md-toggle / role=switch."""
+    try:
+        checked_attr = loc.get_attribute("checked")
+        if checked_attr is not None:
+            return True
+        aria = loc.get_attribute("aria-checked")
+        if aria is not None:
+            return aria.lower() == "true"
+        # shadow / inner switch
+        inner = loc.locator("[role='switch']").first
+        if inner.count() > 0:
+            aria2 = inner.get_attribute("aria-checked")
+            if aria2 is not None:
+                return aria2.lower() == "true"
+    except Exception:  # noqa: BLE001
+        return None
+    return False
+
+
+def _force_click(loc: Any, *, timeout_ms: int) -> None:
+    loc.wait_for(state="attached", timeout=timeout_ms)
+    try:
+        loc.click(timeout=timeout_ms, force=True)
+    except Exception:
+        # label overlay on md-toggle
+        loc.locator("label, [role='switch'], .md-toggle__switch").first.click(
+            timeout=timeout_ms, force=True
+        )
+
+
+def _open_profile_menu(page: Any, *, timeout_ms: int = 10_000) -> None:
+    page.bring_to_front()
+    for sel in (
+        "[data-qa-id='profile-avatar-trigger']",
+        "[data-testid='profile-avatar-trigger']",
+        "[data-qa-id='profile-avatar-wrapper']",
+    ):
+        loc = page.locator(sel).first
+        try:
+            if loc.count() > 0:
+                _force_click(loc, timeout_ms=timeout_ms)
+                page.wait_for_timeout(800)
+                return
+        except Exception:  # noqa: BLE001
+            continue
+    raise RuntimeError("Could not open profile avatar menu")
+
+
+def _open_help_support(page: Any, browser: Any, *, timeout_ms: int = 15_000) -> Any:
+    """Profile menu → Help & support. Returns the help page."""
+    _open_profile_menu(page, timeout_ms=timeout_ms)
+    page.get_by_text("Help & support", exact=False).first.click(timeout=timeout_ms, force=True)
+    page.wait_for_timeout(1500)
+    for p in _all_pages(browser):
+        if "help-support" in (p.url or "") or "help" in (p.url or "").lower():
+            p.bring_to_front()
+            try:
+                p.wait_for_load_state("domcontentloaded", timeout=10_000)
+            except Exception:  # noqa: BLE001
+                pass
+            return p
+    return page
+
+
+def _select_dropdown_option(page: Any, step: UiStep, *, timeout_ms: int) -> None:
+    loc = _locator_for(page, step)
+    _force_click(loc, timeout_ms=timeout_ms)
+    page.wait_for_timeout(700)
+    options = [o.strip() for o in (step.value or "").split("|") if o.strip()]
+    if not options:
+        options = [step.description] if step.description else []
+    for label in options:
+        candidate = page.get_by_text(label, exact=False).first
+        try:
+            if candidate.is_visible(timeout=800):
+                candidate.click(timeout=timeout_ms, force=True)
+                page.wait_for_timeout(400)
+                return
+        except Exception:  # noqa: BLE001
+            continue
+    page.keyboard.press("Escape")
+    raise RuntimeError(f"No dropdown option matched for {step.description!r}: {options}")
+
+
+def _click_text_options(page: Any, step: UiStep, *, timeout_ms: int) -> None:
+    labels = [o.strip() for o in (step.value or step.description or "").split("|") if o.strip()]
+    errors: list[str] = []
+    for label in labels:
+        for factory in (
+            lambda lab=label: page.get_by_role("button", name=lab, exact=False).first,
+            lambda lab=label: page.get_by_role("menuitem", name=lab, exact=False).first,
+            lambda lab=label: page.get_by_role("link", name=lab, exact=False).first,
+            lambda lab=label: page.get_by_text(lab, exact=False).first,
+        ):
+            try:
+                loc = factory()
+                if loc.is_visible(timeout=900):
+                    loc.click(timeout=timeout_ms, force=True)
+                    return
+            except Exception as exc:  # noqa: BLE001
+                errors.append(str(exc))
+                continue
+    raise RuntimeError(errors[-1] if errors else f"Could not click text options: {labels}")
+
+
 def _locator_for(page: Any, step: UiStep) -> Any:
     if step.selector:
         return page.locator(step.selector).first
@@ -173,7 +320,79 @@ def _locator_for(page: Any, step: UiStep) -> Any:
     raise ValueError(f"No selector/xpath for step: {step.description}")
 
 
-def _execute_step(page: Any, step: UiStep, *, timeout_ms: int = 15_000) -> None:
+def _execute_step(
+    page: Any,
+    step: UiStep,
+    *,
+    browser: Any | None = None,
+    main_page: Any | None = None,
+    timeout_ms: int = 15_000,
+) -> Any:
+    """Execute one UI step. Returns the active page (may change for prefs/help/goto)."""
+    action = step.action
+    active = page
+
+    if action == "open_preferences":
+        base = main_page or page
+        return _open_native_preferences(base, browser) if browser else page
+
+    if action == "open_preferences_section":
+        if browser is None:
+            raise RuntimeError("open_preferences_section requires browser handle")
+        return _ensure_preferences_section(
+            page, browser, main_page or page, step.value or "general", timeout_ms=timeout_ms
+        )
+
+    if action == "open_profile_menu":
+        _open_profile_menu(page, timeout_ms=timeout_ms)
+        return page
+
+    if action == "open_help_support":
+        if browser is None:
+            raise RuntimeError("open_help_support requires browser handle")
+        return _open_help_support(page, browser, timeout_ms=timeout_ms)
+
+    if action == "goto":
+        path = (step.value or "").strip()
+        if not path:
+            raise ValueError("goto step requires value URL/path")
+        url = path if path.startswith("http") else f"{_qa_base_url()}{path if path.startswith('/') else '/' + path}"
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=min(timeout_ms, 20_000))
+        except Exception:
+            # Electron SPA sometimes stalls on goto — fall through; caller may still be on a usable page.
+            pass
+        page.wait_for_timeout(1500)
+        return page
+
+    if action == "click_text":
+        _click_text_options(page, step, timeout_ms=timeout_ms)
+        return page
+
+    if action == "select_option":
+        _select_dropdown_option(page, step, timeout_ms=timeout_ms)
+        return page
+
+    if action in {"toggle_on", "toggle_off", "toggle"}:
+        loc = _locator_for(page, step)
+        loc.wait_for(state="attached", timeout=timeout_ms)
+        state = _md_toggle_checked(loc)
+        want_on = action == "toggle_on" or (action == "toggle" and state is False)
+        want_off = action == "toggle_off" or (action == "toggle" and state is True)
+        if action == "toggle":
+            _force_click(loc, timeout_ms=timeout_ms)
+            return page
+        if want_on and state is True:
+            return page
+        if want_off and state is False:
+            return page
+        _force_click(loc, timeout_ms=timeout_ms)
+        return page
+
+    if action == "sleep":
+        page.wait_for_timeout(int(float(step.value or "1") * 1000))
+        return page
+
     errors: list[str] = []
     for factory in (
         lambda: _locator_for(page, step) if step.selector or step.xpath else None,
@@ -186,25 +405,24 @@ def _execute_step(page: Any, step: UiStep, *, timeout_ms: int = 15_000) -> None:
             loc = factory()
             if loc is None:
                 continue
-            loc.wait_for(state="visible", timeout=timeout_ms)
-            action = step.action
             if action in {"click", "toggle"}:
-                loc.click(timeout=timeout_ms)
+                _force_click(loc, timeout_ms=timeout_ms)
             elif action == "check":
-                loc.check(timeout=timeout_ms)
+                loc.check(timeout=timeout_ms, force=True)
             elif action == "uncheck":
-                loc.uncheck(timeout=timeout_ms)
+                loc.uncheck(timeout=timeout_ms, force=True)
             elif action == "fill":
+                loc.wait_for(state="visible", timeout=timeout_ms)
                 loc.fill(step.value or "", timeout=timeout_ms)
             elif action == "select":
                 loc.select_option(step.value or "", timeout=timeout_ms)
             elif action == "press":
-                loc.press(step.value or "Enter", timeout=timeout_ms)
+                page.keyboard.press(step.value or "Enter")
             elif action == "hover":
                 loc.hover(timeout=timeout_ms)
             else:
                 raise ValueError(f"Unknown UI action: {action}")
-            return
+            return active
         except Exception as exc:  # noqa: BLE001
             errors.append(str(exc))
     raise RuntimeError(errors[-1] if errors else f"Could not execute step: {step.description}")
@@ -308,11 +526,22 @@ def _ensure_app_cdp(
 
 
 def _needs_preferences_window(event: DesktopEvent) -> bool:
+    if any(s.action == "open_preferences" for s in event.steps):
+        return True
     nav = " ".join(event.navigation).lower()
-    return "preferences" in nav and "help & support" not in nav.split("preferences")[0]
+    return "preferences" in nav and "help" not in nav.split("preferences")[0]
+
+
+def _needs_help_support(event: DesktopEvent) -> bool:
+    if any(s.action == "open_help_support" for s in event.steps):
+        return True
+    nav = " ".join(event.navigation).lower()
+    return "help" in nav and "support" in nav
 
 
 def _page_for_event(browser: Any, main_page: Any, event: DesktopEvent, *, prefs_open: bool) -> Any:
+    if _needs_help_support(event):
+        return main_page
     if _needs_preferences_window(event):
         if not prefs_open:
             return _open_native_preferences(main_page, browser)
@@ -383,29 +612,22 @@ def run_desktop_ui_steps(
                         prefs_open = True
                     page.bring_to_front()
 
-                    nav_segments = [
-                        s.replace("Desktop app > ", "").replace("Desktop app>", "").strip()
-                        for s in event.navigation
-                    ]
-                    for nav_line in nav_segments:
-                        parts = [p.strip() for p in nav_line.split(">") if p.strip()]
-                        if prefs_open and parts and parts[0].lower() == "preferences":
-                            parts = parts[1:]
-                        if parts:
-                            _navigate_breadcrumb(page, parts)
-
+                    # Prefer explicit steps. Freeform navigation strings are human hints only.
                     if event.steps:
                         for step in event.steps:
-                            if step.action == "open_preferences":
-                                page = _open_native_preferences(main_page, browser)
-                                prefs_open = True
-                                continue
                             try:
-                                _execute_step(page, step)
+                                page = _execute_step(
+                                    page,
+                                    step,
+                                    browser=browser,
+                                    main_page=main_page,
+                                ) or page
+                                if step.action == "open_preferences":
+                                    prefs_open = True
                                 result.step_results.append(
                                     StepResult(
                                         event_operation=event.operation,
-                                        step_description=step.description,
+                                        step_description=step.description or step.action,
                                         status="PASS",
                                     )
                                 )
@@ -413,12 +635,23 @@ def run_desktop_ui_steps(
                                 result.step_results.append(
                                     StepResult(
                                         event_operation=event.operation,
-                                        step_description=step.description,
+                                        step_description=step.description or step.action,
                                         status="FAIL",
                                         error=str(exc),
                                     )
                                 )
                                 raise
+                    else:
+                        nav_segments = [
+                            s.replace("Desktop app > ", "").replace("Desktop app>", "").strip()
+                            for s in event.navigation
+                        ]
+                        for nav_line in nav_segments:
+                            parts = [p.strip() for p in nav_line.split(">") if p.strip()]
+                            if prefs_open and parts and parts[0].lower() == "preferences":
+                                parts = parts[1:]
+                            if parts:
+                                _navigate_breadcrumb(page, parts)
 
                     time.sleep(settle_sec)
                     result.triggered_operations.append(event.operation)
