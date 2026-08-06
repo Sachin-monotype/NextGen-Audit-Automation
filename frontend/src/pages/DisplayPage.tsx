@@ -405,9 +405,33 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
     setEnrichDiff(null);
   }, [tab]);
 
+  // Reload filter enums + operations; scope operations to selected environment(s).
   useEffect(() => {
-    fetchFilterValues(tab).then(setFilterValues).catch(() => {});
-  }, [tab]);
+    const envs = (filters["source.platformEnvironment"] || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    let cancelled = false;
+    fetchFilterValues(tab, envs.length ? envs : undefined)
+      .then((next) => {
+        if (cancelled) return;
+        setFilterValues(next);
+        const allowed = new Set(next["source.operation"] ?? []);
+        if (envs.length && opSelected.length) {
+          const pruned = opSelected.filter((op) => allowed.has(op));
+          if (pruned.length !== opSelected.length) {
+            setOpSelected(pruned);
+            setFilters((prev) => ({ ...prev, "source.operation": pruned.join(",") }));
+          }
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // intentionally omit opSelected — prune only when env/tab changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, filters["source.platformEnvironment"]]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -435,6 +459,13 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
       const next = await setPipelineTarget(target);
       setPipeline(next);
       setPage(1);
+      const envs = (filters["source.platformEnvironment"] || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      fetchFilterValues(tab, envs.length ? envs : undefined)
+        .then(setFilterValues)
+        .catch(() => {});
       // Force reload against the new Mongo DB (page may already be 1).
       setLoading(true);
       try {

@@ -540,25 +540,13 @@
       ],
       "trigger_hint": "switch workspace",
       "automatable": true,
+      "remarks": "Handler: app_oauth.switch_workspace_app — first non-selected workspace option (SKIP if user has only one company)",
       "steps": [
         {
-          "action": "open_profile_menu",
+          "action": "app_oauth_switch_workspace",
           "selector": "",
           "xpath": "",
-          "description": "Open profile menu"
-        },
-        {
-          "action": "click_text",
-          "selector": "",
-          "xpath": "",
-          "description": "Workspace entry",
-          "value": "Workspace|Switch workspace|Audit Co|Change workspace"
-        },
-        {
-          "action": "click",
-          "selector": "[data-testid='workspace-option']:not([aria-selected='true']), [role='option']:not([aria-selected='true'])",
-          "xpath": "(//*[@role='option' or @data-testid='workspace-option'])[2]",
-          "description": "Select another workspace"
+          "description": "Switch to another workspace (first non-selected)"
         }
       ]
     },
@@ -572,20 +560,13 @@
       ],
       "trigger_hint": "sign out",
       "automatable": true,
-      "remarks": "Runs near end of suite \u2014 signs the user out",
+      "remarks": "Handler: app_oauth.logout_app — runs last in auth suite",
       "steps": [
         {
-          "action": "open_profile_menu",
+          "action": "app_oauth_logout",
           "selector": "",
           "xpath": "",
-          "description": "Open profile menu"
-        },
-        {
-          "action": "click_text",
-          "selector": "",
-          "xpath": "",
-          "description": "Sign out",
-          "value": "Sign out|Log out|Logout"
+          "description": "Profile Sign out"
         }
       ]
     },
@@ -595,39 +576,17 @@
       "operation": "userLoginFailureApp",
       "category": "login",
       "navigation": [
-        "Login > invalid credentials"
+        "Login > Auth0 invalid password"
       ],
       "trigger_hint": "failed login",
       "automatable": true,
-      "remarks": "Requires logged-out state; uses obviously invalid password",
+      "remarks": "Handler: app_oauth.login_app_failure — Auth0 wrong password then Close modal (CancelledByUser → userLoginFailureApp)",
       "steps": [
         {
-          "action": "click_text",
+          "action": "app_oauth_login_failure",
           "selector": "",
           "xpath": "",
-          "description": "Log in",
-          "value": "Log in|Sign in|Login"
-        },
-        {
-          "action": "fill",
-          "selector": "input[type='email'], input[name='email'], input[type='text']",
-          "xpath": "",
-          "description": "Email",
-          "value": "audit-invalid@example.com"
-        },
-        {
-          "action": "fill",
-          "selector": "input[type='password']",
-          "xpath": "",
-          "description": "Bad password",
-          "value": "DefinitelyWrongPassword!123"
-        },
-        {
-          "action": "click_text",
-          "selector": "",
-          "xpath": "",
-          "description": "Submit login",
-          "value": "Continue|Log in|Sign in|Next"
+          "description": "OAuth browser wrong password"
         }
       ]
     },
@@ -641,20 +600,13 @@
       ],
       "trigger_hint": "login initiated",
       "automatable": true,
-      "remarks": "After logout/failure \u2014 starts a real login click (does not complete SSO automatically)",
+      "remarks": "Handler: app_oauth.start_login_initiated — Sign in click only (SSO completed by identityLinked)",
       "steps": [
         {
-          "action": "click_text",
+          "action": "app_oauth_login_initiated",
           "selector": "",
           "xpath": "",
-          "description": "Log in",
-          "value": "Log in|Sign in|Login"
-        },
-        {
-          "action": "click",
-          "selector": "[data-testid='login-button'], button",
-          "xpath": "//button[contains(.,'Log in') or contains(.,'Sign in')]",
-          "description": "Confirm login start"
+          "description": "Click Sign in (initiated)"
         }
       ]
     },
@@ -668,14 +620,13 @@
       ],
       "trigger_hint": "emitted after successful SSO",
       "automatable": true,
-      "remarks": "Best-effort: same as login start; full event needs completed SSO in the build under test",
+      "remarks": "Handler: complete OAuth success (deeplink) after initiated — emits identityLinked",
       "steps": [
         {
-          "action": "click_text",
+          "action": "app_oauth_identity_linked",
           "selector": "",
           "xpath": "",
-          "description": "Log in / continue SSO",
-          "value": "Log in|Sign in|Continue|Login"
+          "description": "Complete OAuth + deeplink"
         }
       ]
     },

@@ -92,7 +92,12 @@ def test_chrome_version_only_diff_passes():
 
 
 def test_store_cleanup_upgrades_skip_ua_noise():
-    from backend.app.comparison_store import _clean_benign_client_ua_rows
+    import sys
+    from pathlib import Path
+    backend_dir = str(Path(__file__).resolve().parent.parent.parent / "backend")
+    if backend_dir not in sys.path:
+        sys.path.insert(0, backend_dir)
+    from app.comparison_store import _clean_benign_client_ua_rows
 
     a = (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "

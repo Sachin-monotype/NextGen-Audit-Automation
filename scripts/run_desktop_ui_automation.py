@@ -92,15 +92,21 @@ def main() -> int:
         import os
 
         sys.path.insert(0, str(ROOT / "backend"))
+        from audit_validator.env_profiles import apply_audit_profile, get_audit_profile, mongo_db_for_profile
         from app.config import load_settings
         from app.db import AuditDatabase
 
+        apply_audit_profile(project_root=root)
         settings = load_settings()
-        # Connect/ingress events land in Preprod even when AUDIT_TARGET=qa.
-        mongo_db = (os.getenv("DESKTOP_MONGO_DB") or "AuditLogsPreprod").strip()
+        # Prefer explicit override, else active AUDIT_TARGET profile (QA → AuditLogsQA).
+        mongo_db = (
+            (os.getenv("DESKTOP_MONGO_DB") or "").strip()
+            or (os.getenv("MONGO_DB_NAME") or "").strip()
+            or mongo_db_for_profile(get_audit_profile())
+        )
         settings.mongo_db = mongo_db
         db = AuditDatabase(settings)
-        print(f"Mongo verify db: {mongo_db}")
+        print(f"Mongo verify db: {mongo_db} (AUDIT_TARGET={os.getenv('AUDIT_TARGET', 'qa')})")
     except Exception as exc:  # noqa: BLE001
         print(f"Mongo verify disabled: {exc}", file=sys.stderr)
 

@@ -52,6 +52,14 @@ def _has_snapshot(enriched: JsonDict, layer: str) -> bool:
     return isinstance(snap, dict) and bool(snap)
 
 
+def _actor_is_anonymous(enriched: JsonDict) -> bool:
+    """Anonymous actors have no user identity — enricher skips actor.enrichedSnapshot."""
+    actor = enriched.get("actor")
+    if not isinstance(actor, dict):
+        return False
+    return str(actor.get("authenticationState") or "").strip().lower() == "anonymous"
+
+
 def validate_enrichment_scope(
     operation: str,
     enriched: JsonDict,
@@ -72,6 +80,7 @@ def validate_enrichment_scope(
     gap = bool(spec.get("gap"))
     has_subj = _has_snapshot(enriched, "subject")
     has_actor = _has_snapshot(enriched, "actor")
+    anonymous = _actor_is_anonymous(enriched)
     rows: list[ScopeCheck] = []
 
     # --- Implementation (what enricher produces) ---
@@ -105,16 +114,24 @@ def validate_enrichment_scope(
         )
 
     if impl.get("actor"):
+        if has_actor:
+            actor_status, actor_notes = "PASS", "Enricher produces actor.enrichedSnapshot"
+        elif anonymous:
+            actor_status, actor_notes = (
+                "PASS",
+                "Actor authenticationState=anonymous — no actor.enrichedSnapshot expected",
+            )
+        else:
+            actor_status, actor_notes = (
+                "FAIL",
+                "Enricher produces actor.enrichedSnapshot but sample has none",
+            )
         rows.append(
             ScopeCheck(
                 operation=operation,
                 field_path="actor.enrichedSnapshot",
-                match_status="PASS" if has_actor else "FAIL",
-                notes=(
-                    "Enricher produces actor.enrichedSnapshot"
-                    if has_actor
-                    else "Enricher produces actor.enrichedSnapshot but sample has none"
-                ),
+                match_status=actor_status,
+                notes=actor_notes,
                 source_api="implementation.produces_actor",
             )
         )
@@ -149,16 +166,24 @@ def validate_enrichment_scope(
             )
         )
     if enf.get("actor"):
+        if has_actor:
+            enf_status, enf_notes = "PASS", "Handler requires actor.enrichedSnapshot — present"
+        elif anonymous:
+            enf_status, enf_notes = (
+                "PASS",
+                "Actor authenticationState=anonymous — handler actor snapshot not required",
+            )
+        else:
+            enf_status, enf_notes = (
+                "FAIL",
+                "Handler requires actor.enrichedSnapshot — MISSING (would nack)",
+            )
         rows.append(
             ScopeCheck(
                 operation=operation,
                 field_path="enrichmentScope.enforced.actor",
-                match_status="PASS" if has_actor else "FAIL",
-                notes=(
-                    "Handler requires actor.enrichedSnapshot — present"
-                    if has_actor
-                    else "Handler requires actor.enrichedSnapshot — MISSING (would nack)"
-                ),
+                match_status=enf_status,
+                notes=enf_notes,
                 source_api="handler.requiresActorEnrichedSnapshot",
             )
         )

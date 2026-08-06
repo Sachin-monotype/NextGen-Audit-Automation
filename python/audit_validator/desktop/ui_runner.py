@@ -25,6 +25,19 @@ from .navigation import DesktopEvent, UiStep
 
 log = logging.getLogger(__name__)
 
+# Auth ops run in a fixed order so CurlDebug captures the right envelopes.
+_AUTH_ORDER_PREFIX = (
+    "userLoginFailureApp",
+    "userLoginInitiatedApp",
+    "identityLinked",
+    "userSwitchWorkspaceApp",
+)
+_AUTH_ORDER_SUFFIX = ("userLogoutApp",)
+_AUTH_OPS = frozenset(_AUTH_ORDER_PREFIX + _AUTH_ORDER_SUFFIX)
+_LOGIN_REQUIRES_LOGGED_OUT = frozenset(
+    {"userLoginFailureApp", "userLoginInitiatedApp", "identityLinked"}
+)
+
 
 @dataclass
 class StepResult:
@@ -153,8 +166,19 @@ def _pick_preferences_page(browser: Any) -> Any | None:
 
 
 def _wait_for_main_ui(page: Any, *, timeout_ms: int = 60_000) -> None:
+    """Wait for authenticated shell or the logged-out Sign in screen."""
     page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
-    page.locator("[data-testid='main-layout'], [data-testid='sidebar']").first.wait_for(
+    # Auth suite starts logged out — sign-in button is a valid ready state.
+    sign_in = page.locator("[data-qa-id='sign-in-button']").first
+    try:
+        if sign_in.is_visible(timeout=2_000):
+            return
+    except Exception:  # noqa: BLE001
+        pass
+    page.locator(
+        "[data-testid='main-layout'], [data-testid='sidebar'], "
+        "[data-qa-id='sidebar'], [data-qa-id='sign-in-button']"
+    ).first.wait_for(
         state="visible",
         timeout=timeout_ms,
     )
@@ -707,6 +731,76 @@ def _needs_help_support(event: DesktopEvent) -> bool:
     return "help" in nav and "support" in nav
 
 
+def _sort_auth_events(events: list[DesktopEvent]) -> list[DesktopEvent]:
+    """Stable auth ordering: failure → initiated → identityLinked → workspace → … → logout."""
+    by_op: dict[str, list[DesktopEvent]] = {}
+    for ev in events:
+        by_op.setdefault(ev.operation, []).append(ev)
+
+    ordered: list[DesktopEvent] = []
+    for op in _AUTH_ORDER_PREFIX:
+        ordered.extend(by_op.pop(op, []))
+    # Non-auth events keep relative order
+    for ev in events:
+        if ev.operation in _AUTH_OPS:
+            continue
+        if ev.operation in by_op:
+            ordered.extend(by_op.pop(ev.operation))
+    for op in _AUTH_ORDER_SUFFIX:
+        ordered.extend(by_op.pop(op, []))
+    # Any leftover auth aliases
+    for remaining in by_op.values():
+        ordered.extend(remaining)
+    return ordered
+
+
+def _handle_auth_operation(
+    page: Any,
+    event: DesktopEvent,
+    *,
+    playwright: Any,
+    browser: Any | None = None,
+) -> Any:
+    """Dedicated handlers for login-category ops (OAuth / workspace / logout).
+
+    Returns the best page handle after the op (shell may change on login/logout).
+    """
+    from . import app_oauth
+
+    op = event.operation
+    if op == "userLoginFailureApp":
+        page = app_oauth.ensure_logged_out(page, browser=browser)
+        app_oauth.login_app_failure(page, playwright=playwright)
+        return page
+    if op == "userLoginInitiatedApp":
+        page = app_oauth.ensure_logged_out(page, browser=browser)
+        app_oauth.start_login_initiated(page)
+        return page
+    if op == "identityLinked":
+        page = app_oauth.ensure_main_shell(page, browser)
+        if app_oauth.is_app_logged_in(page):
+            log.info("identityLinked: already logged in after prior auth steps")
+            return page
+        # Prefer finishing OAuth from AuthorizationUrl captured by login-initiated.
+        if app_oauth.complete_oauth_from_captured_url(page, playwright=playwright):
+            return page
+        app_oauth.login_app(page, playwright=playwright)
+        return page
+    if op == "userSwitchWorkspaceApp":
+        try:
+            app_oauth.switch_workspace_app(page, browser=browser)
+        except RuntimeError as exc:
+            if "No alternate workspace" in str(exc):
+                log.warning("%s — skipping", exc)
+                raise RuntimeError(f"SKIP: {exc}") from exc
+            raise
+        return page
+    if op == "userLogoutApp":
+        app_oauth.logout_app(page, browser=browser)
+        return page
+    raise RuntimeError(f"No auth handler for {op}")
+
+
 def _page_for_event(browser: Any, main_page: Any, event: DesktopEvent, *, prefs_open: bool) -> Any:
     if _needs_help_support(event):
         return main_page
@@ -733,6 +827,7 @@ def run_desktop_ui_steps(
     if not runnable:
         result.errors.append("No automatable desktop events in selection.")
         return result
+    runnable = _sort_auth_events(runnable)
 
     if not _playwright_available():
         result.errors.append(
@@ -772,6 +867,22 @@ def run_desktop_ui_steps(
             _wait_for_main_ui(main_page)
             prefs_open = False
 
+            # If we need a clean login path and the app is already signed in, logout once.
+            selected_ops = {e.operation for e in runnable}
+            if selected_ops & _LOGIN_REQUIRES_LOGGED_OUT:
+                from . import app_oauth
+
+                main_page = app_oauth.ensure_main_shell(main_page, browser)
+                if app_oauth.is_app_logged_in(main_page):
+                    _log("Auth suite needs logged-out state — signing out first")
+                    try:
+                        app_oauth.logout_app(main_page, browser=browser)
+                        main_page = _pick_main_page(browser) or main_page
+                        main_page.bring_to_front()
+                    except Exception as exc:  # noqa: BLE001
+                        result.errors.append(f"pre-auth logout: {exc}")
+                        _log(f"  ✖ pre-auth logout: {exc}")
+
             for event in runnable:
                 _log(f"Trigger {event.event_name} ({event.operation})")
                 try:
@@ -780,8 +891,38 @@ def run_desktop_ui_steps(
                         prefs_open = True
                     page.bring_to_front()
 
+                    if event.operation in _AUTH_OPS or any(
+                        (s.action or "").startswith("app_oauth") for s in event.steps
+                    ):
+                        try:
+                            page = _handle_auth_operation(
+                                page, event, playwright=pw, browser=browser
+                            )
+                            result.step_results.append(
+                                StepResult(
+                                    event_operation=event.operation,
+                                    step_description=f"auth:{event.operation}",
+                                    status="PASS",
+                                )
+                            )
+                        except RuntimeError as exc:
+                            if str(exc).startswith("SKIP:"):
+                                result.step_results.append(
+                                    StepResult(
+                                        event_operation=event.operation,
+                                        step_description=f"auth:{event.operation}",
+                                        status="SKIP",
+                                        error=str(exc),
+                                    )
+                                )
+                                _log(f"  ⊘ {event.operation}: {exc}")
+                                continue
+                            raise
+                        # Main page may change after login/logout.
+                        main_page = _pick_main_page(browser) or page
+                        prefs_open = False
                     # Prefer explicit steps. Freeform navigation strings are human hints only.
-                    if event.steps:
+                    elif event.steps:
                         for step in event.steps:
                             try:
                                 page = _execute_step(

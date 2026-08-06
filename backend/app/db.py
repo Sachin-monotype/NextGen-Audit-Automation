@@ -167,10 +167,20 @@ class AuditDatabase:
                 query[key] = value
         return query
 
-    def distinct_filter_values(self, tab: str | None = None) -> dict[str, list[str]]:
-        """Distinct enum values (env/service/state) and operations for filter dropdowns."""
+    def distinct_filter_values(
+        self,
+        tab: str | None = None,
+        *,
+        environments: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Distinct enum values (env/service/state) and operations for filter dropdowns.
+
+        When ``environments`` is set, ``source.operation`` is limited to operations
+        that exist for those ``source.platformEnvironment`` values.
+        """
         out: dict[str, set[str]] = {f: set() for f in self.ENUM_FIELDS}
         tabs = (tab,) if tab in ("raw", "enriched", "dlq") else ("raw", "enriched")
+        env_filter = [e.strip() for e in (environments or []) if e and str(e).strip()]
         for t in tabs:
             col = self.collection(t)
             for field in self.ENUM_FIELDS:
@@ -180,11 +190,23 @@ class AuditDatabase:
                             out[field].add(str(v))
                 except Exception:
                     continue
-        result = {f: sorted(vals) for f, vals in out.items()}
+        result: dict[str, Any] = {f: sorted(vals) for f, vals in out.items()}
         if tab in ("raw", "enriched", "dlq"):
             try:
-                ops = self.collection(tab).distinct("source.operation")
-                result["source.operation"] = sorted(str(o) for o in ops if o)
+                col = self.collection(tab)
+                if env_filter:
+                    ops: set[str] = set()
+                    for env in env_filter:
+                        for o in col.distinct(
+                            "source.operation",
+                            {"source.platformEnvironment": env},
+                        ):
+                            if o not in (None, ""):
+                                ops.add(str(o))
+                    result["source.operation"] = sorted(ops)
+                else:
+                    ops_all = col.distinct("source.operation")
+                    result["source.operation"] = sorted(str(o) for o in ops_all if o)
             except Exception:
                 result["source.operation"] = []
         return result

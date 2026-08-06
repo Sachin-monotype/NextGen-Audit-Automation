@@ -43,11 +43,11 @@ def main() -> int:
     parser.add_argument("--connect-only", action="store_true", default=True)
     parser.add_argument("--wait-sec", type=float, default=210.0)
     parser.add_argument("--settle-sec", type=float, default=3.0)
-    parser.add_argument("--mongo-db", default="AuditLogsQA")
+    parser.add_argument("--mongo-db", default="", help="Default: MONGO_DB_NAME / AuditLogsQA for AUDIT_TARGET=qa")
     parser.add_argument(
         "--skip-auth-events",
         action="store_true",
-        help="Skip logout/login/identity events (keeps session intact)",
+        help="Skip logout/login/identity/workspace events (keeps session intact)",
     )
     parser.add_argument(
         "--operations",
@@ -57,9 +57,15 @@ def main() -> int:
     args = parser.parse_args()
 
     os.environ.setdefault("AUDIT_TARGET", "qa")
-    from audit_validator.env_profiles import apply_audit_profile
+    from audit_validator.env_profiles import apply_audit_profile, get_audit_profile, mongo_db_for_profile
 
     apply_audit_profile(project_root=ROOT)
+    if not args.mongo_db:
+        args.mongo_db = (
+            (os.getenv("DESKTOP_MONGO_DB") or "").strip()
+            or (os.getenv("MONGO_DB_NAME") or "").strip()
+            or mongo_db_for_profile(get_audit_profile())
+        )
 
     from audit_validator.correlation import mongo_correlation_filter
     from audit_validator.desktop.config import TARGET_URL, default_log_dir, is_audit_ingress_curl
@@ -73,6 +79,7 @@ def main() -> int:
         "userLoginFailureApp",
         "userLoginInitiatedApp",
         "identityLinked",
+        "userSwitchWorkspaceApp",
     }
     events = load_desktop_events(automatable_only=False)
     if args.skip_auth_events:

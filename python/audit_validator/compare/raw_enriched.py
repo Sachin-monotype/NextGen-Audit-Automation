@@ -231,7 +231,11 @@ def _assert_enrichment_additions(enriched: JsonDict, result: ValidationResult) -
         return
 
     actor = enriched.get("actor")
-    if isinstance(actor, dict) and "enrichedSnapshot" not in actor:
+    actor_anonymous = (
+        isinstance(actor, dict)
+        and str(actor.get("authenticationState") or "").strip().lower() == "anonymous"
+    )
+    if isinstance(actor, dict) and "enrichedSnapshot" not in actor and not actor_anonymous:
         result.add(
             "raw-vs-enriched",
             "actor_enrichment_added",

@@ -406,9 +406,16 @@ def export_comparison_results_excel(body: ExportResultsRequest) -> Response:
 
 
 @app.get("/api/meta/filter-values")
-def filter_values(tab: str | None = Query(None, description="Collection tab for operation list")) -> dict[str, Any]:
+def filter_values(
+    tab: str | None = Query(None, description="Collection tab for operation list"),
+    environment: str | None = Query(
+        None,
+        description="Comma-separated source.platformEnvironment values to scope operations",
+    ),
+) -> dict[str, Any]:
     """Distinct env/service/state values and operations for filter dropdowns."""
-    return db.distinct_filter_values(tab)
+    envs = [e.strip() for e in (environment or "").split(",") if e.strip()]
+    return db.distinct_filter_values(tab, environments=envs or None)
 
 
 @app.get("/api/ingestion/status")

@@ -95,3 +95,34 @@ def test_normalize_export_failed_batch_id_unique():
     assert a["subject"]["batchId"] != b["subject"]["batchId"]
     assert a["subject"]["batchId"] != "039e9ba3-281b-431f-baed-bb6ad31f66c8"
     assert a["subject"]["id"] and a["subject"]["id"] != b["subject"]["id"]
+
+
+def test_cron_automation_excel_mappings_pass():
+    """Verify cron automation operation mapping and source validation comparison."""
+    from audit_validator.source_validation.cron_mappings import cron_mapping_for_operation
+    from audit_validator.source_validation.comparison_rows import build_comparison_rows
+
+    excel_path = Path("/Users/sachinkoirala/Documents/CodeBases/MT Connect NextGen/MTConnectAutomation/tests/cronAutomation/lasttrigeerRun.xlsx")
+    if not excel_path.is_file():
+        return
+
+    import openpyxl
+    wb = openpyxl.load_workbook(excel_path, data_only=True)
+    ws = wb.active
+
+    for r in range(2, ws.max_row + 1):
+        event_name = ws.cell(r, 1).value
+        scenario = ws.cell(r, 2).value
+        payload_raw = ws.cell(r, 10).value
+        if not payload_raw:
+            continue
+        payload = json.loads(payload_raw)
+        display_op = f"{event_name}({scenario})" if scenario and scenario != "default" else event_name
+        
+        mapping = cron_mapping_for_operation(display_op)
+        assert mapping is not None, f"Mapping missing for {display_op}"
+        
+        rows = build_comparison_rows(display_op, payload, live={"trigger": payload})
+        failed = [row for row in rows if row.match_status == "FAIL"]
+        assert not failed, f"Failures for {display_op}: {failed}"
+

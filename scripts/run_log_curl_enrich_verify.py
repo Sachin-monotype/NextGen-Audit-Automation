@@ -8,14 +8,14 @@ Flow:
   4. Write a JSON report you can use for enrich / Compare verification
 
 Examples:
-  # Extract today's log CIDs and check Mongo (no replay)
+  # Extract today's log CIDs and check Mongo QA (no replay)
   AUDIT_TARGET=qa python scripts/run_log_curl_enrich_verify.py
 
-  # Replay latest-per-op, then poll enrich
+  # Replay latest-per-op, then poll enrich in QA
   AUDIT_TARGET=qa python scripts/run_log_curl_enrich_verify.py --replay --wait-sec 120
 
-  # Connect events land in AuditLogsPreprod via the shared preprod resolver
-  python scripts/run_log_curl_enrich_verify.py --mongo-db AuditLogsPreprod
+  # Override Mongo DB explicitly
+  AUDIT_TARGET=qa python scripts/run_log_curl_enrich_verify.py --mongo-db AuditLogsQA
 """
 
 from __future__ import annotations
@@ -129,8 +129,8 @@ def main() -> int:
     parser.add_argument(
         "--mongo-db",
         default="",
-        help="Mongo database (default: AuditLogsPreprod for Connect ingress; "
-        "or MONGO_DB_NAME after AUDIT_TARGET profile)",
+        help="Mongo database (default: DESKTOP_MONGO_DB / MONGO_DB_NAME / "
+        "profile db — AuditLogsQA when AUDIT_TARGET=qa)",
     )
     parser.add_argument("--wait-sec", type=float, default=90.0, help="Poll window for enrich")
     parser.add_argument("--poll-sec", type=float, default=5.0)
@@ -144,7 +144,11 @@ def main() -> int:
 
     from audit_validator.desktop.config import default_log_dir
     from audit_validator.desktop.log_extractor import extract_ingress_events_from_logs
-    from audit_validator.env_profiles import apply_audit_profile
+    from audit_validator.env_profiles import (
+        apply_audit_profile,
+        get_audit_profile,
+        mongo_db_for_profile,
+    )
     from audit_validator.mongo_client import create_mongo_client
 
     profile = apply_audit_profile(project_root=ROOT)
@@ -214,8 +218,12 @@ def main() -> int:
                 f"cid={row['verify_cid']}"
             )
 
-    mongo_db = (args.mongo_db or "").strip() or "AuditLogsPreprod"
-    # Prefer explicit override; Connect/ingress path lands in Preprod even when AUDIT_TARGET=qa.
+    mongo_db = (
+        (args.mongo_db or "").strip()
+        or (os.getenv("DESKTOP_MONGO_DB") or "").strip()
+        or (os.getenv("MONGO_DB_NAME") or "").strip()
+        or mongo_db_for_profile(get_audit_profile())
+    )
     mongo_url = (os.getenv("MONGO_DB_URL") or "").strip()
     if not mongo_url:
         print("Error: MONGO_DB_URL not set", file=sys.stderr)

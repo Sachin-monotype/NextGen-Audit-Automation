@@ -162,8 +162,19 @@ def _generic_structural_checks(
             checks.append(FieldCheck("subject.enrichedSnapshot", "FAIL", "structural", "Missing"))
 
     if spec.enriches_actor:
+        actor = enriched.get("actor") if isinstance(enriched.get("actor"), dict) else {}
+        anonymous = str((actor or {}).get("authenticationState") or "").strip().lower() == "anonymous"
         if actor_snap:
             checks.append(FieldCheck("actor.enrichedSnapshot", "PASS", "structural", "Present"))
+        elif anonymous:
+            checks.append(
+                FieldCheck(
+                    "actor.enrichedSnapshot",
+                    "PASS",
+                    "structural",
+                    "authenticationState=anonymous — no actor snapshot expected",
+                )
+            )
         elif is_query or spec.produces == "A":
             checks.append(
                 FieldCheck("actor.enrichedSnapshot", "SKIP", "structural", "Actor-only/query sample — no actor snapshot")

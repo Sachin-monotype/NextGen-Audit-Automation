@@ -386,20 +386,20 @@ def _normalize_result_operation(op: str) -> str:
 
 
 def _dedupe_channel_variants(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
-    """Drop redundant ``op(UI)`` / bare-``op(BE)`` when the canonical key exists.
+    """Drop redundant ``op(UI)`` / ``op(default)`` / bare-``op(BE)`` when the canonical key exists.
 
-    - UI is unlabeled → ``activateList(list)(UI)`` collapses into ``activateList(list)``.
+    - UI / default is unlabeled → ``ums-user-invitation-expired(default)`` collapses into ``ums-user-invitation-expired``.
     - Ingress ``op(BE)`` with no inner touchpoint collapses into bare ``op``.
     - Touchpoint backend labels like ``activateFamily(global)(BE)`` are kept.
     """
     import re
 
     changed = False
-    # 1) Rename/merge *(UI) → bare
-    ui_only = re.compile(r"^(.+)\(UI\)$", re.IGNORECASE)
-    ui_keys = [op for op in list(data.keys()) if ui_only.match(str(op))]
-    for op in ui_keys:
-        m = ui_only.match(str(op))
+    # 1) Rename/merge *(UI) / *(default) → bare
+    suffix_pat = re.compile(r"^(.+)\((UI|default)\)$", re.IGNORECASE)
+    suffix_keys = [op for op in list(data.keys()) if suffix_pat.match(str(op))]
+    for op in suffix_keys:
+        m = suffix_pat.match(str(op))
         if not m:
             continue
         bare = m.group(1)
@@ -418,6 +418,7 @@ def _dedupe_channel_variants(data: dict[str, Any]) -> tuple[dict[str, Any], bool
             continue
         # Prefer the newer / higher-pass block
         existing = data[bare]
+
         def _score(block: dict[str, Any]) -> tuple:
             summ = block.get("summary") or {}
             return (
@@ -425,6 +426,7 @@ def _dedupe_channel_variants(data: dict[str, Any]) -> tuple[dict[str, Any], bool
                 int(summ.get("pass") or summ.get("PASS") or 0),
                 len(block.get("rows") or []),
             )
+
         if _score(item) > _score(existing):
             data[bare] = item
 
@@ -560,6 +562,175 @@ def clear_all_results(project_root: Path, *, target: str | None = None) -> int:
             _backup_store(path)
         path.write_text("{}\n", encoding="utf-8")
     return count
+
+
+def _layer_for_field_path(field_path: str) -> str:
+    fp = (field_path or "").strip()
+    if fp.startswith("actor."):
+        return "actor"
+    if fp.startswith("subject."):
+        return "subject"
+    if fp.startswith("source."):
+        return "source"
+    return "event"
+
+
+def import_comparison_excel(
+    project_root: Path,
+    xlsx_path: Path,
+    *,
+    target: str | None = None,
+    job_id: str | None = None,
+    overwrite: bool = True,
+) -> dict[str, Any]:
+    """Import Results-export Excel (one sheet per op) into comparison-latest-{target}.json."""
+    from datetime import datetime, timezone
+
+    from openpyxl import load_workbook
+
+    path = Path(xlsx_path)
+    if not path.is_file():
+        raise FileNotFoundError(str(path))
+
+    wb = load_workbook(path, read_only=True, data_only=True)
+    operation_rows: dict[str, list[dict[str, Any]]] = {}
+    try:
+        for sheet in wb.sheetnames:
+            ws = wb[sheet]
+            rows_iter = ws.iter_rows(values_only=True)
+            header = next(rows_iter, None)
+            if not header:
+                continue
+            # Expect export headers; tolerate sheet-name as op when Operation col empty.
+            for raw in rows_iter:
+                if not raw or len(raw) < 7:
+                    continue
+                title, op, json_path, enriched_v, source, source_v, status = (
+                    raw[0],
+                    raw[1],
+                    raw[2],
+                    raw[3],
+                    raw[4],
+                    raw[5],
+                    raw[6],
+                )
+                operation = str(op or "").strip() or str(sheet).strip()
+                if not operation:
+                    continue
+                fp = str(json_path or "").strip()
+                if fp.startswith("$."):
+                    fp = fp[2:]
+                elif fp.startswith("$"):
+                    fp = fp[1:].lstrip(".")
+                if not fp and not title:
+                    continue
+                field = str(title or "").strip() or (fp.rsplit(".", 1)[-1] if fp else "")
+                row = {
+                    "operation": operation,
+                    "field": field,
+                    "field_path": fp,
+                    "node": "",
+                    "sub_node": "",
+                    "layer": _layer_for_field_path(fp),
+                    "source_system": str(source or "").strip(),
+                    "source_api": "",
+                    "value_in_source": "" if source_v is None else str(source_v),
+                    "value_in_enriched": "" if enriched_v is None else str(enriched_v),
+                    "match_status": str(status or "").strip().upper() or "SKIP",
+                    "notes": "",
+                    "routing_key": "",
+                }
+                operation_rows.setdefault(operation, []).append(row)
+    finally:
+        wb.close()
+
+    if not operation_rows:
+        return {"imported": 0, "operations": [], "skipped_existing": 0}
+
+    audit_target = store_audit_target(project_root, target)
+    existing = _load_for_target(project_root, audit_target)
+    to_write = operation_rows
+    skipped = 0
+    if not overwrite:
+        to_write = {}
+        for op, rows in operation_rows.items():
+            if op in existing:
+                skipped += 1
+                continue
+            to_write[op] = rows
+    if not to_write:
+        return {"imported": 0, "operations": [], "skipped_existing": skipped}
+
+    compared_at = datetime.now(timezone.utc).isoformat()
+    jid = (job_id or "").strip() or f"excel-import:{path.name}"
+    save_batch_results(
+        project_root,
+        operation_rows=to_write,
+        job_id=jid,
+        job_kind="excel-import",
+        compared_at=compared_at,
+        target=audit_target,
+    )
+    return {
+        "imported": len(to_write),
+        "operations": sorted(to_write.keys()),
+        "skipped_existing": skipped,
+        "compared_at": compared_at,
+        "target": audit_target,
+    }
+
+
+def merge_comparison_store_file(
+    project_root: Path,
+    other_store: Path,
+    *,
+    target: str | None = None,
+    only_missing: bool = True,
+) -> dict[str, Any]:
+    """Merge operations from another comparison-latest JSON into our store."""
+    from datetime import datetime, timezone
+
+    other_path = Path(other_store)
+    if not other_path.is_file():
+        raise FileNotFoundError(str(other_path))
+    other = _load(other_path)
+    audit_target = store_audit_target(project_root, target)
+    path = _store_path(project_root, audit_target)
+    added: list[str] = []
+    updated: list[str] = []
+    with _lock:
+        data = _load_for_target(project_root, audit_target)
+        for op, block in other.items():
+            if not isinstance(block, dict):
+                continue
+            rows = block.get("rows") or []
+            if not rows:
+                continue
+            if only_missing and op in data:
+                continue
+            if op in data:
+                updated.append(op)
+            else:
+                added.append(op)
+            data[op] = {
+                "operation": op,
+                "compared_at": str(block.get("compared_at") or datetime.now(timezone.utc).isoformat()),
+                "job_id": str(block.get("job_id") or f"merge:{other_path.name}"),
+                "job_kind": str(block.get("job_kind") or "merge"),
+                "summary": block.get("summary") or _summary_for_rows(rows),
+                "rows": rows,
+            }
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _backup_store(path)
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return {
+        "added": sorted(added),
+        "updated": sorted(updated),
+        "added_count": len(added),
+        "updated_count": len(updated),
+        "target": audit_target,
+        "total": len(data),
+    }
 
 
 def export_comparison_excel(

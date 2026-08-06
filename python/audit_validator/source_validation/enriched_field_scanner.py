@@ -91,7 +91,17 @@ def scan_enriched_fields(enriched: JsonDict) -> list[tuple[str, object]]:
     Paths use dotted notation with ``[0]`` array indexes (resolver layout).
     """
     out: list[tuple[str, object]] = []
-    for top in ("xCorrelationId", "eventId", "eventVersion", "enrichmentVersion", "routingKey"):
+    for top in (
+        "xCorrelationId",
+        "correlationId",
+        "eventId",
+        "eventVersion",
+        "occurredAt",
+        "enrichmentVersion",
+        "enrichedEventId",
+        "enrichedAt",
+        "routingKey",
+    ):
         val = enriched.get(top)
         if _is_scalar(val):
             out.append((top, val))
@@ -149,6 +159,13 @@ def scan_enriched_fields(enriched: JsonDict) -> list[tuple[str, object]]:
             res = meta.get("result")
             if isinstance(res, dict):
                 _walk_metadata_result_summary(res, out)
+            # Walk flat metadata fields for cron / scheduler events
+            # (triggerCode, event, scheduledAt, routingKey, correlationId, etc.)
+            for mk, mv in meta.items():
+                if mk in ("input", "result"):
+                    continue  # already handled above
+                mp = f"subject.metadata.{mk}"
+                _walk(mv, mp, out)
         snap = subject.get("enrichedSnapshot")
         if isinstance(snap, dict) and snap:
             _walk(snap, "subject.enrichedSnapshot", out)
@@ -318,18 +335,19 @@ def infer_source_system(path: str, operation: str | None = None) -> tuple[str, s
     # not from a Raw Mongo echo.
     if p.startswith("source.") or p in {
         "xcorrelationid",
+        "correlationid",
         "eventid",
         "eventversion",
         "occurredat",
         "routingkey",
     }:
-        return "Trigger", "GraphQL curl / event trigger"
+        return "Trigger", "event trigger envelope"
     # Remaining snapshot leaves with no mapped external API — accept as enricher output.
     # (Probed systems above already claimed their fields; do not FAIL these against DB.)
     if "enrichedsnapshot" in p:
         return "Audit service", "enricher snapshot (not independently sourced)"
     # Never emit bare Unknown — fall back to trigger envelope for anything left.
-    return "Trigger", "event trigger / mutation response"
+    return "Trigger", "event trigger envelope"
 
 
 def display_node_subnode(path: str) -> tuple[str, str, str]:

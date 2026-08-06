@@ -5,8 +5,17 @@ Columns (match teammate web export):
   event_name | scenario | target | correlation_id | auth_token | http_status | status | response | notes
 
 Usage:
-  AUDIT_TARGET=qa python scripts/export_desktop_curl_excel.py --logs-only
-  AUDIT_TARGET=qa python scripts/export_desktop_curl_excel.py --connect-only --skip-auth-events
+  # All automatable app events → FINAL Excel (includes login/logout)
+  AUDIT_TARGET=qa PYTHONPATH=python:backend backend/.venv/bin/python \\
+    scripts/export_desktop_curl_excel.py --connect-only --wait-sec 180
+
+  # Login suite only → dtapplatestrun.xlsx
+  AUDIT_TARGET=qa PYTHONPATH=python:backend backend/.venv/bin/python \\
+    scripts/export_desktop_curl_excel.py --connect-only --login-only --wait-sec 120
+
+  # Rebuild Excel from today's CurlDebug only (no UI)
+  AUDIT_TARGET=qa PYTHONPATH=python:backend backend/.venv/bin/python \\
+    scripts/export_desktop_curl_excel.py --logs-only --login-only
 """
 
 from __future__ import annotations
@@ -37,7 +46,10 @@ AUTH_OPS = {
     "userLoginFailureApp",
     "userLoginInitiatedApp",
     "identityLinked",
+    "userSwitchWorkspaceApp",
 }
+
+LOGIN_OPS = frozenset(AUTH_OPS)
 
 # App sometimes posts a different operation than the catalog name.
 OP_ALIASES = {
@@ -208,14 +220,30 @@ def _write_excel(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Desktop CurlDebug → 4aug-format Excel")
+    parser = argparse.ArgumentParser(
+        description="Desktop CurlDebug → FINAL-format Excel (event_name/scenario/correlation_id/…)"
+    )
     parser.add_argument("--connect-only", action="store_true", default=True)
-    parser.add_argument("--logs-only", action="store_true")
+    parser.add_argument("--logs-only", action="store_true", help="Skip UI; build Excel from today's CurlDebug")
     parser.add_argument("--wait-sec", type=float, default=180.0)
     parser.add_argument("--settle-sec", type=float, default=3.0)
-    parser.add_argument("--mongo-db", default="AuditLogsQA")
-    parser.add_argument("--skip-auth-events", action="store_true", default=True)
-    parser.add_argument("--include-auth-events", action="store_true")
+    parser.add_argument("--mongo-db", default="")
+    parser.add_argument(
+        "--skip-auth-events",
+        action="store_true",
+        default=False,
+        help="Skip login/logout/workspace ops (default: include them)",
+    )
+    parser.add_argument(
+        "--include-auth-events",
+        action="store_true",
+        help="Deprecated alias — auth events are included by default",
+    )
+    parser.add_argument(
+        "--login-only",
+        action="store_true",
+        help="Only login-category ops; default out → reports/curl-from-logs/dtapplatestrun.xlsx",
+    )
     parser.add_argument("--include-today-logs", action="store_true", default=True)
     parser.add_argument("--out", default="")
     args = parser.parse_args()
@@ -223,9 +251,15 @@ def main() -> int:
         args.skip_auth_events = False
 
     os.environ.setdefault("AUDIT_TARGET", "qa")
-    from audit_validator.env_profiles import apply_audit_profile
+    from audit_validator.env_profiles import apply_audit_profile, get_audit_profile, mongo_db_for_profile
 
     apply_audit_profile(project_root=ROOT)
+    if not args.mongo_db:
+        args.mongo_db = (
+            (os.getenv("DESKTOP_MONGO_DB") or "").strip()
+            or (os.getenv("MONGO_DB_NAME") or "").strip()
+            or mongo_db_for_profile(get_audit_profile())
+        )
 
     from audit_validator.desktop.config import default_log_dir, is_audit_ingress_curl
     from audit_validator.desktop.log_extractor import (
@@ -235,6 +269,13 @@ def main() -> int:
     from audit_validator.desktop.navigation import load_desktop_events
 
     events = load_desktop_events(automatable_only=True)
+    if args.login_only:
+        events = [
+            e
+            for e in events
+            if e.operation in LOGIN_OPS or (e.category or "").strip().lower() == "login"
+        ]
+        args.skip_auth_events = False
     if args.skip_auth_events:
         events = [e for e in events if e.operation not in AUTH_OPS]
 
@@ -249,6 +290,12 @@ def main() -> int:
             notes = "App may emit appHealthStatusRefreshed"
         elif e.operation == "fontTempActivated":
             notes = "App may emit fontActivationTypeSwitched (source.type Font temp activation)"
+        elif e.operation == "userLoginFailureApp":
+            notes = "Auth0 wrong password then Close modal (CancelledByUser)"
+        elif e.operation == "identityLinked":
+            notes = "Emitted after successful OAuth deeplink"
+        elif e.operation == "userSwitchWorkspaceApp":
+            notes = "Requires a second workspace on the signed-in user"
         catalog.append(
             {
                 "operation": e.operation,
@@ -268,6 +315,7 @@ def main() -> int:
         from audit_validator.desktop.runner import run_desktop_ui_automation
 
         print(f"Triggering {len(events)} events (unique ops={len(catalog)})")
+        print(f"Mongo profile db (reference): {args.mongo_db}")
         result = run_desktop_ui_automation(
             project_root=ROOT,
             log_dir=log_dir,
@@ -368,9 +416,13 @@ def main() -> int:
     else:
         print("WARNING: auth_token empty (ConnectService redacts Authorization; set BEARER_TOKEN)")
 
-    out = Path(args.out) if args.out else (
-        ROOT / "reports" / "curl-from-logs" / "desktop-curl-export-FINAL.xlsx"
-    )
+    if args.out:
+        out = Path(args.out)
+    elif args.login_only:
+        out = ROOT / "reports" / "curl-from-logs" / "dtapplatestrun.xlsx"
+    else:
+        out = ROOT / "reports" / "curl-from-logs" / "desktop-curl-export-FINAL.xlsx"
+
     path = _write_excel(
         out_path=out,
         catalog=catalog,
@@ -379,10 +431,12 @@ def main() -> int:
     )
     with_curl = sum(1 for m in catalog if m["operation"] in latest)
     print(f"\nExcel: {path}")
-    print(f"Format: 4aug (last trigger run) — {with_curl}/{len(catalog)} with correlation_id")
+    print(f"Format: FINAL (last trigger run) — {with_curl}/{len(catalog)} with correlation_id")
     missing = [m["operation"] for m in catalog if m["operation"] not in latest]
     if missing:
         print("Missing:", ", ".join(missing))
+    for err in ui_errors:
+        print(f"UI: {err}")
     return 0
 
 

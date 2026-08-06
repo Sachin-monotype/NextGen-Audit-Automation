@@ -219,8 +219,9 @@ function sourceResource(row: ComparisonRow): string {
   const api = (row.source_api || "").toLowerCase();
   const sys = (row.source_system || "").toLowerCase();
   if (!api && !sys) return "";
-  if (sys === "graphql" || sys === "trigger" || api.includes("graphql")) return "mutation";
-  if (api.includes("/users") || api.includes("idpuserid")) return "users";
+  if (sys === "payload" || api.includes("payload") || api.includes("raw envelope") || api.includes("cron")) return "payload";
+  if (sys === "graphql" || api.includes("graphql") || (sys === "trigger" && !api.includes("payload"))) return "mutation";
+  if (api.includes("/users") || api.includes("users")) return "users";
   if (api.includes("/profiles") || api.includes("profiles")) return "profiles";
   if (api.includes("/roles") || api.includes("role")) return "roles";
   if (api.includes("/teams") || api.includes("team")) return "teams";
@@ -240,7 +241,7 @@ function sourceResource(row: ComparisonRow): string {
 
 function sourceLabel(row: ComparisonRow): string {
   const resource = sourceResource(row);
-  const sys = row.source_system === "Trigger" ? "GraphQL" : row.source_system;
+  const sys = row.source_system === "Trigger" ? "Payload" : row.source_system;
   if (resource) return `Source (${sys}) · ${resource}`;
   return `Source (${sys})`;
 }
@@ -549,7 +550,16 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
 
   const scopedRows = useMemo(() => {
     return rows.filter((r) => {
-      if (filterOp && !r.operation.toLowerCase().includes(filterOp.toLowerCase())) return false;
+      if (filterOp) {
+        const fLow = filterOp.toLowerCase().trim();
+        const rLow = r.operation.toLowerCase().trim();
+        if (rLow !== fLow) {
+          const { base: rBase, scenario: rScen } = splitEventScenario(r.operation);
+          const { base: fBase, scenario: fScen } = splitEventScenario(filterOp);
+          if (rBase.toLowerCase() !== fBase.toLowerCase()) return false;
+          if (fScen && fScen !== "default" && rScen.toLowerCase() !== fScen.toLowerCase()) return false;
+        }
+      }
       if (filterCategory !== "all" && categoryForOperation(r.operation) !== filterCategory) return false;
       return true;
     });

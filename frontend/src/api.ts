@@ -612,9 +612,12 @@ export type FilterValues = {
   "source.operation"?: string[];
 };
 
-export async function fetchFilterValues(tab?: Tab) {
-  const params = tab ? `?tab=${tab}` : "";
-  const res = await fetch(`${API}/api/meta/filter-values${params}`);
+export async function fetchFilterValues(tab?: Tab, environments?: string[]) {
+  const params = new URLSearchParams();
+  if (tab) params.set("tab", tab);
+  if (environments?.length) params.set("environment", environments.join(","));
+  const qs = params.toString();
+  const res = await fetch(`${API}/api/meta/filter-values${qs ? `?${qs}` : ""}`);
   return res.json() as Promise<FilterValues>;
 }
 

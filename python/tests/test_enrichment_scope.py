@@ -30,7 +30,7 @@ def test_validate_activate_family_both_snapshots():
     assert statuses["actor.enrichedSnapshot"] == "PASS"
     assert statuses["enrichmentScope.enforced.subject"] == "PASS"
     assert "enrichmentScope.enforced.actor" not in statuses  # not required
-    assert statuses["enrichmentScope.gap"] == "SKIP"
+    assert statuses["enrichmentScope.gap"] == "PASS"
 
 
 def test_validate_activate_family_missing_subject_fails():
@@ -50,3 +50,29 @@ def test_actor_only_set_language():
     by_path = {r.field_path: r for r in rows}
     assert by_path["actor.enrichedSnapshot"].match_status == "PASS"
     assert by_path["subject.enrichedSnapshot"].match_status == "PASS"
+
+
+def test_anonymous_actor_skips_actor_snapshot_requirement():
+    """Login-initiated and similar events are anonymous — no actor.enrichedSnapshot."""
+    enriched = {
+        "actor": {
+            "authenticationState": "anonymous",
+            "machineId": "MACHINE123",
+        },
+        "subject": {"type": "machine", "reason": "LoginStarted"},
+    }
+    rows = validate_enrichment_scope("userLoginInitiatedApp", enriched)
+    by_path = {r.field_path: r for r in rows}
+    assert by_path["actor.enrichedSnapshot"].match_status == "PASS"
+    assert "anonymous" in by_path["actor.enrichedSnapshot"].notes.lower()
+    assert by_path["subject.enrichedSnapshot"].match_status == "PASS"
+
+
+def test_authenticated_actor_missing_snapshot_still_fails():
+    enriched = {
+        "actor": {"authenticationState": "authenticated", "userId": "u1"},
+        "subject": {},
+    }
+    rows = validate_enrichment_scope("userLoginInitiatedApp", enriched)
+    by_path = {r.field_path: r for r in rows}
+    assert by_path["actor.enrichedSnapshot"].match_status == "FAIL"
