@@ -51,15 +51,25 @@ def _original_collection_name() -> str:
 
 
 def _results_mongo_url() -> str:
-    """Ensure secondary-friendly read preference for flaky Atlas primaries."""
+    """Connection URL for the QA Results store.
+
+    Prefer ``primaryPreferred`` so upserts (new/updated scenarios) can reach a
+    primary. Reads may still use secondary via collection read preference.
+    """
     url = (os.getenv("RESULTS_MONGO_URL") or "").strip()
     if not url:
         return ""
     parsed = urlparse(url)
     q = dict(parse_qsl(parsed.query, keep_blank_values=True))
-    # Results cluster has been observed in ReplicaSetNoPrimary — prefer secondaries for reads.
-    q.setdefault("readPreference", "secondaryPreferred")
+    # Do not force secondaryPreferred on the client — that broke writes when the
+    # previous Results cluster lost its primary and also slowed healthy clusters.
+    pref = (q.get("readPreference") or "").strip()
+    if pref.lower() == "secondarypreferred":
+        q["readPreference"] = "primaryPreferred"
+    else:
+        q.setdefault("readPreference", "primaryPreferred")
     q.setdefault("retryReads", "true")
+    q.setdefault("retryWrites", "true")
     return urlunparse(parsed._replace(query=urlencode(q)))
 
 
@@ -76,8 +86,9 @@ def _get_client():
                 url,
                 serverSelectionTimeoutMS=20000,
                 connectTimeoutMS=20000,
-                socketTimeoutMS=60000,
+                socketTimeoutMS=120000,
                 retryReads=True,
+                retryWrites=True,
             )
         return _client
 
@@ -85,16 +96,23 @@ def _get_client():
 def _get_collection(*, original: bool = False) -> Collection | None:
     """Lazy Atlas client for live ``QA Result`` or immutable ``QA_Original``.
 
-    Reads use ``secondaryPreferred`` so a missing Atlas primary does not block
-    the Results page. Index creation is not done here (requires primary and was
-    hanging every request when Atlas had no primary).
+    List/read path uses ``primaryPreferred`` (falls back to secondary if needed).
+    Writes use ``_get_write_collection`` (explicit primary).
     """
     client = _get_client()
     if client is None:
         return None
     name = _original_collection_name() if original else _live_collection_name()
-    db = client.get_database(_db_name(), read_preference=ReadPreference.SECONDARY_PREFERRED)
+    db = client.get_database(_db_name(), read_preference=ReadPreference.PRIMARY_PREFERRED)
     return db[name]
+
+
+def _get_write_collection(*, original: bool = False) -> Collection | None:
+    """Collection bound to PRIMARY for upserts/deletes."""
+    col = _get_collection(original=original)
+    if col is None:
+        return None
+    return col.with_options(read_preference=ReadPreference.PRIMARY)
 
 
 def _now_iso() -> str:
@@ -174,7 +192,7 @@ def _item_from_doc(doc: dict[str, Any] | None) -> dict[str, Any] | None:
 
 def upsert_scenario(scenario: str, item: dict[str, Any]) -> bool:
     """Insert or replace one live scenario document. Never touches QA_Original."""
-    col = _get_collection(original=False)
+    col = _get_write_collection(original=False)
     if col is None:
         return False
     scenario = str(scenario or "").strip()
@@ -182,9 +200,7 @@ def upsert_scenario(scenario: str, item: dict[str, Any]) -> bool:
         return False
     doc = _doc_from_item(scenario, item)
     try:
-        col.with_options(read_preference=ReadPreference.PRIMARY).update_one(
-            {"scenario": scenario}, {"$set": doc}, upsert=True
-        )
+        col.update_one({"scenario": scenario}, {"$set": doc}, upsert=True)
         return True
     except PyMongoError as exc:
         logger.warning("QA Result upsert failed for %s: %s", scenario, exc)
@@ -192,8 +208,8 @@ def upsert_scenario(scenario: str, item: dict[str, Any]) -> bool:
 
 
 def upsert_many(items: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    """Bulk upsert live ``QA Result`` docs. Never touches QA_Original."""
-    col = _get_collection(original=False)
+    """Bulk upsert live ``QA Result`` docs (insert new, replace existing)."""
+    col = _get_write_collection(original=False)
     if col is None:
         return {"ok": False, "upserted": 0, "error": "RESULTS_MONGO_URL not set"}
     ops: list[UpdateOne] = []
@@ -206,14 +222,19 @@ def upsert_many(items: dict[str, dict[str, Any]]) -> dict[str, Any]:
     if not ops:
         return {"ok": True, "upserted": 0, "matched": 0}
     try:
-        result = col.with_options(read_preference=ReadPreference.PRIMARY).bulk_write(
-            ops, ordered=False
-        )
+        # Chunk large batches — full field rows make each doc multi‑MB.
+        upserted = modified = matched = 0
+        chunk_size = 10
+        for i in range(0, len(ops), chunk_size):
+            result = col.bulk_write(ops[i : i + chunk_size], ordered=False)
+            upserted += int(result.upserted_count or 0)
+            modified += int(result.modified_count or 0)
+            matched += int(result.matched_count or 0)
         return {
             "ok": True,
-            "upserted": int(result.upserted_count or 0),
-            "modified": int(result.modified_count or 0),
-            "matched": int(result.matched_count or 0),
+            "upserted": upserted,
+            "modified": modified,
+            "matched": matched,
             "total": len(ops),
             "database": _db_name(),
             "collection": _live_collection_name(),
@@ -225,16 +246,14 @@ def upsert_many(items: dict[str, dict[str, Any]]) -> dict[str, Any]:
 
 def delete_scenario(scenario: str) -> bool:
     """Delete from live ``QA Result`` only."""
-    col = _get_collection(original=False)
+    col = _get_write_collection(original=False)
     if col is None:
         return False
     scenario = str(scenario or "").strip()
     if not scenario:
         return False
     try:
-        col.with_options(read_preference=ReadPreference.PRIMARY).delete_one(
-            {"scenario": scenario}
-        )
+        col.delete_one({"scenario": scenario})
         return True
     except PyMongoError as exc:
         logger.warning("QA Result delete failed for %s: %s", scenario, exc)
@@ -254,11 +273,11 @@ def clear_all_scenarios() -> int:
     }:
         logger.warning("clear_all_scenarios blocked (RESULTS_MONGO_ALLOW_CLEAR not set)")
         return 0
-    col = _get_collection(original=False)
+    col = _get_write_collection(original=False)
     if col is None:
         return 0
     try:
-        result = col.with_options(read_preference=ReadPreference.PRIMARY).delete_many({})
+        result = col.delete_many({})
         return int(result.deleted_count or 0)
     except PyMongoError as exc:
         logger.warning("QA Result clear failed: %s", exc)
@@ -433,8 +452,9 @@ def ping() -> dict[str, Any]:
             "documents": live,
             "original_collection": _original_collection_name(),
             "original_documents": original,
-            "read_preference": "secondaryPreferred",
+            "read_preference": "primaryPreferred",
             "event_hint": "UI 'events' = unique operation bases; 'scenarios' = documents",
+            "writable": True,
         }
     except PyMongoError as exc:
         return {"ok": False, "error": str(exc)}
@@ -456,7 +476,9 @@ def backfill_platform_environments(*, original: bool = False) -> dict[str, Any]:
                 "rows": {"$elemMatch": {"field_path": "source.platformEnvironment"}},
             },
         )
-        write_col = col.with_options(read_preference=ReadPreference.PRIMARY)
+        write_col = _get_write_collection(original=original)
+        if write_col is None:
+            return {"ok": False, "updated": 0, "error": "RESULTS_MONGO_URL not set"}
         for doc in cursor:
             scanned += 1
             existing = str(doc.get("platformEnvironment") or "").strip().lower()

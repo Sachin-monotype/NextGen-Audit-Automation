@@ -464,15 +464,18 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const [refreshJobId, setRefreshJobId] = useState<string | null>(null);
   const [refreshAllBusy, setRefreshAllBusy] = useState(false);
   const [refreshError, setRefreshError] = useState("");
-  /** When Compare hands us the compared ops, limit the coverage list to those. */
-  const [highlightActive, setHighlightActive] = useState(false);
+  /**
+   * Just-compared ops from Compare. Never hide the shared Mongo Results list by
+   * default — ``focusComparedOnly`` is opt-in.
+   */
+  const [focusComparedOnly, setFocusComparedOnly] = useState(false);
   const highlightSet = useMemo(
     () => new Set((highlightOperations ?? []).filter(Boolean)),
     [highlightOperations],
   );
   useEffect(() => {
     if (highlightSet.size) {
-      setHighlightActive(true);
+      setFocusComparedOnly(false);
       setSourceMode("latest");
     }
   }, [highlightSet]);
@@ -788,7 +791,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     const fromMs = coverageDateFrom ? Date.parse(`${coverageDateFrom}T00:00:00`) : NaN;
     const toMs = coverageDateTo ? Date.parse(`${coverageDateTo}T23:59:59.999`) : NaN;
     return allCoverageRows.filter((r) => {
-      if (highlightActive && highlightSet.size && !operationMatchesHighlight(r.operation, highlightSet)) {
+      if (focusComparedOnly && highlightSet.size && !operationMatchesHighlight(r.operation, highlightSet)) {
         return false;
       }
       if (Number.isFinite(fromMs) || Number.isFinite(toMs)) {
@@ -807,7 +810,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
       if (coverageOutcome === "partial") return r.failed === 0 && r.skipped > 0;
       return true;
     });
-  }, [allCoverageRows, coverageOutcome, coverageSearch, coverageDateFrom, coverageDateTo, highlightActive, highlightSet]);
+  }, [allCoverageRows, coverageOutcome, coverageSearch, coverageDateFrom, coverageDateTo, focusComparedOnly, highlightSet]);
 
   const coverageGroups = useMemo((): CoverageEventGroup[] => {
     const byBase = new Map<string, CoverageRow[]>();
@@ -1835,15 +1838,22 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
               )}
             </div>
           </div>
-          {highlightActive && highlightSet.size > 0 && (
-            <div className="banner" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {highlightSet.size > 0 && (
+            <div className="banner" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <span>
-                Showing the <strong>{coverageRows.length}</strong> operation
-                {coverageRows.length === 1 ? "" : "s"} you just compared.
+                Just compared <strong>{highlightSet.size}</strong> scenario
+                {highlightSet.size === 1 ? "" : "s"} — showing the full Results store (
+                {allCoverageRows.length} scenarios).
               </span>
-              <button type="button" className="link-btn" onClick={() => setHighlightActive(false)}>
-                Show all results
-              </button>
+              {focusComparedOnly ? (
+                <button type="button" className="link-btn" onClick={() => setFocusComparedOnly(false)}>
+                  Show all results
+                </button>
+              ) : (
+                <button type="button" className="link-btn" onClick={() => setFocusComparedOnly(true)}>
+                  Show only just-compared
+                </button>
+              )}
             </div>
           )}
           <div className="coverage-bulk-actions">

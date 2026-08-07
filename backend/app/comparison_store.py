@@ -381,11 +381,13 @@ def save_batch_results(
     compared_at: str,
     summaries: dict[str, dict[str, Any] | None] | None = None,
     target: str | None = None,
-) -> None:
+) -> dict[str, Any]:
     """Write many operations in one read/write of comparison-latest-{target}.json.
 
     Passing ``rows`` (flat list) or ``operation_rows`` (already grouped) is fine.
     Avoids the old O(n²) rewrite that reloaded a multi‑MB file per operation.
+
+    Returns ``{"local": N, "mongo": {...}}`` so callers can surface Atlas upsert status.
     """
     grouped: dict[str, list[dict[str, Any]]] = dict(operation_rows or {})
     if rows:
@@ -395,11 +397,12 @@ def save_batch_results(
                 continue
             grouped.setdefault(op, []).append(r)
     if not grouped:
-        return
+        return {"local": 0, "mongo": {"ok": True, "upserted": 0, "skipped": True}}
 
     audit_target = store_audit_target(project_root, target)
     path = _store_path(project_root, audit_target)
     path.parent.mkdir(parents=True, exist_ok=True)
+    mongo_status: dict[str, Any] = {"ok": True, "upserted": 0, "skipped": True}
     with _lock:
         data = _load_for_target(project_root, audit_target)
         if not data and audit_target == "pp":
@@ -440,36 +443,29 @@ def save_batch_results(
             json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n",
             encoding="utf-8",
         )
-        # Durable source of truth for QA Results (Atlas upsert per scenario).
         if audit_target == "qa":
             try:
                 from .qa_results_store import results_mongo_enabled, upsert_many
 
                 if results_mongo_enabled():
-                    touched = {
-                        _normalize_result_operation(op): data[_normalize_result_operation(op)]
-                        for op in grouped
-                        if _normalize_result_operation(op) in data
-                    }
-                    # After dedupe, keys may have moved (e.g. *(default) → bare).
-                    # Also include any remaining (app) keys from this batch that survived.
+                    touched: dict[str, Any] = {}
                     for op in list(grouped):
                         canon = _normalize_result_operation(op)
-                        # Find post-dedupe key: exact, or if *(default) collapsed, bare base.
                         if canon in data:
                             touched[canon] = data[canon]
                         elif canon.endswith("(default)") and canon[: -len("(default)")] in data:
                             bare = canon[: -len("(default)")]
                             touched[bare] = data[bare]
                     if touched:
-                        result = upsert_many(touched)
-                        if isinstance(result, dict) and not result.get("ok", True):
+                        mongo_status = upsert_many(touched)
+                        if isinstance(mongo_status, dict) and not mongo_status.get("ok", True):
                             import logging
 
                             logging.getLogger(__name__).warning(
-                                "QA Results Mongo upsert failed (%s ops): %s — kept in local JSON",
+                                "QA Results Mongo upsert failed (%s ops): %s — kept in local JSON "
+                                "(teammates will not see these until Atlas PRIMARY recovers / RESULTS_MONGO_URL is writable)",
                                 len(touched),
-                                result.get("error") or result,
+                                mongo_status.get("error") or mongo_status,
                             )
             except Exception as exc:
                 import logging
@@ -477,6 +473,8 @@ def save_batch_results(
                 logging.getLogger(__name__).warning(
                     "QA Results Mongo upsert error — kept in local JSON: %s", exc
                 )
+                mongo_status = {"ok": False, "upserted": 0, "error": str(exc)}
+    return {"local": len(grouped), "mongo": mongo_status}
 
 
 def reconcile_scope_rows(project_root: Path) -> dict[str, int]:

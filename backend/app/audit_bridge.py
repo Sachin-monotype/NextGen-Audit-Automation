@@ -1405,7 +1405,7 @@ class AuditBridge:
             from .comparison_store import save_batch_results
 
             # Final coalesce write (covers any op the progressive callback skipped).
-            save_batch_results(
+            save_info = save_batch_results(
                 self.project_root,
                 rows=rows,
                 job_id=job_id,
@@ -1417,6 +1417,23 @@ class AuditBridge:
                 job_id,
                 f"▸ Saved latest comparison snapshot for {len(ops)} operation(s) → {audit_target}",
             )
+            mongo = (save_info or {}).get("mongo") if isinstance(save_info, dict) else None
+            if isinstance(mongo, dict) and audit_target == "qa":
+                if mongo.get("ok") and not mongo.get("skipped"):
+                    self.store.append_log(
+                        job_id,
+                        f"▸ Results Mongo upsert OK — "
+                        f"new={mongo.get('upserted', 0)} updated={mongo.get('modified', 0)} "
+                        f"(shared for teammates)",
+                    )
+                elif mongo.get("ok") is False:
+                    err = str(mongo.get("error") or "unknown")[:180]
+                    self.store.append_log(
+                        job_id,
+                        f"⚠ Results Mongo upsert FAILED — saved locally only. "
+                        f"Teammates will not see these until Atlas has a PRIMARY / "
+                        f"RESULTS_MONGO_URL is writable. ({err})",
+                    )
         except Exception as exc:  # noqa: BLE001 — persistence must not fail the job
             log.warning("Could not persist latest comparison: %s", exc)
         return result
