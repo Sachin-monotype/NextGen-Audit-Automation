@@ -1114,6 +1114,7 @@ def _live_context_for_operation(
             except Exception as exc:  # noqa: BLE001
                 ctx["discovery_error"] = f"Private tag lookup failed: {exc}"
 
+    ctx["operation"] = operation
     return ctx
 
 

@@ -315,7 +315,13 @@ def apply_ingress_runtime_context(
             actor["globalCustomerId"] = ctx.gcid
         if ctx.profile_id:
             actor["globalUserId"] = ctx.profile_id
-        actor.setdefault("authenticationState", "authenticated")
+        gcid = str(actor.get("globalCustomerId") or "").strip()
+        guid = str(actor.get("globalUserId") or "").strip()
+        # Identities present → always authenticated (never leave anonymous).
+        if gcid and guid:
+            actor["authenticationState"] = "authenticated"
+        else:
+            actor.setdefault("authenticationState", "authenticated")
         if ctx.machine_id:
             actor["machineId"] = ctx.machine_id
         else:

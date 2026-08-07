@@ -214,14 +214,34 @@ def _ingress_subject_from_response(full: dict[str, Any] | None) -> dict[str, Any
 
 
 def _ingress_headers_from_response(full: dict[str, Any] | None) -> dict[str, Any]:
-    """Top-level envelope leaves (eventId / occurredAt / …) from Excel Response."""
-    env = _unwrap_audit_envelope(full)
-    if not isinstance(env, dict):
-        return {}
+    """Envelope leaves + request fingerprint headers for Compare.
+
+    Prefers explicit ``request_headers`` / ``headers`` on the capture when present
+    (User-Agent, X-Unified-Version). Falls back to audit ``source`` body leaves.
+    """
     out: dict[str, Any] = {}
-    for key in ("xCorrelationId", "eventId", "eventVersion", "occurredAt", "routingKey"):
-        if env.get(key) not in (None, "", [], {}):
-            out[key] = env.get(key)
+    if isinstance(full, dict):
+        for key in ("request_headers", "headers", "ingress_headers"):
+            raw = full.get(key)
+            if isinstance(raw, dict):
+                for hk, hv in raw.items():
+                    if hv not in (None, "", [], {}):
+                        out[str(hk).strip()] = hv
+    env = _unwrap_audit_envelope(full)
+    if isinstance(env, dict):
+        for key in ("xCorrelationId", "eventId", "eventVersion", "occurredAt", "routingKey"):
+            if env.get(key) not in (None, "", [], {}) and key not in out:
+                out[key] = env.get(key)
+        src = env.get("source") if isinstance(env.get("source"), dict) else {}
+        # Promote body fingerprints into header map when HTTP headers weren't captured.
+        if src.get("actorUserAgent") and not any(
+            k.lower() == "user-agent" for k in out
+        ):
+            out["User-Agent"] = src.get("actorUserAgent")
+        if src.get("platformVersion") and not any(
+            k.lower() == "x-unified-version" for k in out
+        ):
+            out["X-Unified-Version"] = src.get("platformVersion")
     return out
 
 

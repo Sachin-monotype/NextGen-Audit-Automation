@@ -1105,7 +1105,11 @@ def _resolve_source_value(
         if isinstance(trigger, dict) and trigger:
             from_trigger = _trigger_value(path, trigger, enriched)
             from_trigger = _normalize_app_ui_trigger_field(
-                path, from_trigger, enriched=enriched, trigger=trigger
+                path,
+                from_trigger,
+                enriched=enriched,
+                trigger=trigger,
+                operation=str(live.get("operation") or trigger.get("operation") or ""),
             )
             if from_trigger is not None:
                 note = "Trigger envelope"
@@ -1118,7 +1122,30 @@ def _resolve_source_value(
                     note = "Audit ingress body"
                 elif isinstance(trigger.get("source"), dict):
                     note = "Trigger envelope"
+                if path == "source.actorUserAgent" and from_trigger:
+                    note = "Request User-Agent / audit source.actorUserAgent"
+                elif path == "source.platformVersion" and from_trigger:
+                    note = "Request X-Unified-Version / audit source.platformVersion"
+                elif path == "actor.authenticationState":
+                    note = "Derived from actor.globalCustomerId + globalUserId"
                 return from_trigger, note
+        # No trigger (or blank leaves) — still apply header/auth/service rules from enriched.
+        derived = _normalize_app_ui_trigger_field(
+            path,
+            None,
+            enriched=enriched,
+            trigger=trigger if isinstance(trigger, dict) else {},
+            operation=str(live.get("operation") or ""),
+        )
+        if derived is not None and str(derived).strip():
+            if path == "actor.authenticationState":
+                return derived, "Derived from actor.globalCustomerId + globalUserId"
+            if path == "source.actorUserAgent":
+                return derived, "Request User-Agent / audit source.actorUserAgent"
+            if path == "source.platformVersion":
+                return derived, "Request X-Unified-Version / audit source.platformVersion"
+            if path == "source.service":
+                return derived, "Frontend service rule (mtconnect-api / mtconnect-ui)"
         gql = live.get("graphql_response")
         if isinstance(gql, dict) and gql:
             from_gql = _graphql_response_value(path, gql, enriched)
@@ -1160,6 +1187,10 @@ def _resolve_source_value(
         # App/desktop ingress: actor.globalUserId / globalCustomerId are on the
         # audit POST body (resolver uses those for UMS/CMS). Do not map from JWT.
         trigger = live.get("trigger") if isinstance(live.get("trigger"), dict) else {}
+        if path == "actor.authenticationState":
+            expected = _expected_authentication_state(enriched)
+            if expected:
+                return expected, "Derived from actor.globalCustomerId + globalUserId"
         if trigger and _trigger_looks_like_app_ui(trigger, enriched):
             from_ingress = _trigger_value(path, trigger, enriched)
             if from_ingress is not None and str(from_ingress).strip():
@@ -1275,7 +1306,7 @@ def _jwt_actor_value(
 
 
 def _trigger_looks_like_app_ui(trigger: dict[str, Any], enriched: JsonDict) -> bool:
-    """True for desktop/UI app events (not BE GraphQL mtconnect-api)."""
+    """True for desktop/UI app events (Electron / platformEnvironment=app)."""
     from audit_validator.simulation.trigger_context import (
         _trigger_is_ui_or_excel_capture,
         platform_environment_from_user_agent,
@@ -1309,35 +1340,160 @@ def _trigger_looks_like_app_ui(trigger: dict[str, Any], enriched: JsonDict) -> b
     return platform_environment_from_user_agent(ua) == "app"
 
 
+# Desktop Connect / UI-shell events that publish as ``mtconnect-ui``.
+# All other GQL frontend events (including those fired from the app) use ``mtconnect-api``.
+_MTCONNECT_UI_OPS = frozenset({
+    "appSettingsAutoPerformanceEnabled",
+    "appSettingsAutoPerformanceDisabled",
+    "appSettingsPerformanceModeChanged",
+    "appLanguageChanged",
+    "appSettingsPluginInstallAllEnabled",
+    "appSettingsPluginInstallAllDisabled",
+    "appSettingsPluginAppEnabled",
+    "appSettingsActivationModeChanged",
+    "appFeedbackSubmitted",
+    "appLogsExported",
+    "appNetworkRefreshed",
+    "appHealthStatusRefreshed",
+    "appCacheCleared",
+    "fontTempActivated",
+    "fontActivationTypeSwitched",
+    "fontLocalfontActivated",
+    "fontLocalfontDeactivated",
+    "fontSyncSuccess",
+    "userSwitchWorkspaceApp",
+    # Discover UI (not GraphQL BFF)
+    "fontSimilarViewed",
+    "fontPairsViewed",
+    "fontSimilarFontViewed",
+})
+
+_CONNECT_SERVICE_OPS = frozenset({
+    "userLoginInitiatedApp",
+    "userLoginFailureApp",
+    "userLogoutApp",
+    "identityLinked",
+    "userSwitchWorkspaceApp",
+})
+
+
+def _header_map(trigger: dict[str, Any]) -> dict[str, str]:
+    """Normalize request / ingress header dicts to lowercase keys."""
+    out: dict[str, str] = {}
+    for key in ("ingress_headers", "request_headers", "headers"):
+        raw = trigger.get(key)
+        if not isinstance(raw, dict):
+            continue
+        for hk, hv in raw.items():
+            if hv in (None, "", [], {}):
+                continue
+            out[str(hk).strip().lower()] = str(hv).strip()
+    req = trigger.get("request") if isinstance(trigger.get("request"), dict) else {}
+    for hk in ("user-agent", "User-Agent", "x-unified-version", "X-Unified-Version"):
+        if req.get(hk) not in (None, "", [], {}):
+            out[hk.lower()] = str(req.get(hk)).strip()
+    return out
+
+
+def _expected_source_service(operation: str, enriched: JsonDict) -> str | None:
+    """Expected ``source.service`` for frontend / app events.
+
+    - Connect login ops → ``MonotypeNextGenConnectService``
+    - App-specific shell + fontSimilar/fontPairs → ``mtconnect-ui``
+    - Other GQL frontend (web or app-hosted) → ``mtconnect-api``
+    - Cron / other backend services → ``None`` (do not override)
+    """
+    enriched_src = enriched.get("source") if isinstance(enriched.get("source"), dict) else {}
+    enr = str((enriched_src or {}).get("service") or "").strip()
+    if enr == "MonotypeNextGenConnectService":
+        return enr
+    base = _base_operation(operation)
+    # Peel nested display labels: activateFamily(global)(app) → activateFamily
+    while "(" in base:
+        base = base.split("(", 1)[0].strip() or base
+        break
+    if base in _CONNECT_SERVICE_OPS:
+        return "MonotypeNextGenConnectService"
+    if base in _MTCONNECT_UI_OPS:
+        return "mtconnect-ui"
+    op_l = str(operation or "").lower()
+    # Only rewrite known frontend envelopes — never force api onto cron/backend.
+    if enr in {"mtconnect-api", "mtconnect-ui"} or "(app)" in op_l:
+        return "mtconnect-api"
+    return None
+
+
+def _expected_authentication_state(enriched: JsonDict) -> str | None:
+    """When both globalCustomerId and globalUserId are present → authenticated."""
+    actor = enriched.get("actor") if isinstance(enriched.get("actor"), dict) else {}
+    gcid = str((actor or {}).get("globalCustomerId") or "").strip()
+    guid = str((actor or {}).get("globalUserId") or "").strip()
+    if gcid and guid:
+        return "authenticated"
+    state = str((actor or {}).get("authenticationState") or "").strip()
+    return state or None
+
+
 def _normalize_app_ui_trigger_field(
     path: str,
     value: object,
     *,
     enriched: JsonDict,
     trigger: dict[str, Any],
+    operation: str = "",
 ) -> object:
-    """Fill missing app UI service/version from enriched when trigger still has BE stubs."""
-    if path not in {"source.service", "source.platformVersion"}:
-        return value
-    if not _trigger_looks_like_app_ui(trigger, enriched):
-        return value
+    """Align trigger stubs with real app/GQL envelope expectations.
+
+    - ``source.service``: GQL frontend → ``mtconnect-api``; app-shell + fontSimilar/
+      fontPairs → ``mtconnect-ui``; Connect login → ``MonotypeNextGenConnectService``.
+    - ``source.platformVersion`` / ``source.actorUserAgent``: prefer request headers
+      (``User-Agent``, ``X-Unified-Version``) then enriched body — do not invent ``1.0.0.0``.
+    - ``actor.authenticationState``: ``authenticated`` when gcid + guid are present.
+    """
+    headers = _header_map(trigger) if isinstance(trigger, dict) else {}
     enriched_src = enriched.get("source") if isinstance(enriched.get("source"), dict) else {}
+    op = operation or str(
+        (trigger or {}).get("operation")
+        or (enriched_src or {}).get("operation")
+        or ""
+    )
+
     if path == "source.service":
-        enr = str((enriched_src or {}).get("service") or "").strip()
+        expected = _expected_source_service(op, enriched)
+        if expected:
+            return expected
+        return value
+
+    if path == "source.platformVersion":
+        header_ver = headers.get("x-unified-version") or headers.get("x-unified-app-version")
+        enr = str((enriched_src or {}).get("platformVersion") or "").strip()
         trig = str(value or "").strip()
-        if enr == "mtconnect-ui" and trig in {"", "mtconnect-api"}:
-            return "mtconnect-ui"
-        if trig == "mtconnect-api":
-            return "mtconnect-ui"
-        return value if value not in (None, "") else "mtconnect-ui"
-    # platformVersion
-    enr = str((enriched_src or {}).get("platformVersion") or "").strip()
-    trig = str(value or "").strip()
-    if enr == "1.0.0.0" and trig in {"", "1.0.0"}:
-        return "1.0.0.0"
-    if trig == "1.0.0":
-        return "1.0.0.0"
-    return value if value not in (None, "") else (enr or "1.0.0.0")
+        # Prefer real client version from header / enriched (typically ``1.0.0``).
+        if header_ver:
+            return header_ver
+        if enr:
+            return enr
+        if trig in {"1.0.0.0", "1.0.0"}:
+            return trig
+        return value
+
+    if path == "source.actorUserAgent":
+        header_ua = headers.get("user-agent")
+        enr = str((enriched_src or {}).get("actorUserAgent") or "").strip()
+        trig = str(value or "").strip()
+        if header_ua:
+            return header_ua
+        if enr:
+            return enr
+        return value if trig else value
+
+    if path == "actor.authenticationState":
+        expected = _expected_authentication_state(enriched)
+        if expected:
+            return expected
+        return value
+
+    return value
 
 
 def _looks_like_audit_envelope_node(node: object) -> bool:

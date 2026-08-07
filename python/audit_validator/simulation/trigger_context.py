@@ -57,9 +57,11 @@ def build_trigger_context(
     response. Compare then derives platformEnvironment from the enriched UA
     (Electron → app) and SKIPs actorUserAgent when it was never captured.
 
-    App / desktop UI captures use ``mtconnect-ui`` + ``platformVersion`` ``1.0.0.0``
-    (not BE ``mtconnect-api`` / ``1.0.0``). Pass ``ingress_source`` / actor /
-    subject from the audit curl body when available to mirror the real envelope.
+    App / desktop UI captures: prefer real ``ingress_source`` / request headers.
+    GQL frontend events (including those fired from the desktop app) default to
+    ``mtconnect-api`` + ``platformVersion`` from ``X-Unified-Version`` / body
+    (typically ``1.0.0``). App-shell ops (preferences / local fonts) and
+    fontSimilarViewed / fontPairsViewed use ``mtconnect-ui``.
     """
     if invent_client_defaults:
         ua = (
@@ -85,10 +87,19 @@ def build_trigger_context(
 
     # Ingress Excel body may already carry the real source block.
     ing = ingress_source if isinstance(ingress_source, dict) else {}
+    hdrs: dict[str, str] = {}
+    if isinstance(ingress_headers, dict):
+        for hk, hv in ingress_headers.items():
+            if hv not in (None, "", [], {}):
+                hdrs[str(hk).strip().lower()] = str(hv).strip()
     if not env and isinstance(ing.get("platformEnvironment"), str):
         env = str(ing.get("platformEnvironment") or "").strip().lower()
     if not ua and isinstance(ing.get("actorUserAgent"), str):
         ua = str(ing.get("actorUserAgent") or "").strip()
+        if not env:
+            env = platform_environment_from_user_agent(ua) or ""
+    if not ua and hdrs.get("user-agent"):
+        ua = hdrs["user-agent"]
         if not env:
             env = platform_environment_from_user_agent(ua) or ""
 
@@ -98,32 +109,72 @@ def build_trigger_context(
         or str(ing.get("service") or "").strip().lower() == "mtconnect-ui"
     )
 
-    if is_app_ui:
-        # Desktop/UI ingress — prefer Excel/curl source over BE defaults.
-        service = (
-            str(ing.get("service") or "").strip()
-            or "mtconnect-ui"
-        )
+    # Ops that publish as mtconnect-ui (desktop shell + discover font similar/pairs).
+    _ui_service_ops = {
+        "appSettingsAutoPerformanceEnabled",
+        "appSettingsAutoPerformanceDisabled",
+        "appSettingsPerformanceModeChanged",
+        "appLanguageChanged",
+        "appSettingsPluginInstallAllEnabled",
+        "appSettingsPluginInstallAllDisabled",
+        "appSettingsPluginAppEnabled",
+        "appSettingsActivationModeChanged",
+        "appFeedbackSubmitted",
+        "appLogsExported",
+        "appNetworkRefreshed",
+        "appHealthStatusRefreshed",
+        "appCacheCleared",
+        "fontTempActivated",
+        "fontActivationTypeSwitched",
+        "fontLocalfontActivated",
+        "fontLocalfontDeactivated",
+        "fontSyncSuccess",
+        "userSwitchWorkspaceApp",
+        "fontSimilarViewed",
+        "fontPairsViewed",
+        "fontSimilarFontViewed",
+    }
+    base_op = (operation or "").split("(", 1)[0].strip()
+    # Only named shell / fontSimilar ops use mtconnect-ui — do not trust a
+    # mis-tagged ingress ``service`` for GQL events (those are mtconnect-api).
+    wants_ui_service = base_op in _ui_service_ops
+    connect_svc = str(ing.get("service") or "").strip() == "MonotypeNextGenConnectService"
+
+    if connect_svc:
+        service = "MonotypeNextGenConnectService"
         version = (
-            str(ing.get("platformVersion") or "").strip()
-            or "1.0.0.0"
+            hdrs.get("x-unified-version")
+            or str(ing.get("platformVersion") or "").strip()
+            or "1.0.0"
         )
-        env_svc = os.getenv("AUDIT_SOURCE_SERVICE", "").strip()
-        env_ver = os.getenv("AUDIT_SOURCE_PLATFORM_VERSION", "").strip()
-        # Only honor env overrides that already look like app UI values.
-        if env_svc == "mtconnect-ui" and not str(ing.get("service") or "").strip():
-            service = env_svc
-        if not str(ing.get("platformVersion") or "").strip():
-            if env_ver.startswith("1.0.0"):
-                version = env_ver if env_ver.count(".") >= 3 else "1.0.0.0"
-            if version == "1.0.0":
-                version = "1.0.0.0"
+    elif wants_ui_service:
+        service = "mtconnect-ui"
+        version = (
+            hdrs.get("x-unified-version")
+            or str(ing.get("platformVersion") or "").strip()
+            or "1.0.0"
+        )
+    elif is_app_ui:
+        # App-hosted GraphQL still publishes as mtconnect-api.
+        service = "mtconnect-api"
+        version = (
+            hdrs.get("x-unified-version")
+            or str(ing.get("platformVersion") or "").strip()
+            or "1.0.0"
+        )
     else:
         service = os.getenv("AUDIT_SOURCE_SERVICE", "mtconnect-api").strip() or "mtconnect-api"
-        version = os.getenv("AUDIT_SOURCE_PLATFORM_VERSION", "1.0.0").strip() or "1.0.0"
-        # Prefer explicit ingress values when present (desktop curl / Excel response).
-        if str(ing.get("service") or "").strip():
-            service = str(ing.get("service")).strip()
+        version = (
+            hdrs.get("x-unified-version")
+            or os.getenv("AUDIT_SOURCE_PLATFORM_VERSION", "1.0.0").strip()
+            or "1.0.0"
+        )
+        if str(ing.get("service") or "").strip() and not wants_ui_service:
+            # Preserve non-GQL overrides (e.g. Connect) but never overwrite
+            # GQL default with a stale mtconnect-ui tag.
+            ing_svc = str(ing.get("service")).strip()
+            if ing_svc != "mtconnect-ui":
+                service = ing_svc
         if str(ing.get("platformVersion") or "").strip():
             version = str(ing.get("platformVersion")).strip()
 
@@ -212,10 +263,20 @@ def build_trigger_context(
         ctx["occurredAt"] = headers.get("occurredAt")
     if actor:
         ctx["ingress_actor"] = actor
+        gcid = str(actor.get("globalCustomerId") or "").strip()
+        guid = str(actor.get("globalUserId") or "").strip()
+        if gcid and guid:
+            actor = {**actor, "authenticationState": "authenticated"}
+            ctx["ingress_actor"] = actor
     if subject:
         ctx["ingress_subject"] = subject
     if ing:
-        ctx["ingress_source"] = ing
+        ctx["ingress_source"] = {**ing, "service": service, "platformVersion": version}
+        if ua:
+            ctx["ingress_source"]["actorUserAgent"] = ua
+    if headers:
+        ctx["ingress_headers"] = headers
+        ctx["request_headers"] = headers
     return ctx
 
 

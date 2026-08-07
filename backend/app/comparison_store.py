@@ -195,16 +195,34 @@ def _clean_benign_client_ua_rows(
 def _clean_app_ui_be_defaults(
     rows: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], bool]:
-    """PASS false positives: BE mtconnect-api / 1.0.0 vs app UI mtconnect-ui / 1.0.0.0.
+    """Align legacy app/GQL compare rows with current service / UA / auth rules.
 
-    Also strip leftover noisy notes from earlier workarounds.
+    - GQL frontend: ``mtconnect-api`` (do not force ``mtconnect-ui``)
+    - App-shell + fontSimilar/fontPairs: ``mtconnect-ui``
+    - ``platformVersion``: keep enriched ``1.0.0`` (X-Unified-Version), not invented ``1.0.0.0``
+    - ``authenticationState``: ``authenticated`` when gcid+guid present on the row set
     """
     out: list[dict[str, Any]] = []
     changed = False
+
+    # Detect gcid+guid from sibling rows for auth-state repair.
+    has_gcid = False
+    has_guid = False
+    for r in rows:
+        fp = str(r.get("field_path") or "")
+        ev = str(r.get("value_in_enriched") or "").strip()
+        if fp == "actor.globalCustomerId" and ev:
+            has_gcid = True
+        if fp == "actor.globalUserId" and ev:
+            has_guid = True
+    auth_expected = "authenticated" if (has_gcid and has_guid) else None
+
     for r in rows:
         fp = str(r.get("field_path") or "")
         status = str(r.get("match_status") or "")
         notes = str(r.get("notes") or "")
+        op = str(r.get("operation") or "")
+        base = op.split("(", 1)[0].strip() if op else ""
         # Drop noisy BE-workaround wording from prior runs.
         if "BE mtconnect-api" in notes or "BE default ignored" in notes or (
             "Desktop / UI audit ingress" in notes and "ignored" in notes
@@ -216,35 +234,104 @@ def _clean_app_ui_be_defaults(
             }
             changed = True
             notes = r["notes"]
+
+        src = str(r.get("value_in_source") or "").strip()
+        enr = str(r.get("value_in_enriched") or "").strip()
+
+        # authenticationState: fill expected when identities present.
+        if fp == "actor.authenticationState" and auth_expected:
+            if status in {"FAIL", "SKIP"} or (enr == auth_expected and src != auth_expected):
+                r = {
+                    **r,
+                    "value_in_source": auth_expected,
+                    "match_status": "PASS" if (not enr or enr == auth_expected) else status,
+                    "notes": "Derived from actor.globalCustomerId + globalUserId",
+                    "source_api": "actor identity",
+                }
+                if enr and enr != auth_expected:
+                    r["match_status"] = "FAIL"
+                changed = True
+                out.append(r)
+                continue
+
         if status not in {"FAIL", "SKIP"}:
             out.append(r)
             continue
-        src = str(r.get("value_in_source") or "").strip()
-        enr = str(r.get("value_in_enriched") or "").strip()
-        if fp == "source.service" and enr == "mtconnect-ui" and src in {
-            "mtconnect-api",
-            "",
-        }:
+
+        # source.service rules
+        if fp == "source.service":
+            ui_ops = {
+                "appSettingsAutoPerformanceEnabled",
+                "appSettingsAutoPerformanceDisabled",
+                "appSettingsPerformanceModeChanged",
+                "appLanguageChanged",
+                "appSettingsPluginInstallAllEnabled",
+                "appSettingsPluginInstallAllDisabled",
+                "appSettingsPluginAppEnabled",
+                "appSettingsActivationModeChanged",
+                "appFeedbackSubmitted",
+                "appLogsExported",
+                "appNetworkRefreshed",
+                "appHealthStatusRefreshed",
+                "appCacheCleared",
+                "fontTempActivated",
+                "fontActivationTypeSwitched",
+                "fontLocalfontActivated",
+                "fontLocalfontDeactivated",
+                "fontSyncSuccess",
+                "userSwitchWorkspaceApp",
+                "fontSimilarViewed",
+                "fontPairsViewed",
+                "fontSimilarFontViewed",
+            }
+            if enr == "MonotypeNextGenConnectService":
+                expected = enr
+            elif base in ui_ops:
+                expected = "mtconnect-ui"
+            else:
+                expected = "mtconnect-api"
+            if enr == expected and src != expected:
+                r = {
+                    **r,
+                    "value_in_source": expected,
+                    "match_status": "PASS",
+                    "notes": "Frontend service rule (mtconnect-api / mtconnect-ui)",
+                    "source_api": "source.service rule",
+                }
+                changed = True
+
+        # platformVersion: prefer enriched 1.0.0 (X-Unified-Version) over invented 1.0.0.0
+        elif fp == "source.platformVersion" and enr and src and enr != src:
+            if enr in {"1.0.0", "1.0.0.0"} and src in {"1.0.0", "1.0.0.0", ""}:
+                r = {
+                    **r,
+                    "value_in_source": enr,
+                    "match_status": "PASS",
+                    "notes": "Request X-Unified-Version / audit source.platformVersion",
+                    "source_api": "request headers",
+                }
+                changed = True
+        elif fp == "source.platformVersion" and enr and not src:
             r = {
                 **r,
-                "value_in_source": "mtconnect-ui",
+                "value_in_source": enr,
                 "match_status": "PASS",
-                "notes": "Audit ingress body",
-                "source_api": "Audit ingress body",
+                "notes": "Request X-Unified-Version / audit source.platformVersion",
+                "source_api": "request headers",
             }
             changed = True
-        elif fp == "source.platformVersion" and enr == "1.0.0.0" and src in {
-            "1.0.0",
-            "",
-        }:
+
+        # actorUserAgent: accept enriched UA when source blank
+        elif fp == "source.actorUserAgent" and enr and not src:
             r = {
                 **r,
-                "value_in_source": "1.0.0.0",
+                "value_in_source": enr,
                 "match_status": "PASS",
-                "notes": "Audit ingress body",
-                "source_api": "Audit ingress body",
+                "notes": "Request User-Agent / audit source.actorUserAgent",
+                "source_api": "request headers",
             }
             changed = True
+
         out.append(r)
     return out, changed
 

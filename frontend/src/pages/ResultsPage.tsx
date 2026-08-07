@@ -8,6 +8,7 @@ import {
   fetchJob,
   fetchJobs,
   fetchLatestResults,
+  fetchOperationSources,
   fetchPipelineConfig,
   deleteLatestResult,
   exportComparisonExcel,
@@ -94,6 +95,19 @@ function scenarioChannelRank(operation: string): number {
   if (op.endsWith("(app)") || /(^|[·\s])app($|[·\s])/.test(s)) return 0;
   if (op.endsWith("(web)") || /(^|[·\s])web($|[·\s])/.test(s)) return 2;
   return 1;
+}
+
+type ResultChannel = "web" | "app" | "cron";
+
+/** Classify a Results store label as web / app / cron for the coverage filter. */
+function resultChannel(operation: string, cronBases: Set<string>): ResultChannel {
+  const op = String(operation || "").trim();
+  if (/\(app\)$/i.test(op)) return "app";
+  const base = op.includes("(") ? op.slice(0, op.indexOf("(")) : op;
+  if (cronBases.has(op) || cronBases.has(base)) return "cron";
+  // Cron leftovers often use kebab-case ids (license-subscription-expiry, lfus-…).
+  if (/^[a-z0-9]+(-[a-z0-9]+)+$/i.test(base)) return "cron";
+  return "web";
 }
 
 type CoverageRow = {
@@ -298,6 +312,10 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const [activeId, setActiveId] = useState<string | null>(initialJobId);
   const [job, setJob] = useState<Job | null>(null);
   const [filterOp, setFilterOp] = useState("");
+  /** Coverage-table search only — must not open field details (that uses filterOp). */
+  const [coverageSearch, setCoverageSearch] = useState("");
+  const [coverageChannel, setCoverageChannel] = useState<"all" | ResultChannel>("all");
+  const [cronBases, setCronBases] = useState<Set<string>>(() => new Set());
   const [verifyCtx, setVerifyCtx] = useState<VerifyInUiContext | null>(null);
   const [filterStatus, setFilterStatus] = useState("all");
   /** Coverage table: fully pass / has fails / skips only (partial). */
@@ -435,6 +453,21 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     fetchComparableOperations()
       .then((r) => setOpMeta(r.items ?? []))
       .catch(() => {});
+    fetchOperationSources()
+      .then((r) => {
+        const bases = new Set<string>();
+        for (const item of r.catalog || []) {
+          if (item?.kind === "cron" && item.operation) bases.add(String(item.operation));
+        }
+        for (const [op, kind] of Object.entries(r.by_operation || {})) {
+          if (kind === "cron") {
+            bases.add(op);
+            bases.add(op.includes("(") ? op.slice(0, op.indexOf("(")) : op);
+          }
+        }
+        setCronBases(bases);
+      })
+      .catch(() => {});
     loadLatest();
   }, [loadLatest]);
 
@@ -549,26 +582,32 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   }
 
   const scopedRows = useMemo(() => {
+    // Category filter applies to both coverage + detail; filterOp is detail-only.
     return rows.filter((r) => {
-      if (filterOp) {
-        const fLow = filterOp.toLowerCase().trim();
-        const rLow = r.operation.toLowerCase().trim();
-        if (rLow !== fLow) {
-          const { base: rBase, scenario: rScen } = splitEventScenario(r.operation);
-          const { base: fBase, scenario: fScen } = splitEventScenario(filterOp);
-          if (rBase.toLowerCase() !== fBase.toLowerCase()) return false;
-          if (fScen && fScen !== "default" && rScen.toLowerCase() !== fScen.toLowerCase()) return false;
-        }
-      }
       if (filterCategory !== "all" && categoryForOperation(r.operation) !== filterCategory) return false;
       return true;
     });
-  }, [rows, filterOp, filterCategory, byOperation, metaByOp]);
+  }, [rows, filterCategory, byOperation, metaByOp]);
+
+  /** Field-detail rows — only when an operation was explicitly opened. */
+  const detailRows = useMemo(() => {
+    if (!filterOp) return [];
+    return scopedRows.filter((r) => {
+      const fLow = filterOp.toLowerCase().trim();
+      const rLow = r.operation.toLowerCase().trim();
+      if (rLow === fLow) return true;
+      const { base: rBase, scenario: rScen } = splitEventScenario(r.operation);
+      const { base: fBase, scenario: fScen } = splitEventScenario(filterOp);
+      if (rBase.toLowerCase() !== fBase.toLowerCase()) return false;
+      if (fScen && fScen !== "default" && rScen.toLowerCase() !== fScen.toLowerCase()) return false;
+      return true;
+    });
+  }, [scopedRows, filterOp]);
 
   const filtered = useMemo(() => {
-    if (filterStatus === "all") return scopedRows;
-    return scopedRows.filter((r) => r.match_status === filterStatus);
-  }, [scopedRows, filterStatus]);
+    if (filterStatus === "all") return detailRows;
+    return detailRows.filter((r) => r.match_status === filterStatus);
+  }, [detailRows, filterStatus]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, ComparisonRow[]>();
@@ -584,6 +623,9 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const allCoverageRows = useMemo(() => {
     const map = new Map<string, ComparisonRow[]>();
     for (const row of scopedRows) {
+      if (coverageChannel !== "all" && resultChannel(row.operation, cronBases) !== coverageChannel) {
+        continue;
+      }
       const list = map.get(row.operation) ?? [];
       list.push(row);
       map.set(row.operation, list);
@@ -601,19 +643,25 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
         };
       }),
     );
-  }, [scopedRows, metaByOp, byOperation, comparedAtByOp, track]);
+  }, [scopedRows, metaByOp, byOperation, comparedAtByOp, track, coverageChannel, cronBases]);
 
   const coverageRows = useMemo(() => {
+    const q = coverageSearch.trim().toLowerCase();
     return allCoverageRows.filter((r) => {
       if (highlightActive && highlightSet.size && !operationMatchesHighlight(r.operation, highlightSet)) {
         return false;
+      }
+      if (q) {
+        const { base, scenario } = splitEventScenario(r.operation);
+        const hay = `${r.operation} ${base} ${scenario} ${r.category}`.toLowerCase();
+        if (!hay.includes(q)) return false;
       }
       if (coverageOutcome === "pass") return r.failed === 0 && r.skipped === 0;
       if (coverageOutcome === "failed") return r.failed > 0;
       if (coverageOutcome === "partial") return r.failed === 0 && r.skipped > 0;
       return true;
     });
-  }, [allCoverageRows, coverageOutcome, highlightActive, highlightSet]);
+  }, [allCoverageRows, coverageOutcome, coverageSearch, highlightActive, highlightSet]);
 
   const coverageGroups = useMemo((): CoverageEventGroup[] => {
     const byBase = new Map<string, CoverageRow[]>();
@@ -769,6 +817,16 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     }
     return { pass, failed, partial, all: allCoverageRows.length };
   }, [allCoverageRows]);
+
+  const channelCounts = useMemo(() => {
+    const ops = new Set(scopedRows.map((r) => r.operation));
+    const counts = { all: 0, web: 0, app: 0, cron: 0 };
+    for (const op of ops) {
+      counts[resultChannel(op, cronBases)] += 1;
+      counts.all += 1;
+    }
+    return counts;
+  }, [scopedRows, cronBases]);
 
   /** Unique event bases vs scenario variants shown in the coverage table. */
   const eventGroupCounts = useMemo(() => {
@@ -963,6 +1021,8 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
 
   function clearFilters() {
     setFilterOp("");
+    setCoverageSearch("");
+    setCoverageChannel("all");
     setFilterStatus("all");
     setFieldSearch("");
     setCoverageOutcome("all");
@@ -1493,11 +1553,29 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
               <label className="filter-field coverage-op-search">
                 <span>Search</span>
                 <input
-                  value={filterOp}
-                  onChange={(e) => setFilterOp(e.target.value)}
+                  value={coverageSearch}
+                  onChange={(e) => setCoverageSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.preventDefault();
+                  }}
                   placeholder="Event or scenario…"
                   aria-label="Search operations in coverage table"
                 />
+              </label>
+              <label className="filter-field">
+                <span>Channel</span>
+                <select
+                  value={coverageChannel}
+                  onChange={(e) =>
+                    setCoverageChannel(e.target.value as "all" | ResultChannel)
+                  }
+                  title="Show Web, App, or Cron results only"
+                >
+                  <option value="all">All ({channelCounts.all})</option>
+                  <option value="web">Web ({channelCounts.web})</option>
+                  <option value="app">App ({channelCounts.app})</option>
+                  <option value="cron">Cron ({channelCounts.cron})</option>
+                </select>
               </label>
               <label className="filter-field">
                 <span>Show</span>
