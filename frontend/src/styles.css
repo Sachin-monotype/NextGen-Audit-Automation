@@ -2097,6 +2097,29 @@ button:disabled {
   text-align: center;
 }
 
+.mongo-sync-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.mongo-sync-icon {
+  display: inline-block;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.mongo-sync-icon.synced {
+  color: #059669;
+}
+
+.mongo-sync-icon.local {
+  color: #d97706;
+}
+
+.mongo-sync-icon.unknown {
+  color: #94a3b8;
+}
+
 .coverage-compared {
   white-space: nowrap;
   font-size: 0.78rem;

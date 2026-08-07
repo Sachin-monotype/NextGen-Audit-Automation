@@ -620,13 +620,17 @@ def _load_qa_results_prefer_mongo(
                 else:
                     err = "RESULTS_MONGO_URL set but QA Result and QA_Original returned 0 docs"
                     data = {}
-            merged, n_overlay = _overlay_local_results(data, local)
+            merged, n_overlay, sync_map = _overlay_local_results(data, local)
             if n_overlay:
                 source = f"{source}+local"
                 if err:
                     err = f"{err}; overlaid {n_overlay} newer/missing local scenario(s)"
                 else:
                     err = f"overlaid {n_overlay} newer/missing local scenario(s)"
+            # Stash sync map on each item for the list API.
+            for k, v in merged.items():
+                if isinstance(v, dict):
+                    v["mongo_sync"] = sync_map.get(k, "synced")
             if merged or source.startswith("mongo"):
                 return merged, source, err
             return {}, "mongo", err
@@ -639,15 +643,24 @@ def _load_qa_results_prefer_mongo(
             if results_mongo_enabled():
                 original = load_all_scenarios(original=True, include_rows=include_rows)
                 if original:
-                    merged, n_overlay = _overlay_local_results(original, local)
+                    merged, n_overlay, sync_map = _overlay_local_results(original, local)
                     src = "mongo-original+local" if n_overlay else "mongo-original"
+                    for k, v in merged.items():
+                        if isinstance(v, dict):
+                            v["mongo_sync"] = sync_map.get(k, "synced")
                     return merged, src, f"live read failed ({err}); serving QA_Original"
                 if local:
+                    for v in local.values():
+                        if isinstance(v, dict):
+                            v["mongo_sync"] = "local_only"
                     return local, "local", f"mongo unreachable ({err}); serving local"
                 return {}, "mongo", err
         except Exception as exc2:
             err = f"{err}; original also failed: {exc2}"
             if local:
+                for v in local.values():
+                    if isinstance(v, dict):
+                        v["mongo_sync"] = "local_only"
                 return local, "local", err
             try:
                 from .qa_results_store import results_mongo_enabled
@@ -656,16 +669,25 @@ def _load_qa_results_prefer_mongo(
                     return {}, "mongo", err
             except Exception:
                 pass
+    for v in (local or {}).values():
+        if isinstance(v, dict):
+            v.setdefault("mongo_sync", "local_only")
     return local, "local", err
 
 
 def _overlay_local_results(
     mongo_data: dict[str, Any], local_data: dict[str, Any]
-) -> tuple[dict[str, Any], int]:
-    """Prefer local scenario when missing from Mongo or local ``compared_at`` is newer."""
+) -> tuple[dict[str, Any], int, dict[str, str]]:
+    """Prefer local scenario when missing from Mongo or local ``compared_at`` is newer.
+
+    Returns ``(merged, overlay_count, mongo_sync_by_key)`` where sync is one of
+    ``synced`` | ``local_only`` | ``local_newer``.
+    """
     if not local_data:
-        return dict(mongo_data or {}), 0
+        out = dict(mongo_data or {})
+        return out, 0, {k: "synced" for k in out}
     out = dict(mongo_data or {})
+    sync: dict[str, str] = {k: "synced" for k in out}
     n = 0
     for key, item in local_data.items():
         if not isinstance(item, dict):
@@ -675,13 +697,15 @@ def _overlay_local_results(
         local_ts = str(item.get("compared_at") or "")
         if existing is None:
             out[canon] = item
+            sync[canon] = "local_only"
             n += 1
             continue
         mongo_ts = str(existing.get("compared_at") or "")
         if local_ts and local_ts > mongo_ts:
             out[canon] = item
+            sync[canon] = "local_newer"
             n += 1
-    return out, n
+    return out, n, sync
 
 
 def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, Any]:
@@ -726,8 +750,12 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
             json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n",
             encoding="utf-8",
         )
-    for item in data.values():
+    for op, item in data.items():
         item["audit_target"] = audit_target
+        item.setdefault(
+            "mongo_sync",
+            "synced" if source.startswith("mongo") else "local_only",
+        )
         if not str(item.get("platformEnvironment") or "").strip():
             try:
                 from .qa_results_store import _platform_environment_from_rows
@@ -743,9 +771,14 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
     visible_ops = list(data.keys())
     items = [data[op] for op in visible_ops]
     items.sort(key=lambda x: str(x.get("compared_at") or ""), reverse=True)
-    # Only flatten rows when present (local / single-op). Mongo list keeps rows empty.
+    # QA list never embeds field rows — even for ``mongo+local`` overlays. Overlay
+    # docs may still carry local rows in memory; shipping them made the UI build
+    # coverage from only those few ops and hide the rest of the store.
     merged_rows: list[dict[str, Any]] = []
-    if source != "mongo":
+    if audit_target == "qa":
+        for it in items:
+            it["rows"] = []
+    else:
         for op in sorted(visible_ops):
             merged_rows.extend(data[op].get("rows") or [])
     out: dict[str, Any] = {
@@ -760,7 +793,12 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
     if audit_target == "qa" and load_err:
         out["results_mongo_error"] = load_err
     if audit_target == "qa" and source.startswith("mongo"):
-        out["mongo_documents"] = len(visible_ops)
+        # Count Atlas docs only (exclude local-only overlays) for the badge.
+        synced = sum(1 for it in items if it.get("mongo_sync") == "synced")
+        out["mongo_documents"] = synced or len(visible_ops)
+        out["local_only_count"] = sum(
+            1 for it in items if it.get("mongo_sync") in ("local_only", "local_newer")
+        )
     return out
 
 

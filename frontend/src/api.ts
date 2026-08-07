@@ -230,6 +230,8 @@ export async function fetchComparableOperations() {
   return res.json() as Promise<{ operations: string[]; items: ComparableOperation[] }>;
 }
 
+export type MongoSyncStatus = "synced" | "local_only" | "local_newer";
+
 export type LatestComparisonItem = {
   operation: string;
   compared_at: string;
@@ -239,6 +241,8 @@ export type LatestComparisonItem = {
   rows: ComparisonRow[];
   /** From enriched ``source.platformEnvironment`` (web / app / qa / …). */
   platformEnvironment?: string;
+  /** Whether this scenario is in Atlas QA Result (or only local / newer local). */
+  mongo_sync?: MongoSyncStatus | string;
 };
 
 export async function fetchLatestResults(target?: string) {
@@ -251,10 +255,29 @@ export async function fetchLatestResults(target?: string) {
     count: number;
     audit_target?: string;
     available_targets?: string[];
-    results_source?: "mongo" | "local" | "mongo-original";
+    results_source?: "mongo" | "local" | "mongo-original" | string;
     results_mongo_error?: string;
     mongo_documents?: number;
+    local_only_count?: number;
   }>;
+}
+
+/** Upsert all local QA comparison results into Atlas live QA Result. */
+export async function syncResultsToMongo() {
+  const res = await fetch(`${API}/api/results/mongo/sync`, { method: "POST" });
+  const data = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    upserted?: number;
+    modified?: number;
+    matched?: number;
+    total?: number;
+    error?: string;
+    message?: string;
+  };
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || data.message || `Sync failed (${res.status})`);
+  }
+  return data;
 }
 
 /** Field-level rows for one scenario (Mongo-backed QA Results). */

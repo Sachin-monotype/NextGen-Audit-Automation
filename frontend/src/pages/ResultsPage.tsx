@@ -14,6 +14,7 @@ import {
   deleteLatestResult,
   exportComparisonExcel,
   refreshStoredComparisons,
+  syncResultsToMongo,
   type CategoryReport,
   type ComparableOperation,
   type ComparisonRow,
@@ -144,6 +145,7 @@ type CoverageRow = {
   na: number;
   platformEnvironment?: string;
   channel?: ResultChannel;
+  mongoSync?: string;
 };
 
 type CoverageEventGroup = {
@@ -335,6 +337,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     results_source?: "mongo" | "local" | "mongo-original" | string;
     results_mongo_error?: string;
     mongo_documents?: number;
+    local_only_count?: number;
   } | null>(null);
   /** Field rows for the opened operation (loaded on demand from Mongo). */
   const [detailOpRows, setDetailOpRows] = useState<ComparisonRow[]>([]);
@@ -464,6 +467,8 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const [refreshJobId, setRefreshJobId] = useState<string | null>(null);
   const [refreshAllBusy, setRefreshAllBusy] = useState(false);
   const [refreshError, setRefreshError] = useState("");
+  const [syncMongoBusy, setSyncMongoBusy] = useState(false);
+  const [syncMongoMsg, setSyncMongoMsg] = useState("");
   /**
    * Just-compared ops from Compare. Never hide the shared Mongo Results list by
    * default — ``focusComparedOnly`` is opt-in.
@@ -704,11 +709,14 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
 
   /** Full per-op rollup (ignores field status filter) so coverage filters stay accurate. */
   const allCoverageRows = useMemo(() => {
-    // Mongo list returns items+summaries only (no field rows) — build coverage from items.
+    // Prefer items+summaries whenever the list has more scenarios than unique ops
+    // in embedded rows (mongo+local used to ship only overlay rows and hide the rest).
+    const itemCount = latest?.items?.length ?? 0;
+    const rowOps = new Set((latest?.rows ?? []).map((r) => r.operation));
     const fromItems =
       sourceMode === "latest" &&
-      (latest?.items?.length ?? 0) > 0 &&
-      (latest?.rows?.length ?? 0) === 0;
+      itemCount > 0 &&
+      ((latest?.rows?.length ?? 0) === 0 || rowOps.size < itemCount);
     if (fromItems) {
       const mapped = (latest?.items ?? [])
         .filter((item) => {
@@ -739,14 +747,17 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
             na: s.na ?? 0,
             platformEnvironment: pe,
             channel: resultChannel(item.operation, cronBases, pe),
+            mongoSync: item.mongo_sync || "",
           };
         });
       return dedupeCoverageRows(mapped);
     }
     const map = new Map<string, ComparisonRow[]>();
     const peByOp = new Map<string, string>();
+    const syncByOp = new Map<string, string>();
     for (const item of latest?.items ?? []) {
       if (item.platformEnvironment) peByOp.set(item.operation, item.platformEnvironment);
+      if (item.mongo_sync) syncByOp.set(item.operation, item.mongo_sync);
     }
     for (const row of scopedRows) {
       const pe = peByOp.get(row.operation);
@@ -770,6 +781,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
           ...summary,
           platformEnvironment: pe,
           channel: resultChannel(operation, cronBases, pe),
+          mongoSync: syncByOp.get(operation) || "",
         };
       }),
     );
@@ -1232,7 +1244,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                       ? [filterOp]
                       : coverageRows.map((r) => r.operation);
                 void exportComparisonExcel(ops, resultsTarget)
-                  .catch((e) => setRefreshError(String(e)))
+                  .catch((e) => setRefreshError(String(e?.message || e)))
                   .finally(() => setExportBusy(false));
               }}
             >
@@ -1243,6 +1255,30 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                   : "Download Excel"}
             </button>
           )}
+          <button
+            type="button"
+            className="primary outline"
+            disabled={failureLogBusy}
+            onClick={openFailureLog}
+            title="Open FAIL field summary"
+          >
+            {failureLogBusy
+              ? "Loading…"
+              : failureLog
+                ? `Failures (${failureLog.total_fail_rows})`
+                : "Failure log"}
+          </button>
+          <button
+            type="button"
+            className="primary outline"
+            disabled={refreshAllBusy || !latest?.count}
+            onClick={() => void refreshAllInStore()}
+            title={`Re-run Compare for every operation in the ${resultsTarget.toUpperCase()} store`}
+          >
+            {refreshAllBusy
+              ? "Re-comparing…"
+              : `Re-compare (${resultsTarget.toUpperCase()})`}
+          </button>
           {filterOp && (
             <div className="filter-actions inline-actions">
               <button type="button" onClick={() => setExpanded(new Set(grouped.map(([op]) => op)))}>
@@ -1280,20 +1316,24 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
               latest?.results_source?.startsWith("mongo")
                 ? `Results from Atlas (${latest.results_source})${
                     latest.mongo_documents != null
-                      ? ` · ${latest.mongo_documents} scenarios`
+                      ? ` · ${latest.mongo_documents} in Mongo`
+                      : ""
+                  }${
+                    latest.local_only_count
+                      ? ` · ${latest.local_only_count} local-only/newer`
                       : ""
                   }`
                 : latest?.results_mongo_error ||
                   "RESULTS_MONGO_URL missing, Atlas unreachable, or backend not restarted"
             }
           >
-            {latest?.results_source === "mongo"
-              ? `source: Mongo${latest.mongo_documents != null ? ` (${latest.mongo_documents})` : ""}`
-              : latest?.results_source === "mongo-original"
-                ? `source: Mongo baseline${latest.mongo_documents != null ? ` (${latest.mongo_documents})` : ""}`
-                : latest
-                  ? "source: local (not Mongo)"
-                  : "source: …"}
+            {latest?.results_source?.startsWith("mongo")
+              ? `source: Mongo${
+                  latest.results_source.includes("+local") ? "+local" : ""
+                }${latest.mongo_documents != null ? ` (${latest.mongo_documents})` : ""}`
+              : latest
+                ? "source: local (not Mongo)"
+                : "source: …"}
           </span>
         )}
         <label className="filter-field">
@@ -1337,34 +1377,44 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
           </select>
         </label>
         <div className="filter-actions results-toolbar-actions">
-          <button
-            type="button"
-            className="primary"
-            disabled={refreshAllBusy || !latest?.count}
-            onClick={() => void refreshAllInStore()}
-            title={`Re-run Compare for every operation in the ${resultsTarget.toUpperCase()} store`}
-          >
-            {refreshAllBusy
-              ? "Re-comparing…"
-              : `Re-compare (${resultsTarget.toUpperCase()})`}
-          </button>
-          <button
-            type="button"
-            className="primary outline"
-            disabled={failureLogBusy}
-            onClick={openFailureLog}
-          >
-            {failureLogBusy
-              ? "Loading…"
-              : failureLog
-                ? `Failures (${failureLog.total_fail_rows})`
-                : "Failure log"}
-          </button>
+          {resultsTarget === "qa" && (
+            <button
+              type="button"
+              className="primary"
+              disabled={syncMongoBusy}
+              onClick={() => {
+                setSyncMongoMsg("");
+                setRefreshError("");
+                setSyncMongoBusy(true);
+                void syncResultsToMongo()
+                  .then((r) => {
+                    const parts = [
+                      r.total != null ? `${r.total} scenarios` : null,
+                      r.upserted ? `${r.upserted} inserted` : null,
+                      r.modified ? `${r.modified} updated` : null,
+                      r.message || null,
+                    ].filter(Boolean);
+                    setSyncMongoMsg(
+                      parts.length
+                        ? `Synced to Mongo: ${parts.join(", ")}`
+                        : "Synced to Mongo",
+                    );
+                    loadLatest();
+                  })
+                  .catch((e) => setRefreshError(String(e?.message || e)))
+                  .finally(() => setSyncMongoBusy(false));
+              }}
+              title="Upsert missing/newer local Results into Atlas (add or update)"
+            >
+              {syncMongoBusy ? "Syncing…" : "Sync to Mongo"}
+            </button>
+          )}
           <button type="button" onClick={clearFilters}>Clear</button>
         </div>
       </div>
 
       {refreshError && <p className="error">{refreshError}</p>}
+      {syncMongoMsg && <p className="muted">{syncMongoMsg}</p>}
 
       {unreachableCount > 0 && (
         <div className="banner warn">
@@ -1909,6 +1959,9 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
               <thead>
                 <tr>
                   <th className="coverage-col-narrow" title="Select"></th>
+                  <th className="coverage-col-narrow" title="Mongo sync status">
+                    DB
+                  </th>
                   <th>
                     <button
                       type="button"
@@ -1955,7 +2008,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
               <tbody>
                 {coverageGroups.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="muted">
+                    <td colSpan={11} className="muted">
                       No operations match this filter.
                     </td>
                   </tr>
@@ -1969,6 +2022,15 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
 
                   const renderScenarioRow = (r: CoverageRow, nested: boolean) => {
                     const { base, scenario } = splitEventScenario(r.operation);
+                    const sync = r.mongoSync || "";
+                    const syncTitle =
+                      sync === "synced"
+                        ? "In Mongo"
+                        : sync === "local_newer"
+                          ? "Local is newer than Mongo — Sync to Mongo to update"
+                          : sync === "local_only"
+                            ? "Local only — not in Mongo yet"
+                            : "Mongo status unknown";
                     return (
                       <tr
                         key={r.operation}
@@ -1981,6 +2043,20 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                             onChange={() => toggleSelectOp(r.operation)}
                             aria-label={`Select ${r.operation}`}
                           />
+                        </td>
+                        <td className="coverage-col-narrow mongo-sync-cell" title={syncTitle}>
+                          <span
+                            className={`mongo-sync-icon ${
+                              sync === "synced"
+                                ? "synced"
+                                : sync === "local_newer" || sync === "local_only"
+                                  ? "local"
+                                  : "unknown"
+                            }`}
+                            aria-label={syncTitle}
+                          >
+                            {sync === "synced" ? "●" : sync === "local_newer" || sync === "local_only" ? "○" : "·"}
+                          </span>
                         </td>
                         <td>
                           {nested ? null : (
@@ -2115,6 +2191,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                             aria-label={`Select all scenarios for ${g.base}`}
                           />
                         </td>
+                        <td className="coverage-col-narrow" title="Expand scenarios to see per-row Mongo status" />
                         <td>
                           <div className="coverage-op-cell event">
                             <button

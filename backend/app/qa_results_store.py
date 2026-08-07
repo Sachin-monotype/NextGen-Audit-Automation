@@ -207,6 +207,25 @@ def upsert_scenario(scenario: str, item: dict[str, Any]) -> bool:
         return False
 
 
+def _friendly_write_error(exc: BaseException) -> str:
+    msg = str(exc)
+    low = msg.lower()
+    if "no primary" in low or "replicasetnoprimary" in low:
+        return (
+            "Results Mongo has no PRIMARY (cluster unhealthy / paused). "
+            "Writes need a healthy Atlas primary — set RESULTS_MONGO_URL to a "
+            "writable cluster (e.g. the same as MONGO_DB_URL) and retry Sync."
+        )
+    if "quota" in low or "space" in low or "storage" in low:
+        return f"Atlas storage/quota blocked the write: {msg[:240]}"
+    if "ssl" in low or "tls" in low:
+        return (
+            "TLS/SSL failed talking to Results Mongo. "
+            "Check Atlas cluster health, then retry Sync."
+        )
+    return msg[:500]
+
+
 def upsert_many(items: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Bulk upsert live ``QA Result`` docs (insert new, replace existing)."""
     col = _get_write_collection(original=False)
@@ -220,11 +239,11 @@ def upsert_many(items: dict[str, dict[str, Any]]) -> dict[str, Any]:
         doc = _doc_from_item(sc, item)
         ops.append(UpdateOne({"scenario": sc}, {"$set": doc}, upsert=True))
     if not ops:
-        return {"ok": True, "upserted": 0, "matched": 0}
+        return {"ok": True, "upserted": 0, "matched": 0, "total": 0}
     try:
         # Chunk large batches — full field rows make each doc multi‑MB.
         upserted = modified = matched = 0
-        chunk_size = 10
+        chunk_size = 5
         for i in range(0, len(ops), chunk_size):
             result = col.bulk_write(ops[i : i + chunk_size], ordered=False)
             upserted += int(result.upserted_count or 0)
@@ -241,7 +260,7 @@ def upsert_many(items: dict[str, dict[str, Any]]) -> dict[str, Any]:
         }
     except PyMongoError as exc:
         logger.warning("QA Result bulk upsert failed: %s", exc)
-        return {"ok": False, "upserted": 0, "error": str(exc)}
+        return {"ok": False, "upserted": 0, "error": _friendly_write_error(exc)}
 
 
 def delete_scenario(scenario: str) -> bool:
@@ -424,16 +443,57 @@ def seed_qa_original_once(items: dict[str, dict[str, Any]] | None = None) -> dic
 
 
 def sync_qa_local_store(project_root) -> dict[str, Any]:
-    """Push every local ``comparison-latest-qa.json`` scenario into live QA Result."""
+    """Push local ``comparison-latest-qa.json`` into live QA Result (upsert).
+
+    Only scenarios that are missing from Mongo or have a newer ``compared_at``
+    are written. When Mongo is empty, seeds the full local store.
+    """
     from pathlib import Path
 
-    from .comparison_store import _load_for_target
+    from .comparison_store import _load_for_target, _normalize_result_operation
 
     root = Path(project_root)
-    data = _load_for_target(root, "qa")
-    if not data:
+    local = _load_for_target(root, "qa")
+    if not local:
         return {"ok": True, "upserted": 0, "total": 0, "message": "no local QA results"}
-    return upsert_many(data)
+
+    mongo = load_all_scenarios(original=False, include_rows=False)
+    to_sync: dict[str, dict[str, Any]] = {}
+    if not mongo:
+        to_sync = {str(k): v for k, v in local.items() if isinstance(v, dict)}
+        reason = "seed_empty_mongo"
+    else:
+        for key, item in local.items():
+            if not isinstance(item, dict):
+                continue
+            canon = _normalize_result_operation(str(key))
+            existing = mongo.get(canon) or mongo.get(str(key))
+            local_ts = str(item.get("compared_at") or "")
+            if existing is None:
+                to_sync[canon] = item
+                continue
+            mongo_ts = str(existing.get("compared_at") or "")
+            if local_ts and local_ts > mongo_ts:
+                to_sync[canon] = item
+        reason = "pending_only"
+
+    if not to_sync:
+        return {
+            "ok": True,
+            "upserted": 0,
+            "modified": 0,
+            "matched": 0,
+            "total": 0,
+            "skipped": len(local),
+            "message": "everything already in Mongo",
+            "mode": reason,
+        }
+
+    result = upsert_many(to_sync)
+    result["mode"] = reason
+    result["pending"] = len(to_sync)
+    result["local_total"] = len(local)
+    return result
 
 
 def ping() -> dict[str, Any]:
@@ -445,7 +505,21 @@ def ping() -> dict[str, Any]:
         live = int(col.estimated_document_count())
         orig_col = _get_collection(original=True)
         original = int(orig_col.estimated_document_count()) if orig_col is not None else 0
-        return {
+        writable = False
+        write_error = ""
+        try:
+            wcol = _get_write_collection(original=False)
+            if wcol is not None:
+                wcol.update_one(
+                    {"scenario": "__write_probe__"},
+                    {"$set": {"scenario": "__write_probe__", "probe": True}},
+                    upsert=True,
+                )
+                wcol.delete_one({"scenario": "__write_probe__"})
+                writable = True
+        except PyMongoError as wexc:
+            write_error = _friendly_write_error(wexc)
+        out = {
             "ok": True,
             "database": _db_name(),
             "collection": _live_collection_name(),
@@ -454,8 +528,11 @@ def ping() -> dict[str, Any]:
             "original_documents": original,
             "read_preference": "primaryPreferred",
             "event_hint": "UI 'events' = unique operation bases; 'scenarios' = documents",
-            "writable": True,
+            "writable": writable,
         }
+        if write_error:
+            out["write_error"] = write_error
+        return out
     except PyMongoError as exc:
         return {"ok": False, "error": str(exc)}
 
