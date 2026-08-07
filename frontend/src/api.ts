@@ -237,6 +237,8 @@ export type LatestComparisonItem = {
   job_kind: string;
   summary: { passed: number; failed: number; skipped: number; na: number };
   rows: ComparisonRow[];
+  /** From enriched ``source.platformEnvironment`` (web / app / qa / …). */
+  platformEnvironment?: string;
 };
 
 export async function fetchLatestResults(target?: string) {

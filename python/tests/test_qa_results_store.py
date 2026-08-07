@@ -12,11 +12,19 @@ def test_doc_uses_scenario_as_unique_key():
         "job_id": "j1",
         "job_kind": "compare",
         "summary": {"passed": 10, "failed": 0, "skipped": 1, "na": 0},
-        "rows": [{"field_path": "source.service", "match_status": "PASS"}],
+        "rows": [
+            {
+                "field_path": "source.platformEnvironment",
+                "value_in_enriched": "app",
+                "value_in_source": "app",
+                "match_status": "PASS",
+            }
+        ],
     }
     doc = _doc_from_item("activateVariation(global)(app)", item)
     assert doc["scenario"] == "activateVariation(global)(app)"
     assert doc["audit_target"] == "qa"
     assert doc["row_count"] == 1
     assert doc["summary"]["passed"] == 10
+    assert doc["platformEnvironment"] == "app"
     assert "updated_at" in doc

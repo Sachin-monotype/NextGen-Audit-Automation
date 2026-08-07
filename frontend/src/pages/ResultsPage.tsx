@@ -89,7 +89,10 @@ function splitEventScenario(operation: string): { base: string; scenario: string
 }
 
 /** Prefer app scenarios above default, web last. */
-function scenarioChannelRank(operation: string): number {
+function scenarioChannelRank(operation: string, platformEnvironment?: string): number {
+  const pe = String(platformEnvironment || "").toLowerCase();
+  if (pe === "app") return 0;
+  if (pe === "web") return 2;
   const op = String(operation || "").toLowerCase();
   const { scenario } = splitEventScenario(operation);
   const s = scenario.toLowerCase();
@@ -100,13 +103,20 @@ function scenarioChannelRank(operation: string): number {
 
 type ResultChannel = "web" | "app" | "cron";
 
-/** Classify a Results store label as web / app / cron for the coverage filter. */
-function resultChannel(operation: string, cronBases: Set<string>): ResultChannel {
+/** Classify using ``platformEnvironment`` first, then operation label / cron catalog. */
+function resultChannel(
+  operation: string,
+  cronBases: Set<string>,
+  platformEnvironment?: string,
+): ResultChannel {
+  const pe = String(platformEnvironment || "").trim().toLowerCase();
+  if (pe === "app") return "app";
+  if (pe === "web") return "web";
+  if (pe && pe !== "web" && pe !== "app") return "cron";
   const op = String(operation || "").trim();
   if (/\(app\)$/i.test(op)) return "app";
   const base = op.includes("(") ? op.slice(0, op.indexOf("(")) : op;
   if (cronBases.has(op) || cronBases.has(base)) return "cron";
-  // Cron leftovers often use kebab-case ids (license-subscription-expiry, lfus-…).
   if (/^[a-z0-9]+(-[a-z0-9]+)+$/i.test(base)) return "cron";
   return "web";
 }
@@ -120,6 +130,8 @@ type CoverageRow = {
   failed: number;
   skipped: number;
   na: number;
+  platformEnvironment?: string;
+  channel?: ResultChannel;
 };
 
 type CoverageEventGroup = {
@@ -682,7 +694,11 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     if (fromItems) {
       const mapped = (latest?.items ?? [])
         .filter((item) => {
-          if (coverageChannel !== "all" && resultChannel(item.operation, cronBases) !== coverageChannel) {
+          const pe = item.platformEnvironment;
+          if (
+            coverageChannel !== "all" &&
+            resultChannel(item.operation, cronBases, pe) !== coverageChannel
+          ) {
             return false;
           }
           if (filterCategory !== "all" && categoryForOperation(item.operation) !== filterCategory) {
@@ -693,6 +709,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
         .map((item) => {
           const s = item.summary || { passed: 0, failed: 0, skipped: 0, na: 0 };
           const status: TrackStatus = track[item.operation] || "unreviewed";
+          const pe = item.platformEnvironment || "";
           return {
             operation: item.operation,
             category: categoryForOperation(item.operation),
@@ -702,13 +719,20 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
             failed: s.failed ?? 0,
             skipped: s.skipped ?? 0,
             na: s.na ?? 0,
+            platformEnvironment: pe,
+            channel: resultChannel(item.operation, cronBases, pe),
           };
         });
       return dedupeCoverageRows(mapped);
     }
     const map = new Map<string, ComparisonRow[]>();
+    const peByOp = new Map<string, string>();
+    for (const item of latest?.items ?? []) {
+      if (item.platformEnvironment) peByOp.set(item.operation, item.platformEnvironment);
+    }
     for (const row of scopedRows) {
-      if (coverageChannel !== "all" && resultChannel(row.operation, cronBases) !== coverageChannel) {
+      const pe = peByOp.get(row.operation);
+      if (coverageChannel !== "all" && resultChannel(row.operation, cronBases, pe) !== coverageChannel) {
         continue;
       }
       const list = map.get(row.operation) ?? [];
@@ -719,12 +743,15 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
       [...map.entries()].map(([operation, opRows]) => {
         const summary = summarizeOp(opRows);
         const status: TrackStatus = track[operation] || "unreviewed";
+        const pe = peByOp.get(operation) || "";
         return {
           operation,
           category: categoryForOperation(operation),
           comparedAt: comparedAtByOp.get(operation) || "",
           track: status,
           ...summary,
+          platformEnvironment: pe,
+          channel: resultChannel(operation, cronBases, pe),
         };
       }),
     );
@@ -770,7 +797,9 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     const groups: CoverageEventGroup[] = [];
     for (const [base, scenarios] of byBase) {
       const sortScenario = (a: CoverageRow, b: CoverageRow) => {
-        const channel = scenarioChannelRank(a.operation) - scenarioChannelRank(b.operation);
+        const channel =
+          scenarioChannelRank(a.operation, a.platformEnvironment) -
+          scenarioChannelRank(b.operation, b.platformEnvironment);
         const sa = splitEventScenario(a.operation).scenario;
         const sb = splitEventScenario(b.operation).scenario;
         const byName = sa.localeCompare(sb);
@@ -915,14 +944,14 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   }, [allCoverageRows]);
 
   const channelCounts = useMemo(() => {
-    const ops = new Set(scopedRows.map((r) => r.operation));
     const counts = { all: 0, web: 0, app: 0, cron: 0 };
-    for (const op of ops) {
-      counts[resultChannel(op, cronBases)] += 1;
+    for (const r of allCoverageRows) {
+      const ch = r.channel || resultChannel(r.operation, cronBases, r.platformEnvironment);
+      counts[ch] += 1;
       counts.all += 1;
     }
     return counts;
-  }, [scopedRows, cronBases]);
+  }, [allCoverageRows, cronBases]);
 
   /** Unique event bases vs scenario variants shown in the coverage table. */
   const eventGroupCounts = useMemo(() => {
@@ -1692,18 +1721,18 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                 />
               </label>
               <label className="filter-field">
-                <span>Channel</span>
+                <span>Platform</span>
                 <select
                   value={coverageChannel}
                   onChange={(e) =>
                     setCoverageChannel(e.target.value as "all" | ResultChannel)
                   }
-                  title="Show Web, App, or Cron results only"
+                  title="Filter by source.platformEnvironment (web / app / cron)"
                 >
                   <option value="all">All ({channelCounts.all})</option>
                   <option value="web">Web ({channelCounts.web})</option>
                   <option value="app">App ({channelCounts.app})</option>
-                  <option value="cron">Cron ({channelCounts.cron})</option>
+                  <option value="cron">Cron / other ({channelCounts.cron})</option>
                 </select>
               </label>
               <label className="filter-field">
@@ -1824,6 +1853,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                       {sortHeaderLabel("scenario", "Scenario")}
                     </button>
                   </th>
+                  <th title="source.platformEnvironment">Platform</th>
                   <th>Category</th>
                   <th>
                     <button
@@ -1851,7 +1881,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
               <tbody>
                 {coverageGroups.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="muted">
+                    <td colSpan={10} className="muted">
                       No operations match this filter.
                     </td>
                   </tr>
@@ -1898,6 +1928,22 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                           >
                             {scenario}
                           </button>
+                        </td>
+                        <td>
+                          {(() => {
+                            const ch =
+                              r.channel ||
+                              resultChannel(r.operation, cronBases, r.platformEnvironment);
+                            const label = r.platformEnvironment || ch;
+                            return (
+                              <span
+                                className={`channel-badge platform-${ch}`}
+                                title={`source.platformEnvironment = ${r.platformEnvironment || "—"}`}
+                              >
+                                {label || "—"}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td>{r.category}</td>
                         <td className="coverage-compared" title={r.comparedAt || undefined}>
@@ -2023,6 +2069,28 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                           >
                             {open ? `Hide ${g.scenarios.length}` : `${g.scenarios.length} scenarios`}
                           </button>
+                        </td>
+                        <td>
+                          {(() => {
+                            const channels = new Set(
+                              g.scenarios.map(
+                                (s) =>
+                                  s.channel ||
+                                  resultChannel(s.operation, cronBases, s.platformEnvironment),
+                              ),
+                            );
+                            if (channels.size === 1) {
+                              const ch = [...channels][0];
+                              return (
+                                <span className={`channel-badge platform-${ch}`}>{ch}</span>
+                              );
+                            }
+                            return (
+                              <span className="muted" title={[...channels].join(", ")}>
+                                mixed
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td>{g.category}</td>
                         <td className="coverage-compared" title={g.comparedAt || undefined}>

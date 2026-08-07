@@ -411,6 +411,17 @@ def qa_results_seed_original() -> dict[str, Any]:
     return seed_qa_original_once()
 
 
+@app.post("/api/results/mongo/backfill-platform")
+def qa_results_backfill_platform() -> dict[str, Any]:
+    """Backfill ``platformEnvironment`` on live QA Result docs from field rows."""
+    from .qa_results_store import backfill_platform_environments, results_mongo_enabled
+
+    if not results_mongo_enabled():
+        raise HTTPException(400, "RESULTS_MONGO_URL is not configured")
+    live = backfill_platform_environments(original=False)
+    return {"live": live}
+
+
 @app.post("/api/results/export-excel")
 def export_comparison_results_excel(body: ExportResultsRequest) -> Response:
     """Download multi-sheet xlsx for selected (or all) stored comparison operations.

@@ -50,7 +50,7 @@ const TEXT_FILTERS: { key: keyof FilterState; label: string; placeholder?: strin
 ];
 
 const ENUM_FILTERS: { key: keyof FilterValues; label: string }[] = [
-  { key: "source.platformEnvironment", label: "environment" },
+  { key: "source.platformEnvironment", label: "platform (web/app)" },
   { key: "source.service", label: "service" },
   { key: "source.operationState", label: "state" },
 ];
@@ -788,13 +788,28 @@ function LogCard({
         <div className="log-meta">
           <span className="meta-chip">
             <strong>operation</strong> {row.scenario || op}
+            {(() => {
+              const pe = String(row["source.platformEnvironment"] || "").trim().toLowerCase();
+              if (!pe) return null;
+              const cls =
+                pe === "app" ? "platform-app" : pe === "web" ? "platform-web" : "platform-cron";
+              return (
+                <span className={`channel-badge ${cls}`} title="source.platformEnvironment">
+                  {pe}
+                </span>
+              );
+            })()}
             {channel && (
-              <span className={`channel-badge ${channel.toLowerCase()}`}>({channel})</span>
+              <span className={`channel-badge ${channel.toLowerCase()}`} title="Client channel">
+                ({channel})
+              </span>
             )}
           </span>
           <span className="meta-chip"><strong>state</strong> {row["source.operationState"]}</span>
           <span className="meta-chip"><strong>service</strong> {row["source.service"]}</span>
-          <span className="meta-chip"><strong>env</strong> {row["source.platformEnvironment"]}</span>
+          <span className="meta-chip">
+            <strong>platform</strong> {row["source.platformEnvironment"] || "—"}
+          </span>
           <span className="meta-chip"><strong>occurredAt</strong> {row.occurredAt}</span>
         </div>
         <span className="log-card-hint muted">{open ? "collapse" : "expand payload"}</span>

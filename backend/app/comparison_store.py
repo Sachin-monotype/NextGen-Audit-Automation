@@ -417,6 +417,13 @@ def save_batch_results(
                         str(r.get("operation") or canon)
                     )
             summ = (summaries or {}).get(op) or (summaries or {}).get(canon)
+            pe = ""
+            try:
+                from .qa_results_store import _platform_environment_from_rows
+
+                pe = _platform_environment_from_rows(cleaned)
+            except Exception:
+                pe = ""
             data[canon] = {
                 "operation": canon,
                 "compared_at": compared_at,
@@ -424,6 +431,7 @@ def save_batch_results(
                 "job_kind": job_kind,
                 "summary": summ or _summary_for_rows(cleaned),
                 "rows": cleaned,
+                "platformEnvironment": pe,
             }
         data, _ = _dedupe_channel_variants(data)
         if len(data) >= 20:
@@ -631,6 +639,17 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
         )
     for item in data.values():
         item["audit_target"] = audit_target
+        if not str(item.get("platformEnvironment") or "").strip():
+            try:
+                from .qa_results_store import _platform_environment_from_rows
+
+                pe = _platform_environment_from_rows(
+                    item.get("rows") if isinstance(item.get("rows"), list) else None
+                )
+                if pe:
+                    item["platformEnvironment"] = pe
+            except Exception:
+                pass
     # Keep bare base ops and scenario variants side by side (e.g. activateFamily + activateFamily(global)).
     visible_ops = list(data.keys())
     items = [data[op] for op in visible_ops]

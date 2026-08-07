@@ -1469,6 +1469,27 @@ button:disabled {
   color: #a78bfa;
 }
 
+.channel-badge.platform-web,
+.channel-badge.web {
+  background: rgba(52, 211, 153, 0.16);
+  color: #34d399;
+  text-transform: lowercase;
+}
+
+.channel-badge.platform-app,
+.channel-badge.app {
+  background: rgba(251, 146, 60, 0.18);
+  color: #fb923c;
+  text-transform: lowercase;
+}
+
+.channel-badge.platform-cron,
+.channel-badge.cron {
+  background: rgba(148, 163, 184, 0.2);
+  color: #94a3b8;
+  text-transform: lowercase;
+}
+
 .log-card-body {
   margin-top: 10px;
   padding-top: 10px;

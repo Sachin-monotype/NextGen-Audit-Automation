@@ -100,10 +100,34 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _platform_environment_from_rows(rows: list[Any] | None) -> str:
+    """Prefer enriched ``source.platformEnvironment``, else source value."""
+    if not isinstance(rows, list):
+        return ""
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("field_path") or "") != "source.platformEnvironment":
+            continue
+        for key in ("value_in_enriched", "value_in_source"):
+            val = str(row.get(key) or "").strip().lower()
+            if val:
+                return val
+    return ""
+
+
+def _platform_environment_from_item(item: dict[str, Any]) -> str:
+    top = str(item.get("platformEnvironment") or item.get("platform_environment") or "").strip().lower()
+    if top:
+        return top
+    return _platform_environment_from_rows(item.get("rows") if isinstance(item.get("rows"), list) else None)
+
+
 def _doc_from_item(scenario: str, item: dict[str, Any], *, frozen: bool = False) -> dict[str, Any]:
     scenario = str(scenario or item.get("operation") or "").strip()
     summary = item.get("summary") if isinstance(item.get("summary"), dict) else {}
     rows = item.get("rows") if isinstance(item.get("rows"), list) else []
+    pe = _platform_environment_from_item(item)
     doc: dict[str, Any] = {
         "scenario": scenario,
         "operation": str(item.get("operation") or scenario).strip(),
@@ -114,6 +138,7 @@ def _doc_from_item(scenario: str, item: dict[str, Any], *, frozen: bool = False)
         "summary": summary,
         "rows": rows,
         "row_count": len(rows),
+        "platformEnvironment": pe,
     }
     if frozen:
         doc["frozen"] = True
@@ -130,14 +155,19 @@ def _item_from_doc(doc: dict[str, Any] | None) -> dict[str, Any] | None:
     scenario = str(doc.get("scenario") or doc.get("operation") or "").strip()
     if not scenario:
         return None
+    rows = doc.get("rows") if isinstance(doc.get("rows"), list) else []
+    pe = str(doc.get("platformEnvironment") or "").strip().lower()
+    if not pe:
+        pe = _platform_environment_from_rows(rows)
     return {
         "operation": str(doc.get("operation") or scenario).strip(),
         "compared_at": str(doc.get("compared_at") or ""),
         "job_id": str(doc.get("job_id") or ""),
         "job_kind": str(doc.get("job_kind") or ""),
         "summary": doc.get("summary") if isinstance(doc.get("summary"), dict) else {},
-        "rows": doc.get("rows") if isinstance(doc.get("rows"), list) else [],
+        "rows": rows,
         "audit_target": "qa",
+        "platformEnvironment": pe,
     }
 
 
@@ -359,3 +389,40 @@ def ping() -> dict[str, Any]:
         }
     except PyMongoError as exc:
         return {"ok": False, "error": str(exc)}
+
+
+def backfill_platform_environments(*, original: bool = False) -> dict[str, Any]:
+    """Set top-level ``platformEnvironment`` from comparison rows when missing."""
+    col = _get_collection(original=original)
+    if col is None:
+        return {"ok": False, "updated": 0, "error": "RESULTS_MONGO_URL not set"}
+    updated = 0
+    scanned = 0
+    try:
+        # Only fetch the PE comparison row — full rows are tens of MB.
+        cursor = col.find(
+            {},
+            {
+                "_id": 1,
+                "platformEnvironment": 1,
+                "rows": {"$elemMatch": {"field_path": "source.platformEnvironment"}},
+            },
+        )
+        for doc in cursor:
+            scanned += 1
+            existing = str(doc.get("platformEnvironment") or "").strip().lower()
+            pe = existing or _platform_environment_from_rows(
+                doc.get("rows") if isinstance(doc.get("rows"), list) else None
+            )
+            if not pe or pe == existing:
+                continue
+            col.update_one({"_id": doc["_id"]}, {"$set": {"platformEnvironment": pe}})
+            updated += 1
+        return {
+            "ok": True,
+            "scanned": scanned,
+            "updated": updated,
+            "collection": _original_collection_name() if original else _live_collection_name(),
+        }
+    except PyMongoError as exc:
+        return {"ok": False, "updated": updated, "error": str(exc)}
