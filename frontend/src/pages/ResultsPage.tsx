@@ -8,6 +8,7 @@ import {
   fetchJob,
   fetchJobs,
   fetchLatestResults,
+  fetchLatestResultDetail,
   fetchOperationSources,
   fetchPipelineConfig,
   deleteLatestResult,
@@ -308,7 +309,12 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     rows: ComparisonRow[];
     count: number;
     results_source?: "mongo" | "local";
+    results_mongo_error?: string;
   } | null>(null);
+  /** Field rows for the opened operation (loaded on demand from Mongo). */
+  const [detailOpRows, setDetailOpRows] = useState<ComparisonRow[]>([]);
+  const [detailOpLoading, setDetailOpLoading] = useState(false);
+  const [latestLoadError, setLatestLoadError] = useState("");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [activeId, setActiveId] = useState<string | null>(initialJobId);
   const [job, setJob] = useState<Job | null>(null);
@@ -393,13 +399,26 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   }
 
   const loadLatest = useCallback(() => {
+    setLatestLoadError("");
     fetchLatestResults(resultsTarget)
       .then((data) => {
         setLatest(data);
         if (data.audit_target) setResultsTarget(data.audit_target);
         if (data.available_targets?.length) setAvailableTargets(data.available_targets);
+        if (data.results_mongo_error) {
+          setLatestLoadError(data.results_mongo_error);
+        } else if (!data.count) {
+          setLatestLoadError(
+            resultsTarget === "qa"
+              ? "No QA Results found. Check RESULTS_MONGO_URL, restart backend, and open /api/results/mongo/status."
+              : "No stored comparison results for this environment.",
+          );
+        }
       })
-      .catch(() => setLatest(null));
+      .catch((e) => {
+        setLatest(null);
+        setLatestLoadError(String(e?.message || e || "Failed to load Results"));
+      });
   }, [resultsTarget]);
 
   useEffect(() => {
@@ -527,7 +546,40 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   }, [initialJobId]);
 
   const jobRows: ComparisonRow[] = job?.result?.rows ?? job?.result?.validation?.rows ?? [];
-  const rows: ComparisonRow[] = sourceMode === "latest" ? (latest?.rows ?? []) : jobRows;
+  const rows: ComparisonRow[] =
+    sourceMode === "latest"
+      ? detailOpRows.length
+        ? detailOpRows
+        : (latest?.rows ?? [])
+      : jobRows;
+
+  // Load field rows when opening one operation (Mongo list omits rows for size).
+  useEffect(() => {
+    if (sourceMode !== "latest" || !filterOp) {
+      setDetailOpRows([]);
+      return;
+    }
+    const hasInline = (latest?.rows ?? []).some((r) => r.operation === filterOp);
+    if (hasInline) {
+      setDetailOpRows([]);
+      return;
+    }
+    let cancelled = false;
+    setDetailOpLoading(true);
+    fetchLatestResultDetail(filterOp, resultsTarget)
+      .then((item) => {
+        if (!cancelled) setDetailOpRows(item.rows ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setDetailOpRows([]);
+      })
+      .finally(() => {
+        if (!cancelled) setDetailOpLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [filterOp, sourceMode, resultsTarget, latest?.rows]);
 
   const comparedAtByOp = useMemo(() => {
     const m = new Map<string, string>();
@@ -622,6 +674,38 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
 
   /** Full per-op rollup (ignores field status filter) so coverage filters stay accurate. */
   const allCoverageRows = useMemo(() => {
+    // Mongo list returns items+summaries only (no field rows) — build coverage from items.
+    const fromItems =
+      sourceMode === "latest" &&
+      (latest?.items?.length ?? 0) > 0 &&
+      (latest?.rows?.length ?? 0) === 0;
+    if (fromItems) {
+      const mapped = (latest?.items ?? [])
+        .filter((item) => {
+          if (coverageChannel !== "all" && resultChannel(item.operation, cronBases) !== coverageChannel) {
+            return false;
+          }
+          if (filterCategory !== "all" && categoryForOperation(item.operation) !== filterCategory) {
+            return false;
+          }
+          return true;
+        })
+        .map((item) => {
+          const s = item.summary || { passed: 0, failed: 0, skipped: 0, na: 0 };
+          const status: TrackStatus = track[item.operation] || "unreviewed";
+          return {
+            operation: item.operation,
+            category: categoryForOperation(item.operation),
+            comparedAt: item.compared_at || comparedAtByOp.get(item.operation) || "",
+            track: status,
+            passed: s.passed ?? 0,
+            failed: s.failed ?? 0,
+            skipped: s.skipped ?? 0,
+            na: s.na ?? 0,
+          };
+        });
+      return dedupeCoverageRows(mapped);
+    }
     const map = new Map<string, ComparisonRow[]>();
     for (const row of scopedRows) {
       if (coverageChannel !== "all" && resultChannel(row.operation, cronBases) !== coverageChannel) {
@@ -644,7 +728,18 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
         };
       }),
     );
-  }, [scopedRows, metaByOp, byOperation, comparedAtByOp, track, coverageChannel, cronBases]);
+  }, [
+    scopedRows,
+    metaByOp,
+    byOperation,
+    comparedAtByOp,
+    track,
+    coverageChannel,
+    cronBases,
+    sourceMode,
+    latest,
+    filterCategory,
+  ]);
 
   const coverageRows = useMemo(() => {
     const q = coverageSearch.trim().toLowerCase();
@@ -1218,6 +1313,22 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
       )}
 
       {job?.error && sourceMode === "job" && <p className="error">{job.error}</p>}
+
+      {latestLoadError && sourceMode === "latest" && allCoverageRows.length === 0 && (
+        <div className="banner error" style={{ marginBottom: 12 }}>
+          <strong>Results not loaded.</strong> {latestLoadError}
+          <div className="muted" style={{ marginTop: 6 }}>
+            Sidebar “Mongo connected” is the audit-log cluster. Results need{" "}
+            <code>RESULTS_MONGO_URL</code> → DB <code>AuditComparisonResult</code> / collection{" "}
+            <code>QA Result</code>. Restart the backend after editing <code>.env</code>, then open{" "}
+            <code>/api/results/mongo/status</code>.
+          </div>
+        </div>
+      )}
+
+      {detailOpLoading && filterOp && (
+        <p className="muted">Loading field comparison for {filterOp}…</p>
+      )}
 
       {allCoverageRows.length === 0 && (
         <div className="actions" style={{ marginBottom: 12 }}>

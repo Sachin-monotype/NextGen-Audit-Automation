@@ -250,6 +250,28 @@ export async function fetchLatestResults(target?: string) {
     audit_target?: string;
     available_targets?: string[];
     results_source?: "mongo" | "local";
+    results_mongo_error?: string;
+  }>;
+}
+
+/** Field-level rows for one scenario (Mongo-backed QA Results). */
+export async function fetchLatestResultDetail(operation: string, target?: string) {
+  const qs = target ? `?target=${encodeURIComponent(target)}` : "";
+  const res = await fetch(
+    `${API}/api/results/latest/${encodeURIComponent(operation)}${qs}`,
+  );
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<LatestComparisonItem>;
+}
+
+export async function fetchResultsMongoStatus() {
+  const res = await fetch(`${API}/api/results/mongo/status`);
+  return res.json() as Promise<{
+    ok: boolean;
+    error?: string;
+    documents?: number;
+    database?: string;
+    collection?: string;
   }>;
 }
 

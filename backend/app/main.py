@@ -324,10 +324,10 @@ def latest_comparison_results(target: str | None = None) -> dict[str, Any]:
 
 
 @app.get("/api/results/latest/{operation:path}")
-def latest_comparison_operation(operation: str) -> dict[str, Any]:
+def latest_comparison_operation(operation: str, target: str | None = None) -> dict[str, Any]:
     from .comparison_store import get_latest_operation
 
-    item = get_latest_operation(settings.audit_project_root, operation)
+    item = get_latest_operation(settings.audit_project_root, operation, target=target)
     if not item:
         raise HTTPException(404, f"No stored comparison for {operation}")
     return item

@@ -330,7 +330,7 @@ def stored_operation_index(project_root: Path) -> dict[str, str]:
 
     target = store_audit_target(project_root)
     if target == "qa":
-        data, _ = _load_qa_results_prefer_mongo(project_root)
+        data, _, _ = _load_qa_results_prefer_mongo(project_root, include_rows=False)
     else:
         data = _load(_store_path(project_root, target))
     return {

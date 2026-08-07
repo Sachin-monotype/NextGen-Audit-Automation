@@ -217,17 +217,28 @@ def clear_all_scenarios() -> int:
         return 0
 
 
-def load_all_scenarios(*, original: bool = False) -> dict[str, dict[str, Any]]:
-    """Return ``{scenario: result_item}`` from live or original collection."""
+def load_all_scenarios(
+    *, original: bool = False, include_rows: bool = True
+) -> dict[str, dict[str, Any]]:
+    """Return ``{scenario: result_item}`` from live or original collection.
+
+    ``include_rows=False`` projects out field rows — used for the Results list
+    (full rows are fetched per-scenario when an operation is opened).
+    """
     col = _get_collection(original=original)
     if col is None:
         return {}
     out: dict[str, dict[str, Any]] = {}
+    projection: dict[str, int] = {"_id": 0}
+    if not include_rows:
+        projection["rows"] = 0
     try:
-        for doc in col.find({}, {"_id": 0}):
+        for doc in col.find({}, projection):
             item = _item_from_doc(doc)
             if not item:
                 continue
+            if not include_rows:
+                item["rows"] = []
             key = str(doc.get("scenario") or item["operation"]).strip()
             out[key] = item
     except PyMongoError as exc:

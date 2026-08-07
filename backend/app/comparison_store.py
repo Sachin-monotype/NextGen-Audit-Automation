@@ -564,30 +564,44 @@ def _dedupe_channel_variants(data: dict[str, Any]) -> tuple[dict[str, Any], bool
     return data, changed
 
 
-def _load_qa_results_prefer_mongo(project_root: Path) -> tuple[dict[str, Any], str]:
+def _load_qa_results_prefer_mongo(
+    project_root: Path, *, include_rows: bool = True
+) -> tuple[dict[str, Any], str, str]:
     """QA Results source of truth: Atlas ``QA Result``, fallback to local JSON.
 
-    Returns ``(data, source)`` where source is ``mongo`` or ``local``.
+    Returns ``(data, source, error)`` where source is ``mongo`` or ``local``.
     """
+    err = ""
     try:
         from .qa_results_store import load_all_scenarios, results_mongo_enabled
 
         if results_mongo_enabled():
-            data = load_all_scenarios(original=False)
+            data = load_all_scenarios(original=False, include_rows=include_rows)
             if data:
-                return data, "mongo"
-    except Exception:
-        pass
-    return _load_for_target(project_root, "qa"), "local"
+                return data, "mongo", ""
+            err = "RESULTS_MONGO_URL set but QA Result collection returned 0 docs"
+        else:
+            err = "RESULTS_MONGO_URL not set"
+    except Exception as exc:
+        err = str(exc)
+    return _load_for_target(project_root, "qa"), "local", err
 
 
 def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, Any]:
-    """All operations with a stored latest comparison, newest first."""
+    """All operations with a stored latest comparison, newest first.
+
+    For QA + Mongo, field ``rows`` are omitted from the list payload (too large);
+    open an operation via ``get_latest_operation`` to load its rows.
+    """
     audit_target = store_audit_target(project_root, target)
     path = _store_path(project_root, audit_target)
     source = "local"
+    load_err = ""
     if audit_target == "qa":
-        data, source = _load_qa_results_prefer_mongo(project_root)
+        # List view only needs summaries — full rows are ~60MB for 270 scenarios.
+        data, source, load_err = _load_qa_results_prefer_mongo(
+            project_root, include_rows=False
+        )
     else:
         data = _load_for_target(project_root, audit_target)
     data, deduped = _dedupe_channel_variants(data)
@@ -596,6 +610,8 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
     cleaned_any = False
     for item in data.values():
         rows = item.get("rows") or []
+        if not rows:
+            continue
         cleaned, changed_scope = _clean_scope_rows(rows)
         cleaned, changed_raw = _clean_legacy_raw_envelope_rows(cleaned)
         cleaned, changed_notes = _clean_import_provenance_notes(cleaned)
@@ -619,10 +635,12 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
     visible_ops = list(data.keys())
     items = [data[op] for op in visible_ops]
     items.sort(key=lambda x: str(x.get("compared_at") or ""), reverse=True)
+    # Only flatten rows when present (local / single-op). Mongo list keeps rows empty.
     merged_rows: list[dict[str, Any]] = []
-    for op in sorted(visible_ops):
-        merged_rows.extend(data[op].get("rows") or [])
-    return {
+    if source != "mongo":
+        for op in sorted(visible_ops):
+            merged_rows.extend(data[op].get("rows") or [])
+    out: dict[str, Any] = {
         "operations": sorted(visible_ops),
         "items": items,
         "rows": merged_rows,
@@ -631,6 +649,9 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
         "available_targets": ["qa", "pp", "uat"],
         "results_source": source if audit_target == "qa" else "local",
     }
+    if audit_target == "qa" and load_err and source == "local":
+        out["results_mongo_error"] = load_err
+    return out
 
 
 def get_latest_operation(
@@ -902,7 +923,29 @@ def export_comparison_excel(
 
     audit_target = store_audit_target(project_root, target)
     if audit_target == "qa":
-        data, _src = _load_qa_results_prefer_mongo(project_root)
+        try:
+            from .qa_results_store import load_all_scenarios, load_scenario, results_mongo_enabled
+
+            if results_mongo_enabled():
+                wanted = [o for o in (operations or []) if o]
+                if wanted:
+                    data = {}
+                    for op in wanted:
+                        item = load_scenario(op, original=False)
+                        if item:
+                            data[op] = item
+                else:
+                    data, _src, _err = _load_qa_results_prefer_mongo(
+                        project_root, include_rows=True
+                    )
+            else:
+                data, _src, _err = _load_qa_results_prefer_mongo(
+                    project_root, include_rows=True
+                )
+        except Exception:
+            data, _src, _err = _load_qa_results_prefer_mongo(
+                project_root, include_rows=True
+            )
     else:
         data = _load_for_target(project_root, audit_target)
     ops = [o for o in (operations or []) if o and o in data]
