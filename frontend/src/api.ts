@@ -251,8 +251,9 @@ export async function fetchLatestResults(target?: string) {
     count: number;
     audit_target?: string;
     available_targets?: string[];
-    results_source?: "mongo" | "local";
+    results_source?: "mongo" | "local" | "mongo-original";
     results_mongo_error?: string;
+    mongo_documents?: number;
   }>;
 }
 

@@ -20,8 +20,9 @@ import os
 import threading
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
-from pymongo import ASCENDING, UpdateOne
+from pymongo import ReadPreference, UpdateOne
 from pymongo.collection import Collection
 from pymongo.errors import PyMongoError
 
@@ -29,8 +30,6 @@ logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
 _client = None
-_indexed_live = False
-_indexed_original = False
 
 
 def results_mongo_enabled() -> bool:
@@ -51,49 +50,51 @@ def _original_collection_name() -> str:
     ).strip() or "QA_Original"
 
 
+def _results_mongo_url() -> str:
+    """Ensure secondary-friendly read preference for flaky Atlas primaries."""
+    url = (os.getenv("RESULTS_MONGO_URL") or "").strip()
+    if not url:
+        return ""
+    parsed = urlparse(url)
+    q = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    # Results cluster has been observed in ReplicaSetNoPrimary — prefer secondaries for reads.
+    q.setdefault("readPreference", "secondaryPreferred")
+    q.setdefault("retryReads", "true")
+    return urlunparse(parsed._replace(query=urlencode(q)))
+
+
 def _get_client():
     global _client
-    url = (os.getenv("RESULTS_MONGO_URL") or "").strip()
+    url = _results_mongo_url()
     if not url:
         return None
     with _lock:
         if _client is None:
             from audit_validator.mongo_client import create_mongo_client
 
-            _client = create_mongo_client(url, serverSelectionTimeoutMS=12000)
+            _client = create_mongo_client(
+                url,
+                serverSelectionTimeoutMS=20000,
+                connectTimeoutMS=20000,
+                socketTimeoutMS=60000,
+                retryReads=True,
+            )
         return _client
 
 
 def _get_collection(*, original: bool = False) -> Collection | None:
-    """Lazy Atlas client for live ``QA Result`` or immutable ``QA_Original``."""
-    global _indexed_live, _indexed_original
+    """Lazy Atlas client for live ``QA Result`` or immutable ``QA_Original``.
+
+    Reads use ``secondaryPreferred`` so a missing Atlas primary does not block
+    the Results page. Index creation is not done here (requires primary and was
+    hanging every request when Atlas had no primary).
+    """
     client = _get_client()
     if client is None:
         return None
     name = _original_collection_name() if original else _live_collection_name()
-    col = client[_db_name()][name]
-    with _lock:
-        if original and not _indexed_original:
-            try:
-                col.create_index(
-                    [("scenario", ASCENDING)],
-                    unique=True,
-                    name="uniq_scenario",
-                )
-                _indexed_original = True
-            except PyMongoError as exc:
-                logger.warning("QA_Original index ensure failed: %s", exc)
-        elif not original and not _indexed_live:
-            try:
-                col.create_index(
-                    [("scenario", ASCENDING)],
-                    unique=True,
-                    name="uniq_scenario",
-                )
-                _indexed_live = True
-            except PyMongoError as exc:
-                logger.warning("QA Result index ensure failed: %s", exc)
-    return col
+    db = client.get_database(_db_name(), read_preference=ReadPreference.SECONDARY_PREFERRED)
+    return db[name]
 
 
 def _now_iso() -> str:
@@ -181,7 +182,9 @@ def upsert_scenario(scenario: str, item: dict[str, Any]) -> bool:
         return False
     doc = _doc_from_item(scenario, item)
     try:
-        col.update_one({"scenario": scenario}, {"$set": doc}, upsert=True)
+        col.with_options(read_preference=ReadPreference.PRIMARY).update_one(
+            {"scenario": scenario}, {"$set": doc}, upsert=True
+        )
         return True
     except PyMongoError as exc:
         logger.warning("QA Result upsert failed for %s: %s", scenario, exc)
@@ -203,7 +206,9 @@ def upsert_many(items: dict[str, dict[str, Any]]) -> dict[str, Any]:
     if not ops:
         return {"ok": True, "upserted": 0, "matched": 0}
     try:
-        result = col.bulk_write(ops, ordered=False)
+        result = col.with_options(read_preference=ReadPreference.PRIMARY).bulk_write(
+            ops, ordered=False
+        )
         return {
             "ok": True,
             "upserted": int(result.upserted_count or 0),
@@ -227,7 +232,9 @@ def delete_scenario(scenario: str) -> bool:
     if not scenario:
         return False
     try:
-        col.delete_one({"scenario": scenario})
+        col.with_options(read_preference=ReadPreference.PRIMARY).delete_one(
+            {"scenario": scenario}
+        )
         return True
     except PyMongoError as exc:
         logger.warning("QA Result delete failed for %s: %s", scenario, exc)
@@ -235,12 +242,23 @@ def delete_scenario(scenario: str) -> bool:
 
 
 def clear_all_scenarios() -> int:
-    """Clear live ``QA Result`` only — never deletes QA_Original."""
+    """Clear live ``QA Result`` only — never deletes QA_Original.
+
+    Disabled by default so one teammate cannot wipe the shared store.
+    Set ``RESULTS_MONGO_ALLOW_CLEAR=1`` to enable.
+    """
+    if (os.getenv("RESULTS_MONGO_ALLOW_CLEAR") or "").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+    }:
+        logger.warning("clear_all_scenarios blocked (RESULTS_MONGO_ALLOW_CLEAR not set)")
+        return 0
     col = _get_collection(original=False)
     if col is None:
         return 0
     try:
-        result = col.delete_many({})
+        result = col.with_options(read_preference=ReadPreference.PRIMARY).delete_many({})
         return int(result.deleted_count or 0)
     except PyMongoError as exc:
         logger.warning("QA Result clear failed: %s", exc)
@@ -287,12 +305,41 @@ def load_scenario(scenario: str, *, original: bool = False) -> dict[str, Any] | 
     try:
         doc = col.find_one({"scenario": scenario}, {"_id": 0})
         if not doc:
-            # Tolerate operation-key lookups.
             doc = col.find_one({"operation": scenario}, {"_id": 0})
         return _item_from_doc(doc)
     except PyMongoError as exc:
         logger.warning("QA Results load failed for %s: %s", scenario, exc)
         return None
+
+
+def merge_original_into_live() -> dict[str, Any]:
+    """Copy scenarios from ``QA_Original`` into live ``QA Result`` when missing.
+
+    Never overwrites an existing live scenario. Restores counts after accidental deletes.
+    """
+    original = load_all_scenarios(original=True, include_rows=True)
+    if not original:
+        return {"ok": False, "inserted": 0, "error": "QA_Original empty or unreachable"}
+    live = load_all_scenarios(original=False, include_rows=False)
+    missing = {k: v for k, v in original.items() if k not in live}
+    if not missing:
+        return {
+            "ok": True,
+            "inserted": 0,
+            "live": len(live),
+            "original": len(original),
+            "message": "live already has every original scenario",
+        }
+    # Strip frozen flags; write as live docs.
+    to_write = {
+        k: {**v, "job_kind": v.get("job_kind") or "restored-from-original"}
+        for k, v in missing.items()
+    }
+    result = upsert_many(to_write)
+    result["restored"] = len(missing)
+    result["live_before"] = len(live)
+    result["original"] = len(original)
+    return result
 
 
 def seed_qa_original_once(items: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
@@ -319,7 +366,6 @@ def seed_qa_original_once(items: dict[str, dict[str, Any]] | None = None) -> dic
         return {"ok": False, "inserted": 0, "error": str(exc)}
 
     if items is None:
-        # Prefer current live QA Result; fall back to local JSON caller-supplied.
         items = load_all_scenarios(original=False)
     if not items:
         return {
@@ -336,7 +382,9 @@ def seed_qa_original_once(items: dict[str, dict[str, Any]] | None = None) -> dic
     if not docs:
         return {"ok": False, "inserted": 0, "error": "no valid docs"}
     try:
-        result = col.insert_many(docs, ordered=False)
+        result = col.with_options(read_preference=ReadPreference.PRIMARY).insert_many(
+            docs, ordered=False
+        )
         return {
             "ok": True,
             "inserted": len(result.inserted_ids),
@@ -345,7 +393,6 @@ def seed_qa_original_once(items: dict[str, dict[str, Any]] | None = None) -> dic
             "collection": _original_collection_name(),
         }
     except PyMongoError as exc:
-        # Partial insert on duplicate key — treat as already seeded.
         logger.warning("QA_Original seed: %s", exc)
         return {
             "ok": True,
@@ -375,7 +422,7 @@ def ping() -> dict[str, Any]:
     if col is None:
         return {"ok": False, "error": "RESULTS_MONGO_URL not set"}
     try:
-        col.database.client.admin.command("ping")
+        # Do not use admin ping — it can require a primary. Count on secondary.
         live = int(col.estimated_document_count())
         orig_col = _get_collection(original=True)
         original = int(orig_col.estimated_document_count()) if orig_col is not None else 0
@@ -386,6 +433,8 @@ def ping() -> dict[str, Any]:
             "documents": live,
             "original_collection": _original_collection_name(),
             "original_documents": original,
+            "read_preference": "secondaryPreferred",
+            "event_hint": "UI 'events' = unique operation bases; 'scenarios' = documents",
         }
     except PyMongoError as exc:
         return {"ok": False, "error": str(exc)}
@@ -399,7 +448,6 @@ def backfill_platform_environments(*, original: bool = False) -> dict[str, Any]:
     updated = 0
     scanned = 0
     try:
-        # Only fetch the PE comparison row — full rows are tens of MB.
         cursor = col.find(
             {},
             {
@@ -408,6 +456,7 @@ def backfill_platform_environments(*, original: bool = False) -> dict[str, Any]:
                 "rows": {"$elemMatch": {"field_path": "source.platformEnvironment"}},
             },
         )
+        write_col = col.with_options(read_preference=ReadPreference.PRIMARY)
         for doc in cursor:
             scanned += 1
             existing = str(doc.get("platformEnvironment") or "").strip().lower()
@@ -416,7 +465,7 @@ def backfill_platform_environments(*, original: bool = False) -> dict[str, Any]:
             )
             if not pe or pe == existing:
                 continue
-            col.update_one({"_id": doc["_id"]}, {"$set": {"platformEnvironment": pe}})
+            write_col.update_one({"_id": doc["_id"]}, {"$set": {"platformEnvironment": pe}})
             updated += 1
         return {
             "ok": True,

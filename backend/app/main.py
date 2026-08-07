@@ -422,6 +422,16 @@ def qa_results_backfill_platform() -> dict[str, Any]:
     return {"live": live}
 
 
+@app.post("/api/results/mongo/restore-from-original")
+def qa_results_restore_from_original() -> dict[str, Any]:
+    """Re-insert scenarios missing from live ``QA Result`` using immutable ``QA_Original``."""
+    from .qa_results_store import merge_original_into_live, results_mongo_enabled
+
+    if not results_mongo_enabled():
+        raise HTTPException(400, "RESULTS_MONGO_URL is not configured")
+    return merge_original_into_live()
+
+
 @app.post("/api/results/export-excel")
 def export_comparison_results_excel(body: ExportResultsRequest) -> Response:
     """Download multi-sheet xlsx for selected (or all) stored comparison operations.

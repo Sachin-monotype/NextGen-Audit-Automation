@@ -575,9 +575,11 @@ def _dedupe_channel_variants(data: dict[str, Any]) -> tuple[dict[str, Any], bool
 def _load_qa_results_prefer_mongo(
     project_root: Path, *, include_rows: bool = True
 ) -> tuple[dict[str, Any], str, str]:
-    """QA Results source of truth: Atlas ``QA Result``, fallback to local JSON.
+    """QA Results source of truth: Atlas live → QA_Original → (optional) local.
 
-    Returns ``(data, source, error)`` where source is ``mongo`` or ``local``.
+    When ``RESULTS_MONGO_URL`` is set we do **not** silently fall back to a
+    teammate's local JSON (that caused 163/150/125 event count drift). Prefer
+    immutable ``QA_Original`` if live is empty/unreachable.
     """
     err = ""
     try:
@@ -587,11 +589,28 @@ def _load_qa_results_prefer_mongo(
             data = load_all_scenarios(original=False, include_rows=include_rows)
             if data:
                 return data, "mongo", ""
-            err = "RESULTS_MONGO_URL set but QA Result collection returned 0 docs"
-        else:
-            err = "RESULTS_MONGO_URL not set"
+            # Live empty or read failed — use frozen baseline so the team sees one truth.
+            original = load_all_scenarios(original=True, include_rows=include_rows)
+            if original:
+                return original, "mongo-original", "live QA Result empty/unreachable; serving QA_Original"
+            err = "RESULTS_MONGO_URL set but QA Result and QA_Original returned 0 docs"
+            # Do not fall back to local — shared Mongo is configured.
+            return {}, "mongo", err
+        err = "RESULTS_MONGO_URL not set"
     except Exception as exc:
         err = str(exc)
+        try:
+            from .qa_results_store import load_all_scenarios, results_mongo_enabled
+
+            if results_mongo_enabled():
+                original = load_all_scenarios(original=True, include_rows=include_rows)
+                if original:
+                    return original, "mongo-original", f"live read failed ({err}); serving QA_Original"
+                return {}, "mongo", err
+        except Exception as exc2:
+            err = f"{err}; original also failed: {exc2}"
+            if results_mongo_enabled():
+                return {}, "mongo", err
     return _load_for_target(project_root, "qa"), "local", err
 
 
@@ -668,8 +687,10 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
         "available_targets": ["qa", "pp", "uat"],
         "results_source": source if audit_target == "qa" else "local",
     }
-    if audit_target == "qa" and load_err and source == "local":
+    if audit_target == "qa" and load_err:
         out["results_mongo_error"] = load_err
+    if audit_target == "qa" and source.startswith("mongo"):
+        out["mongo_documents"] = len(visible_ops)
     return out
 
 
@@ -683,6 +704,9 @@ def get_latest_operation(
 
             if results_mongo_enabled():
                 item = load_scenario(operation, original=False)
+                if item:
+                    return item
+                item = load_scenario(operation, original=True)
                 if item:
                     return item
         except Exception:

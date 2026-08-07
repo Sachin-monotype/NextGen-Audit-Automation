@@ -320,8 +320,9 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     items: LatestComparisonItem[];
     rows: ComparisonRow[];
     count: number;
-    results_source?: "mongo" | "local";
+    results_source?: "mongo" | "local" | "mongo-original";
     results_mongo_error?: string;
+    mongo_documents?: number;
   } | null>(null);
   /** Field rows for the opened operation (loaded on demand from Mongo). */
   const [detailOpRows, setDetailOpRows] = useState<ComparisonRow[]>([]);
@@ -1247,19 +1248,27 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
         </label>
         {resultsTarget === "qa" && (
           <span
-            className={latest?.results_source === "mongo" ? "muted" : "error"}
+            className={
+              latest?.results_source?.startsWith("mongo") ? "muted" : "error"
+            }
             title={
-              latest?.results_source === "mongo"
-                ? "Results + Excel read from Atlas QA Result"
+              latest?.results_source?.startsWith("mongo")
+                ? `Results from Atlas (${latest.results_source})${
+                    latest.mongo_documents != null
+                      ? ` · ${latest.mongo_documents} scenarios`
+                      : ""
+                  }`
                 : latest?.results_mongo_error ||
                   "RESULTS_MONGO_URL missing, Atlas unreachable, or backend not restarted"
             }
           >
             {latest?.results_source === "mongo"
-              ? "source: Mongo"
-              : latest
-                ? "source: local (not Mongo)"
-                : "source: …"}
+              ? `source: Mongo${latest.mongo_documents != null ? ` (${latest.mongo_documents})` : ""}`
+              : latest?.results_source === "mongo-original"
+                ? `source: Mongo baseline${latest.mongo_documents != null ? ` (${latest.mongo_documents})` : ""}`
+                : latest
+                  ? "source: local (not Mongo)"
+                  : "source: …"}
           </span>
         )}
         <label className="filter-field">
