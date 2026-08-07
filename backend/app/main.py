@@ -104,6 +104,7 @@ class RefreshResultsRequest(BaseModel):
 
 class ExportResultsRequest(BaseModel):
     operations: list[str] = Field(default_factory=list)
+    target: str | None = None
 
 
 def _job_payload(job) -> dict[str, Any]:
@@ -382,15 +383,47 @@ def clear_comparison_results() -> dict[str, Any]:
     return {"removed": removed, "ok": True}
 
 
+@app.get("/api/results/mongo/status")
+def qa_results_mongo_status() -> dict[str, Any]:
+    """Ping the QA Results Atlas cluster (source-of-truth store)."""
+    from .qa_results_store import ping
+
+    return ping()
+
+
+@app.post("/api/results/mongo/sync")
+def qa_results_mongo_sync() -> dict[str, Any]:
+    """Push all local QA comparison results into Atlas live ``QA Result`` (upsert)."""
+    from .qa_results_store import results_mongo_enabled, sync_qa_local_store
+
+    if not results_mongo_enabled():
+        raise HTTPException(400, "RESULTS_MONGO_URL is not configured")
+    return sync_qa_local_store(settings.audit_project_root)
+
+
+@app.post("/api/results/mongo/seed-original")
+def qa_results_seed_original() -> dict[str, Any]:
+    """Seed immutable ``QA_Original`` once (no-op if already populated)."""
+    from .qa_results_store import results_mongo_enabled, seed_qa_original_once
+
+    if not results_mongo_enabled():
+        raise HTTPException(400, "RESULTS_MONGO_URL is not configured")
+    return seed_qa_original_once()
+
+
 @app.post("/api/results/export-excel")
 def export_comparison_results_excel(body: ExportResultsRequest) -> Response:
-    """Download multi-sheet xlsx for selected (or all) stored comparison operations."""
+    """Download multi-sheet xlsx for selected (or all) stored comparison operations.
+
+    QA exports are powered from Atlas ``QA Result`` (same as the Results page).
+    """
     from .comparison_store import export_comparison_excel
 
     try:
         data = export_comparison_excel(
             settings.audit_project_root,
             body.operations or None,
+            target=body.target,
         )
     except Exception as exc:
         raise HTTPException(400, str(exc)) from exc

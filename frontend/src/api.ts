@@ -249,6 +249,7 @@ export async function fetchLatestResults(target?: string) {
     count: number;
     audit_target?: string;
     available_targets?: string[];
+    results_source?: "mongo" | "local";
   }>;
 }
 
@@ -918,12 +919,12 @@ export async function fetchPayloadCurl(
   return res.json() as Promise<PayloadCurlResult>;
 }
 
-/** Download multi-sheet xlsx for stored comparison results. */
-export async function exportComparisonExcel(operations?: string[]) {
+/** Download multi-sheet xlsx for stored comparison results (QA = Atlas). */
+export async function exportComparisonExcel(operations?: string[], target?: string) {
   const res = await fetch(`${API}/api/results/export-excel`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ operations: operations ?? [] }),
+    body: JSON.stringify({ operations: operations ?? [], target: target || undefined }),
   });
   if (!res.ok) {
     const err = await res.text();

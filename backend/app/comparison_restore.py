@@ -326,9 +326,13 @@ def restore_recent_comparisons(
 
 def stored_operation_index(project_root: Path) -> dict[str, str]:
     """Map stored operation → compared_at ISO timestamp."""
-    from .comparison_store import _load, _store_path
+    from .comparison_store import _load, _load_qa_results_prefer_mongo, _store_path, store_audit_target
 
-    data = _load(_store_path(project_root))
+    target = store_audit_target(project_root)
+    if target == "qa":
+        data, _ = _load_qa_results_prefer_mongo(project_root)
+    else:
+        data = _load(_store_path(project_root, target))
     return {
         str(op): str(item.get("compared_at") or "")
         for op, item in data.items()

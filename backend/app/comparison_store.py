@@ -432,6 +432,21 @@ def save_batch_results(
             json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n",
             encoding="utf-8",
         )
+        # Durable source of truth for QA Results (Atlas upsert per scenario).
+        if audit_target == "qa":
+            try:
+                from .qa_results_store import results_mongo_enabled, upsert_many
+
+                if results_mongo_enabled():
+                    touched = {
+                        _normalize_result_operation(op): data[_normalize_result_operation(op)]
+                        for op in grouped
+                        if _normalize_result_operation(op) in data
+                    }
+                    if touched:
+                        upsert_many(touched)
+            except Exception:
+                pass
 
 
 def reconcile_scope_rows(project_root: Path) -> dict[str, int]:
@@ -549,11 +564,32 @@ def _dedupe_channel_variants(data: dict[str, Any]) -> tuple[dict[str, Any], bool
     return data, changed
 
 
+def _load_qa_results_prefer_mongo(project_root: Path) -> tuple[dict[str, Any], str]:
+    """QA Results source of truth: Atlas ``QA Result``, fallback to local JSON.
+
+    Returns ``(data, source)`` where source is ``mongo`` or ``local``.
+    """
+    try:
+        from .qa_results_store import load_all_scenarios, results_mongo_enabled
+
+        if results_mongo_enabled():
+            data = load_all_scenarios(original=False)
+            if data:
+                return data, "mongo"
+    except Exception:
+        pass
+    return _load_for_target(project_root, "qa"), "local"
+
+
 def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, Any]:
     """All operations with a stored latest comparison, newest first."""
     audit_target = store_audit_target(project_root, target)
     path = _store_path(project_root, audit_target)
-    data = _load_for_target(project_root, audit_target)
+    source = "local"
+    if audit_target == "qa":
+        data, source = _load_qa_results_prefer_mongo(project_root)
+    else:
+        data = _load_for_target(project_root, audit_target)
     data, deduped = _dedupe_channel_variants(data)
     # Clean legacy enrichment-scope SKIP rows on read so the Result view matches
     # current validator behaviour even before the one-time migration runs.
@@ -569,7 +605,9 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
             cleaned_any = True
             item["rows"] = cleaned
             item["summary"] = _summary_for_rows(cleaned)
-    if deduped or cleaned_any:
+    # Persist cleanup only to local JSON (Mongo stays authoritative for QA writes
+    # via save_batch_results upserts — avoid rewriting every doc on list).
+    if source == "local" and (deduped or cleaned_any):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
             json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n",
@@ -591,12 +629,24 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
         "count": len(visible_ops),
         "audit_target": audit_target,
         "available_targets": ["qa", "pp", "uat"],
+        "results_source": source if audit_target == "qa" else "local",
     }
 
 
 def get_latest_operation(
     project_root: Path, operation: str, *, target: str | None = None
 ) -> dict[str, Any] | None:
+    audit_target = store_audit_target(project_root, target)
+    if audit_target == "qa":
+        try:
+            from .qa_results_store import load_scenario, results_mongo_enabled
+
+            if results_mongo_enabled():
+                item = load_scenario(operation, original=False)
+                if item:
+                    return item
+        except Exception:
+            pass
     data = _load_for_target(project_root, target)
     return data.get(operation)
 
@@ -616,6 +666,14 @@ def delete_operation_result(
             json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n",
             encoding="utf-8",
         )
+    if audit_target == "qa":
+        try:
+            from .qa_results_store import delete_scenario, results_mongo_enabled
+
+            if results_mongo_enabled():
+                delete_scenario(operation)
+        except Exception:
+            pass
     return True
 
 
@@ -648,6 +706,14 @@ def clear_all_results(project_root: Path, *, target: str | None = None) -> int:
         if count:
             _backup_store(path)
         path.write_text("{}\n", encoding="utf-8")
+    if audit_target == "qa" and count:
+        try:
+            from .qa_results_store import clear_all_scenarios, results_mongo_enabled
+
+            if results_mongo_enabled():
+                clear_all_scenarios()
+        except Exception:
+            pass
     return count
 
 
@@ -826,13 +892,19 @@ def export_comparison_excel(
     *,
     target: str | None = None,
 ) -> bytes:
-    """Build multi-sheet xlsx: one tab per operation with comparison rows."""
+    """Build multi-sheet xlsx: one tab per operation with comparison rows.
+
+    QA target reads from Atlas ``QA Result`` (same source as the Results page).
+    """
     from io import BytesIO
 
     from openpyxl import Workbook
 
     audit_target = store_audit_target(project_root, target)
-    data = _load_for_target(project_root, audit_target)
+    if audit_target == "qa":
+        data, _src = _load_qa_results_prefer_mongo(project_root)
+    else:
+        data = _load_for_target(project_root, audit_target)
     ops = [o for o in (operations or []) if o and o in data]
     if not ops:
         ops = sorted(data.keys())

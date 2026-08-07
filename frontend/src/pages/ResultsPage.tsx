@@ -307,6 +307,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     items: LatestComparisonItem[];
     rows: ComparisonRow[];
     count: number;
+    results_source?: "mongo" | "local";
   } | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [activeId, setActiveId] = useState<string | null>(initialJobId);
@@ -1080,7 +1081,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                     : filterOp
                       ? [filterOp]
                       : coverageRows.map((r) => r.operation);
-                void exportComparisonExcel(ops)
+                void exportComparisonExcel(ops, resultsTarget)
                   .catch((e) => setRefreshError(String(e)))
                   .finally(() => setExportBusy(false));
               }}
@@ -1120,6 +1121,11 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
             ))}
           </select>
         </label>
+        {resultsTarget === "qa" && latest?.results_source === "mongo" && (
+          <span className="muted" title="Results + Excel export read from Atlas QA Result">
+            source: Mongo
+          </span>
+        )}
         <label className="filter-field">
           <span>view</span>
           <select
@@ -1654,7 +1660,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                 disabled={exportBusy}
                 onClick={() => {
                   setExportBusy(true);
-                  void exportComparisonExcel([...selectedOps])
+                  void exportComparisonExcel([...selectedOps], resultsTarget)
                     .catch((e) => setRefreshError(String(e)))
                     .finally(() => setExportBusy(false));
                 }}
