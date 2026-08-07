@@ -1216,9 +1216,21 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
             ))}
           </select>
         </label>
-        {resultsTarget === "qa" && latest?.results_source === "mongo" && (
-          <span className="muted" title="Results + Excel export read from Atlas QA Result">
-            source: Mongo
+        {resultsTarget === "qa" && (
+          <span
+            className={latest?.results_source === "mongo" ? "muted" : "error"}
+            title={
+              latest?.results_source === "mongo"
+                ? "Results + Excel read from Atlas QA Result"
+                : latest?.results_mongo_error ||
+                  "RESULTS_MONGO_URL missing, Atlas unreachable, or backend not restarted"
+            }
+          >
+            {latest?.results_source === "mongo"
+              ? "source: Mongo"
+              : latest
+                ? "source: local (not Mongo)"
+                : "source: …"}
           </span>
         )}
         <label className="filter-field">
