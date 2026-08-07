@@ -961,37 +961,36 @@ def get_operation_mapping(
     if cron_rows:
         return cron_rows
 
+    from ..case_keys import mapping_lookup_variants
+
     xlsx = audit_events_xlsx or DEFAULT_AUDIT_EVENTS_XLSX
     registry = events_by_operation(str(xlsx))
-    spec = registry.get(operation)
-    if spec:
-        return _mapping_for_event_spec(spec)
-
-    from ..case_keys import parse_display_operation
-
-    base, _case = parse_display_operation(operation)
-    if base != operation:
-        cron_rows = cron_mapping_for_operation(base)
+    variants = mapping_lookup_variants(operation)
+    for cand in variants:
+        if cand == operation:
+            continue  # full label already tried via cron above; registry next
+        cron_rows = cron_mapping_for_operation(cand)
         if cron_rows:
             return cron_rows
-        spec = registry.get(base)
+    for cand in variants:
+        spec = registry.get(cand)
         if spec:
             return _mapping_for_event_spec(spec)
 
     excel_maps = load_reference_excel(reference_xlsx)
-    if operation in excel_maps and excel_maps[operation]:
-        return excel_maps[operation]
-    if base in excel_maps and excel_maps[base]:
-        return excel_maps[base]
-    if operation in _FONT_OPS or operation == "activateList":
+    for cand in variants:
+        if cand in excel_maps and excel_maps[cand]:
+            return excel_maps[cand]
+    bare = variants[-1] if variants else operation
+    if any(c in _FONT_OPS or c == "activateList" for c in variants):
         return _font_template(reference_xlsx)
-    if base in _FONT_OPS or base == "activateList":
-        return _font_template(reference_xlsx)
-    if operation in _DESKTOP_INGRESS_OPS:
-        return _desktop_ingress_fields(operation)
-    if base in _DESKTOP_INGRESS_OPS:
-        return _desktop_ingress_fields(base)
-    return _builtin_mapping(operation if operation in _EXPORT_OPS or operation in _FONT_OPS else base)
+    if any(c in _DESKTOP_INGRESS_OPS for c in variants):
+        for c in variants:
+            if c in _DESKTOP_INGRESS_OPS:
+                return _desktop_ingress_fields(c)
+    return _builtin_mapping(
+        operation if operation in _EXPORT_OPS or operation in _FONT_OPS else bare
+    )
 
 
 def all_operation_mappings(

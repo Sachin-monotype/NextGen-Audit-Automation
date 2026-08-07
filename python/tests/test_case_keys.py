@@ -6,6 +6,7 @@ from audit_validator.case_keys import (
     cron_case_key,
     cron_display_operation,
     cron_staging_stem,
+    mapping_lookup_variants,
     parse_display_operation,
 )
 
@@ -29,3 +30,20 @@ def test_parse_display_operation_roundtrip():
 def test_cron_case_key_prefix():
     assert cron_case_key("lmsopen") == "cron:lmsopen"
     assert cron_case_key("cron:lmsopen") == "cron:lmsopen"
+
+
+def test_mapping_lookup_variants_peels_app_channel():
+    assert mapping_lookup_variants("activateFamily(default)(app)") == [
+        "activateFamily(default)(app)",
+        "activateFamily(default)",
+        "activateFamily",
+    ]
+    assert mapping_lookup_variants("bulkCopyAssets(global)(app)") == [
+        "bulkCopyAssets(global)(app)",
+        "bulkCopyAssets(global)",
+        "bulkCopyAssets",
+    ]
+    assert mapping_lookup_variants("activateFamily(global)") == [
+        "activateFamily(global)",
+        "activateFamily",
+    ]

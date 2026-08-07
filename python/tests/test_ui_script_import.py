@@ -291,3 +291,38 @@ def test_parse_prefers_graphql_op_and_body_correlation_id():
     assert by_excel["updateAssets"]["operation"] == "updateAsset"
     assert by_excel["fontSimilarViewed"]["correlation_id"] == body_cid
     assert by_excel["getActiveBatches"]["graphql_failed"] is True
+
+
+def test_parse_payload_column_maps_ua_and_app_version():
+    payload = {
+        "userAgent": "Mozilla/5.0 (Macintosh) MonotypeNextGen/1.0.0 Electron/40",
+        "appVersion": "1.0.0",
+        "correlationId": "44444444-4444-4444-4444-444444444444",
+        "jwtClaims": {"gcid": "a4175cbf-1419-4a30-aa21-12109bf942f6", "appName": "Next Gen Native App"},
+        "variables": {"input": {"familyIds": ["910130168"]}},
+    }
+    df = pd.DataFrame(
+        [
+            {
+                "event_name": "ActivateFamilies",
+                "scenario": "default",
+                "target": "app",
+                "correlation_id": "44444444-4444-4444-4444-444444444444",
+                "status": "OK",
+                "response": json.dumps(
+                    {"data": {"activateFamilies": {"errors": [], "families": {"nodes": []}}}}
+                ),
+                "payload": json.dumps(payload),
+            }
+        ]
+    )
+    buf = BytesIO()
+    df.to_excel(buf, index=False)
+    rows = parse_ui_script_excel(buf.getvalue(), target="app")
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["target"] == "app"
+    assert row["request_payload"]["appVersion"] == "1.0.0"
+    headers = row["ingress_headers"] or {}
+    assert "Electron" in headers.get("User-Agent", "")
+    assert headers.get("X-Unified-Version") == "1.0.0"

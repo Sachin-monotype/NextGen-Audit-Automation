@@ -451,10 +451,32 @@ def save_batch_results(
                         for op in grouped
                         if _normalize_result_operation(op) in data
                     }
+                    # After dedupe, keys may have moved (e.g. *(default) → bare).
+                    # Also include any remaining (app) keys from this batch that survived.
+                    for op in list(grouped):
+                        canon = _normalize_result_operation(op)
+                        # Find post-dedupe key: exact, or if *(default) collapsed, bare base.
+                        if canon in data:
+                            touched[canon] = data[canon]
+                        elif canon.endswith("(default)") and canon[: -len("(default)")] in data:
+                            bare = canon[: -len("(default)")]
+                            touched[bare] = data[bare]
                     if touched:
-                        upsert_many(touched)
-            except Exception:
-                pass
+                        result = upsert_many(touched)
+                        if isinstance(result, dict) and not result.get("ok", True):
+                            import logging
+
+                            logging.getLogger(__name__).warning(
+                                "QA Results Mongo upsert failed (%s ops): %s — kept in local JSON",
+                                len(touched),
+                                result.get("error") or result,
+                            )
+            except Exception as exc:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "QA Results Mongo upsert error — kept in local JSON: %s", exc
+                )
 
 
 def reconcile_scope_rows(project_root: Path) -> dict[str, int]:
@@ -575,26 +597,40 @@ def _dedupe_channel_variants(data: dict[str, Any]) -> tuple[dict[str, Any], bool
 def _load_qa_results_prefer_mongo(
     project_root: Path, *, include_rows: bool = True
 ) -> tuple[dict[str, Any], str, str]:
-    """QA Results source of truth: Atlas live → QA_Original → (optional) local.
+    """QA Results source of truth: Atlas live → QA_Original, overlaid with newer local.
 
-    When ``RESULTS_MONGO_URL`` is set we do **not** silently fall back to a
-    teammate's local JSON (that caused 163/150/125 event count drift). Prefer
-    immutable ``QA_Original`` if live is empty/unreachable.
+    When ``RESULTS_MONGO_URL`` is set we keep Atlas as the shared base (no full
+    local replace — that caused 163/150/125 event count drift). Local JSON is
+    **merged on top** for scenarios that are missing from Mongo or have a newer
+    ``compared_at`` (Mongo write often fails when Atlas has no primary).
     """
     err = ""
+    local = _load_for_target(project_root, "qa")
     try:
         from .qa_results_store import load_all_scenarios, results_mongo_enabled
 
         if results_mongo_enabled():
             data = load_all_scenarios(original=False, include_rows=include_rows)
-            if data:
-                return data, "mongo", ""
-            # Live empty or read failed — use frozen baseline so the team sees one truth.
-            original = load_all_scenarios(original=True, include_rows=include_rows)
-            if original:
-                return original, "mongo-original", "live QA Result empty/unreachable; serving QA_Original"
-            err = "RESULTS_MONGO_URL set but QA Result and QA_Original returned 0 docs"
-            # Do not fall back to local — shared Mongo is configured.
+            source = "mongo"
+            if not data:
+                # Live empty or read failed — use frozen baseline so the team sees one truth.
+                original = load_all_scenarios(original=True, include_rows=include_rows)
+                if original:
+                    data = original
+                    source = "mongo-original"
+                    err = "live QA Result empty/unreachable; serving QA_Original"
+                else:
+                    err = "RESULTS_MONGO_URL set but QA Result and QA_Original returned 0 docs"
+                    data = {}
+            merged, n_overlay = _overlay_local_results(data, local)
+            if n_overlay:
+                source = f"{source}+local"
+                if err:
+                    err = f"{err}; overlaid {n_overlay} newer/missing local scenario(s)"
+                else:
+                    err = f"overlaid {n_overlay} newer/missing local scenario(s)"
+            if merged or source.startswith("mongo"):
+                return merged, source, err
             return {}, "mongo", err
         err = "RESULTS_MONGO_URL not set"
     except Exception as exc:
@@ -605,13 +641,49 @@ def _load_qa_results_prefer_mongo(
             if results_mongo_enabled():
                 original = load_all_scenarios(original=True, include_rows=include_rows)
                 if original:
-                    return original, "mongo-original", f"live read failed ({err}); serving QA_Original"
+                    merged, n_overlay = _overlay_local_results(original, local)
+                    src = "mongo-original+local" if n_overlay else "mongo-original"
+                    return merged, src, f"live read failed ({err}); serving QA_Original"
+                if local:
+                    return local, "local", f"mongo unreachable ({err}); serving local"
                 return {}, "mongo", err
         except Exception as exc2:
             err = f"{err}; original also failed: {exc2}"
-            if results_mongo_enabled():
-                return {}, "mongo", err
-    return _load_for_target(project_root, "qa"), "local", err
+            if local:
+                return local, "local", err
+            try:
+                from .qa_results_store import results_mongo_enabled
+
+                if results_mongo_enabled():
+                    return {}, "mongo", err
+            except Exception:
+                pass
+    return local, "local", err
+
+
+def _overlay_local_results(
+    mongo_data: dict[str, Any], local_data: dict[str, Any]
+) -> tuple[dict[str, Any], int]:
+    """Prefer local scenario when missing from Mongo or local ``compared_at`` is newer."""
+    if not local_data:
+        return dict(mongo_data or {}), 0
+    out = dict(mongo_data or {})
+    n = 0
+    for key, item in local_data.items():
+        if not isinstance(item, dict):
+            continue
+        canon = _normalize_result_operation(str(key))
+        existing = out.get(canon)
+        local_ts = str(item.get("compared_at") or "")
+        if existing is None:
+            out[canon] = item
+            n += 1
+            continue
+        mongo_ts = str(existing.get("compared_at") or "")
+        if local_ts and local_ts > mongo_ts:
+            out[canon] = item
+            n += 1
+    return out, n
 
 
 def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, Any]:
@@ -698,6 +770,8 @@ def get_latest_operation(
     project_root: Path, operation: str, *, target: str | None = None
 ) -> dict[str, Any] | None:
     audit_target = store_audit_target(project_root, target)
+    local = _load_for_target(project_root, target)
+    local_item = local.get(operation) if isinstance(local, dict) else None
     if audit_target == "qa":
         try:
             from .qa_results_store import load_scenario, results_mongo_enabled
@@ -705,14 +779,22 @@ def get_latest_operation(
             if results_mongo_enabled():
                 item = load_scenario(operation, original=False)
                 if item:
+                    # Prefer local when it is newer (Mongo write may have failed).
+                    if local_item and str(local_item.get("compared_at") or "") > str(
+                        item.get("compared_at") or ""
+                    ):
+                        return local_item
                     return item
                 item = load_scenario(operation, original=True)
+                if item and not local_item:
+                    return item
+                if local_item:
+                    return local_item
                 if item:
                     return item
         except Exception:
             pass
-    data = _load_for_target(project_root, target)
-    return data.get(operation)
+    return local_item
 
 
 def delete_operation_result(

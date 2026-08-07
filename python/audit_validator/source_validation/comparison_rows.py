@@ -1392,6 +1392,32 @@ def _header_map(trigger: dict[str, Any]) -> dict[str, str]:
     for hk in ("user-agent", "User-Agent", "x-unified-version", "X-Unified-Version"):
         if req.get(hk) not in (None, "", [], {}):
             out[hk.lower()] = str(req.get(hk)).strip()
+    # Excel / capture payload often stores these without HTTP header casing.
+    ua = str(req.get("userAgent") or req.get("user_agent") or "").strip()
+    if ua and "user-agent" not in out:
+        out["user-agent"] = ua
+    ver = str(
+        req.get("appVersion")
+        or req.get("platformVersion")
+        or req.get("app_version")
+        or ""
+    ).strip()
+    if ver and "x-unified-version" not in out:
+        out["x-unified-version"] = ver
+    payload = (
+        trigger.get("request_payload")
+        if isinstance(trigger.get("request_payload"), dict)
+        else {}
+    )
+    if payload:
+        p_ua = str(payload.get("userAgent") or payload.get("user-agent") or "").strip()
+        if p_ua and "user-agent" not in out:
+            out["user-agent"] = p_ua
+        p_ver = str(
+            payload.get("appVersion") or payload.get("platformVersion") or ""
+        ).strip()
+        if p_ver and "x-unified-version" not in out:
+            out["x-unified-version"] = p_ver
     return out
 
 

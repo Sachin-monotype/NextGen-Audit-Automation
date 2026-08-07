@@ -8,6 +8,8 @@ _CRON_PREFIX = "cron:"
 _INGRESS_PREFIX = "ingress:"
 _CASE_STEM_SEP = "__"
 _DISPLAY_RE = re.compile(r"^(.+)\(([a-zA-Z0-9_.-]+)\)$")
+# Trailing channel tags on display labels — peel before audit-events registry lookup.
+_CHANNEL_CASES = frozenset({"app", "web", "be", "ui"})
 
 
 def cron_case_key(case_id: str) -> str:
@@ -56,6 +58,39 @@ def parse_display_operation(label: str) -> tuple[str, str | None]:
         op, cid = raw.split(_CASE_STEM_SEP, 1)
         return op.strip(), cid.strip() or None
     return raw, None
+
+
+def mapping_lookup_variants(label: str) -> list[str]:
+    """Ordered candidates for ``get_operation_mapping``.
+
+    Peels trailing ``(app)`` / ``(web)`` / ``(BE)`` / ``(UI)``, then the touchpoint
+    suffix, so ``activateFamily(default)(app)`` →
+    ``[activateFamily(default)(app), activateFamily(default), activateFamily]``.
+    """
+    raw = (label or "").strip()
+    if not raw:
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def _add(v: str) -> None:
+        if v and v not in seen:
+            seen.add(v)
+            out.append(v)
+
+    _add(raw)
+    op = raw
+    while True:
+        base, case = parse_display_operation(op)
+        if not case or base == op:
+            break
+        if case.lower() in _CHANNEL_CASES:
+            op = base
+            _add(op)
+            continue
+        _add(base)
+        break
+    return out
 
 
 def is_case_scoped_label(label: str) -> bool:

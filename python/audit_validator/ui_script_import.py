@@ -89,6 +89,49 @@ def _parse_response_cell(raw: Any) -> dict[str, Any] | None:
     return parsed
 
 
+def _parse_payload_cell(raw: Any) -> dict[str, Any] | None:
+    """Request/capture payload JSON (userAgent, appVersion, jwtClaims, variables)."""
+    if raw is None or (isinstance(raw, float) and str(raw) == "nan"):
+        return None
+    if isinstance(raw, dict):
+        return raw
+    text = str(raw).strip()
+    if not text or text.lower() in {"nan", "none"}:
+        return None
+    try:
+        loaded = json.loads(text)
+        return loaded if isinstance(loaded, dict) else None
+    except json.JSONDecodeError:
+        return None
+
+
+def _headers_from_payload(payload: dict[str, Any] | None) -> dict[str, str]:
+    """Map Excel payload capture fields → request header names used by compare."""
+    if not isinstance(payload, dict):
+        return {}
+    out: dict[str, str] = {}
+    ua = str(
+        payload.get("userAgent")
+        or payload.get("user-agent")
+        or payload.get("User-Agent")
+        or ""
+    ).strip()
+    if ua:
+        out["User-Agent"] = ua
+        out["user-agent"] = ua
+    ver = str(
+        payload.get("appVersion")
+        or payload.get("platformVersion")
+        or payload.get("x-unified-version")
+        or payload.get("X-Unified-Version")
+        or ""
+    ).strip()
+    if ver:
+        out["X-Unified-Version"] = ver
+        out["x-unified-version"] = ver
+    return out
+
+
 def _parse_full_response_cell(raw: Any) -> dict[str, Any] | None:
     """Full Response JSON (GraphQL HTTP body or ingress envelope) — not unwrapped."""
     if raw is None or (isinstance(raw, float) and str(raw) == "nan"):
@@ -416,6 +459,7 @@ def parse_ui_script_excel(
     status_col = pick("status", "result", "run_status")
     auth_col = pick("auth_token", "authtoken", "bearer_token", "token", "jwt")
     target_col = pick("target", "platform", "channel")
+    payload_col = pick("payload", "request_payload", "request", "capture_payload")
 
     if not event_col or not cid_col:
         raise ValueError(
@@ -486,6 +530,14 @@ def parse_ui_script_excel(
         ingress_actor = _ingress_actor_from_response(full_resp)
         ingress_subject = _ingress_subject_from_response(full_resp)
         ingress_headers = _ingress_headers_from_response(full_resp)
+        request_payload = (
+            _parse_payload_cell(series.get(payload_col)) if payload_col else None
+        )
+        payload_headers = _headers_from_payload(request_payload)
+        if payload_headers:
+            merged_headers = dict(ingress_headers or {})
+            merged_headers.update(payload_headers)
+            ingress_headers = merged_headers
         rows.append(
             {
                 "operation": op,
@@ -505,6 +557,7 @@ def parse_ui_script_excel(
                 "ingress_actor": ingress_actor,
                 "ingress_subject": ingress_subject,
                 "ingress_headers": ingress_headers or None,
+                "request_payload": request_payload,
             }
         )
     return rows
@@ -720,6 +773,32 @@ def create_ui_script_job(
             item["ingress_subject"] = r["ingress_subject"]
         if isinstance(r.get("ingress_headers"), dict) and r.get("ingress_headers"):
             item["ingress_headers"] = r["ingress_headers"]
+        payload = r.get("request_payload") if isinstance(r.get("request_payload"), dict) else None
+        if payload:
+            item["request_payload"] = payload
+            # Expose as request dict so compare header resolution sees UA / appVersion.
+            req: dict[str, Any] = {}
+            ua = str(payload.get("userAgent") or payload.get("user-agent") or "").strip()
+            ver = str(
+                payload.get("appVersion")
+                or payload.get("platformVersion")
+                or ""
+            ).strip()
+            if ua:
+                req["userAgent"] = ua
+                req["user-agent"] = ua
+                req["User-Agent"] = ua
+            if ver:
+                req["appVersion"] = ver
+                req["platformVersion"] = ver
+                req["X-Unified-Version"] = ver
+                req["x-unified-version"] = ver
+            if req:
+                item["request"] = req
+            claims = payload.get("jwtClaims") if isinstance(payload.get("jwtClaims"), dict) else None
+            if claims and not item.get("jwt_identity"):
+                # Prefer auth_token JWT; payload claims are a fallback for identity notes.
+                item.setdefault("jwt_claims_from_payload", claims)
         gql = _normalize_graphql_response(
             op, r.get("graphql_response") if isinstance(r.get("graphql_response"), dict) else None
         )

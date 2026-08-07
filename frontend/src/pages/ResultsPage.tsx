@@ -55,10 +55,20 @@ function displayField(row: ComparisonRow): string {
   return row.field || row.field_path.split(".").pop() || row.field_path;
 }
 
-/** Match highlight keys across bare vs scenario names (activateFamily ↔ activateFamily(global)). */
+/** Match highlight keys. Prefer exact scenario keys when the compare set uses them
+ *  (e.g. ``bulkCopyAssets(default)(app)``) so sibling web scenarios are not listed. */
 function operationMatchesHighlight(operation: string, highlight: Set<string>): boolean {
   if (!highlight.size) return true;
   if (highlight.has(operation)) return true;
+  const hasScoped = [...highlight].some((h) => h.includes("("));
+  if (hasScoped) {
+    // Exact / full-prefix only — do not collapse to bare event name.
+    for (const h of highlight) {
+      if (operation === h) return true;
+      if (h.includes("(") && (operation === h || operation.startsWith(`${h}(`))) return true;
+    }
+    return false;
+  }
   const base = operation.split("(", 1)[0];
   for (const h of highlight) {
     if (h === base || operation.startsWith(`${h}(`) || h.startsWith(`${base}(`)) return true;
@@ -103,18 +113,20 @@ function scenarioChannelRank(operation: string, platformEnvironment?: string): n
 
 type ResultChannel = "web" | "app" | "cron";
 
-/** Classify using ``platformEnvironment`` first, then operation label / cron catalog. */
+/** Classify using operation label first for ``(app)``, then platformEnvironment / cron. */
 function resultChannel(
   operation: string,
   cronBases: Set<string>,
   platformEnvironment?: string,
 ): ResultChannel {
+  const op = String(operation || "").trim();
+  // Explicit channel suffix wins — pe can be wrong/stale on older docs.
+  if (/\(app\)$/i.test(op)) return "app";
+  if (/\(web\)$/i.test(op)) return "web";
   const pe = String(platformEnvironment || "").trim().toLowerCase();
   if (pe === "app") return "app";
   if (pe === "web") return "web";
   if (pe && pe !== "web" && pe !== "app") return "cron";
-  const op = String(operation || "").trim();
-  if (/\(app\)$/i.test(op)) return "app";
   const base = op.includes("(") ? op.slice(0, op.indexOf("(")) : op;
   if (cronBases.has(op) || cronBases.has(base)) return "cron";
   if (/^[a-z0-9]+(-[a-z0-9]+)+$/i.test(base)) return "cron";
@@ -320,7 +332,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     items: LatestComparisonItem[];
     rows: ComparisonRow[];
     count: number;
-    results_source?: "mongo" | "local" | "mongo-original";
+    results_source?: "mongo" | "local" | "mongo-original" | string;
     results_mongo_error?: string;
     mongo_documents?: number;
   } | null>(null);
@@ -335,6 +347,8 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   /** Coverage-table search only — must not open field details (that uses filterOp). */
   const [coverageSearch, setCoverageSearch] = useState("");
   const [coverageChannel, setCoverageChannel] = useState<"all" | ResultChannel>("all");
+  const [coverageDateFrom, setCoverageDateFrom] = useState("");
+  const [coverageDateTo, setCoverageDateTo] = useState("");
   const [cronBases, setCronBases] = useState<Set<string>>(() => new Set());
   const [verifyCtx, setVerifyCtx] = useState<VerifyInUiContext | null>(null);
   const [filterStatus, setFilterStatus] = useState("all");
@@ -771,9 +785,17 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
 
   const coverageRows = useMemo(() => {
     const q = coverageSearch.trim().toLowerCase();
+    const fromMs = coverageDateFrom ? Date.parse(`${coverageDateFrom}T00:00:00`) : NaN;
+    const toMs = coverageDateTo ? Date.parse(`${coverageDateTo}T23:59:59.999`) : NaN;
     return allCoverageRows.filter((r) => {
       if (highlightActive && highlightSet.size && !operationMatchesHighlight(r.operation, highlightSet)) {
         return false;
+      }
+      if (Number.isFinite(fromMs) || Number.isFinite(toMs)) {
+        const ts = r.comparedAt ? Date.parse(r.comparedAt) : NaN;
+        if (!Number.isFinite(ts)) return false;
+        if (Number.isFinite(fromMs) && ts < fromMs) return false;
+        if (Number.isFinite(toMs) && ts > toMs) return false;
       }
       if (q) {
         const { base, scenario } = splitEventScenario(r.operation);
@@ -785,7 +807,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
       if (coverageOutcome === "partial") return r.failed === 0 && r.skipped > 0;
       return true;
     });
-  }, [allCoverageRows, coverageOutcome, coverageSearch, highlightActive, highlightSet]);
+  }, [allCoverageRows, coverageOutcome, coverageSearch, coverageDateFrom, coverageDateTo, highlightActive, highlightSet]);
 
   const coverageGroups = useMemo((): CoverageEventGroup[] => {
     const byBase = new Map<string, CoverageRow[]>();
@@ -1744,6 +1766,39 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                   <option value="cron">Cron / other ({channelCounts.cron})</option>
                 </select>
               </label>
+              <label className="filter-field">
+                <span>From</span>
+                <input
+                  type="date"
+                  value={coverageDateFrom}
+                  onChange={(e) => setCoverageDateFrom(e.target.value)}
+                  aria-label="Compared from date"
+                  title="Show scenarios compared on or after this date"
+                />
+              </label>
+              <label className="filter-field">
+                <span>To</span>
+                <input
+                  type="date"
+                  value={coverageDateTo}
+                  onChange={(e) => setCoverageDateTo(e.target.value)}
+                  aria-label="Compared to date"
+                  title="Show scenarios compared on or before this date"
+                />
+              </label>
+              {(coverageDateFrom || coverageDateTo) && (
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => {
+                    setCoverageDateFrom("");
+                    setCoverageDateTo("");
+                  }}
+                  title="Clear date filter"
+                >
+                  Clear dates
+                </button>
+              )}
               <label className="filter-field">
                 <span>Show</span>
                 <select
