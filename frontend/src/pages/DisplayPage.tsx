@@ -5,6 +5,7 @@ import MultiSelect from "../components/MultiSelect";
 import {
   fetchFilterValues,
   fetchIngestionStatus,
+  fetchLogByCorrelation,
   fetchLogs,
   fetchOperationCurl,
   fetchPipelineConfig,
@@ -491,9 +492,12 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 8000);
+    // Poll less often when filters are active — filtered queries hit Mongo harder
+    // and the old 8s refresh stacked on top of slow Apply calls.
+    const ms = hasActiveFilters(applied) ? 30_000 : 15_000;
+    const t = setInterval(load, ms);
     return () => clearInterval(t);
-  }, [load]);
+  }, [load, applied]);
 
   function apply() {
     setPage(1);
@@ -561,17 +565,30 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
     }
   }
 
-  function openEnrichDiff() {
+  async function openEnrichDiff() {
     if (diffPick.length !== 2) return;
     const a = rows.find((r, i) => rowKey(r, i) === diffPick[0]);
     const b = rows.find((r, i) => rowKey(r, i) === diffPick[1]);
-    if (!a?.message || !b?.message) return;
-    setEnrichDiff({
-      labelA: `${a["source.operation"]} · ${(a.xCorrelationId || a.correlationId || "").slice(0, 8)}`,
-      labelB: `${b["source.operation"]} · ${(b.xCorrelationId || b.correlationId || "").slice(0, 8)}`,
-      dataA: a.message,
-      dataB: b.message,
-    });
+    if (!a || !b) return;
+    try {
+      const [fullA, fullB] = await Promise.all([
+        a.message
+          ? Promise.resolve(a)
+          : fetchLogByCorrelation(tab, a.xCorrelationId || a.correlationId || ""),
+        b.message
+          ? Promise.resolve(b)
+          : fetchLogByCorrelation(tab, b.xCorrelationId || b.correlationId || ""),
+      ]);
+      if (!fullA.message || !fullB.message) return;
+      setEnrichDiff({
+        labelA: `${a["source.operation"]} · ${(a.xCorrelationId || a.correlationId || "").slice(0, 8)}`,
+        labelB: `${b["source.operation"]} · ${(b.xCorrelationId || b.correlationId || "").slice(0, 8)}`,
+        dataA: fullA.message,
+        dataB: fullB.message,
+      });
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   return (
@@ -713,6 +730,7 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
           return (
             <LogCard
               key={key}
+              tab={tab}
               row={row}
               open={expandedRows.has(key)}
               selectable={tab === "enriched"}
@@ -745,6 +763,7 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
 
 /** Enrich/raw payload card — collapsed by default; expand to view JSON. */
 function LogCard({
+  tab,
   row,
   open,
   onToggle,
@@ -754,6 +773,7 @@ function LogCard({
   onCompare,
   comparing,
 }: {
+  tab: Tab;
   row: LogRow;
   open: boolean;
   onToggle: () => void;
@@ -766,6 +786,32 @@ function LogCard({
   const op = row["source.operation"] || "(unknown)";
   const cid = row.xCorrelationId || row.correlationId || "";
   const channel = row.channel;
+  const [payload, setPayload] = useState<Record<string, unknown> | null>(
+    row.message && typeof row.message === "object" ? row.message : null,
+  );
+  const [payloadBusy, setPayloadBusy] = useState(false);
+  const [payloadError, setPayloadError] = useState("");
+
+  useEffect(() => {
+    if (!open || payload || !cid) return;
+    let cancelled = false;
+    setPayloadBusy(true);
+    setPayloadError("");
+    fetchLogByCorrelation(tab, cid)
+      .then((full) => {
+        if (!cancelled) setPayload((full.message as Record<string, unknown>) || null);
+      })
+      .catch((e) => {
+        if (!cancelled) setPayloadError(String(e?.message || e));
+      })
+      .finally(() => {
+        if (!cancelled) setPayloadBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, payload, cid, tab]);
+
   return (
     <article className={`log-card${open ? " is-open" : " is-collapsed"}${selected ? " is-picked" : ""}`}>
       <button
@@ -833,7 +879,12 @@ function LogCard({
       </div>
       <div className="log-card-body" hidden={!open}>
         <TriggerInfo operation={op} />
-        <JsonBlock data={row.message} />
+        {payloadBusy && <p className="muted">Loading payload…</p>}
+        {payloadError && <p className="error">{payloadError}</p>}
+        {payload && <JsonBlock data={payload} />}
+        {!payloadBusy && !payload && !payloadError && (
+          <p className="muted">No payload for this row.</p>
+        )}
       </div>
     </article>
   );

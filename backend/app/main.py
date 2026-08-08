@@ -1368,6 +1368,8 @@ async def import_generate_ui_script(
 ) -> dict[str, Any]:
     """Import from datasource-latest.xlsx or uploaded Excel → verify → Compare."""
     try:
+        import asyncio
+
         from audit_validator.ui_script_import import (
             import_ui_script_excel,
             resolve_ui_script_datasource_path,
@@ -1386,7 +1388,10 @@ async def import_generate_ui_script(
         if content is None:
             path_note = str(resolve_ui_script_datasource_path())
 
-        job = import_ui_script_excel(
+        # Heavy sync work (UMS + Mongo) must not block the asyncio event loop —
+        # that made Enrich/raw filters and catalog look hung during import.
+        job = await asyncio.to_thread(
+            import_ui_script_excel,
             settings.audit_project_root,
             content,
             target=target or "web",
@@ -1807,6 +1812,21 @@ def _annotate_scenarios(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if tp:
             row["scenario"] = _scenario_label(op, tp)
     return results
+
+
+@app.get("/api/{tab}/by-correlation/{correlation_id:path}")
+def get_log_by_correlation(tab: str, correlation_id: str) -> dict[str, Any]:
+    """Full raw/enriched/dlq envelope for expand-payload (list view is lean)."""
+    if tab not in {"raw", "enriched", "dlq"}:
+        raise HTTPException(400, "tab must be raw, enriched, or dlq")
+    row = db.find_by_correlation(tab, correlation_id)
+    if not row:
+        raise HTTPException(404, "No document for that correlation id")
+    try:
+        _annotate_scenarios([row])
+    except Exception:
+        pass
+    return row
 
 
 # Catch-all MUST be last — otherwise it steals /api/jobs, /api/meta/*, etc.

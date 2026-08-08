@@ -604,8 +604,16 @@ def list_ui_script_catalog(
     return catalog_from_rows(rows, target=target, path=str(ds))
 
 
+# Cache UMS profile lookups across Excel rows (same idp often repeats 100+ times).
+_UMS_PROFILE_CACHE: dict[str, str | None] = {}
+_EMPTY_TOKEN_UNSET = object()
+_EMPTY_TOKEN_PROFILE: Any = _EMPTY_TOKEN_UNSET
+_UMS_CFG_CACHE: Any = None
+
+
 def _jwt_identity_for_row(auth_token: str) -> dict[str, Any]:
     """Actor JWT claims: Excel auth_token when present, else project logged-in user."""
+    global _UMS_CFG_CACHE, _EMPTY_TOKEN_PROFILE
     from audit_validator.auth import jwt_identity, resolve_our_profile_id
 
     token = (auth_token or "").strip()
@@ -627,11 +635,19 @@ def _jwt_identity_for_row(auth_token: str) -> dict[str, Any]:
 
             idp = str(out.get("idp_user_id") or "").strip()
             if idp and _identity_is_user(out):
-                cfg = load_source_validation_config(None)
+                if idp in _UMS_PROFILE_CACHE:
+                    pid = _UMS_PROFILE_CACHE[idp]
+                    if pid:
+                        out["_profile_id"] = pid
+                    return out
+                if _UMS_CFG_CACHE is None:
+                    _UMS_CFG_CACHE = load_source_validation_config(None)
+                cfg = _UMS_CFG_CACHE
                 if cfg.ums_ready:
                     user = UmsClient(cfg).get_user_by_idp_user_id(
                         idp, correlation_id="ui-script-auth-token-profile"
                     )
+                    profile_id: str | None = None
                     if isinstance(user, dict):
                         gcid = str(out.get("gcid") or "")
                         for pr in user.get("profiles") or []:
@@ -641,11 +657,16 @@ def _jwt_identity_for_row(auth_token: str) -> dict[str, Any]:
                             if not pid:
                                 continue
                             if gcid and str(pr.get("customerId") or "") == gcid:
-                                out["_profile_id"] = str(pid)
+                                profile_id = str(pid)
                                 break
-                            out.setdefault("_profile_id", str(pid))
+                            profile_id = profile_id or str(pid)
+                    _UMS_PROFILE_CACHE[idp] = profile_id
+                    if profile_id:
+                        out["_profile_id"] = profile_id
         else:
-            pid = resolve_our_profile_id()
+            if _EMPTY_TOKEN_PROFILE is _EMPTY_TOKEN_UNSET:
+                _EMPTY_TOKEN_PROFILE = resolve_our_profile_id()
+            pid = _EMPTY_TOKEN_PROFILE if isinstance(_EMPTY_TOKEN_PROFILE, str) else None
             if pid:
                 out["_profile_id"] = pid
     except Exception:  # noqa: BLE001
@@ -857,7 +878,18 @@ def import_ui_script_excel(
     sel = _selection_from_rows(rows)
     job = create_ui_script_job(project_root, selection=sel, rows=rows, target=tgt)
     details = list((job.get("agent") or {}).get("correlation_details") or [])
-    finalized = finalize_ui_trigger_verification(project_root, job["id"], db=db)
+    # Script Excel CIDs are already captured — do not block import for up to 90s
+    # waiting for Mongo (default UI_VERIFY_SETTLE_SEC). One lookup + short settle.
+    prev_settle = os.environ.get("UI_VERIFY_SETTLE_SEC")
+    try:
+        if prev_settle is None:
+            os.environ["UI_VERIFY_SETTLE_SEC"] = "5"
+        finalized = finalize_ui_trigger_verification(project_root, job["id"], db=db)
+    finally:
+        if prev_settle is None:
+            os.environ.pop("UI_VERIFY_SETTLE_SEC", None)
+        else:
+            os.environ["UI_VERIFY_SETTLE_SEC"] = prev_settle
     out = finalized or job
     # Keep UI Script panel log-free and retain the Excel correlation table.
     agent = dict(out.get("agent") or {})

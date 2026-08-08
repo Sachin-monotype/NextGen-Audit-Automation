@@ -11,7 +11,9 @@ export type LogRow = {
   "source.service": string;
   "actor.globalUserId": string;
   occurredAt: string;
-  message: Record<string, unknown>;
+  /** Full envelope — omitted in lean list; loaded on expand. */
+  message?: Record<string, unknown> | null;
+  payload_pending?: boolean;
   /** Scenario label when this event was minted by us, e.g. activateFamily(global) or activateFamily(global)(BE). */
   scenario?: string;
   /** UI | BE — present only for events we generated. */
@@ -214,6 +216,15 @@ export async function fetchLogs(
     unique?: boolean;
     results: LogRow[];
   }>;
+}
+
+/** Full envelope for one correlation id (list rows are lean / payload deferred). */
+export async function fetchLogByCorrelation(tab: Tab, correlationId: string) {
+  const res = await fetch(
+    `${API}/api/${tab}/by-correlation/${encodeURIComponent(correlationId)}`,
+  );
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<LogRow>;
 }
 
 export type ComparableOperation = {

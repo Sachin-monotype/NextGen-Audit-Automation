@@ -73,6 +73,12 @@ class AuditDatabase:
         self._client = MongoClient(settings.mongo_url, serverSelectionTimeoutMS=8000)
         self._db: Database = self._client[settings.mongo_db]
         self._sort_index_ready: set[str] = set()
+        # Ensure list/filter indexes exist even when ingestion never started.
+        try:
+            for tab in ("raw", "enriched", "dlq"):
+                self._ensure_list_indexes(self.collection(tab))
+        except Exception:
+            pass
 
     def ping(self) -> bool:
         try:
@@ -89,24 +95,7 @@ class AuditDatabase:
         self._sort_index_ready.clear()
         # Ensure collections/indexes exist for raw/enrich/dlq
         for tab in ("raw", "enriched", "dlq"):
-            col = self.collection(tab)
-            self._ensure_sort_index(col)
-            try:
-                col.create_index(
-                    [("source.operation", ASCENDING), ("occurredAt", DESCENDING)],
-                    name="idx_operation_occurredAt",
-                    background=True,
-                )
-            except Exception:
-                pass
-            try:
-                col.create_index(
-                    [("xCorrelationId", ASCENDING)],
-                    name="idx_xCorrelationId",
-                    background=True,
-                )
-            except Exception:
-                pass
+            self._ensure_list_indexes(self.collection(tab))
         return db_name
 
     def collection(self, tab: str) -> Collection:
@@ -124,12 +113,37 @@ class AuditDatabase:
         whole collection hits the 32MB limit. An occurredAt index makes the sort
         non-blocking and avoids that error.
         """
+        self._ensure_list_indexes(col)
+
+    def _ensure_list_indexes(self, col: Collection) -> None:
+        """Indexes used by Enrich/raw list + filter Apply (idempotent).
+
+        Skips ``create_index`` when the name already exists — important on
+        Atlas free tier when the cluster is over quota (create_index write
+        attempts stall the API for hundreds of ms each).
+        """
         if col.name in self._sort_index_ready:
             return
         try:
-            col.create_index([("occurredAt", DESCENDING)], name="idx_occurredAt_desc", background=True)
+            existing = set(col.index_information().keys())
         except Exception:
-            pass
+            existing = set()
+        wanted = (
+            ("idx_occurredAt_desc", [("occurredAt", DESCENDING)]),
+            (
+                "idx_operation_occurredAt",
+                [("source.operation", ASCENDING), ("occurredAt", DESCENDING)],
+            ),
+            ("idx_xCorrelationId", [("xCorrelationId", ASCENDING)]),
+            ("idx_correlationId", [("correlationId", ASCENDING)]),
+        )
+        for name, keys in wanted:
+            if name in existing:
+                continue
+            try:
+                col.create_index(keys, name=name, background=True)
+            except Exception:
+                pass
         self._sort_index_ready.add(col.name)
 
     # Fields rendered as multi-select dropdowns (accept comma-separated values → $in)
@@ -147,18 +161,25 @@ class AuditDatabase:
             if not value:
                 continue
             if key == "source.operation":
+                # Exact match (dropdown values) — uses idx_operation_occurredAt.
+                # Unanchored case-insensitive regex forced collection scans.
                 values = [v.strip() for v in value.split(",") if v.strip()]
-                if len(values) > 1:
-                    query[key] = {"$in": values}
-                else:
-                    query[key] = {"$regex": re.escape(values[0]), "$options": "i"}
+                query[key] = values[0] if len(values) == 1 else {"$in": values}
             elif key == "xCorrelationId":
-                # UI generate uses Cloudflare-safe correlationId; API generate uses xCorrelationId.
-                # One filter box should match either envelope field.
-                query["$or"] = [
-                    {"xCorrelationId": value},
-                    {"correlationId": value},
-                ]
+                # UI generate uses Cloudflare-safe correlationId; API generate uses
+                # xCorrelationId. Prefer a single indexed field — `$or` of two
+                # unanchored/prefix regexes was multi-second on Atlas.
+                uuidish = len(value) >= 8 and all(
+                    ch.isalnum() or ch == "-" for ch in value
+                )
+                if uuidish and len(value) < 36:
+                    rx = f"^{re.escape(value)}"
+                    query["xCorrelationId"] = {"$regex": rx}
+                else:
+                    query["$or"] = [
+                        {"xCorrelationId": value},
+                        {"correlationId": value},
+                    ]
             elif key in AuditDatabase.ENUM_FIELDS:
                 # Comma-separated → match any (multi-select dropdown)
                 values = [v.strip() for v in value.split(",") if v.strip()]
@@ -211,12 +232,27 @@ class AuditDatabase:
                 result["source.operation"] = []
         return result
 
+    # List view only — full envelopes are fetched on expand (see find_by_correlation).
+    _LIST_PROJECTION = {
+        "_id": 0,
+        "xCorrelationId": 1,
+        "correlationId": 1,
+        "occurredAt": 1,
+        "source.operation": 1,
+        "source.operationState": 1,
+        "source.platformEnvironment": 1,
+        "source.service": 1,
+        "actor.globalUserId": 1,
+        "channel": 1,
+    }
+
     @staticmethod
-    def _row_from_doc(doc: dict[str, Any]) -> dict[str, Any]:
+    def _row_from_doc(doc: dict[str, Any], *, full: bool = True) -> dict[str, Any]:
         source = doc.get("source") or {}
         actor = doc.get("actor") or {}
-        return {
-            "xCorrelationId": doc.get("xCorrelationId") or doc.get("correlationId") or "",
+        cid = doc.get("xCorrelationId") or doc.get("correlationId") or ""
+        row = {
+            "xCorrelationId": cid,
             "correlationId": doc.get("correlationId") or "",
             "source.operation": source.get("operation", ""),
             "source.operationState": source.get("operationState", ""),
@@ -224,8 +260,36 @@ class AuditDatabase:
             "source.service": source.get("service", ""),
             "actor.globalUserId": actor.get("globalUserId", ""),
             "occurredAt": doc.get("occurredAt", ""),
-            "message": doc,
+            "channel": doc.get("channel") or "",
         }
+        if full:
+            row["message"] = doc
+        else:
+            # Placeholder so the UI can expand + fetch the full envelope.
+            row["message"] = None
+            row["payload_pending"] = True
+        return row
+
+    def find_by_correlation(self, tab: str, correlation_id: str) -> dict[str, Any] | None:
+        """Full raw/enriched/dlq document for one correlation id."""
+        cid = (correlation_id or "").strip()
+        if not cid:
+            return None
+        col = self.collection(tab)
+        self._ensure_list_indexes(col)
+        query = {
+            "$or": [
+                {"xCorrelationId": cid},
+                {"correlationId": cid},
+            ]
+        }
+        try:
+            doc = col.find_one(query, projection={"_id": 0}, sort=[("occurredAt", DESCENDING)])
+        except Exception:
+            doc = None
+        if not doc:
+            return None
+        return self._row_from_doc(doc, full=True)
 
     @staticmethod
     def has_active_filters(filters: dict[str, str]) -> bool:
@@ -234,7 +298,7 @@ class AuditDatabase:
     # When filtering by a single operation (browse), cap latest entries.
     # Correlation-id search never uses this cap (_single_operation_filter is false
     # when xCorrelationId is set). Env override: MONGO_OPERATION_FILTER_CAP.
-    OPERATION_FILTER_CAP = int(os.getenv("MONGO_OPERATION_FILTER_CAP", "20") or "20")
+    OPERATION_FILTER_CAP = int(os.getenv("MONGO_OPERATION_FILTER_CAP", "100") or "100")
 
     @staticmethod
     def _single_operation_filter(filters: dict[str, str]) -> bool:
@@ -273,32 +337,76 @@ class AuditDatabase:
         dedupe = unique and not self.has_active_filters(filters)
 
         try:
+            self._ensure_list_indexes(col)
             if dedupe:
-                self._ensure_sort_index(col)
-                total = len(col.distinct("source.operation", query))
-                pipeline = [
-                    {"$match": query},
-                    # Single-field sort → uses idx_occurredAt_desc (non-blocking),
-                    # so it avoids the 32MB in-memory sort limit on shared Atlas tiers.
-                    {"$sort": {"occurredAt": -1}},
-                    {
-                        "$group": {
-                            "_id": "$source.operation",
-                            "doc": {"$first": "$$ROOT"},
-                        }
-                    },
-                    {"$replaceRoot": {"newRoot": "$doc"}},
-                    {"$sort": {"occurredAt": -1}},
-                    {"$skip": skip},
-                    {"$limit": limit},
-                    {"$project": {"_id": 0}},
-                ]
-                cursor = col.aggregate(pipeline, allowDiskUse=True)
+                # Lean newest→oldest scan for unique ops, then hydrate only the
+                # page of full docs. Pulling thousands of full enrich envelopes
+                # from Atlas was multi-minute.
+                max_scan = int(os.getenv("MONGO_UNIQUE_SCAN_CAP", "1200") or "1200")
+                seen: set[str] = set()
+                page_ids: list[Any] = []
+                scanned = 0
+                lean = {"_id": 1, "source.operation": 1, "occurredAt": 1}
+                cursor = (
+                    col.find(query, projection=lean)
+                    .sort([("occurredAt", DESCENDING)])
+                    .limit(max_scan)
+                )
+                for doc in cursor:
+                    scanned += 1
+                    source = doc.get("source") or {}
+                    op = str(source.get("operation") or "").strip()
+                    if not op or op in seen:
+                        continue
+                    seen.add(op)
+                    idx = len(seen) - 1
+                    if idx < skip:
+                        continue
+                    if len(page_ids) < limit:
+                        page_ids.append(doc.get("_id"))
+                    # Keep scanning past the page so ``total`` reflects more
+                    # unique ops (needed for pager). Stop at max_scan.
+                results = []
+                if page_ids:
+                    by_id = {
+                        d["_id"]: d
+                        for d in col.find(
+                            {"_id": {"$in": page_ids}},
+                            projection={**self._LIST_PROJECTION, "_id": 1},
+                        )
+                    }
+                    for _id in page_ids:
+                        doc = by_id.get(_id)
+                        if not doc:
+                            continue
+                        doc = dict(doc)
+                        doc.pop("_id", None)
+                        results.append(self._row_from_doc(doc, full=False))
+                total = len(seen)
+                if scanned >= max_scan:
+                    total = max(total, skip + len(results) + 1)
+                return {
+                    "total": total,
+                    "page": page,
+                    "limit": limit,
+                    "results": results,
+                    "unique": dedupe,
+                }
             else:
-                total = col.count_documents(query)
+                # Skip exact counts on filtered queries — they often match find cost.
+                # Return a soft total so the pager still works.
                 if cap is not None:
-                    total = min(total, cap)
-                cursor = col.find(query, projection={"_id": 0}).sort(sort).skip(skip).limit(limit)
+                    total = cap
+                elif not query:
+                    total = int(col.estimated_document_count())
+                else:
+                    total = skip + limit + 1  # "has more" until a short page
+                cursor = (
+                    col.find(query, projection=self._LIST_PROJECTION)
+                    .sort(sort)
+                    .skip(skip)
+                    .limit(limit)
+                )
         except Exception as exc:
             return {
                 "total": 0,
@@ -309,7 +417,12 @@ class AuditDatabase:
                 "error": str(exc),
             }
 
-        results = [self._row_from_doc(doc) for doc in cursor]
+        results = [self._row_from_doc(doc, full=False) for doc in cursor]
+        if query and cap is None:
+            if len(results) < limit:
+                total = skip + len(results)
+            else:
+                total = max(total, skip + limit + 1)
         return {
             "total": total,
             "page": page,
@@ -902,29 +1015,53 @@ class AuditDatabase:
             removed["enriched"] = enr_col.delete_many({"_id": {"$in": enr_delete}}).deleted_count or 0
         return removed
 
-    def prune_all(self, max_retain: int) -> dict[str, int]:
+    def prune_all(
+        self, max_retain: int, *, keep_hours: float | None = None
+    ) -> dict[str, int]:
         """Prune raw+enriched as pairs; dlq independently by latest N per operation."""
         removed: dict[str, int] = {"raw": 0, "enriched": 0, "dlq": 0}
         protect = self._owned_protect_cids()
         try:
-            pair_removed = self.prune_raw_enriched_pairs(max_retain, protect_cids=protect)
+            pair_removed = self.prune_raw_enriched_pairs(
+                max_retain, protect_cids=protect, keep_hours=keep_hours
+            )
             removed["raw"] = pair_removed.get("raw", 0)
             removed["enriched"] = pair_removed.get("enriched", 0)
         except Exception:
             # Fall back to independent prune (legacy) if aggregation fails
             try:
-                removed["raw"] = self.prune_collection("raw", max_retain)
+                removed["raw"] = self.prune_collection(
+                    "raw", max_retain, keep_hours=keep_hours
+                )
             except Exception:
                 removed["raw"] = 0
             try:
-                removed["enriched"] = self.prune_collection("enriched", max_retain)
+                removed["enriched"] = self.prune_collection(
+                    "enriched", max_retain, keep_hours=keep_hours
+                )
             except Exception:
                 removed["enriched"] = 0
         try:
-            removed["dlq"] = self.prune_collection("dlq", max_retain)
+            removed["dlq"] = self.prune_collection(
+                "dlq", max_retain, keep_hours=keep_hours
+            )
         except Exception:
             removed["dlq"] = 0
         return removed
+
+    @staticmethod
+    def retention_keep_hours_for_db(db_name: str) -> float:
+        """Per-environment retention window (QA longer, PP shorter)."""
+        name = (db_name or "").strip()
+        low = name.lower()
+        default = float(os.getenv("MONGO_RETENTION_KEEP_HOURS", "3") or "3")
+        if "preprod" in low or low.endswith("pp") or name == "AuditLogsPreprod":
+            return float(os.getenv("MONGO_RETENTION_KEEP_HOURS_PP", "0.5") or "0.5")
+        if "qa" in low or name == "AuditLogsQA":
+            return float(os.getenv("MONGO_RETENTION_KEEP_HOURS_QA", str(default)) or default)
+        if "uat" in low or name == "AuditLogsUAT":
+            return float(os.getenv("MONGO_RETENTION_KEEP_HOURS_UAT", str(default)) or default)
+        return default
 
     def _owned_protect_cids(self) -> set[str]:
         """Correlation ids from our generate/UI runs — never prune these."""

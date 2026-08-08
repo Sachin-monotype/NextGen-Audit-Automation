@@ -284,6 +284,10 @@ export default function GenerateFromUiScriptModal({ onClose, onComplete }: Props
   }
 
   async function onSubmit() {
+    if (selected.size === 0) {
+      setError("Select at least one scenario — importing the whole sheet is slow.");
+      return;
+    }
     if (matchingRows.length === 0) {
       setError("No matching OK rows for this selection.");
       return;
@@ -291,13 +295,10 @@ export default function GenerateFromUiScriptModal({ onClose, onComplete }: Props
     setBusy(true);
     setError("");
     try {
-      const pairs =
-        selected.size === 0
-          ? undefined
-          : matchingRows.map((r) => ({
-              event_name: r.event_name,
-              scenario: r.scenario,
-            }));
+      const pairs = matchingRows.map((r) => ({
+        event_name: r.event_name,
+        scenario: r.scenario,
+      }));
       const res = await importGenerateFromUiScript({
         target,
         pairs,
@@ -426,12 +427,16 @@ export default function GenerateFromUiScriptModal({ onClose, onComplete }: Props
               />
             </div>
             <p className="muted small">
-              Will import <strong>{matchingRows.length}</strong> row
-              {matchingRows.length === 1 ? "" : "s"}
-              {authTokenCount > 0
-                ? ` · ${authTokenCount} with Excel auth_token`
-                : " · actor from logged-in user"}
-              {selected.size === 0 ? " (all)" : ""}.
+              {selected.size === 0
+                ? "Select scenarios to import (whole-sheet import is blocked — it was very slow)."
+                : <>
+                    Will import <strong>{matchingRows.length}</strong> row
+                    {matchingRows.length === 1 ? "" : "s"}
+                    {authTokenCount > 0
+                      ? ` · ${authTokenCount} with Excel auth_token`
+                      : " · actor from logged-in user"}
+                    .
+                  </>}
             </p>
           </>
         ) : null}
@@ -445,7 +450,7 @@ export default function GenerateFromUiScriptModal({ onClose, onComplete }: Props
           <button
             type="button"
             className="primary"
-            disabled={busy || loading || matchingRows.length === 0}
+            disabled={busy || loading || selected.size === 0 || matchingRows.length === 0}
             onClick={() => void onSubmit()}
           >
             {busy ? "Importing…" : "Import & verify"}
