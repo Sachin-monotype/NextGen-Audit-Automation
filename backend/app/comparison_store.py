@@ -297,19 +297,42 @@ def _clean_app_ui_be_defaults(
                 "fontPairsViewed",
                 "fontSimilarFontViewed",
             }
-            if enr == "MonotypeNextGenConnectService":
+            op_base = base.split("(", 1)[0].strip() if base else ""
+            if enr in {"MonotypeNextGenConnectService", "Plugin"}:
                 expected = enr
-            elif base in ui_ops:
+            elif op_base.lower().startswith("plugin") or enr == "Plugin":
+                expected = enr or "Plugin"
+            elif base in ui_ops or op_base in ui_ops:
                 expected = "mtconnect-ui"
             else:
                 expected = "mtconnect-api"
-            if enr == expected and src != expected:
+            if enr and expected and enr == expected and src != expected:
                 r = {
                     **r,
                     "value_in_source": expected,
                     "match_status": "PASS",
-                    "notes": "Frontend service rule (mtconnect-api / mtconnect-ui)",
+                    "notes": (
+                        "Audit ingress source.service (plugin payload)"
+                        if expected == "Plugin"
+                        else "Frontend service rule (mtconnect-api / mtconnect-ui)"
+                    ),
                     "source_api": "source.service rule",
+                }
+                changed = True
+            elif (
+                status == "FAIL"
+                and enr == "Plugin"
+                and src
+                and src != enr
+            ):
+                # Stale compare forced mtconnect-api onto plugin payloads.
+                r = {
+                    **r,
+                    "value_in_source": enr,
+                    "match_status": "PASS",
+                    "notes": "Audit ingress source.service (plugin payload)",
+                    "source_api": "Audit ingress body",
+                    "source_system": "Trigger",
                 }
                 changed = True
 

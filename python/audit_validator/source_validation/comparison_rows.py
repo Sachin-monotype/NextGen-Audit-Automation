@@ -1466,25 +1466,32 @@ def _expected_source_service(operation: str, enriched: JsonDict) -> str | None:
     """Expected ``source.service`` for frontend / app events.
 
     - Connect login ops → ``MonotypeNextGenConnectService``
+    - Plugin Connect ops → enriched ``Plugin`` (never force mtconnect-api)
     - App-specific shell + fontSimilar/fontPairs → ``mtconnect-ui``
     - Other GQL frontend (web or app-hosted) → ``mtconnect-api``
     - Cron / other backend services → ``None`` (do not override)
     """
     enriched_src = enriched.get("source") if isinstance(enriched.get("source"), dict) else {}
     enr = str((enriched_src or {}).get("service") or "").strip()
+    pe = str((enriched_src or {}).get("platformEnvironment") or "").strip().lower()
     if enr == "MonotypeNextGenConnectService":
         return enr
+    # Plugin ingress publishes source.service="Plugin" in the payload itself.
+    if enr == "Plugin" or pe == "plugin":
+        return enr or "Plugin"
     base = _base_operation(operation)
     # Peel nested display labels: activateFamily(global)(app) → activateFamily
     while "(" in base:
         base = base.split("(", 1)[0].strip() or base
         break
+    if base.lower().startswith("plugin"):
+        return enr or "Plugin"
     if base in _CONNECT_SERVICE_OPS:
         return "MonotypeNextGenConnectService"
     if base in _MTCONNECT_UI_OPS:
         return "mtconnect-ui"
     op_l = str(operation or "").lower()
-    # Only rewrite known frontend envelopes — never force api onto cron/backend.
+    # Only rewrite known frontend envelopes — never force api onto cron/backend/plugin.
     if enr in {"mtconnect-api", "mtconnect-ui"} or "(app)" in op_l:
         return "mtconnect-api"
     return None
