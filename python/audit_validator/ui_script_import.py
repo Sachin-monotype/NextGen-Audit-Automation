@@ -454,6 +454,15 @@ def parse_ui_script_excel(
 
     event_col = pick("event_name", "event", "operation", "eventname")
     scenario_col = pick("scenario", "touchpoint", "source", "touch")
+    plugin_col = pick(
+        "pluginsource",
+        "plugin_source",
+        "pluginsource",
+        "pluginSource",
+        "plugin",
+        "plugin_host",
+        "host_plugin",
+    )
     cid_col = pick("correlation_id", "correlationid", "correlation", "xcorrelationid")
     resp_col = pick("response", "graphql_response", "body")
     status_col = pick("status", "result", "run_status")
@@ -486,6 +495,7 @@ def parse_ui_script_excel(
 
         scenario = _cell_str(series.get(scenario_col)) if scenario_col else ""
         scenario = _normalize_scenario(scenario) if scenario else ""
+        pluginsource = _cell_str(series.get(plugin_col)) if plugin_col else ""
 
         auth_token = _cell_str(series.get(auth_col)) if auth_col else ""
         resp_raw = series.get(resp_col) if resp_col else None
@@ -502,6 +512,26 @@ def parse_ui_script_excel(
         seen_cid.add(cid)
         if not op:
             continue
+
+        gql_failed = _graphql_call_failed(full_resp)
+        ingress_source = _ingress_source_from_response(full_resp)
+        ingress_actor = _ingress_actor_from_response(full_resp)
+        ingress_subject = _ingress_subject_from_response(full_resp)
+        ingress_headers = _ingress_headers_from_response(full_resp)
+
+        # Plugin host scenario: Excel pluginsource → subject.plugin → scenario column.
+        try:
+            from audit_validator.plugin_types import resolve_plugin_scenario
+
+            plugin_type = resolve_plugin_scenario(
+                excel_scenario=scenario,
+                pluginsource=pluginsource,
+                subject=ingress_subject if isinstance(ingress_subject, dict) else None,
+            )
+            if plugin_type:
+                scenario = plugin_type
+        except Exception:
+            plugin_type = ""
 
         if pair_filter:
             # Match either Excel label or resolved GraphQL op so UI filters still work.
@@ -525,11 +555,6 @@ def parse_ui_script_excel(
         if not row_target and target:
             row_target = _norm_target(target)
 
-        gql_failed = _graphql_call_failed(full_resp)
-        ingress_source = _ingress_source_from_response(full_resp)
-        ingress_actor = _ingress_actor_from_response(full_resp)
-        ingress_subject = _ingress_subject_from_response(full_resp)
-        ingress_headers = _ingress_headers_from_response(full_resp)
         request_payload = (
             _parse_payload_cell(series.get(payload_col)) if payload_col else None
         )
@@ -545,6 +570,8 @@ def parse_ui_script_excel(
                 "excel_event_name": excel_op or op,
                 "touchpoint": scenario,
                 "scenario": scenario,
+                "plugin_type": plugin_type or "",
+                "pluginsource": pluginsource or "",
                 "target": row_target or (target or ""),
                 "correlation_id": cid,
                 "auth_token": auth_token,
@@ -682,9 +709,12 @@ def _selection_from_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for r in rows:
         op = str(r.get("operation") or "").strip()
         touch = str(r.get("touchpoint") or "").strip()
+        plugin_type = str(r.get("plugin_type") or "").strip()
         tgt = str(r.get("target") or "").strip().lower()
         key = f"{op}::{touch}" if touch else op
-        if tgt == "app":
+        if plugin_type:
+            key = f"{op}::{plugin_type}"
+        elif tgt == "app":
             key = f"{key}::app"
         if not op or key in seen:
             continue
@@ -694,9 +724,14 @@ def _selection_from_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "id": key,
                 "operation": op,
                 "touchpoint": touch or None,
+                "plugin_type": plugin_type or None,
                 "target": tgt or None,
                 "label": scenario_display_name(
-                    op, touch or None, ui=True, target=tgt or None
+                    op,
+                    touch or None,
+                    ui=True,
+                    target=tgt or None,
+                    plugin_type=plugin_type or None,
                 ),
             }
         )
@@ -778,6 +813,10 @@ def create_ui_script_job(
             "jwt_identity_note": source_note,
             "jwt_from_excel": bool(auth_token),
         }
+        plugin_type = str(r.get("plugin_type") or "").strip()
+        if plugin_type:
+            item["plugin_type"] = plugin_type
+            item["touchpoint"] = plugin_type or touch
         if auth_token:
             item["auth_token"] = auth_token
         if profile_id:

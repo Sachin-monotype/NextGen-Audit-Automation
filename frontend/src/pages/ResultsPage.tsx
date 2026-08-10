@@ -127,6 +127,7 @@ function resultChannel(
   const pe = String(platformEnvironment || "").trim().toLowerCase();
   if (pe === "app") return "app";
   if (pe === "web") return "web";
+  if (pe === "plugin") return "cron"; // plugin host scenarios filtered under cron/other channel
   if (pe && pe !== "web" && pe !== "app") return "cron";
   const base = op.includes("(") ? op.slice(0, op.indexOf("(")) : op;
   if (cronBases.has(op) || cronBases.has(base)) return "cron";

@@ -628,7 +628,13 @@ def apply_extracted_results(
             try:
                 from audit_validator.touchpoint.scenarios import scenario_display_name
 
-                display = scenario_display_name(op, touch, ui=True, target=row.get("target"))
+                display = scenario_display_name(
+                    op,
+                    touch,
+                    ui=True,
+                    target=row.get("target"),
+                    plugin_type=row.get("plugin_type") or touch,
+                )
                 record_generation(
                     op,
                     cid,
@@ -661,7 +667,13 @@ def apply_extracted_results(
             try:
                 from audit_validator.touchpoint.scenarios import scenario_display_name
 
-                display = scenario_display_name(op, touch, ui=True, target=row.get("target"))
+                display = scenario_display_name(
+                    op,
+                    touch,
+                    ui=True,
+                    target=row.get("target"),
+                    plugin_type=row.get("plugin_type") or touch,
+                )
                 gql_inp = item.get("graphql_input") if isinstance(item.get("graphql_input"), dict) else {}
                 gql_resp = (
                     item.get("graphql_response") if isinstance(item.get("graphql_response"), dict) else {}
@@ -2675,7 +2687,13 @@ def finalize_ui_trigger_verification(
             row_target = str(r.get("target") or "").strip().lower()
             if not row_target:
                 row_target = str((job.get("agent") or {}).get("target") or "").strip().lower()
-            display = scenario_display_name(op, touch, ui=True, target=row_target or None)
+            display = scenario_display_name(
+                op,
+                touch,
+                ui=True,
+                target=row_target or None,
+                plugin_type=r.get("plugin_type") or touch,
+            )
             excel_op = str(r.get("excel_event_name") or "").strip()
             gql_failed = bool(r.get("graphql_failed"))
             if gql_failed:
@@ -2710,7 +2728,11 @@ def finalize_ui_trigger_verification(
             raw_mongo, enr_mongo, mongo_op_alias = found.get(cid, (None, None, ""))
             if mongo_op_alias and mongo_op_alias != op:
                 display = scenario_display_name(
-                    mongo_op_alias, touch, ui=True, target=row_target or None
+                    mongo_op_alias,
+                    touch,
+                    ui=True,
+                    target=row_target or None,
+                    plugin_type=r.get("plugin_type") or touch,
                 )
 
             raw_doc = _event_for_report(raw_mongo) if isinstance(raw_mongo, dict) else None

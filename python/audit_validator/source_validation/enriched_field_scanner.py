@@ -137,11 +137,25 @@ def scan_enriched_fields(enriched: JsonDict) -> list[tuple[str, object]]:
             val = subject.get(key)
             if _is_scalar(val):
                 out.append((f"subject.{key}", val))
+        # Plugin ingress leaves (KEYNOTES / document / …) — always compare when present.
+        for key in ("plugin", "documentId", "documentName"):
+            val = subject.get(key)
+            if _is_scalar(val):
+                out.append((f"subject.{key}", val))
         ids = subject.get("id")
         if isinstance(ids, list):
-            for idx, val in enumerate(ids[:3]):
+            # Plugin missing-font events can carry many variation ids — compare all.
+            for idx, val in enumerate(ids):
                 if _is_scalar(val):
                     out.append((f"subject.id[{idx}]", val))
+        style_ids = subject.get("styleIds")
+        if isinstance(style_ids, list):
+            max_ids = max(
+                1, int(os.getenv("ENRICHED_SCAN_MAX_ARRAY_ITEMS", "20") or "20")
+            )
+            for idx, val in enumerate(style_ids[:max_ids]):
+                if _is_scalar(val):
+                    out.append((f"subject.styleIds[{idx}]", val))
         counts = subject.get("counts")
         if isinstance(counts, dict):
             for ck, cv in counts.items():
@@ -169,6 +183,35 @@ def scan_enriched_fields(enriched: JsonDict) -> list[tuple[str, object]]:
         snap = subject.get("enrichedSnapshot")
         if isinstance(snap, dict) and snap:
             _walk(snap, "subject.enrichedSnapshot", out)
+
+        # Any other scalar subject leaves (future plugin fields) — skip known containers.
+        _skip_subject_keys = {
+            "type",
+            "id",
+            "styleIds",
+            "counts",
+            "styles",
+            "metadata",
+            "enrichedSnapshot",
+            "activationType",
+            "activationMode",
+            "deactivationType",
+            "plugin",
+            "documentId",
+            "documentName",
+        }
+        for sk, sv in subject.items():
+            if sk in _skip_subject_keys:
+                continue
+            if _is_scalar(sv):
+                out.append((f"subject.{sk}", sv))
+            elif isinstance(sv, list) and sv and _is_scalar(sv[0]):
+                max_ids = max(
+                    1, int(os.getenv("ENRICHED_SCAN_MAX_ARRAY_ITEMS", "20") or "20")
+                )
+                for idx, val in enumerate(sv[:max_ids]):
+                    if _is_scalar(val):
+                        out.append((f"subject.{sk}[{idx}]", val))
 
     # Dedupe by normalized path (prefer first non-empty)
     seen: dict[str, object] = {}
@@ -199,6 +242,14 @@ def infer_source_system(path: str, operation: str | None = None) -> tuple[str, s
         if (operation or "").split("(", 1)[0].strip() == "getPackageId":
             return "Trigger", "GraphQL getPackageId response packageId (same event)"
         return "Trigger", "Audit ingress / mutation subject.id"
+    if p.startswith("subject.styleids"):
+        return "Trigger", "Audit ingress body (subject.styleIds)"
+    if p in {"subject.plugin", "subject.documentid", "subject.documentname"} or p.split(".")[-1] in {
+        "plugin",
+        "documentid",
+        "documentname",
+    }:
+        return "Trigger", "Audit ingress body (plugin subject)"
     if p.startswith("subject.counts.") or p.startswith("subject.styles"):
         return "Trigger", "Audit ingress body (subject)"
     if p.startswith("subject.") and p.split(".")[-1] in {

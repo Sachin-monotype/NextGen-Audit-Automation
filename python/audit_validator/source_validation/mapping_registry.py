@@ -698,6 +698,42 @@ def _desktop_ingress_fields(operation: str) -> list[MappingField]:
     return fields
 
 
+def _plugin_ingress_fields(operation: str) -> list[MappingField]:
+    """Plugin Connect events — same envelope as desktop plus plugin document fields.
+
+    ``subject.id[i]`` beyond ``[0]`` are emitted by the enriched-field scanner
+    (enriched-first); registry seeds the common leaves with validate=Y.
+    """
+    fields = _desktop_ingress_fields(operation)
+    trigger = "Trigger"
+    api = "Audit ingress body (plugin subject)"
+    fields.extend(
+        [
+            MappingField(
+                "subject", "plugin", "", "",
+                "Source: audit ingress subject.plugin (Keynotes/Photoshop/…)", "", "Y",
+                "subject.plugin", trigger, api, "subject",
+            ),
+            MappingField(
+                "subject", "documentId", "", "",
+                "Source: audit ingress subject.documentId", "", "Y",
+                "subject.documentId", trigger, api, "subject",
+            ),
+            MappingField(
+                "subject", "documentName", "", "",
+                "Source: audit ingress subject.documentName", "", "Y",
+                "subject.documentName", trigger, api, "subject",
+            ),
+            MappingField(
+                "subject", "styleIds[0]", "", "",
+                "Source: audit ingress subject.styleIds", "", "Y",
+                "subject.styleIds[0]", trigger, api, "subject",
+            ),
+        ]
+    )
+    return fields
+
+
 def _subject_structural_field(key: str, source_label: str) -> MappingField:
     path = f"subject.enrichedSnapshot.{key}"
     return MappingField(
@@ -899,6 +935,8 @@ def _builtin_mapping(operation: str) -> list[MappingField]:
         return _export_batch_fields(operation)
     if operation in _DESKTOP_INGRESS_OPS:
         return _desktop_ingress_fields(operation)
+    if str(operation or "").lower().startswith("plugin"):
+        return _plugin_ingress_fields(operation)
     if operation in _FONT_OPS:
         return _font_envelope_fields(operation)
     if operation == "activateList":
@@ -988,6 +1026,10 @@ def get_operation_mapping(
         for c in variants:
             if c in _DESKTOP_INGRESS_OPS:
                 return _desktop_ingress_fields(c)
+    if any(str(c).lower().startswith("plugin") for c in variants):
+        for c in variants:
+            if str(c).lower().startswith("plugin"):
+                return _plugin_ingress_fields(c)
     return _builtin_mapping(
         operation if operation in _EXPORT_OPS or operation in _FONT_OPS else bare
     )

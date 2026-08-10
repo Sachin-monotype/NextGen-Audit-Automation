@@ -202,17 +202,67 @@ function isPlaceholderScenario(operation?: string | null, touchpoint?: string | 
 function scenarioDisplayName(
   operation: string,
   touchpoint?: string | null,
-  opts?: { ui?: boolean; be?: boolean; app?: boolean; target?: string | null },
+  opts?: {
+    ui?: boolean;
+    be?: boolean;
+    app?: boolean;
+    target?: string | null;
+    pluginType?: string | null;
+  },
 ): string {
-  const short = shortTouchpoint(touchpoint);
-  let base = short ? `${operation}(${short})` : operation;
+  const pluginTypes = new Set([
+    "aftereffects",
+    "photoshop",
+    "incopy",
+    "illustrator",
+    "pages",
+    "numbers",
+    "keynotes",
+  ]);
+  const normPlugin = (raw?: string | null) => {
+    const s = String(raw || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/^(plugin|adobe|apple)\s+/, "")
+      .trim();
+    if (!s || s === "plugin" || s === "plugins") return "";
+    const aliases: Record<string, string> = {
+      aftereffect: "aftereffects",
+      "after effects": "aftereffects",
+      ae: "aftereffects",
+      ps: "photoshop",
+      keynote: "keynotes",
+      ai: "illustrator",
+    };
+    if (aliases[s]) return aliases[s];
+    if (pluginTypes.has(s)) return s;
+    for (const tok of s.split(/\s+/)) {
+      if (aliases[tok]) return aliases[tok];
+      if (pluginTypes.has(tok)) return tok;
+    }
+    const slug = s.replace(/\s+/g, "_");
+    return slug.length >= 3 ? slug : "";
+  };
+  let baseOp = operation;
+  for (const legacy of ["(ui)", "(be)", "(UI)", "(BE)", "(app)", "(APP)", "(web)", "(WEB)"]) {
+    if (baseOp.endsWith(legacy)) baseOp = baseOp.slice(0, -legacy.length);
+  }
+  const plugin = normPlugin(opts?.pluginType) || normPlugin(touchpoint);
+  if (plugin) return `${baseOp}(${plugin})`;
+
+  const shortRaw = shortTouchpoint(touchpoint);
+  const short = ["plugin", "plugins"].includes(String(shortRaw || "").toLowerCase())
+    ? ""
+    : shortRaw;
+  let base = short ? `${baseOp}(${short})` : baseOp;
   for (const legacy of ["(ui)", "(be)", "(UI)", "(BE)", "(app)", "(APP)", "(web)", "(WEB)"]) {
     if (base.endsWith(legacy)) base = base.slice(0, -legacy.length);
   }
   const isApp =
     Boolean(opts?.app) || String(opts?.target || "").trim().toLowerCase() === "app";
   // UI/web is the default channel — no "(UI)"/"(web)" suffix.
-  // App Excel/plugin runs get "(app)". Backend runs get "(BE)".
+  // App Excel runs get "(app)". Backend runs get "(BE)".
   if (opts?.be && !opts?.ui && !isApp) return `${base}(BE)`;
   if (isApp) return `${base}(app)`;
   return base;

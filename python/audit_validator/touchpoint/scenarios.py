@@ -66,15 +66,30 @@ def scenario_display_name(
     be: bool = False,
     app: bool = False,
     target: str | None = None,
+    plugin_type: str | None = None,
 ) -> str:
-    """e.g. ``activateFamily(global)``, ``activateFamily(global)(app)``, ``…(BE)``.
+    """e.g. ``activateFamily(global)``, ``pluginMissingFontUnresolved(keynotes)``, ``…(BE)``.
 
     UI/web is the default channel — no ``(UI)`` / ``(web)`` suffix.
-    App Excel / plugin runs get ``(app)``. Backend-minted runs get ``(BE)``.
+    App Excel runs get ``(app)``. Backend-minted runs get ``(BE)``.
+    Plugin host apps (Keynotes / Photoshop / …) use ``(keynotes)`` etc. instead of ``(app)``.
     """
-    short = short_touchpoint(touchpoint)
-    base = f"{operation}({short})" if short else operation
+    from audit_validator.plugin_types import normalize_plugin_type
+
     # Strip legacy channel / platform suffixes before applying canonical tags
+    base_op = operation or ""
+    for legacy in ("(ui)", "(be)", "(UI)", "(BE)", "(app)", "(APP)", "(web)", "(WEB)"):
+        if base_op.endswith(legacy):
+            base_op = base_op[: -len(legacy)]
+
+    plugin = normalize_plugin_type(plugin_type) or normalize_plugin_type(touchpoint)
+    if plugin:
+        return f"{base_op}({plugin})"
+
+    short = short_touchpoint(touchpoint)
+    if short.lower() in {"plugin", "plugins"}:
+        short = ""
+    base = f"{base_op}({short})" if short else base_op
     for legacy in ("(ui)", "(be)", "(UI)", "(BE)", "(app)", "(APP)", "(web)", "(WEB)"):
         if base.endswith(legacy):
             base = base[: -len(legacy)]
