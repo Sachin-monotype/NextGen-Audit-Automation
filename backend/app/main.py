@@ -347,11 +347,13 @@ def enriched_sample_for_operation(operation: str) -> dict[str, Any]:
 
 
 @app.delete("/api/results/latest/{operation:path}")
-def delete_comparison_operation(operation: str) -> dict[str, Any]:
+def delete_comparison_operation(
+    operation: str, target: str | None = Query(default=None)
+) -> dict[str, Any]:
     """Delete a single operation's stored comparison from the Result view."""
     from .comparison_store import delete_operation_result
 
-    deleted = delete_operation_result(settings.audit_project_root, operation)
+    deleted = delete_operation_result(settings.audit_project_root, operation, target=target)
     if not deleted:
         raise HTTPException(404, f"No stored comparison for {operation}")
     return {"deleted": operation, "ok": True}
@@ -602,14 +604,14 @@ def operation_stats() -> dict[str, Any]:
 
 
 @app.get("/api/results/failure-summary")
-def results_failure_summary() -> dict[str, Any]:
+def results_failure_summary(target: str | None = None) -> dict[str, Any]:
     """Common Compare FAIL patterns with occurrence counts + mongo/curl investigate hints."""
     try:
         from .failure_summary import build_failure_summary
 
-        return build_failure_summary(settings.audit_project_root)
+        return build_failure_summary(settings.audit_project_root, target=target)
     except Exception as exc:  # noqa: BLE001
-        return {"total_fail_rows": 0, "groups": [], "error": str(exc)}
+        return {"total_fail_rows": 0, "distinct_patterns": 0, "operations_with_fails": 0, "groups": [], "error": str(exc)}
 
 
 @app.get("/api/meta/ui-navigation")
@@ -1622,56 +1624,6 @@ def preview_pair(operation: str) -> dict[str, Any]:
 _SCENARIO_INDEX_CACHE: dict[str, Any] = {"key": None, "index": {}}
 _CATALOG_TOUCH_CACHE: dict[str, Any] = {"map": None}
 
-# actorUserAgent fingerprints. Real browser / Electron desktop clients = UI;
-# scripted HTTP clients (our GraphQL curls, SDKs, tools) = BE.
-_UI_UA_MARKERS = (
-    "mozilla",
-    "chrome",
-    "safari",
-    "firefox",
-    "electron",
-    "monotypenextgen",
-    "applewebkit",
-    "gecko",
-    "edg/",
-)
-_BE_UA_MARKERS = (
-    "python",
-    "httpx",
-    "curl",
-    "wget",
-    "node-fetch",
-    "axios",
-    "postmanruntime",
-    "go-http",
-    "okhttp",
-    "java/",
-    "apache-httpclient",
-    "requests/",
-    "undici",
-    "insomnia",
-)
-
-
-def _classify_channel(source: dict[str, Any]) -> str:
-    """UI vs BE from the event's own metadata (actorUserAgent / platform).
-
-    A real browser or the Monotype NextGen Electron desktop app → ``UI``. A
-    scripted GraphQL client (curl/httpx/etc.) or no client fingerprint on a
-    non-NextGen platform → ``BE``.
-    """
-    ua = str(source.get("actorUserAgent") or "").lower()
-    platform = str(source.get("platform") or "").lower()
-    env = str(source.get("platformEnvironment") or "").lower()
-    if any(m in ua for m in _BE_UA_MARKERS):
-        return "BE"
-    if any(m in ua for m in _UI_UA_MARKERS):
-        return "UI"
-    # No UA fingerprint: a NextGen client on app/web/plugin is still a UI action.
-    if platform == "nextgen" or env in {"app", "web", "plugin"}:
-        return "UI"
-    return "BE"
-
 
 def _catalog_touches() -> dict[str, list[str]]:
     """operation → known short touchpoints (global/list/project/…), from FLOW_DEFS."""
@@ -1787,12 +1739,10 @@ def _owned_correlation_index() -> dict[str, str]:
 
 
 def _annotate_scenarios(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Tag every row with a UI/BE channel (from event data) and a scenario label.
+    """Tag every row with a scenario label (touchpoint), without UI/BE channel.
 
-    - ``channel``: derived from the event's own actorUserAgent/platform, so all
-      UI-origin events are marked ``(UI)`` (not only the ones we staged).
-    - ``scenario``: authoritative label when the correlation matches a staged
-      sample, else inferred from the mutation input's touchpoint signals.
+    ``scenario`` is authoritative when the correlation matches a staged sample,
+    else inferred from the mutation input's touchpoint signals.
     """
     idx = _owned_correlation_index()
     catalog = _catalog_touches()
@@ -1800,8 +1750,9 @@ def _annotate_scenarios(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
         doc = row.get("message") if isinstance(row.get("message"), dict) else {}
         source = doc.get("source") if isinstance(doc.get("source"), dict) else {}
         op = str(row.get("source.operation") or source.get("operation") or "")
-        # Channel from the event itself — this is the ground truth of who fired it.
-        row["channel"] = _classify_channel(source)
+        # UI/BE channel badges retired for now — UA heuristics were misleading
+        # (UI runs often looked like BE). Keep platformEnvironment badges only.
+        row.pop("channel", None)
         cid = row.get("xCorrelationId") or row.get("correlationId") or ""
         if cid in idx:
             row["scenario"] = idx[cid]

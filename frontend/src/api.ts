@@ -318,8 +318,9 @@ export async function fetchEnrichedSample(operation: string) {
   return res.json() as Promise<{ operation: string; enriched: Record<string, unknown> }>;
 }
 
-export async function deleteLatestResult(operation: string) {
-  const res = await fetch(`${API}/api/results/latest/${encodeURIComponent(operation)}`, {
+export async function deleteLatestResult(operation: string, target?: string) {
+  const query = target ? `?target=${encodeURIComponent(target)}` : "";
+  const res = await fetch(`${API}/api/results/latest/${encodeURIComponent(operation)}${query}`, {
     method: "DELETE",
   });
   if (!res.ok) throw new Error(await res.text());
@@ -711,6 +712,7 @@ export type FailureSummaryGroup = {
 };
 
 export type FailureSummary = {
+  audit_target?: string;
   total_fail_rows: number;
   distinct_patterns?: number;
   operations_with_fails?: number;
@@ -719,8 +721,8 @@ export type FailureSummary = {
   error?: string;
 };
 
-export async function fetchFailureSummary() {
-  const res = await fetch(`${API}/api/results/failure-summary`);
+export async function fetchFailureSummary(target: string = "qa") {
+  const res = await fetch(`${API}/api/results/failure-summary?target=${encodeURIComponent(target)}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<FailureSummary>;
 }

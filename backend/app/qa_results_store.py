@@ -73,6 +73,24 @@ def _results_mongo_url() -> str:
     return urlunparse(parsed._replace(query=urlencode(q)))
 
 
+def _socket_timeout_ms() -> int:
+    """Per-op socket timeout. Large scenario docs (~1–2MB field rows) need headroom."""
+    raw = (os.getenv("RESULTS_MONGO_SOCKET_TIMEOUT_MS") or "").strip()
+    try:
+        return max(60_000, int(raw)) if raw else 300_000
+    except ValueError:
+        return 300_000
+
+
+def _sync_chunk_size() -> int:
+    """Docs per bulk_write. Default 1 — multi-MB scenarios time out in batches."""
+    raw = (os.getenv("RESULTS_MONGO_SYNC_CHUNK") or "").strip()
+    try:
+        return max(1, min(25, int(raw))) if raw else 1
+    except ValueError:
+        return 1
+
+
 def _get_client():
     global _client
     url = _results_mongo_url()
@@ -86,11 +104,24 @@ def _get_client():
                 url,
                 serverSelectionTimeoutMS=20000,
                 connectTimeoutMS=20000,
-                socketTimeoutMS=120000,
+                socketTimeoutMS=_socket_timeout_ms(),
                 retryReads=True,
                 retryWrites=True,
             )
         return _client
+
+
+def _reset_client() -> None:
+    """Drop cached client after write timeouts / broken sockets."""
+    global _client
+    with _lock:
+        old = _client
+        _client = None
+    if old is not None:
+        try:
+            old.close()
+        except Exception:
+            pass
 
 
 def _get_collection(*, original: bool = False) -> Collection | None:
@@ -223,13 +254,24 @@ def _friendly_write_error(exc: BaseException) -> str:
             "TLS/SSL failed talking to Results Mongo. "
             "Check Atlas cluster health, then retry Sync."
         )
+    if "timed out" in low or "timeout" in low:
+        return (
+            "Results Mongo write timed out (large scenario payloads). "
+            "Retry Sync — pending docs are written one-at-a-time with retries. "
+            f"Detail: {msg[:280]}"
+        )
     return msg[:500]
 
 
 def upsert_many(items: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    """Bulk upsert live ``QA Result`` docs (insert new, replace existing)."""
-    col = _get_write_collection(original=False)
-    if col is None:
+    """Upsert live ``QA Result`` docs (insert new, replace existing).
+
+    Writes in small chunks (default 1) with per-chunk retries so multi‑MB
+    field-row documents do not trip a single bulk_write socket timeout.
+    """
+    import time
+
+    if _get_write_collection(original=False) is None:
         return {"ok": False, "upserted": 0, "error": "RESULTS_MONGO_URL not set"}
     ops: list[UpdateOne] = []
     for scenario, item in items.items():
@@ -240,43 +282,97 @@ def upsert_many(items: dict[str, dict[str, Any]]) -> dict[str, Any]:
         ops.append(UpdateOne({"scenario": sc}, {"$set": doc}, upsert=True))
     if not ops:
         return {"ok": True, "upserted": 0, "matched": 0, "total": 0}
-    try:
-        # Chunk large batches — full field rows make each doc multi‑MB.
-        upserted = modified = matched = 0
-        chunk_size = 5
-        for i in range(0, len(ops), chunk_size):
-            result = col.bulk_write(ops[i : i + chunk_size], ordered=False)
-            upserted += int(result.upserted_count or 0)
-            modified += int(result.modified_count or 0)
-            matched += int(result.matched_count or 0)
+
+    upserted = modified = matched = 0
+    chunk_size = _sync_chunk_size()
+    failures: list[str] = []
+    for i in range(0, len(ops), chunk_size):
+        chunk = ops[i : i + chunk_size]
+        last_exc: BaseException | None = None
+        for attempt in range(1, 4):
+            try:
+                col = _get_write_collection(original=False)
+                if col is None:
+                    return {
+                        "ok": False,
+                        "upserted": upserted,
+                        "modified": modified,
+                        "matched": matched,
+                        "total": len(ops),
+                        "error": "RESULTS_MONGO_URL not set",
+                    }
+                result = col.bulk_write(chunk, ordered=False)
+                upserted += int(result.upserted_count or 0)
+                modified += int(result.modified_count or 0)
+                matched += int(result.matched_count or 0)
+                last_exc = None
+                break
+            except PyMongoError as exc:
+                last_exc = exc
+                logger.warning(
+                    "QA Result upsert chunk %s-%s attempt %s failed: %s",
+                    i,
+                    i + len(chunk),
+                    attempt,
+                    exc,
+                )
+                _reset_client()
+                time.sleep(min(2 * attempt, 6))
+        if last_exc is not None:
+            failures.append(_friendly_write_error(last_exc))
+            # Continue remaining chunks so one timeout does not block the rest.
+            continue
+
+    if failures:
         return {
-            "ok": True,
+            "ok": False,
             "upserted": upserted,
             "modified": modified,
             "matched": matched,
             "total": len(ops),
+            "failed_chunks": len(failures),
+            "error": failures[0],
             "database": _db_name(),
             "collection": _live_collection_name(),
         }
-    except PyMongoError as exc:
-        logger.warning("QA Result bulk upsert failed: %s", exc)
-        return {"ok": False, "upserted": 0, "error": _friendly_write_error(exc)}
+    return {
+        "ok": True,
+        "upserted": upserted,
+        "modified": modified,
+        "matched": matched,
+        "total": len(ops),
+        "database": _db_name(),
+        "collection": _live_collection_name(),
+    }
 
 
-def delete_scenario(scenario: str) -> bool:
-    """Delete from live ``QA Result`` only."""
-    col = _get_write_collection(original=False)
-    if col is None:
+def delete_scenario(scenario: str, *, include_original: bool = True) -> bool:
+    """Delete exact scenario from live ``QA Result`` and ``QA_Original``."""
+    scenario_clean = str(scenario or "").strip()
+    if not scenario_clean:
         return False
-    scenario = str(scenario or "").strip()
-    if not scenario:
-        return False
-    try:
-        col.delete_one({"scenario": scenario})
-        return True
-    except PyMongoError as exc:
-        logger.warning("QA Result delete failed for %s: %s", scenario, exc)
-        return False
+    deleted = False
+    for is_orig in ([False, True] if include_original else [False]):
+        col = _get_write_collection(original=is_orig)
+        if col is None:
+            continue
+        try:
+            res = col.delete_many({
+                "$or": [
+                    {"scenario": scenario_clean},
+                    {"operation": scenario_clean},
+                ]
+            })
+            if res.deleted_count > 0:
+                deleted = True
+        except PyMongoError as exc:
+            logger.warning(
+                "QA Result delete failed for %s (orig=%s): %s",
+                scenario_clean,
+                is_orig,
+                exc,
+            )
+    return deleted
 
 
 def clear_all_scenarios() -> int:
@@ -389,17 +485,23 @@ def seed_qa_original_once(items: dict[str, dict[str, Any]] | None = None) -> dic
     if col is None:
         return {"ok": False, "inserted": 0, "error": "RESULTS_MONGO_URL not set"}
     try:
-        existing = col.estimated_document_count()
+        # Prefer exact count — estimated_document_count can lag and allow double-seed.
+        existing = int(col.count_documents({}))
         if existing > 0:
             return {
                 "ok": True,
                 "inserted": 0,
                 "skipped": True,
-                "existing": int(existing),
+                "existing": existing,
                 "database": _db_name(),
                 "collection": _original_collection_name(),
                 "message": "QA_Original already populated — left unchanged",
             }
+        # Unique scenario key so concurrent seeds cannot double-insert.
+        try:
+            col.create_index("scenario", unique=True, name="scenario_unique")
+        except PyMongoError:
+            pass
     except PyMongoError as exc:
         return {"ok": False, "inserted": 0, "error": str(exc)}
 
@@ -431,6 +533,17 @@ def seed_qa_original_once(items: dict[str, dict[str, Any]] | None = None) -> dic
             "collection": _original_collection_name(),
         }
     except PyMongoError as exc:
+        # Duplicate key from a concurrent seed → treat as already populated.
+        low = str(exc).lower()
+        if "duplicate" in low:
+            return {
+                "ok": True,
+                "inserted": 0,
+                "skipped": True,
+                "message": "QA_Original already populated (concurrent seed)",
+                "database": _db_name(),
+                "collection": _original_collection_name(),
+            }
         logger.warning("QA_Original seed: %s", exc)
         return {
             "ok": True,
@@ -440,6 +553,40 @@ def seed_qa_original_once(items: dict[str, dict[str, Any]] | None = None) -> dic
             "database": _db_name(),
             "collection": _original_collection_name(),
         }
+
+
+def dedupe_qa_original() -> dict[str, Any]:
+    """Keep one document per ``scenario`` in QA_Original; delete extras."""
+    col = _get_write_collection(original=True)
+    if col is None:
+        return {"ok": False, "deleted": 0, "error": "RESULTS_MONGO_URL not set"}
+    try:
+        pipeline = [
+            {"$group": {"_id": "$scenario", "ids": {"$push": "$_id"}, "n": {"$sum": 1}}},
+            {"$match": {"n": {"$gt": 1}}},
+        ]
+        deleted = 0
+        for grp in col.aggregate(pipeline):
+            ids = list(grp.get("ids") or [])
+            if len(ids) < 2:
+                continue
+            # Keep the first id; drop the rest.
+            drop = ids[1:]
+            res = col.delete_many({"_id": {"$in": drop}})
+            deleted += int(res.deleted_count or 0)
+        try:
+            col.create_index("scenario", unique=True, name="scenario_unique")
+        except PyMongoError:
+            pass
+        remaining = int(col.count_documents({}))
+        return {
+            "ok": True,
+            "deleted": deleted,
+            "remaining": remaining,
+            "collection": _original_collection_name(),
+        }
+    except PyMongoError as exc:
+        return {"ok": False, "deleted": 0, "error": str(exc)}
 
 
 def sync_qa_local_store(project_root) -> dict[str, Any]:
@@ -489,7 +636,16 @@ def sync_qa_local_store(project_root) -> dict[str, Any]:
             "mode": reason,
         }
 
-    result = upsert_many(to_sync)
+    # Smaller payloads first so one huge doc cannot block the whole sync.
+    ordered = dict(
+        sorted(
+            to_sync.items(),
+            key=lambda kv: len(kv[1].get("rows") or [])
+            if isinstance(kv[1], dict)
+            else 0,
+        )
+    )
+    result = upsert_many(ordered)
     result["mode"] = reason
     result["pending"] = len(to_sync)
     result["local_total"] = len(local)

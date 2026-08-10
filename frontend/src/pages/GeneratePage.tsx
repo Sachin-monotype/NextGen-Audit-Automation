@@ -96,7 +96,7 @@ type ListModalState = {
   rows: Array<Record<string, string | number>>;
 };
 
-function isUiOrAppEvent(item: DropdownItem): boolean {
+export function _isUiOrAppEvent(item: DropdownItem): boolean {
   if (item.id.startsWith("ingress:plugin_")) return false;
   if (item.kind === "graphql") return true;
   if (item.id.startsWith("ingress:app_")) return true;

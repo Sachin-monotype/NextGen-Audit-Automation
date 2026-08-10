@@ -785,7 +785,6 @@ function LogCard({
 }) {
   const op = row["source.operation"] || "(unknown)";
   const cid = row.xCorrelationId || row.correlationId || "";
-  const channel = row.channel;
   const [payload, setPayload] = useState<Record<string, unknown> | null>(
     row.message && typeof row.message === "object" ? row.message : null,
   );
@@ -845,11 +844,6 @@ function LogCard({
                 </span>
               );
             })()}
-            {channel && (
-              <span className={`channel-badge ${channel.toLowerCase()}`} title="Client channel">
-                ({channel})
-              </span>
-            )}
           </span>
           <span className="meta-chip"><strong>state</strong> {row["source.operationState"]}</span>
           <span className="meta-chip"><strong>service</strong> {row["source.service"]}</span>

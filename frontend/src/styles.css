@@ -3001,6 +3001,9 @@ button.primary.sm {
 .token-cred-modal {
   width: min(420px, 100%);
 }
+.confirm-delete-modal {
+  width: min(480px, 100%);
+}
 .token-cred-form {
   display: grid;
   gap: 10px;

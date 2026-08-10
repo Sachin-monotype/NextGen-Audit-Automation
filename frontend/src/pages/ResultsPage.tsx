@@ -379,6 +379,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const [failureLog, setFailureLog] = useState<FailureSummary | null>(null);
   const [failureLogBusy, setFailureLogBusy] = useState(false);
   const [showFailureLog, setShowFailureLog] = useState(false);
+  const [failureLogFilter, setFailureLogFilter] = useState("");
   const [fieldSearch, setFieldSearch] = useState("");
   const [scenarioCompareOps, setScenarioCompareOps] = useState<string[] | null>(null);
   const [scenarioCompareMode, setScenarioCompareMode] = useState<ScenarioCompareMode>("values");
@@ -420,9 +421,14 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     setFailureLogBusy(true);
     setShowFailureLog(true);
     try {
-      setFailureLog(await fetchFailureSummary());
-    } catch {
-      setFailureLog({ total_fail_rows: 0, groups: [], error: "Could not load failure summary" });
+      const summary = await fetchFailureSummary(resultsTarget);
+      setFailureLog(summary);
+      console.log(
+        `[Failure Log] Target '${resultsTarget.toUpperCase()}': Loaded ${summary.total_fail_rows} total FAIL row(s) with ${summary.distinct_patterns ?? summary.groups.length} unique failed case pattern(s) across ${summary.operations_with_fails} operation(s).`,
+        summary
+      );
+    } catch (e: any) {
+      setFailureLog({ total_fail_rows: 0, groups: [], error: String(e?.message || e || "Could not load failure summary") });
     } finally {
       setFailureLogBusy(false);
     }
@@ -485,23 +491,32 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     }
   }, [highlightSet]);
 
-  const onDeleteResult = useCallback(
-    async (operation: string) => {
-      if (!window.confirm(`Delete stored result for "${operation}"?`)) return;
-      setDeletingOp(operation);
-      try {
-        await deleteLatestResult(operation);
-        if (filterOp === operation) clearFilters();
-        loadLatest();
-      } catch {
-        /* surfaced via reload */
-      } finally {
-        setDeletingOp(null);
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filterOp, loadLatest],
-  );
+  const [deleteTargetOp, setDeleteTargetOp] = useState<string | null>(null);
+
+  const onRequestDeleteResult = useCallback((operation: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const details = (e.target as HTMLElement).closest("details");
+      if (details) details.removeAttribute("open");
+    }
+    setDeleteTargetOp(operation);
+  }, []);
+
+  const confirmDeleteResult = useCallback(async () => {
+    if (!deleteTargetOp) return;
+    setDeletingOp(deleteTargetOp);
+    try {
+      await deleteLatestResult(deleteTargetOp, resultsTarget);
+      if (filterOp === deleteTargetOp) clearFilters();
+      loadLatest();
+    } catch {
+      /* surfaced via reload */
+    } finally {
+      setDeletingOp(null);
+      setDeleteTargetOp(null);
+    }
+  }, [deleteTargetOp, filterOp, loadLatest, resultsTarget]);
 
   useEffect(() => {
     fetchCategories().then(setCategories).catch(() => {});
@@ -1451,6 +1466,21 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
         </div>
       )}
 
+      {scrollRestoreY !== null && (
+        <div className="scroll-top-wrap" style={{ marginBottom: 12 }}>
+          <button
+            type="button"
+            className="primary outline"
+            onClick={() => {
+              window.scrollTo({ top: scrollRestoreY, behavior: "smooth" });
+              setScrollRestoreY(null);
+            }}
+          >
+            ↑ Jump back to top of list
+          </button>
+        </div>
+      )}
+
       {detailOpLoading && filterOp && (
         <p className="muted">Loading field comparison for {filterOp}…</p>
       )}
@@ -1470,57 +1500,116 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
 
       {showFailureLog && failureLog && (
         <div className="modal-backdrop" onClick={() => setShowFailureLog(false)} role="presentation">
-          <div className="modal-card" onClick={(e) => e.stopPropagation()} role="dialog">
+          <div
+            className="modal-card"
+            style={{ maxWidth: 1050, width: "94%" }}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+          >
             <div className="modal-head">
-              <strong>Failure log</strong>
-              <span className="muted">
-                · {failureLog.total_fail_rows} FAIL row{failureLog.total_fail_rows === 1 ? "" : "s"}
-                {failureLog.operations_with_fails != null
-                  ? ` · ${failureLog.operations_with_fails} ops`
-                  : ""}
-              </span>
+              <div>
+                <strong>Failure log ({resultsTarget.toUpperCase()})</strong>
+                <span className="muted" style={{ marginLeft: 8 }}>
+                  · <strong>{failureLog.total_fail_rows}</strong> total FAIL row{failureLog.total_fail_rows === 1 ? "" : "s"}
+                  {failureLog.distinct_patterns != null ? (
+                    <> · <strong>{failureLog.distinct_patterns}</strong> unique failed case{failureLog.distinct_patterns === 1 ? "" : "s"}</>
+                  ) : null}
+                  {failureLog.operations_with_fails != null ? (
+                    <> · <strong>{failureLog.operations_with_fails}</strong> op{failureLog.operations_with_fails === 1 ? "" : "s"}</>
+                  ) : null}
+                </span>
+              </div>
               <button type="button" className="link-btn" onClick={() => setShowFailureLog(false)}>
                 close ✕
               </button>
             </div>
             {failureLog.error && <p className="error">{failureLog.error}</p>}
+
+            {(failureLog.groups || []).length > 0 && (
+              <div style={{ margin: "10px 0" }}>
+                <input
+                  type="text"
+                  placeholder="Filter unique failure cases by field, pattern, operation, or source..."
+                  value={failureLogFilter}
+                  onChange={(e) => setFailureLogFilter(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px",
+                    borderRadius: 6,
+                    border: "1px solid var(--border-color, #ccc)",
+                    fontSize: "0.85rem",
+                  }}
+                />
+              </div>
+            )}
+
             {(failureLog.groups || []).length === 0 ? (
-              <p className="muted">No FAIL rows in the latest comparison store.</p>
+              <p className="muted" style={{ padding: "16px 0" }}>No FAIL rows present in the {resultsTarget.toUpperCase()} comparison store.</p>
             ) : (
               <div className="result-table-wrap compact-table-wrap">
                 <table className="result-table">
                   <thead>
                     <tr>
-                      <th>#</th>
-                      <th>Pattern</th>
-                      <th>Field</th>
+                      <th title="Total occurrences of this failure pattern"># Fails</th>
+                      <th>Unique Failure Case / Pattern</th>
+                      <th>Field Path</th>
                       <th>Source</th>
-                      <th>Ops</th>
-                      <th>Investigate</th>
+                      <th>Affected Ops</th>
+                      <th>Investigation & Hints</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {failureLog.groups.map((g) => (
-                      <tr key={g.key}>
-                        <td><strong>{g.count}</strong></td>
-                        <td><code>{g.pattern}</code></td>
-                        <td><code>{g.field_path}</code></td>
-                        <td>{g.source_system}</td>
-                        <td className="muted" title={g.operations.join(", ")}>
-                          {g.operations.slice(0, 4).join(", ")}
-                          {g.operations.length > 4 ? ` +${g.operations.length - 4}` : ""}
-                        </td>
-                        <td>
-                          {g.sample_notes && <div className="muted">{g.sample_notes}</div>}
-                          {g.mongo_query && (
-                            <pre className="failure-log-pre">{g.mongo_query}</pre>
-                          )}
-                          {g.curl && (
-                            <pre className="failure-log-pre">{g.curl}</pre>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                    {failureLog.groups
+                      .filter((g) => {
+                        if (!failureLogFilter.trim()) return true;
+                        const q = failureLogFilter.toLowerCase();
+                        return (
+                          g.pattern.toLowerCase().includes(q) ||
+                          g.field_path.toLowerCase().includes(q) ||
+                          g.source_system.toLowerCase().includes(q) ||
+                          g.sample_notes.toLowerCase().includes(q) ||
+                          g.operations.some((op) => op.toLowerCase().includes(q))
+                        );
+                      })
+                      .map((g) => (
+                        <tr key={g.key}>
+                          <td>
+                            <strong style={{ color: "#d9381e", fontSize: "0.95rem" }}>
+                              {g.count}
+                            </strong>
+                          </td>
+                          <td>
+                            <code style={{ color: "#c0392b", fontWeight: 600 }}>{g.pattern}</code>
+                          </td>
+                          <td>
+                            <code>{g.field_path}</code>
+                          </td>
+                          <td>{g.source_system}</td>
+                          <td className="muted" title={g.operations.join(", ")}>
+                            {g.operations.slice(0, 4).join(", ")}
+                            {g.operations.length > 4 ? ` +${g.operations.length - 4}` : ""}
+                          </td>
+                          <td>
+                            {g.sample_notes && <div className="muted">{g.sample_notes}</div>}
+                            {g.sample_source && (
+                              <div className="muted" style={{ fontSize: "0.75rem", marginTop: 2 }}>
+                                Source: <code>{g.sample_source}</code>
+                              </div>
+                            )}
+                            {g.sample_enriched && (
+                              <div className="muted" style={{ fontSize: "0.75rem", marginTop: 2 }}>
+                                Enriched: <code>{g.sample_enriched}</code>
+                              </div>
+                            )}
+                            {g.mongo_query && (
+                              <pre className="failure-log-pre">{g.mongo_query}</pre>
+                            )}
+                            {g.curl && (
+                              <pre className="failure-log-pre">{g.curl}</pre>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
@@ -2155,7 +2244,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                                 type="button"
                                 className="danger"
                                 disabled={deletingOp === r.operation}
-                                onClick={() => onDeleteResult(r.operation)}
+                                onClick={(e) => onRequestDeleteResult(r.operation, e)}
                               >
                                 {deletingOp === r.operation ? "Deleting…" : "Delete result"}
                               </button>
@@ -2325,7 +2414,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                   type="button"
                   className="danger"
                   disabled={deletingOp === filterOp}
-                  onClick={() => void onDeleteResult(filterOp)}
+                  onClick={(e) => onRequestDeleteResult(filterOp, e)}
                 >
                   {deletingOp === filterOp ? "Deleting…" : "Delete result"}
                 </button>
@@ -2349,10 +2438,11 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                         {scenario && scenario !== "default" ? (
                           <span className="result-group-scenario">{scenario}</span>
                         ) : null}
+                        <span className="result-group-count">
+                          {failCount ? `${failCount} fail / ${total}` : `${total} pass`}
+                        </span>
                       </span>
                       <span className="result-group-meta">
-                        <span className="result-group-fields">{total} field{total === 1 ? "" : "s"}</span>
-                        {failCount > 0 && <span className="result-group-attention">{failCount} to review</span>}
                         <span className="chevron">{open ? "▾" : "▸"}</span>
                       </span>
                     </button>
@@ -2371,6 +2461,43 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
           </p>
         )}
       </div>
+
+      {deleteTargetOp && (
+        <div className="modal-backdrop" onClick={() => setDeleteTargetOp(null)} role="presentation">
+          <div className="modal-card confirm-delete-modal" onClick={(e) => e.stopPropagation()} role="dialog">
+            <div className="modal-head">
+              <h3>Delete Stored Result</h3>
+              <button type="button" className="icon-btn" onClick={() => setDeleteTargetOp(null)} title="Close">
+                ✕
+              </button>
+            </div>
+            <div className="modal-body" style={{ padding: "0.75rem 0 1rem" }}>
+              <p style={{ margin: "0 0 0.75rem 0", fontSize: "0.95rem", color: "var(--text-main)" }}>
+                Are you sure you want to delete the stored result for:
+              </p>
+              <div style={{ background: "var(--bg-subtle, #f3f4f6)", padding: "0.75rem 1rem", borderRadius: "6px", fontFamily: "monospace", fontWeight: 600, color: "#b91c1c", wordBreak: "break-all" }}>
+                {deleteTargetOp}
+              </div>
+              <p style={{ margin: "0.75rem 0 0", fontSize: "0.85rem", color: "var(--text-muted, #6b7280)" }}>
+                This will remove stored field validation records for this event from the active environment view ({resultsTarget.toUpperCase()}).
+              </p>
+            </div>
+            <div className="modal-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1rem" }}>
+              <button type="button" onClick={() => setDeleteTargetOp(null)} disabled={Boolean(deletingOp)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="danger"
+                disabled={Boolean(deletingOp)}
+                onClick={() => void confirmDeleteResult()}
+              >
+                {deletingOp ? "Deleting…" : "Delete Result"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

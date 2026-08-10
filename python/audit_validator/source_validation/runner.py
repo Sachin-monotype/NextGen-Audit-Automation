@@ -130,6 +130,7 @@ def _font_ops() -> frozenset[str]:
         "bulkActivateStyles", "bulkDeactivateStyles", "addFavoriteStyles", "addFavoriteFamilies",
         "activateList", "deActivateList", "deactivateFamilies", "deactivateVariation",
         "bulkTagStyles", "bulkUntagStyles", "addFontListStyles", "removeFontListStyles",
+        "pluginMissingFontResolved", "pluginMissingFontDetected", "pluginMissingFontUnresolved",
     })
     return frozenset(out)
 
@@ -272,7 +273,7 @@ def _prefetch_discovery(
         # fontActivationTypeSwitched / bulkMarkAsProductionFontsRequest never get
         # their Discovery documents fetched and every font field falsely FAILs.
         snap = (enriched.get("subject") or {}).get("enrichedSnapshot") or {}
-        if op not in _font_ops() and not snap.get("fontDetails"):
+        if op not in _font_ops() and not snap.get("fontDetails") and not snap.get("variations"):
             continue
         family_ids.update(_family_ids_from_enriched(enriched))
         style_ids.update(_style_ids_from_enriched(enriched))
@@ -1198,6 +1199,12 @@ def _variation_md5s_from_enriched(enriched: JsonDict) -> list[str]:
         m = str(md5 or "").strip()
         if m:
             out.append(m)
+    sub_id = subject.get("id")
+    if isinstance(sub_id, list):
+        for item in sub_id:
+            m = str(item or "").strip()
+            if m and len(m) == 32 and not m.isdigit():
+                out.append(m)
     meta = subject.get("metadata") or {}
     for item in (meta.get("input") or {}).get("variations") or []:
         if isinstance(item, dict):
@@ -1218,6 +1225,12 @@ def _variation_md5s_from_enriched(enriched: JsonDict) -> list[str]:
                 md5 = str((cat or {}).get("md5") or var.get("md5") or "").strip()
                 if md5:
                     out.append(md5)
+    for var in snap.get("variations") or []:
+        if isinstance(var, dict):
+            cat = var.get("catalog") if isinstance(var.get("catalog"), dict) else var
+            md5 = str((cat or {}).get("md5") or var.get("md5") or "").strip()
+            if md5:
+                out.append(md5)
     return list(dict.fromkeys(out))
 
 
