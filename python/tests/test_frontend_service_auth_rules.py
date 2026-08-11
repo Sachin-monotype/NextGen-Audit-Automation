@@ -59,6 +59,41 @@ def test_connect_login_keeps_connect_service():
     )
 
 
+def test_plugin_ops_keep_plugin_service_not_mtconnect_api():
+    enriched = {
+        "source": {
+            "service": "Plugin",
+            "platformEnvironment": "plugin",
+            "operation": "pluginPanelOpened",
+        }
+    }
+    for op in (
+        "pluginPanelOpened(illustrator)",
+        "pluginPanelClosed(pages)",
+        "pluginDocumentOpened(keynotes)",
+        "pluginFontAutoActivated(numbers)",
+    ):
+        assert _expected_source_service(op, enriched) == "Plugin"
+        assert (
+            _normalize_app_ui_trigger_field(
+                "source.service",
+                "mtconnect-api",
+                enriched=enriched,
+                trigger={"source": {"service": "mtconnect-api"}},
+                operation=op,
+            )
+            == "Plugin"
+        )
+    # Op name alone is enough even if enriched service is missing.
+    assert (
+        _expected_source_service(
+            "pluginPanelOpened(illustrator)",
+            {"source": {"platformEnvironment": "plugin"}},
+        )
+        == "Plugin"
+    )
+
+
 def test_auth_state_authenticated_when_gcid_and_guid():
     enriched = {
         "actor": {

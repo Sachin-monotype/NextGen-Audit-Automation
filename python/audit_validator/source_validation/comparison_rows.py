@@ -1514,23 +1514,23 @@ def _expected_source_service(operation: str, enriched: JsonDict) -> str | None:
     enriched_src = enriched.get("source") if isinstance(enriched.get("source"), dict) else {}
     enr = str((enriched_src or {}).get("service") or "").strip()
     pe = str((enriched_src or {}).get("platformEnvironment") or "").strip().lower()
-    if enr == "MonotypeNextGenConnectService":
-        return enr
-    # Plugin ingress publishes source.service="Plugin" in the payload itself.
-    if enr == "Plugin" or pe == "plugin":
-        return enr or "Plugin"
     base = _base_operation(operation)
-    # Peel nested display labels: activateFamily(global)(app) → activateFamily
     while "(" in base:
         base = base.split("(", 1)[0].strip() or base
         break
-    if base.lower().startswith("plugin"):
+    op_l = str(operation or "").lower()
+    is_plugin_op = base.lower().startswith("plugin") or op_l.startswith("plugin")
+
+    if enr == "MonotypeNextGenConnectService":
+        return enr
+    # Plugin ingress publishes source.service="Plugin" in the payload itself.
+    # Never rewrite to mtconnect-api even when the display label has (app).
+    if enr == "Plugin" or pe == "plugin" or is_plugin_op:
         return enr or "Plugin"
     if base in _CONNECT_SERVICE_OPS:
         return "MonotypeNextGenConnectService"
     if base in _MTCONNECT_UI_OPS:
         return "mtconnect-ui"
-    op_l = str(operation or "").lower()
     # Only rewrite known frontend envelopes — never force api onto cron/backend/plugin.
     if enr in {"mtconnect-api", "mtconnect-ui"} or "(app)" in op_l:
         return "mtconnect-api"
@@ -1559,7 +1559,8 @@ def _normalize_app_ui_trigger_field(
     """Align trigger stubs with real app/GQL envelope expectations.
 
     - ``source.service``: GQL frontend → ``mtconnect-api``; app-shell + fontSimilar/
-      fontPairs → ``mtconnect-ui``; Connect login → ``MonotypeNextGenConnectService``.
+      fontPairs → ``mtconnect-ui``; Connect login → ``MonotypeNextGenConnectService``;
+      plugin → ``Plugin`` from payload/enriched (never mtconnect-api).
     - ``source.platformVersion`` / ``source.actorUserAgent``: prefer request headers
       (``User-Agent``, ``X-Unified-Version``) then enriched body — do not invent ``1.0.0.0``.
     - ``actor.authenticationState``: ``authenticated`` when gcid + guid are present.
@@ -1576,6 +1577,11 @@ def _normalize_app_ui_trigger_field(
         expected = _expected_source_service(op, enriched)
         if expected:
             return expected
+        # Last line of defense: never keep invented api when enriched says Plugin.
+        enr = str((enriched_src or {}).get("service") or "").strip()
+        trig = str(value or "").strip()
+        if enr == "Plugin" or str(op).lower().startswith("plugin"):
+            return enr or trig or "Plugin"
         return value
 
     if path == "source.platformVersion":
