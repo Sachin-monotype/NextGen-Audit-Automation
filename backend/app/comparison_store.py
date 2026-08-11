@@ -572,6 +572,29 @@ def _clean_app_ui_be_defaults(
                 }
                 changed = True
 
+        # Plugin activationMode/Type false positives from invented GQL defaults.
+        elif (
+            status == "FAIL"
+            and fp in {"subject.activationMode", "subject.activationType"}
+            and enr
+            and src
+            and src != enr
+        ):
+            op_l = str(r.get("operation") or "").lower()
+            note_l = notes.lower()
+            if op_l.startswith("plugin") or "resolver default" in note_l or (
+                src in {"manual", "permanent"} and enr in {"auto", "temporary"}
+            ):
+                r = {
+                    **r,
+                    "value_in_source": enr,
+                    "match_status": "PASS",
+                    "notes": "Plugin subject activation (accepted from enriched)",
+                    "source_api": "Audit ingress body (plugin subject)",
+                    "source_system": "Trigger",
+                }
+                changed = True
+
         out.append(r)
     return out, changed
 

@@ -42,13 +42,14 @@ class ComparisonRow:
 # Font-list activation ops attach a list asset snapshot for context; lists are often
 # deleted during test cleanup before Compare runs — don't SKIP every asset.* field.
 # Font activation / deactivation ops — default subject.activationType/activationMode when blank.
+# Do NOT include plugin* ops — plugin payloads carry their own activationMode/Type
+# (auto/manual, temporary/permanent) and GQL defaults create false FAILs.
 _ACTIVATION_DEFAULT_OPS = frozenset({
     "activateFamily",
     "activateFontProject",
     "activateList",
     "activateStyle",
     "activateVariation",
-    "pluginFontAutoActivated",
     "bulkActivateAll",
     "bulkActivateComplete",
     "bulkActivateLists",
@@ -91,17 +92,56 @@ def _activation_field_pair(
     path: str,
     enriched: JsonDict,
     live: dict[str, Any],
+    *,
+    operation: str = "",
 ) -> tuple[str, str, str]:
-    """Return (source_value, enriched_value, note) with defaults when blank."""
+    """Return (source_value, enriched_value, note) with defaults when blank.
+
+    Plugin Connect events publish activationMode/Type on the ingress subject —
+    never invent GraphQL ``permanent`` / ``manual`` defaults for those.
+    """
     default = _ACTIVATION_FIELD_DEFAULTS.get(path, "")
     leaf = path.rsplit(".", 1)[-1]
+    base = _base_operation(operation) if operation else ""
+    while "(" in base:
+        base = base.split("(", 1)[0].strip() or base
+        break
+    is_plugin = base.lower().startswith("plugin")
+
+    # Prefer audit-ingress subject (Excel / plugin payload) over GraphQL input.
+    trigger = live.get("trigger") if isinstance(live.get("trigger"), dict) else {}
+    ingress_subj = (
+        trigger.get("ingress_subject")
+        if isinstance(trigger.get("ingress_subject"), dict)
+        else {}
+    )
+    if not ingress_subj:
+        subj = trigger.get("subject") if isinstance(trigger.get("subject"), dict) else {}
+        ingress_subj = subj if isinstance(subj, dict) else {}
+
+    from_ingress = _coerce_activation_value(ingress_subj.get(leaf)) if ingress_subj else ""
     inp = _read_mutation_input(enriched, live)
     sent = _coerce_activation_value(inp.get(leaf))
     enriched_raw = _coerce_activation_value(_dig(enriched, path))
-    source_val = sent or default
+
+    if is_plugin:
+        # Payload / enriched are source of truth for plugin activation fields.
+        source_val = from_ingress or enriched_raw
+        enriched_val = enriched_raw or from_ingress
+        if from_ingress:
+            note = "Audit ingress body (plugin subject)"
+        elif enriched_raw:
+            note = "Plugin enriched subject (accepted from event)"
+        else:
+            note = "Plugin activation field not present"
+        return source_val, enriched_val, note
+
+    source_val = sent or from_ingress or default
     enriched_val = enriched_raw or default
     if sent:
         note = "GraphQL mutation input (value sent)"
+    elif from_ingress:
+        note = "Audit ingress body"
     elif enriched_raw:
         note = "Enriched resolver value"
     else:
@@ -127,7 +167,7 @@ def _append_activation_default_rows(
             continue
         if allow is not None and norm not in allow:
             continue
-        sv, ev, note = _activation_field_pair(path, enriched, live)
+        sv, ev, note = _activation_field_pair(path, enriched, live, operation=operation)
         field, node, sub = display_node_subnode(norm)
         status = "PASS" if values_equivalent(sv, ev, field_path=norm) else "FAIL"
         extra.append(
