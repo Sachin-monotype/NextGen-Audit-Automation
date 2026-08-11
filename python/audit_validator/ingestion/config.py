@@ -124,6 +124,16 @@ def load_ingestion_config(
         resolved = ingest_mongo_databases()
         databases = tuple(resolved) if resolved else (_env("MONGO_DB_NAME", "AuditLogsPreprod"),)
 
+    bindings = [
+        QueueBinding("raw", raw_queue, raw_col),
+        QueueBinding("enriched", enriched_queue, enriched_col),
+        QueueBinding("dlq", dlq_queue, dlq_col),
+    ]
+    if raw_queue != "mt_test_raw":
+        bindings.append(QueueBinding("raw_test", "mt_test_raw", raw_col))
+    if enriched_queue != "mt_test enrich":
+        bindings.append(QueueBinding("enriched_test", "mt_test enrich", enriched_col))
+
     return IngestionConfig(
         rabbitmq_url=rabbitmq_url or _env("INGEST_RABBITMQ_URL", _env("RABBITMQ_URL", "amqp://localhost:5672/%2F")),
         mongo_url=mongo_url or _env("MONGO_DB_URL", "mongodb://localhost:27017"),
@@ -143,11 +153,7 @@ def load_ingestion_config(
         auto_purge_enabled=_env_bool("INGEST_AUTO_PURGE", False),
         auto_purge_interval_sec=_env_int("INGEST_AUTO_PURGE_INTERVAL_SEC", 3600),
         auto_purge_min_ready=_env_int("INGEST_AUTO_PURGE_MIN_READY", 500),
-        bindings=[
-            QueueBinding("raw", raw_queue, raw_col),
-            QueueBinding("enriched", enriched_queue, enriched_col),
-            QueueBinding("dlq", dlq_queue, dlq_col),
-        ],
+        bindings=bindings,
     )
 
 

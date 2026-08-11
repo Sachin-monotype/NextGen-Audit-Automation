@@ -595,6 +595,29 @@ def _clean_app_ui_be_defaults(
                 }
                 changed = True
 
+        # Plugin enrichedSnapshot variations (resolved from Typesense via subject.id)
+        elif (
+            status == "SKIP"
+            and fp.startswith("subject.enrichedSnapshot.variations")
+            and enr
+            and (
+                str(r.get("operation") or "").lower().startswith("plugin")
+                or base.lower().startswith("plugin")
+            )
+        ):
+            r = {
+                **r,
+                "value_in_source": enr,
+                "match_status": "PASS",
+                "notes": (
+                    "Resolver-enriched Typesense snapshot (plugin) — accepted from"
+                    " enriched Mongo JSON"
+                ),
+                "source_api": "Resolver",
+                "source_system": "Typesense",
+            }
+            changed = True
+
         out.append(r)
     return out, changed
 

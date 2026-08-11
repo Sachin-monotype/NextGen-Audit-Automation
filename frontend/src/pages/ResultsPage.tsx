@@ -112,24 +112,25 @@ function scenarioChannelRank(operation: string, platformEnvironment?: string): n
   return 1;
 }
 
-type ResultChannel = "web" | "app" | "cron";
+type ResultChannel = "web" | "app" | "plugin" | "cron";
 
-/** Classify using operation label first for ``(app)``, then platformEnvironment / cron. */
+/** Classify using operation label first for ``(plugin)``/``(app)``, then platformEnvironment. */
 function resultChannel(
   operation: string,
   cronBases: Set<string>,
   platformEnvironment?: string,
 ): ResultChannel {
   const op = String(operation || "").trim();
-  // Explicit channel suffix wins — pe can be wrong/stale on older docs.
+  if (/\(plugin\)$/i.test(op)) return "plugin";
   if (/\(app\)$/i.test(op)) return "app";
   if (/\(web\)$/i.test(op)) return "web";
   const pe = String(platformEnvironment || "").trim().toLowerCase();
+  if (pe === "plugin") return "plugin";
   if (pe === "app") return "app";
   if (pe === "web") return "web";
-  if (pe === "plugin") return "cron"; // plugin host scenarios filtered under cron/other channel
-  if (pe && pe !== "web" && pe !== "app") return "cron";
   const base = op.includes("(") ? op.slice(0, op.indexOf("(")) : op;
+  if (base.toLowerCase().startsWith("plugin")) return "plugin";
+  if (pe && pe !== "web" && pe !== "app" && pe !== "plugin") return "cron";
   if (cronBases.has(op) || cronBases.has(base)) return "cron";
   if (/^[a-z0-9]+(-[a-z0-9]+)+$/i.test(base)) return "cron";
   return "web";
@@ -998,10 +999,14 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   }, [allCoverageRows]);
 
   const channelCounts = useMemo(() => {
-    const counts = { all: 0, web: 0, app: 0, cron: 0 };
+    const counts = { all: 0, web: 0, app: 0, plugin: 0, cron: 0 };
     for (const r of allCoverageRows) {
       const ch = r.channel || resultChannel(r.operation, cronBases, r.platformEnvironment);
-      counts[ch] += 1;
+      if (ch in counts) {
+        counts[ch as keyof typeof counts] += 1;
+      } else {
+        counts.cron += 1;
+      }
       counts.all += 1;
     }
     return counts;
@@ -1901,11 +1906,12 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                   onChange={(e) =>
                     setCoverageChannel(e.target.value as "all" | ResultChannel)
                   }
-                  title="Filter by source.platformEnvironment (web / app / cron)"
+                  title="Filter by source.platformEnvironment (web / app / plugin / cron)"
                 >
                   <option value="all">All ({channelCounts.all})</option>
                   <option value="web">Web ({channelCounts.web})</option>
                   <option value="app">App ({channelCounts.app})</option>
+                  <option value="plugin">Plugin ({channelCounts.plugin})</option>
                   <option value="cron">Cron / other ({channelCounts.cron})</option>
                 </select>
               </label>
