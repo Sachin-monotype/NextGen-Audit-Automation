@@ -129,9 +129,9 @@ def load_ingestion_config(
         QueueBinding("enriched", enriched_queue, enriched_col),
         QueueBinding("dlq", dlq_queue, dlq_col),
     ]
-    if raw_queue != "mt_test_raw":
+    if raw_queue != "mt_test_raw" and _env_bool("INGEST_ADD_TEST_QUEUES", False):
         bindings.append(QueueBinding("raw_test", "mt_test_raw", raw_col))
-    if enriched_queue != "mt_test enrich":
+    if enriched_queue != "mt_test enrich" and _env_bool("INGEST_ADD_TEST_QUEUES", False):
         bindings.append(QueueBinding("enriched_test", "mt_test enrich", enriched_col))
 
     return IngestionConfig(
@@ -170,11 +170,17 @@ def load_ingest_lanes(
         profile = get_audit_profile(target)
         lane_rmq = _rabbitmq_url_for_vhost(base_rmq, profile.rabbitmq_vhost)
         mongo_db = mongo_db_for_profile(profile)
+        lane_bindings = [
+            QueueBinding("raw", profile.ingress_raw_queue, "raw"),
+            QueueBinding("enriched", profile.ingress_enriched_queue, "enriched"),
+            QueueBinding("dlq", root.bindings[2].queue, "dlq"),
+        ]
         lane_config = replace(
             root,
             rabbitmq_url=lane_rmq,
             mongo_db=mongo_db,
             mongo_databases=(mongo_db,),
+            bindings=lane_bindings,
         )
         lanes.append(
             IngestLaneConfig(
