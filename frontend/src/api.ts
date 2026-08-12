@@ -327,6 +327,16 @@ export async function deleteLatestResult(operation: string, target?: string) {
   return res.json() as Promise<{ deleted: string; ok: boolean }>;
 }
 
+export async function bulkDeleteResults(operations: string[], target?: string) {
+  const res = await fetch(`${API}/api/results/latest/bulk-delete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ operations, target: target || "qa" }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{ deleted: string[]; count: number; ok: boolean }>;
+}
+
 export async function clearAllResults() {
   const res = await fetch(`${API}/api/results/latest`, { method: "DELETE" });
   if (!res.ok) throw new Error(await res.text());

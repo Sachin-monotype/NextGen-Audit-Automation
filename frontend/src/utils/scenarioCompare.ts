@@ -190,11 +190,13 @@ export function compareScenarioValues(
   for (const rows of byOp.values()) {
     for (const r of rows) paths.add(r.field_path);
   }
-  // Merge metadata.input paths from enriched samples (often missing from stored rows).
+  // Merge all paths from enriched JSON samples as well as stored comparison rows.
   if (enrichedByOp) {
     for (const op of operations) {
       const meta = collectMetadataInputPaths(enrichedByOp[op] ?? null);
       for (const p of meta.keys()) paths.add(p);
+      const struct = collectStructureEntries(enrichedByOp[op] ?? null);
+      for (const p of struct.keys()) paths.add(p);
     }
   }
 
@@ -209,12 +211,17 @@ export function compareScenarioValues(
       const values: Record<string, string> = {};
       for (const op of operations) {
         const row = byOp.get(op)?.find((r) => r.field_path === field_path);
-        if (row?.value_in_enriched?.trim()) {
+        if (row?.value_in_enriched !== undefined && row?.value_in_enriched !== null && row?.value_in_enriched !== "") {
           values[op] = row.value_in_enriched;
           continue;
         }
         const meta = collectMetadataInputPaths(enrichedByOp?.[op] ?? null);
-        values[op] = formatValue(meta.get(field_path));
+        if (meta.has(field_path)) {
+          values[op] = formatValue(meta.get(field_path));
+          continue;
+        }
+        const struct = collectStructureEntries(enrichedByOp?.[op] ?? null);
+        values[op] = struct.get(field_path) ?? "—";
       }
       const uniq = new Set(operations.map((op) => values[op]));
       return {

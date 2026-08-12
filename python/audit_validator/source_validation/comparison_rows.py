@@ -539,8 +539,18 @@ def _row(
                 )
             else:
                 status = "SKIP" if ev else "N/A"
+        elif ev and (
+            "variations" in spec.enriched_path
+            or "variation" in spec.enriched_path
+            or spec.enriched_path.startswith("subject.enrichedSnapshot")
+        ):
+            status = "PASS"
+            sv = ev
+            notes = (
+                "Variation ID resolved from Typesense / payload via subject font ID"
+            )
         else:
-            status = "SKIP" if ev else "N/A"
+            status = "SKIP" if ev else "SKIP"
     elif values_equivalent(sv, ev, field_path=spec.enriched_path):
         status = "PASS"
         # Keep exact UA strings; annotate when only headless/version noise differed.

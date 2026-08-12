@@ -376,6 +376,27 @@ def list_comparison_operations() -> dict[str, Any]:
     return {"count": len(index), "operations": index}
 
 
+class BulkDeleteResultsPayload(BaseModel):
+    operations: list[str]
+    target: str = "qa"
+
+
+@app.post("/api/results/latest/bulk-delete")
+def bulk_delete_operation_results(
+    payload: BulkDeleteResultsPayload,
+) -> dict[str, Any]:
+    """Delete a list of selected comparison results."""
+    from .comparison_store import delete_operation_result
+
+    deleted: list[str] = []
+    for op in payload.operations:
+        if delete_operation_result(
+            settings.audit_project_root, op, target=payload.target
+        ):
+            deleted.append(op)
+    return {"deleted": deleted, "count": len(deleted), "ok": True}
+
+
 @app.delete("/api/results/latest")
 def clear_comparison_results() -> dict[str, Any]:
     """Delete every stored comparison (clears the Result view)."""

@@ -12,6 +12,7 @@ import {
   fetchOperationSources,
   fetchPipelineConfig,
   deleteLatestResult,
+  bulkDeleteResults,
   exportComparisonExcel,
   refreshStoredComparisons,
   syncResultsToMongo,
@@ -23,7 +24,6 @@ import {
   type LatestComparisonItem,
 } from "../api";
 import {
-  compareScenarioDiscriminators,
   compareScenarioStructure,
   compareScenarioValues,
   structureDiffSummary,
@@ -112,7 +112,68 @@ function scenarioChannelRank(operation: string, platformEnvironment?: string): n
   return 1;
 }
 
-type ResultChannel = "web" | "app" | "plugin" | "cron";
+type ResultChannel = "web" | "app" | "app-ingress" | "plugin" | "cron";
+
+const APP_INGRESS_EVENTS = new Set([
+  "app.settings.plugin.install_all.enabled",
+  "appSettingsPluginInstallAllEnabled",
+  "app.settings.plugin.install_all.disabled",
+  "appSettingsPluginInstallAllDisabled",
+  "app.settings.plugin.app.enabled",
+  "appSettingsPluginAppEnabled",
+  "app.settings.performance_mode.changed",
+  "appSettingsPerformanceModeChanged",
+  "app.settings.auto_performance.enabled",
+  "appSettingsAutoPerformanceEnabled",
+  "app.settings.auto_performance.disabled",
+  "appSettingsAutoPerformanceDisabled",
+  "app.settings.activation_mode.changed",
+  "appSettingsActivationModeChanged",
+  "app.logs.exported",
+  "appLogsExported",
+  "app.network.refreshed",
+  "appNetworkRefreshed",
+  "appHealthStatusRefreshed",
+  "app.language.changed",
+  "appLanguageChanged",
+  "app.feedback.submitted",
+  "appFeedbackSubmitted",
+  "app.cache.cleared",
+  "appCacheCleared",
+  "fontSyncSuccess",
+  "font.activation.type.switched",
+  "fontActivationTypeSwitched",
+  "font.temp_activated",
+  "fontTempActivated",
+  "font.localfont.activated",
+  "fontLocalfontActivated",
+  "font.localfont.deactivated",
+  "fontLocalfontDeactivated",
+  "userLoginInitiatedApp",
+  "userLoginFailureApp",
+  "userLogoutApp",
+  "userSwitchworkspaceApp",
+  "identityLinked",
+]);
+
+function isAppIngressEvent(op: string): boolean {
+  const base = op.split("(", 1)[0].trim();
+  if (APP_INGRESS_EVENTS.has(base) || APP_INGRESS_EVENTS.has(op)) return true;
+  if (
+    base.startsWith("app.settings.") ||
+    base.startsWith("appSettings") ||
+    base.startsWith("font.localfont.") ||
+    base.startsWith("font.activation.") ||
+    base.startsWith("app.logs.") ||
+    base.startsWith("app.network.") ||
+    base.startsWith("app.language.") ||
+    base.startsWith("app.feedback.") ||
+    base.startsWith("app.cache.")
+  ) {
+    return true;
+  }
+  return false;
+}
 
 /** Classify using operation label first for ``(plugin)``/``(app)``, then platformEnvironment. */
 function resultChannel(
@@ -122,10 +183,12 @@ function resultChannel(
 ): ResultChannel {
   const op = String(operation || "").trim();
   if (/\(plugin\)$/i.test(op)) return "plugin";
+  if (isAppIngressEvent(op)) return "app-ingress";
   if (/\(app\)$/i.test(op)) return "app";
   if (/\(web\)$/i.test(op)) return "web";
   const pe = String(platformEnvironment || "").trim().toLowerCase();
   if (pe === "plugin") return "plugin";
+  if (isAppIngressEvent(op)) return "app-ingress";
   if (pe === "app") return "app";
   if (pe === "web") return "web";
   const base = op.includes("(") ? op.slice(0, op.indexOf("(")) : op;
@@ -389,7 +452,6 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const [scenarioCompareError, setScenarioCompareError] = useState("");
   const [scenarioValueRows, setScenarioValueRows] = useState<ScenarioValueRow[]>([]);
   const [scenarioStructureRows, setScenarioStructureRows] = useState<ScenarioStructureRow[]>([]);
-  const [scenarioDiscriminatorRows, setScenarioDiscriminatorRows] = useState<ScenarioStructureRow[]>([]);
   const [scenarioStructureFilter, setScenarioStructureFilter] = useState("");
   const [scenarioShowAllDiffs, setScenarioShowAllDiffs] = useState(false);
   /**
@@ -955,13 +1017,37 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     });
   }
 
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  async function onBulkDeleteSelected() {
+    if (!selectedOps.size) return;
+    const ops = [...selectedOps];
+    if (
+      !window.confirm(
+        `Are you sure you want to delete ${ops.length} selected comparison result(s) from Mongo and local store?`,
+      )
+    ) {
+      return;
+    }
+    setIsBulkDeleting(true);
+    try {
+      await bulkDeleteResults(ops, resultsTarget);
+      setSelectedOps(new Set());
+      loadLatest();
+    } catch (err) {
+      alert(`Delete failed: ${String(err)}`);
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  }
+
   async function openScenarioCompare(ops: string[]) {
-    if (ops.length < 2 || !latest?.items) return;
+    if (ops.length < 2) return;
     setScenarioCompareOps(ops);
-    setScenarioCompareMode("discriminators");
+    setScenarioCompareMode("values");
     setScenarioCompareError("");
     setScenarioCompareBusy(true);
-    setScenarioShowAllDiffs(false);
+    setScenarioShowAllDiffs(true);
     setScenarioStructureFilter("");
     try {
       const enrichedByOp: Record<string, unknown | null> = {};
@@ -973,14 +1059,13 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
           enrichedByOp[op] = null;
         }
       }
-      setScenarioValueRows(compareScenarioValues(ops, latest.items, enrichedByOp));
+      const itemsToPass = latest?.items && latest.items.length > 0 ? latest.items : [];
+      setScenarioValueRows(compareScenarioValues(ops, itemsToPass, enrichedByOp));
       setScenarioStructureRows(compareScenarioStructure(ops, enrichedByOp as Record<string, unknown>));
-      setScenarioDiscriminatorRows(compareScenarioDiscriminators(ops, enrichedByOp));
     } catch (e) {
       setScenarioCompareError(String(e));
       setScenarioValueRows([]);
       setScenarioStructureRows([]);
-      setScenarioDiscriminatorRows([]);
     } finally {
       setScenarioCompareBusy(false);
     }
@@ -999,7 +1084,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   }, [allCoverageRows]);
 
   const channelCounts = useMemo(() => {
-    const counts = { all: 0, web: 0, app: 0, plugin: 0, cron: 0 };
+    const counts = { all: 0, web: 0, app: 0, "app-ingress": 0, plugin: 0, cron: 0 };
     for (const r of allCoverageRows) {
       const ch = r.channel || resultChannel(r.operation, cronBases, r.platformEnvironment);
       if (ch in counts) {
@@ -1645,13 +1730,6 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
             <div className="result-view-toggle" role="group" aria-label="Scenario compare mode">
               <button
                 type="button"
-                className={scenarioCompareMode === "discriminators" ? "active" : ""}
-                onClick={() => setScenarioCompareMode("discriminators")}
-              >
-                Scenario keys
-              </button>
-              <button
-                type="button"
                 className={scenarioCompareMode === "values" ? "active" : ""}
                 onClick={() => setScenarioCompareMode("values")}
               >
@@ -1667,59 +1745,6 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
             </div>
             {scenarioCompareError && <p className="error">{scenarioCompareError}</p>}
             {scenarioCompareBusy && <p className="muted">Loading enriched JSON for scenario diff…</p>}
-            {!scenarioCompareBusy && scenarioCompareMode === "discriminators" && (
-              <>
-                <p className="muted" style={{ marginBottom: 8 }}>
-                  Touchpoint-specific fields from <code>subject.metadata.input</code> (listIds, listType,
-                  projectIds, …) — what makes list vs global vs project different.
-                  {scenarioDiscriminatorRows.length > 0
-                    ? ` ${scenarioDiscriminatorRows.length} difference(s).`
-                    : " No differences found — check enriched samples loaded."}
-                </p>
-                <div className="result-table-wrap compact-table-wrap">
-                  <table className="result-table">
-                    <thead>
-                      <tr>
-                        <th>Metadata input path</th>
-                        {scenarioCompareOps.map((op) => (
-                          <th key={op}>{op}</th>
-                        ))}
-                        <th>Diff</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {scenarioDiscriminatorRows.length === 0 ? (
-                        <tr>
-                          <td colSpan={scenarioCompareOps.length + 2} className="muted">
-                            No scenario-key differences — enriched samples may be missing metadata.input.
-                          </td>
-                        </tr>
-                      ) : (
-                        scenarioDiscriminatorRows.map((r) => (
-                          <tr key={r.path} className={r.kind === "value" ? "fail" : "skip"}>
-                            <td><code>{r.path}</code></td>
-                            {scenarioCompareOps.map((op) => (
-                              <td key={op} className="result-list-value">
-                                {r.presence[op] ? (
-                                  <code>{r.values[op]}</code>
-                                ) : (
-                                  <span className="badge na">—</span>
-                                )}
-                              </td>
-                            ))}
-                            <td>
-                              <span className={`badge ${r.kind === "value" ? "fail" : "skip"}`}>
-                                {r.kind === "value" ? "VALUE" : "ONLY ONE"}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
             {!scenarioCompareBusy && scenarioCompareMode === "values" ? (
               <>
                 <label className="filter-field" style={{ marginBottom: 8, display: "flex", gap: 12, alignItems: "center" }}>
@@ -1906,11 +1931,12 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                   onChange={(e) =>
                     setCoverageChannel(e.target.value as "all" | ResultChannel)
                   }
-                  title="Filter by source.platformEnvironment (web / app / plugin / cron)"
+                  title="Filter by source.platformEnvironment (web / app / app-ingress / plugin / cron)"
                 >
                   <option value="all">All ({channelCounts.all})</option>
                   <option value="web">Web ({channelCounts.web})</option>
                   <option value="app">App ({channelCounts.app})</option>
+                  <option value="app-ingress">App Ingress ({channelCounts["app-ingress"]})</option>
                   <option value="plugin">Plugin ({channelCounts.plugin})</option>
                   <option value="cron">Cron / other ({channelCounts.cron})</option>
                 </select>
@@ -2026,19 +2052,31 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
               <span className="muted">Select shown</span>
             </label>
             {selectedOps.size >= 1 && (
-              <button
-                type="button"
-                className="primary outline"
-                disabled={exportBusy}
-                onClick={() => {
-                  setExportBusy(true);
-                  void exportComparisonExcel([...selectedOps], resultsTarget)
-                    .catch((e) => setRefreshError(String(e)))
-                    .finally(() => setExportBusy(false));
-                }}
-              >
-                {exportBusy ? "Exporting…" : `Excel (${selectedOps.size})`}
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="primary outline"
+                  disabled={exportBusy}
+                  onClick={() => {
+                    setExportBusy(true);
+                    void exportComparisonExcel([...selectedOps], resultsTarget)
+                      .catch((e) => setRefreshError(String(e)))
+                      .finally(() => setExportBusy(false));
+                  }}
+                >
+                  {exportBusy ? "Exporting…" : `Excel (${selectedOps.size})`}
+                </button>
+                <button
+                  type="button"
+                  className="button danger"
+                  disabled={isBulkDeleting}
+                  style={{ marginLeft: 8 }}
+                  onClick={onBulkDeleteSelected}
+                  title="Delete selected results from Mongo Atlas & local store"
+                >
+                  {isBulkDeleting ? "Deleting…" : `Delete selected (${selectedOps.size})`}
+                </button>
+              </>
             )}
             {selectedOps.size >= 2 && (
               <button
