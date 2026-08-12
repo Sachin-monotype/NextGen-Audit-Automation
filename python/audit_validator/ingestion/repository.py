@@ -34,6 +34,22 @@ _INDEX_DEFINITIONS: list[tuple[list[tuple[str, int]], str]] = [
 ]
 
 
+_BSON_INT64_MAX = 9_223_372_036_854_775_807
+_BSON_INT64_MIN = -9_223_372_036_854_775_808
+
+
+def _sanitize_doc(obj: Any) -> Any:
+    """Recursively convert out-of-range ints to float so BSON can store them."""
+    if isinstance(obj, dict):
+        return {k: _sanitize_doc(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_doc(v) for v in obj]
+    if isinstance(obj, int) and not isinstance(obj, bool):
+        if obj > _BSON_INT64_MAX or obj < _BSON_INT64_MIN:
+            return float(obj)
+    return obj
+
+
 class MongoWriter:
     def __init__(self, url: str, database: str) -> None:
         self._client: MongoClient = MongoClient(url, serverSelectionTimeoutMS=10000)
@@ -72,8 +88,10 @@ class MongoWriter:
         """
         if not documents:
             return 0
+        # Sanitize oversized ints (e.g. nanosecond timestamps) that BSON cannot store.
+        safe_docs = [_sanitize_doc(d) for d in documents]
         try:
-            result = self.collection(collection_name).insert_many(documents, ordered=False)
+            result = self.collection(collection_name).insert_many(safe_docs, ordered=False)
             return len(result.inserted_ids)
         except BulkWriteError as exc:
             write_errors = exc.details.get("writeErrors", []) if isinstance(exc.details, dict) else []
