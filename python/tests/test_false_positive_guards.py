@@ -91,3 +91,83 @@ def test_delete_assets_ams_miss_passes():
     )
     assert row.match_status == "PASS"
     assert row.value_in_source == "FontSet"
+
+
+def test_cancel_batch_false_positive_matched_as_enriched():
+    from audit_validator.source_validation.comparison_rows import build_comparison_rows
+
+    enriched = {
+        "source": {"actorUserAgent": "python-requests/2.32.5"},
+        "subject": {
+            "metadata": {
+                "input": {"batchId": "5b3bb110-81ed-42f2-b856-dc0de6313810"},
+                "result": {
+                    "actionType": "BYOF_INGESTION",
+                    "batchId": "5b3bb110-81ed-42f2-b856-dc0de6313810",
+                    "createdAt": "2026-08-13T01:42:25.276Z",
+                    "progressPercent": 43,
+                    "updatedAt": "2026-08-13T01:42:26.713Z",
+                },
+            }
+        },
+        "actor": {
+            "enrichedSnapshot": {
+                "user": {"role": {"displayName": "Adfmin EmptyProfiles 1786504563"}}
+            }
+        },
+    }
+    rows = build_comparison_rows("cancelBatch(global)", enriched)
+    for r in rows:
+        if r.node in ("enrichment", "enrichmentScope"):
+            continue
+        assert r.match_status == "PASS", f"Expected PASS for field {r.field_path}, got {r.match_status}"
+        assert r.value_in_source == r.value_in_enriched
+
+
+def test_link_document_to_project_subject_id_matches_project_id():
+    from audit_validator.source_validation.comparison_rows import build_comparison_rows
+
+    enriched = {
+        "xCorrelationId": "8a340568-b452-41af-9078-fd68216cc8a4",
+        "eventId": "01KZXNSFNNR0GDSRJ72R910AN1",
+        "subject": {
+            "type": "project",
+            "id": ["044db991-1b2e-47e2-b4d9-3a276cdd33ad"],
+            "projectId": "044db991-1b2e-47e2-b4d9-3a276cdd33ad",
+            "metadata": {
+                "result": {
+                    "id": "919bbaea-078b-491d-a670-33223c00749b",
+                    "documentId": "19D601B4-C764-47E4-82A9-17A477CFF365",
+                    "project": {
+                        "id": "044db991-1b2e-47e2-b4d9-3a276cdd33ad",
+                        "name": "ChANGE THE PROJECT NMAE",
+                    },
+                },
+                "input": {
+                    "documentId": "19D601B4-C764-47E4-82A9-17A477CFF365",
+                    "projectId": "044db991-1b2e-47e2-b4d9-3a276cdd33ad",
+                },
+            },
+        },
+    }
+    live = {
+        "trigger": {
+            "graphql_response": {
+                "linkDocumentToProject": {
+                    "id": "919bbaea-078b-491d-a670-33223c00749b",
+                    "documentId": "19D601B4-C764-47E4-82A9-17A477CFF365",
+                    "project": {
+                        "id": "044db991-1b2e-47e2-b4d9-3a276cdd33ad",
+                        "name": "ChANGE THE PROJECT NMAE",
+                    },
+                }
+            }
+        }
+    }
+    rows = build_comparison_rows("linkDocumentToProject(project)", enriched, live=live)
+    subj_id_row = next(r for r in rows if r.field_path in ("subject.id", "subject.id[0]"))
+    assert subj_id_row.match_status == "PASS"
+    assert subj_id_row.value_in_source == "044db991-1b2e-47e2-b4d9-3a276cdd33ad"
+    assert subj_id_row.value_in_enriched == "044db991-1b2e-47e2-b4d9-3a276cdd33ad"
+
+

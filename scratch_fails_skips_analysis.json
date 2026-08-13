@@ -1,0 +1,3091 @@
+[
+  {
+    "scenario": "activateList(project_list)",
+    "summary": {
+      "passed": 155,
+      "failed": 2,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[0]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "34",
+        "value_in_enriched": "22",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "font.activation.success"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[1]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "19",
+        "value_in_enriched": "34",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "font.activation.success"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "bulkDeactivateLists(list)",
+    "summary": {
+      "passed": 996,
+      "failed": 0,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.listId",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "",
+        "value_in_enriched": "848c76c4-8402-4dc5-aa48-5234782a2dc0",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "font.deactivation.success"
+      }
+    ]
+  },
+  {
+    "scenario": "bulkActivateLists(list)",
+    "summary": {
+      "passed": 996,
+      "failed": 0,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.listIds[0]",
+        "source_system": "GraphQL",
+        "source_api": "mutation response id list (join key)",
+        "value_in_source": "",
+        "value_in_enriched": "848c76c4-8402-4dc5-aa48-5234782a2dc0",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "font.activation.success"
+      }
+    ]
+  },
+  {
+    "scenario": "deleteImportedFonts(global)",
+    "summary": {
+      "passed": 105,
+      "failed": 0,
+      "skipped": 5,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "actor.enrichedSnapshot.user.source",
+        "source_system": "Resolver",
+        "source_api": "constant",
+        "value_in_source": "user-management-service",
+        "value_in_enriched": "user-management-service",
+        "notes": "Validation=N \u2014 not compared to external source (Resolver)",
+        "routing_key": "byof.font.deleted"
+      },
+      {
+        "field_path": "eventId",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "01KZ3PSQDDN4X4N7NSSCD5BH2Y",
+        "value_in_enriched": "01KZ3PSQDDN4X4N7NSSCD5BH2Y",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": "byof.font.deleted"
+      },
+      {
+        "field_path": "eventVersion",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "1",
+        "value_in_enriched": "1",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": "byof.font.deleted"
+      },
+      {
+        "field_path": "source.operationIndex",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "0",
+        "value_in_enriched": "0",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": "byof.font.deleted"
+      },
+      {
+        "field_path": "source.platformVersion",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "1.0.0",
+        "value_in_enriched": "1.0.0",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": "byof.font.deleted"
+      }
+    ]
+  },
+  {
+    "scenario": "addFontListFamilies(project_list)",
+    "summary": {
+      "passed": 1012,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[0]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "34",
+        "value_in_enriched": "22",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.list.font_added"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "removeFavoriteStyles(favourite)",
+    "summary": {
+      "passed": 137,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.metadata.result.success",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "False",
+        "value_in_enriched": "True",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": "font.favorite.removed"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "ExportTeams(manage)",
+    "summary": {
+      "passed": 96,
+      "failed": 0,
+      "skipped": 8,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "eventId",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "01KZ419SSJJ4TWEYVPBY84JNEK",
+        "value_in_enriched": "01KZ419SSJJ4TWEYVPBY84JNEK",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "eventVersion",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "1",
+        "value_in_enriched": "1",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "source.operationIndex",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "0",
+        "value_in_enriched": "0",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "source.operationState",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "success",
+        "value_in_enriched": "success",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "source.platform",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "nextGen",
+        "value_in_enriched": "nextGen",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "source.platformVersion",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "1.0.0",
+        "value_in_enriched": "1.0.0",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "source.service",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "mtconnect-api",
+        "value_in_enriched": "mtconnect-api",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "xCorrelationId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "value_in_source": "b2c26f97-4d28-4390-8f9b-e6b00584866b",
+        "value_in_enriched": "b2c26f97-4d28-4390-8f9b-e6b00584866b",
+        "notes": "Published event xCorrelationId (same audit envelope)",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "updatePrivateTag(manage)",
+    "summary": {
+      "passed": 111,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.tags[0].stylesCount",
+        "source_system": "UMS/Search",
+        "source_api": "private tags index",
+        "value_in_source": "96",
+        "value_in_enriched": "0",
+        "notes": "Discovery GET /v1/privateTag/{id}",
+        "routing_key": "user.tag.updated"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "updateAsset(global)",
+    "summary": {
+      "passed": 5606,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[1]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "25",
+        "value_in_enriched": "19",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.asset.updated"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "fontSimilarViewed(global)",
+    "summary": {
+      "passed": 152,
+      "failed": 0,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot",
+        "source_system": "Audit enricher scope",
+        "source_api": "",
+        "value_in_source": "Sample has subject.enrichedSnapshot but enricher is not subject-scoped",
+        "value_in_enriched": "snapshot present",
+        "notes": "",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "bulkAddStylesToList(list)(app)",
+    "summary": {
+      "passed": 227,
+      "failed": 2,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.styleIds[0]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "7ee14f63-6a7c-4298-af8d-4adb6db240cf",
+        "value_in_enriched": "920519483",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": "library.list.font_added"
+      },
+      {
+        "field_path": "subject.styleIds[1]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "7ee14f63-6a7c-4298-af8d-4adb6db240cf",
+        "value_in_enriched": "920519491",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": "library.list.font_added"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "addFavoriteFamilies(global)(app)",
+    "summary": {
+      "passed": 1415,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "source.operationState",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "success",
+        "value_in_enriched": "failure",
+        "notes": "GraphQL curl / event trigger",
+        "routing_key": "font.favorite.added"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "addFavoriteFamilies(favourite)(app)",
+    "summary": {
+      "passed": 246,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "source.operationState",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "success",
+        "value_in_enriched": "failure",
+        "notes": "GraphQL curl / event trigger",
+        "routing_key": "font.favorite.added"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "removeFavoriteFamilies(favourite)(app)",
+    "summary": {
+      "passed": 246,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "source.operationState",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "success",
+        "value_in_enriched": "failure",
+        "notes": "GraphQL curl / event trigger",
+        "routing_key": "font.favorite.removed"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "addFavoriteStyles(favourite)(app)",
+    "summary": {
+      "passed": 159,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "source.operationState",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "success",
+        "value_in_enriched": "failure",
+        "notes": "GraphQL curl / event trigger",
+        "routing_key": "font.favorite.added"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "fontPairsViewed(global)",
+    "summary": {
+      "passed": 175,
+      "failed": 0,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot",
+        "source_system": "Audit enricher scope",
+        "source_api": "",
+        "value_in_source": "Sample has subject.enrichedSnapshot but enricher is not subject-scoped",
+        "value_in_enriched": "snapshot present",
+        "notes": "",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "bulkCopyAssets(mylibrary_assets)",
+    "summary": {
+      "passed": 292,
+      "failed": 2,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[0]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "26",
+        "value_in_enriched": "22",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.asset.copied"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[1]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "19",
+        "value_in_enriched": "26",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.asset.copied"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "bulkDeactivateLists(project)",
+    "summary": {
+      "passed": 201,
+      "failed": 2,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[0]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "34",
+        "value_in_enriched": "22",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "font.deactivation.success"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[1]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "19",
+        "value_in_enriched": "34",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "font.deactivation.success"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "bulkActivateLists(project)",
+    "summary": {
+      "passed": 201,
+      "failed": 2,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[0]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "34",
+        "value_in_enriched": "22",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "font.activation.success"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[1]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "19",
+        "value_in_enriched": "34",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "font.activation.success"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "createUploadSession",
+    "summary": {
+      "passed": 87,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "xCorrelationId",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "ddd6f168-a160-4b2f-aaeb-044dfd15160d",
+        "value_in_enriched": "bab59cc4-23dc-4ea0-a43b-05ad69d528e4",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": "document.scan.session_created"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "getPackageId",
+    "summary": {
+      "passed": 139,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.metadata.result.packageId",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "ea35decb-7652-4db7-a4fe-4fbcc6455300",
+        "value_in_enriched": "e25d2d45-3c31-424a-8809-2f2e872c0723",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": "font.download.completed"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "appSettingsActivationModeChanged",
+    "summary": {
+      "passed": 70,
+      "failed": 0,
+      "skipped": 2,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.activationMode",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "",
+        "value_in_enriched": "documentclose",
+        "notes": "GraphQL mutation response not captured for this run",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.activationType",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "",
+        "value_in_enriched": "permanent",
+        "notes": "GraphQL mutation response not captured for this run",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "addFontListFamilies(project_list)(app)",
+    "summary": {
+      "passed": 995,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[0]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "34",
+        "value_in_enriched": "22",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.list.font_added"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "deleteAssets(default)(app)",
+    "summary": {
+      "passed": 109,
+      "failed": 2,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "source.operationState",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "value_in_source": "failure",
+        "value_in_enriched": "success",
+        "notes": "Trigger envelope",
+        "routing_key": "library.asset.deleted"
+      },
+      {
+        "field_path": "subject.metadata.result.success",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "False",
+        "value_in_enriched": "True",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": "library.asset.deleted"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "createWebProject(default)(app)",
+    "summary": {
+      "passed": 211,
+      "failed": 0,
+      "skipped": 4,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.styles[0].id",
+        "source_system": "Trigger",
+        "source_api": "Audit ingress body (subject)",
+        "value_in_source": "",
+        "value_in_enriched": "920515441",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "library.webkit.created"
+      },
+      {
+        "field_path": "subject.styles[0].isEmbedded",
+        "source_system": "Trigger",
+        "source_api": "Audit ingress body (subject)",
+        "value_in_source": "",
+        "value_in_enriched": "True",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "library.webkit.created"
+      },
+      {
+        "field_path": "subject.styles[1].id",
+        "source_system": "Trigger",
+        "source_api": "Audit ingress body (subject)",
+        "value_in_source": "",
+        "value_in_enriched": "920515442",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "library.webkit.created"
+      },
+      {
+        "field_path": "subject.styles[1].isEmbedded",
+        "source_system": "Trigger",
+        "source_api": "Audit ingress body (subject)",
+        "value_in_source": "",
+        "value_in_enriched": "True",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "library.webkit.created"
+      }
+    ]
+  },
+  {
+    "scenario": "finalizeAssetAttachments(default)(app)",
+    "summary": {
+      "passed": 116,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.updatedAt",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "2026-08-08T06:19:39.000Z",
+        "value_in_enriched": "2026-08-07T16:11:20.000Z",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.asset.attachments_finalized"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "updateAsset(default)(app)",
+    "summary": {
+      "passed": 2869,
+      "failed": 2,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.fontDetails[0].family.catalog.name_en",
+        "source_system": "Typesense",
+        "source_api": "POST /v1/styles",
+        "value_in_source": "HelveticaNeueLT Com 95 Blk",
+        "value_in_enriched": "Neue Helvetica&reg",
+        "notes": "",
+        "routing_key": "library.asset.updated"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.fontDetails[0].family.catalog.title_en",
+        "source_system": "Typesense",
+        "source_api": "POST /v1/styles",
+        "value_in_source": "HelveticaNeueLT Com 95 Blk",
+        "value_in_enriched": "Neue Helvetica",
+        "notes": "",
+        "routing_key": "library.asset.updated"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "deleteProfiles(manage)",
+    "summary": {
+      "passed": 109,
+      "failed": 6,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.deletedProfiles[0].idpUserId",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/users?idpUserId=\u2026",
+        "value_in_source": "auth0|6a0ea5d681946fe79aa83a51",
+        "value_in_enriched": "auth0|6a745298209e951dda98dd64",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.account.deleted"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.deletedProfiles[0].user.email",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/users?idpUserId=\u2026",
+        "value_in_source": "monotype.staging+companyadminares@gmail.com",
+        "value_in_enriched": "monotype.staging+206218@gmail.com",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.account.deleted"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.deletedProfiles[0].user.firstName",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/users?idpUserId=\u2026",
+        "value_in_source": "Tester",
+        "value_in_enriched": "John",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.account.deleted"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.deletedProfiles[0].user.idpUserId",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/users?idpUserId=\u2026",
+        "value_in_source": "auth0|6a0ea5d681946fe79aa83a51",
+        "value_in_enriched": "auth0|6a745298209e951dda98dd64",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.account.deleted"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.deletedProfiles[0].user.lastName",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/users?idpUserId=\u2026",
+        "value_in_source": "Ares",
+        "value_in_enriched": "Monotype",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.account.deleted"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.deletedProfiles[0].user.userId",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/users?idpUserId=\u2026",
+        "value_in_source": "dfe97015-8e76-425e-a6af-3aa52650a2e4",
+        "value_in_enriched": "7d3b7ae5-95a9-42ae-adb1-2acb3d916582",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.account.deleted"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "createPrivateTags(manage_tags)",
+    "summary": {
+      "passed": 112,
+      "failed": 0,
+      "skipped": 2,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.tags[0].id",
+        "source_system": "UMS/Search",
+        "source_api": "GET /v1/privateTag/{id}",
+        "value_in_source": "",
+        "value_in_enriched": "2309",
+        "notes": "Source not fetched",
+        "routing_key": "user.tag.created"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.tags[0].name",
+        "source_system": "UMS/Search",
+        "source_api": "GET /v1/privateTag/{id}",
+        "value_in_source": "",
+        "value_in_enriched": "Morgana Tags",
+        "notes": "Source not fetched",
+        "routing_key": "user.tag.created"
+      }
+    ]
+  },
+  {
+    "scenario": "bulkAddStylesToProjects(global)",
+    "summary": {
+      "passed": 171,
+      "failed": 0,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.metadata.projectIds[0]",
+        "source_system": "GraphQL",
+        "source_api": "mutation response id list (join key)",
+        "value_in_source": "",
+        "value_in_enriched": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "bulkMoveAssets(default)(app)",
+    "summary": {
+      "passed": 121,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[0]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "25",
+        "value_in_enriched": "22",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.asset.moved"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "publishProject(default)(app)",
+    "summary": {
+      "passed": 990,
+      "failed": 2,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[0]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "35",
+        "value_in_enriched": "34",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "project.state.published"
+      },
+      {
+        "field_path": "subject.id[0]",
+        "source_system": "Trigger",
+        "source_api": "Audit ingress / mutation subject.id",
+        "value_in_source": "a8720068-9524-4f10-9f32-07c43bcfcca5",
+        "value_in_enriched": "c950b47c-aa64-4084-8ba0-f75c5d6d0a6f",
+        "notes": "Audit ingress body",
+        "routing_key": "project.state.published"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "updatePrivateTagAssociations(default)(app)",
+    "summary": {
+      "passed": 111,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.tags[0].stylesCount",
+        "source_system": "UMS/Search",
+        "source_api": "private tags index",
+        "value_in_source": "1",
+        "value_in_enriched": "0",
+        "notes": "Discovery GET /v1/privateTag/{id}",
+        "routing_key": "font.private_tag.updated"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "deleteProfiles(default)(app)",
+    "summary": {
+      "passed": 106,
+      "failed": 6,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.deletedProfiles[0].idpUserId",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/users?idpUserId=\u2026",
+        "value_in_source": "auth0|6a6771b5a0cb48f92d2428bc",
+        "value_in_enriched": "auth0|6a6ff784c816964e821fab4e",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.account.deleted"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.deletedProfiles[0].user.email",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/users?idpUserId=\u2026",
+        "value_in_source": "monotype.satging+27@gmail.com",
+        "value_in_enriched": "test12345t@gmail.com",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.account.deleted"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.deletedProfiles[0].user.firstName",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/users?idpUserId=\u2026",
+        "value_in_source": "QA Test user",
+        "value_in_enriched": "TESTOR",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.account.deleted"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.deletedProfiles[0].user.idpUserId",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/users?idpUserId=\u2026",
+        "value_in_source": "auth0|6a6771b5a0cb48f92d2428bc",
+        "value_in_enriched": "auth0|6a6ff784c816964e821fab4e",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.account.deleted"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.deletedProfiles[0].user.lastName",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/users?idpUserId=\u2026",
+        "value_in_source": "us",
+        "value_in_enriched": "Everest",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.account.deleted"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.deletedProfiles[0].user.userId",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/users?idpUserId=\u2026",
+        "value_in_source": "32722257-8dfd-4dc0-b1fd-fb65cd37ea2d",
+        "value_in_enriched": "f7cabb4c-3388-4f4e-8a2c-e57d30567736",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.account.deleted"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "removeStylesFromWebProject(default)(app)",
+    "summary": {
+      "passed": 222,
+      "failed": 2,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.name",
+        "source_system": "AMS",
+        "source_api": "GET asset",
+        "value_in_source": "Web Project by Sachi",
+        "value_in_enriched": "Web Project 2026-08-08T05:23:33.180Z",
+        "notes": "",
+        "routing_key": "library.webkit.font_removed"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.asset.updatedAt",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "2026-08-08T16:17:48.000Z",
+        "value_in_enriched": "2026-08-08T05:23:37.000Z",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.webkit.font_removed"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "bulkMarkAsProductionFontsRequest(default)(app)",
+    "summary": {
+      "passed": 164,
+      "failed": 3,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.metadata.result.batchId",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "b4dce469-9c41-4401-a497-2cf7249f909d",
+        "value_in_enriched": "931bca8c-7e19-4745-9258-acbbf7fe5d5f",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.result.createdAt",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "2026-08-08T17:17:39.765Z",
+        "value_in_enriched": "2026-08-08T17:14:21.041Z",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.result.updatedAt",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "2026-08-08T17:17:39.765Z",
+        "value_in_enriched": "2026-08-08T17:14:21.041Z",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "deleteAssetAttachment(global)(app)",
+    "summary": {
+      "passed": 107,
+      "failed": 0,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.attachmentId",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "",
+        "value_in_enriched": "d913a1c0-7230-46d7-8178-a6a4ca70b62c",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "library.asset.attachment_deleted"
+      }
+    ]
+  },
+  {
+    "scenario": "deActivateList(project_list)(app)",
+    "summary": {
+      "passed": 1012,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[0]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "34",
+        "value_in_enriched": "22",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "font.deactivation.success"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "exportUnassignedImportedFontsTemplate(global)(app)",
+    "summary": {
+      "passed": 107,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.metadata.result.fileContent",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "77u/U3R5bGUgSUQsRm9udCBuYW1lLEZvbnQgZmFtaWx5LEZvbnQgc3R5bGUsSW1wb3J0IGRhdGUsSW1wb3J0IHNvdXJjZSxMaWNlbnNlIE5hbWUsTGljZW5zZSBUeXBlLFByaWNpbmcsVmVuZG9yLExpY2Vuc2UgQ291bnQsTGljZW5zZSBDb3N0LFB1cmNoYXNlIERhdGUsRXhwaXJhdGlvbiBEYXRlLFB1cmNoYXNlIE9yZGVyLEludm9pY2UgTnVtYmVyLEZvdW5kcnksTGljZW5zZSBBdmFpbGFibGUgRm9yLE5vdGVzLFByb2plY3RzLExpYnJhcnkgYXNzZXRz",
+        "value_in_enriched": "[REDACTED]",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": "font.template.unassigned_exported"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "deleteStyleComment(global)(app)",
+    "summary": {
+      "passed": 153,
+      "failed": 0,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.commentId",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "",
+        "value_in_enriched": "a9747786-d44b-42a1-a991-7f4740ae4abe",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "library.style_comment.deleted"
+      }
+    ]
+  },
+  {
+    "scenario": "deActivateList(project)",
+    "summary": {
+      "passed": 1103,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[0]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "34",
+        "value_in_enriched": "22",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "font.deactivation.success"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "bulkUpdateProfiles(global)",
+    "summary": {
+      "passed": 99,
+      "failed": 5,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.user.role.displayName",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "Company Admin",
+        "value_in_enriched": "Creative",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.profile.bulk_updated"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.user.role.id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "a8c93bc3-99c0-4ffe-b4a8-fc7c3153545a",
+        "value_in_enriched": "b24c3fbc-93b0-4ca6-af57-9248ce8641fd",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.profile.bulk_updated"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.user.role.permissions[0].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "a8c93bc3-99c0-4ffe-b4a8-fc7c3153545a",
+        "value_in_enriched": "18",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.profile.bulk_updated"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.user.role.permissions[1].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "a8c93bc3-99c0-4ffe-b4a8-fc7c3153545a",
+        "value_in_enriched": "66",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.profile.bulk_updated"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.user.role.permissions[2].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "a8c93bc3-99c0-4ffe-b4a8-fc7c3153545a",
+        "value_in_enriched": "67",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.profile.bulk_updated"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "createServiceAccount(manage)",
+    "summary": {
+      "passed": 120,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.metadata.result.pat",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "880d064eab7143341091b21df1acbdda",
+        "value_in_enriched": "[REDACTED]",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": "account.service_account.created"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "updateProfile(global)",
+    "summary": {
+      "passed": 141,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.user.profile.firstName",
+        "source_system": "UMS",
+        "source_api": "POST/GET /api/v3/customers/{gcid}/profiles",
+        "value_in_source": "QA Audit 2344",
+        "value_in_enriched": "QA Audit 35386",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "user.profile.updated"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "exportFontAssets(global)(app)",
+    "summary": {
+      "passed": 107,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.metadata.result.batchId",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "aa9cb3e1-024c-4bb1-8449-2aff489edb8b",
+        "value_in_enriched": "a36da76b-6e9d-4e6f-80dc-b036b4a4ca38",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": "export.font_assets.initiated"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "exportFontProjects(project)(app)",
+    "summary": {
+      "passed": 107,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.metadata.result.batchId",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "9ae42ef7-6f4a-4e9a-9bfe-1e18e7b681d9",
+        "value_in_enriched": "25153293-e9fa-45b8-9ac8-18dda759faeb",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": "export.font_projects.initiated"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "finalizeAssetAttachments",
+    "summary": {
+      "passed": 118,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.updatedAt",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "2026-08-10T07:09:42.000Z",
+        "value_in_enriched": "2026-08-10T01:22:15.000Z",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.asset.attachments_finalized"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "createAssetAttachmentUpload",
+    "summary": {
+      "passed": 131,
+      "failed": 2,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.metadata.status",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "Archived",
+        "value_in_enriched": "Draft",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.asset.attachment_upload_created"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.asset.updatedAt",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "2026-08-10T07:09:42.000Z",
+        "value_in_enriched": "2026-08-10T01:22:15.000Z",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.asset.attachment_upload_created"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "finalizeAssetAttachments(global)",
+    "summary": {
+      "passed": 118,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.updatedAt",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "2026-08-10T07:09:42.000Z",
+        "value_in_enriched": "2026-08-10T01:22:15.000Z",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.asset.attachments_finalized"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "pluginMissingFontUnresolved",
+    "summary": {
+      "passed": 96,
+      "failed": 0,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "occurredAt",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "2026-08-10T06:31:04.5627180Z",
+        "value_in_enriched": "2026-08-10T08:06:27.8952610Z",
+        "notes": "Audit ingress body",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "pluginPanelOpened",
+    "summary": {
+      "passed": 100,
+      "failed": 0,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "occurredAt",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "value_in_source": "2026-08-10T11:01:57.7264090Z",
+        "value_in_enriched": "2026-08-10T12:31:10.1882300Z",
+        "notes": "Audit ingress body",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "pluginFontAutoActivated(indesign)",
+    "summary": {
+      "passed": 781,
+      "failed": 4,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.documentName",
+        "source_system": "Trigger",
+        "source_api": "Audit ingress body (plugin subject)",
+        "value_in_source": "De-release-Ps-Conflicts_2026.indd",
+        "value_in_enriched": "unavailabe_fonts.indd",
+        "notes": "Audit ingress body",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.id[0]",
+        "source_system": "Trigger",
+        "source_api": "Audit ingress body",
+        "value_in_source": "c92d03c872d73cd265650f47e64bfa31",
+        "value_in_enriched": "7ae5aae8a34f32548bfaa4d905928f1e",
+        "notes": "Audit ingress body",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.id[1]",
+        "source_system": "Trigger",
+        "source_api": "Audit ingress / mutation subject.id",
+        "value_in_source": "fe1a3be58bf30c2e7397a1f1e398e0d8",
+        "value_in_enriched": "f3f0e31e4ea34e18d42b856fc19f69f0",
+        "notes": "Audit ingress body",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.id[2]",
+        "source_system": "Trigger",
+        "source_api": "Audit ingress / mutation subject.id",
+        "value_in_source": "a26694cc6adf476ff8c4a15fb1a89707",
+        "value_in_enriched": "a7532140f0d89b90c9369c97258dbf38",
+        "notes": "Audit ingress body",
+        "routing_key": ""
+      }
+    ],
+    "skip_rows": [
+      {
+        "field_path": "occurredAt",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "value_in_source": "2026-08-12T06:04:41.4540110Z",
+        "value_in_enriched": "2026-08-12T11:34:03.3329610Z",
+        "notes": "Audit ingress body",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "updateServiceAccount(global)",
+    "summary": {
+      "passed": 120,
+      "failed": 0,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.customerId",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "",
+        "value_in_enriched": "03027544-0d70-4cef-b1e2-5047f5268d0d",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "account.service_account.updated"
+      }
+    ]
+  },
+  {
+    "scenario": "removeStylesFromWebProject(project)",
+    "summary": {
+      "passed": 199,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.styleIds[0]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "ca035a04-167b-4432-a745-2c0381e82fee",
+        "value_in_enriched": "1168809",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": "library.webkit.font_removed"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "updateAssets",
+    "summary": {
+      "passed": 4468,
+      "failed": 0,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.assetType",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "",
+        "value_in_enriched": "FontProject",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "library.asset.bulk_updated"
+      }
+    ]
+  },
+  {
+    "scenario": "revokeToken",
+    "summary": {
+      "passed": 107,
+      "failed": 0,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.customerId",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "",
+        "value_in_enriched": "a11f7ea3-d9a9-4678-b0ad-e91e17a98bf2",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "deleteStyleComment",
+    "summary": {
+      "passed": 154,
+      "failed": 0,
+      "skipped": 2,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.commentId",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "",
+        "value_in_enriched": "417e902c-9f03-4b5b-b7e4-651bfcfd0274",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "library.style_comment.deleted"
+      },
+      {
+        "field_path": "subject.styleId",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "",
+        "value_in_enriched": "BAhGKBQd_o",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "library.style_comment.deleted"
+      }
+    ]
+  },
+  {
+    "scenario": "regenerateToken",
+    "summary": {
+      "passed": 75,
+      "failed": 9,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.email",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "value_in_source": "mem.auditpreprodtest@gmail.com",
+        "value_in_enriched": "sachin_ko_server@serveruser-ecf57502-1a25-4fa8-91b0-73a0b2c36af3.com",
+        "notes": "",
+        "routing_key": "account.service_account.token_regenerated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.firstName",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "value_in_source": "Automation",
+        "value_in_enriched": "SAchin ko server",
+        "notes": "",
+        "routing_key": "account.service_account.token_regenerated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.id",
+        "source_system": "UMS",
+        "source_api": "POST profiles",
+        "value_in_source": "e02e04e2-81af-11f1-a522-0e0a04e472ab",
+        "value_in_enriched": "7cde66e7-875c-11f1-ac0d-0e0a04e472ab",
+        "notes": "",
+        "routing_key": "account.service_account.token_regenerated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.profile.idpUserId",
+        "source_system": "UMS",
+        "source_api": "POST/GET /api/v3/customers/{gcid}/profiles",
+        "value_in_source": "auth0|6a59d789b75e02450568fb6b",
+        "value_in_enriched": "serveraccount_1784896672648_548363",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "account.service_account.token_regenerated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.displayName",
+        "source_system": "UMS",
+        "source_api": "GET roles",
+        "value_in_source": "Company Admin",
+        "value_in_enriched": "ServiceUserRole",
+        "notes": "",
+        "routing_key": "account.service_account.token_regenerated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "a8c93bc3-99c0-4ffe-b4a8-fc7c3153545a",
+        "value_in_enriched": "4e1ebef6-a7d3-457f-956b-0cbfe472da11",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "account.service_account.token_regenerated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[0].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "17",
+        "value_in_enriched": "42",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "account.service_account.token_regenerated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[1].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "18",
+        "value_in_enriched": "67",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "account.service_account.token_regenerated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[2].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "44",
+        "value_in_enriched": "73",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "account.service_account.token_regenerated"
+      }
+    ],
+    "skip_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot",
+        "source_system": "Audit enricher scope",
+        "source_api": "implementation.produces_subject=false",
+        "value_in_source": "Sample has subject.enrichedSnapshot but enricher is not subject-scoped",
+        "value_in_enriched": "snapshot present",
+        "notes": "Sample has subject.enrichedSnapshot but enricher is not subject-scoped",
+        "routing_key": "account.service_account.token_regenerated"
+      }
+    ]
+  },
+  {
+    "scenario": "ExportCompanyLibrary(company_library)",
+    "summary": {
+      "passed": 91,
+      "failed": 2,
+      "skipped": 11,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "actor.globalCustomerId",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim (actor identity)",
+        "value_in_source": "ecf57502-1a25-4fa8-91b0-73a0b2c36af3",
+        "value_in_enriched": "a4175cbf-1419-4a30-aa21-12109bf942f6",
+        "notes": "JWT claim (decrypt Bearer)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "actor.globalUserId",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim (actor identity)",
+        "value_in_source": "e02e04e2-81af-11f1-a522-0e0a04e472ab",
+        "value_in_enriched": "c6fdbd53-876d-11f1-ac0d-0e0a04e472ab",
+        "notes": "UMS profile id (resolved via JWT email / idpUserId)",
+        "routing_key": ""
+      }
+    ],
+    "skip_rows": [
+      {
+        "field_path": "actor.orgId",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim (actor identity)",
+        "value_in_source": "",
+        "value_in_enriched": "org_YofCWU9hMf218uJr",
+        "notes": "JWT claim (decrypt Bearer)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "eventId",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "01KZ416WCYC4AN2AFD62T22ES1",
+        "value_in_enriched": "01KZ416WCYC4AN2AFD62T22ES1",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "eventVersion",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "1",
+        "value_in_enriched": "1",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "source.operation",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "exportCompanyLibrary",
+        "value_in_enriched": "exportCompanyLibrary",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "source.operationIndex",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "0",
+        "value_in_enriched": "0",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "source.operationState",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "success",
+        "value_in_enriched": "success",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "source.platform",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "nextGen",
+        "value_in_enriched": "nextGen",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "source.platformEnvironment",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "web",
+        "value_in_enriched": "web",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "source.platformVersion",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "1.0.0",
+        "value_in_enriched": "1.0.0",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "source.service",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "mtconnect-api",
+        "value_in_enriched": "mtconnect-api",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "xCorrelationId",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "value_in_source": "aeb78ef2-b3ff-4d5d-800d-1e0cf71e51d9",
+        "value_in_enriched": "aeb78ef2-b3ff-4d5d-800d-1e0cf71e51d9",
+        "notes": "Published event xCorrelationId (same audit envelope)",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "exportCompanyLibrary(company_library)(app)",
+    "summary": {
+      "passed": 102,
+      "failed": 0,
+      "skipped": 2,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "actor.orgId",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "value_in_source": "",
+        "value_in_enriched": "org_YofCWU9hMf218uJr",
+        "notes": "JWT claims from project logged-in user",
+        "routing_key": "export.company_library.initiated"
+      },
+      {
+        "field_path": "source.platformEnvironment",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "value_in_source": "",
+        "value_in_enriched": "web",
+        "notes": "Trigger context not captured for this run \u2014 re-run Generate",
+        "routing_key": "export.company_library.initiated"
+      }
+    ]
+  },
+  {
+    "scenario": "regenerateToken(manage)(app)",
+    "summary": {
+      "passed": 102,
+      "failed": 0,
+      "skipped": 2,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "actor.orgId",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "value_in_source": "",
+        "value_in_enriched": "org_YofCWU9hMf218uJr",
+        "notes": "JWT claims from project logged-in user",
+        "routing_key": "account.service_account.token_regenerated"
+      },
+      {
+        "field_path": "source.platformEnvironment",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "value_in_source": "",
+        "value_in_enriched": "web",
+        "notes": "Trigger context not captured for this run \u2014 re-run Generate",
+        "routing_key": "account.service_account.token_regenerated"
+      }
+    ]
+  },
+  {
+    "scenario": "updateTeam(manage)(app)",
+    "summary": {
+      "passed": 113,
+      "failed": 0,
+      "skipped": 2,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "actor.orgId",
+        "source_system": "Bearer token",
+        "source_api": "JWT claim",
+        "value_in_source": "",
+        "value_in_enriched": "org_YofCWU9hMf218uJr",
+        "notes": "JWT claims from project logged-in user",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "source.platformEnvironment",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "value_in_source": "",
+        "value_in_enriched": "web",
+        "notes": "Trigger context not captured for this run \u2014 re-run Generate",
+        "routing_key": "user.team.updated"
+      }
+    ]
+  },
+  {
+    "scenario": "fontSyncSuccess(fontbridge)",
+    "summary": {
+      "passed": 514,
+      "failed": 2,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "source.platformEnvironment",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "value_in_source": "app",
+        "value_in_enriched": "fontbridge",
+        "notes": "Derived from actorUserAgent (Electron/MonotypeNextGen \u2192 app; browser \u2192 web)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "source.service",
+        "source_system": "Trigger",
+        "source_api": "GraphQL curl / event trigger",
+        "value_in_source": "mtconnect-ui",
+        "value_in_enriched": "MonotypeFontBridge",
+        "notes": "Audit ingress body",
+        "routing_key": ""
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "fontUnsyncSuccess(fontbridge)",
+    "summary": {
+      "passed": 1013,
+      "failed": 1,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "source.platformEnvironment",
+        "source_system": "Trigger",
+        "source_api": "client fingerprint",
+        "value_in_source": "app",
+        "value_in_enriched": "fontbridge",
+        "notes": "Derived from actorUserAgent (Electron/MonotypeNextGen \u2192 app; browser \u2192 web)",
+        "routing_key": ""
+      }
+    ],
+    "skip_rows": [
+      {
+        "field_path": "source.service",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "mtconnect-api",
+        "value_in_enriched": "MonotypeFontBridge",
+        "notes": "Audit ingress body",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "fontSyncFailure(fontbridge)",
+    "summary": {
+      "passed": 1111,
+      "failed": 1,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "source.platformEnvironment",
+        "source_system": "Trigger",
+        "source_api": "client fingerprint",
+        "value_in_source": "app",
+        "value_in_enriched": "fontbridge",
+        "notes": "Derived from actorUserAgent (Electron/MonotypeNextGen \u2192 app; browser \u2192 web)",
+        "routing_key": ""
+      }
+    ],
+    "skip_rows": [
+      {
+        "field_path": "source.service",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "mtconnect-api",
+        "value_in_enriched": "MonotypeFontBridge",
+        "notes": "Audit ingress body",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "addStyleDocument(document)(app)",
+    "summary": {
+      "passed": 153,
+      "failed": 0,
+      "skipped": 2,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.documentMd5",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "",
+        "value_in_enriched": "6f4fe60123c7870266808048764d17a2",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "library.style_document.added"
+      },
+      {
+        "field_path": "subject.styleId",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "",
+        "value_in_enriched": "CFKV1w71_t",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "library.style_document.added"
+      }
+    ]
+  },
+  {
+    "scenario": "updateAssets(global)(app)",
+    "summary": {
+      "passed": 130,
+      "failed": 0,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.assetType",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "",
+        "value_in_enriched": "FontProject",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "library.asset.bulk_updated"
+      }
+    ]
+  },
+  {
+    "scenario": "revokeToken(global)(app)",
+    "summary": {
+      "passed": 104,
+      "failed": 0,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.customerId",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "",
+        "value_in_enriched": "03027544-0d70-4cef-b1e2-5047f5268d0d",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "downloadAssetAttachmentSignedUrl(global)(app)",
+    "summary": {
+      "passed": 105,
+      "failed": 0,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.attachmentId",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "",
+        "value_in_enriched": "d913a1c0-7230-46d7-8178-a6a4ca70b62c",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "library.asset.attachment_url_generated"
+      }
+    ]
+  },
+  {
+    "scenario": "bulkAddStylesToProjects(project)(app)",
+    "summary": {
+      "passed": 117,
+      "failed": 2,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.styleIds[0]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "9ec5236a-5ddf-4f20-874c-14c94b9cd1f7",
+        "value_in_enriched": "920519483",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.styleIds[1]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "9ec5236a-5ddf-4f20-874c-14c94b9cd1f7",
+        "value_in_enriched": "920519491",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      }
+    ],
+    "skip_rows": [
+      {
+        "field_path": "subject.metadata.projectIds[0]",
+        "source_system": "GraphQL",
+        "source_api": "mutation response id list (join key)",
+        "value_in_source": "",
+        "value_in_enriched": "9ec5236a-5ddf-4f20-874c-14c94b9cd1f7",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "bulkRemoveStylesFromProjects(project)(app)",
+    "summary": {
+      "passed": 117,
+      "failed": 2,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.styleIds[0]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "9ec5236a-5ddf-4f20-874c-14c94b9cd1f7",
+        "value_in_enriched": "920519483",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.styleIds[1]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "9ec5236a-5ddf-4f20-874c-14c94b9cd1f7",
+        "value_in_enriched": "920519491",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      }
+    ],
+    "skip_rows": [
+      {
+        "field_path": "subject.metadata.projectIds[0]",
+        "source_system": "GraphQL",
+        "source_api": "mutation response id list (join key)",
+        "value_in_source": "",
+        "value_in_enriched": "9ec5236a-5ddf-4f20-874c-14c94b9cd1f7",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "updateTeam(global)(app)",
+    "summary": {
+      "passed": 94,
+      "failed": 20,
+      "skipped": 0,
+      "na": 1
+    },
+    "fail_rows": [
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[0].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "17",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[10].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "71",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[11].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "72",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[12].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "73",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[13].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "74",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[14].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "75",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[15].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "76",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[16].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "77",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[17].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "78",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[18].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "80",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[19].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "81",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[1].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "18",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[2].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "44",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[3].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "45",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[4].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "46",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[5].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "47",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[6].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "54",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[7].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "66",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[8].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "67",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[9].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "61266",
+        "value_in_enriched": "70",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.team.updated"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "updateRole(global)(app)",
+    "summary": {
+      "passed": 102,
+      "failed": 21,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[0].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "17",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[10].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "71",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[11].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "72",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[12].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "73",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[13].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "74",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[14].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "75",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[15].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "76",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[16].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "77",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[17].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "78",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[18].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "80",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[19].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "81",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[1].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "18",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[2].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "44",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[3].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "45",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[4].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "46",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[5].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "47",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[6].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "54",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[7].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "66",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[8].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "67",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.permissions[9].id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "70",
+        "notes": "Trigger envelope (actor snapshot)",
+        "routing_key": "user.role.updated"
+      },
+      {
+        "field_path": "subject.id[0]",
+        "source_system": "Trigger",
+        "source_api": "Audit ingress / mutation subject.id",
+        "value_in_source": "0b947c4f-914e-431f-b0ea-73beb95fb572",
+        "value_in_enriched": "5c4fa532-e8ba-474d-83a4-fe8ae1072c3b",
+        "notes": "Audit ingress body",
+        "routing_key": "user.role.updated"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "exportUnassignedImportedFontsTemplate(global)",
+    "summary": {
+      "passed": 107,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.metadata.result.fileContent",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response (metadata.result)",
+        "value_in_source": "77u/U3R5bGUgSUQsRm9udCBuYW1lLEZvbnQgZmFtaWx5LEZvbnQgc3R5bGUsSW1wb3J0IGRhdGUsSW1wb3J0IHNvdXJjZSxMaWNlbnNlIE5hbWUsTGljZW5zZSBUeXBlLFByaWNpbmcsVmVuZG9yLExpY2Vuc2UgQ291bnQsTGljZW5zZSBDb3N0LFB1cmNoYXNlIERhdGUsRXhwaXJhdGlvbiBEYXRlLFB1cmNoYXNlIE9yZGVyLEludm9pY2UgTnVtYmVyLEZvdW5kcnksTGljZW5zZSBBdmFpbGFibGUgRm9yLE5vdGVzLFByb2plY3RzLExpYnJhcnkgYXNzZXRzDQoxOFZCQncwVV90LFNjYW5wb3J0IDEgUmVndWxhcixTY2FucG9ydCAxLFJlZ3VsYXIsMjAyNi0wOC0wOSxHTE9CQUwsLCwsLCwsLCwsLCwsLCwNCkNGS1YxdzcxX3QsU2NhbnBvcnQtVkYsU2NhbnBvcnQt",
+        "value_in_enriched": "[REDACTED]",
+        "notes": "GraphQL mutation response (subject.metadata.result)",
+        "routing_key": "font.template.unassigned_exported"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "userLoginFailureApp(BE)",
+    "summary": {
+      "passed": 22,
+      "failed": 1,
+      "skipped": 2,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "actor.enrichedSnapshot",
+        "source_system": "Audit enricher scope",
+        "source_api": "implementation.produces_actor",
+        "value_in_source": "Enricher produces actor.enrichedSnapshot but sample has none",
+        "value_in_enriched": "FAIL",
+        "notes": "Enricher produces actor.enrichedSnapshot but sample has none",
+        "routing_key": ""
+      }
+    ],
+    "skip_rows": [
+      {
+        "field_path": "subject.activationMode",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "",
+        "value_in_enriched": "manual",
+        "notes": "GraphQL mutation response not captured for this run",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.activationType",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "",
+        "value_in_enriched": "permanent",
+        "notes": "GraphQL mutation response not captured for this run",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "identityLinked(BE)",
+    "summary": {
+      "passed": 82,
+      "failed": 0,
+      "skipped": 2,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.activationMode",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "",
+        "value_in_enriched": "manual",
+        "notes": "GraphQL mutation response not captured for this run",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.activationType",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "",
+        "value_in_enriched": "permanent",
+        "notes": "GraphQL mutation response not captured for this run",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "deletePrivateTags(global)",
+    "summary": {
+      "passed": 109,
+      "failed": 0,
+      "skipped": 2,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.tags[0].id",
+        "source_system": "UMS/Search",
+        "source_api": "private tags index",
+        "value_in_source": "",
+        "value_in_enriched": "1717",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.tags[1].id",
+        "source_system": "UMS/Search",
+        "source_api": "private tags index",
+        "value_in_source": "",
+        "value_in_enriched": "1720",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "bulkRemoveStylesFromProjects(project)",
+    "summary": {
+      "passed": 151,
+      "failed": 20,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.metadata.styleIds[0]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "1309419",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[10]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "1309428",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[11]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "1309440",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[12]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "1309437",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[13]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "1308967",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[14]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "7545849",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[15]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "7545937",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[16]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "7545914",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[17]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "7545890",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[18]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "7545917",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[19]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "7545865",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[1]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "1309434",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[2]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "1309452",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[3]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "1309431",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[4]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "1309425",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[5]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "1309416",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[6]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "1309446",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[7]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "1309443",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[8]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "1309422",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      },
+      {
+        "field_path": "subject.metadata.styleIds[9]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "value_in_enriched": "1309449",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": ""
+      }
+    ],
+    "skip_rows": [
+      {
+        "field_path": "subject.metadata.projectIds[0]",
+        "source_system": "GraphQL",
+        "source_api": "mutation response id list (join key)",
+        "value_in_source": "",
+        "value_in_enriched": "2c6bd4ea-74de-480e-9332-874bbee1d3a1",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": ""
+      }
+    ]
+  },
+  {
+    "scenario": "bulkRemoveStylesFromList(mylibrary_assets)",
+    "summary": {
+      "passed": 209,
+      "failed": 2,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[0]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "26",
+        "value_in_enriched": "22",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.list.font_removed"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[1]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "19",
+        "value_in_enriched": "26",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.list.font_removed"
+      }
+    ],
+    "skip_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[2]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "",
+        "value_in_enriched": "19",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.list.font_removed"
+      }
+    ]
+  },
+  {
+    "scenario": "bulkRemoveStylesFromList(global)",
+    "summary": {
+      "passed": 300,
+      "failed": 2,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[0]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "26",
+        "value_in_enriched": "22",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.list.font_removed"
+      },
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[1]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "19",
+        "value_in_enriched": "26",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.list.font_removed"
+      }
+    ],
+    "skip_rows": [
+      {
+        "field_path": "subject.enrichedSnapshot.asset.accessIds[2]",
+        "source_system": "AMS",
+        "source_api": "GET /v2/type/{type}/asset/{id}",
+        "value_in_source": "",
+        "value_in_enriched": "19",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "library.list.font_removed"
+      }
+    ]
+  },
+  {
+    "scenario": "bulkSubmitIntentForProduction(global)",
+    "summary": {
+      "passed": 153,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "actor.enrichedSnapshot.user.role.id",
+        "source_system": "UMS",
+        "source_api": "GET /api/v3/customers/{gcid}/roles",
+        "value_in_source": "d46dc36b-a022-4ec6-bfba-92a92f8ef82b",
+        "value_in_enriched": "6f9722fb-cb38-4cb4-82d0-57a10a684d0d",
+        "notes": "Inferred from enriched JSON",
+        "routing_key": "font.licence.bulk_intent_for_production_submitted"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "updateFontsForReview(global_app)",
+    "summary": {
+      "passed": 195,
+      "failed": 1,
+      "skipped": 0,
+      "na": 0
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.styleIds[0]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "fcd4cbea-93d6-4370-802d-e087b9e50304",
+        "value_in_enriched": "7545955",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": "font.licence.fonts_for_review_updated"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "updateFontProjectStyles(global_app)",
+    "summary": {
+      "passed": 104,
+      "failed": 1,
+      "skipped": 0,
+      "na": 75
+    },
+    "fail_rows": [
+      {
+        "field_path": "subject.styleIds[0]",
+        "source_system": "GraphQL",
+        "source_api": "GraphQL mutation response",
+        "value_in_source": "274760f3-6f28-4221-adf4-cbf58233b40d",
+        "value_in_enriched": "5760468",
+        "notes": "GraphQL mutation input (join key)",
+        "routing_key": "project.font.styles_updated"
+      }
+    ],
+    "skip_rows": []
+  },
+  {
+    "scenario": "linkDocumentToProject(project)",
+    "summary": {
+      "passed": 133,
+      "failed": 0,
+      "skipped": 1,
+      "na": 0
+    },
+    "fail_rows": [],
+    "skip_rows": [
+      {
+        "field_path": "subject.projectId",
+        "source_system": "Trigger",
+        "source_api": "event trigger envelope",
+        "value_in_source": "",
+        "value_in_enriched": "044db991-1b2e-47e2-b4d9-3a276cdd33ad",
+        "notes": "Trigger context not captured for this run",
+        "routing_key": "project.document.linked"
+      }
+    ]
+  }
+]
