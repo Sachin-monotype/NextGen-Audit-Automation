@@ -38,12 +38,14 @@ class IngestionService:
         self._threads: list[threading.Thread] = []
         self._cleanup_thread: threading.Thread | None = None
         self._auto_purge_thread: threading.Thread | None = None
+        self._watchdog_thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._started_at: float | None = None
         self._cleanup_deleted = 0
         self._last_cleanup_at: float | None = None
         self._auto_purge_total = 0
         self._last_auto_purge_at: float | None = None
+        self._watchdog_restarts = 0
         self._lock = threading.Lock()
 
     @staticmethod
@@ -66,7 +68,16 @@ class IngestionService:
 
     @property
     def running(self) -> bool:
+        """True when at least one consumer thread is alive (partial OK for status)."""
         return bool(self._threads) and any(t.is_alive() for t in self._threads)
+
+    @property
+    def all_consumers_alive(self) -> bool:
+        if not self._consumers:
+            return False
+        if len(self._threads) != len(self._consumers):
+            return False
+        return all(t.is_alive() for t in self._threads)
 
     def _purge_lane(self, lane: _IngestLane, *, include_dlq: bool = False, min_ready: int = 0) -> dict[str, int]:
         purged: dict[str, int] = {}
@@ -119,9 +130,62 @@ class IngestionService:
             merged.update(self._purge_lane(lane, include_dlq=include_dlq))
         return merged
 
-    def start(self) -> None:
-        if self.running:
+    def _spawn_consumer_thread(self, consumer: QueueConsumer) -> threading.Thread:
+        consumer._stop.clear()
+        thread = threading.Thread(
+            target=consumer.run,
+            name=f"ingest-{consumer.stats.name}",
+            daemon=True,
+        )
+        thread.start()
+        return thread
+
+    def _restart_dead_consumers(self) -> int:
+        """Restart any consumer threads that exited unexpectedly. Returns restart count."""
+        if self._stop.is_set():
+            return 0
+        restarted = 0
+        with self._lock:
+            # Align thread list length with consumers (first start / partial spawn).
+            if len(self._threads) < len(self._consumers):
+                self._threads.extend([None] * (len(self._consumers) - len(self._threads)))  # type: ignore[list-item]
+            for idx, consumer in enumerate(self._consumers):
+                thread = self._threads[idx] if idx < len(self._threads) else None
+                alive = bool(thread is not None and thread.is_alive())
+                if alive:
+                    continue
+                log.warning(
+                    "Ingestion consumer thread dead — restarting %s (queue=%s)",
+                    consumer.stats.name,
+                    consumer.stats.queue,
+                )
+                self._threads[idx] = self._spawn_consumer_thread(consumer)
+                restarted += 1
+            if restarted:
+                self._watchdog_restarts += restarted
+        return restarted
+
+    def ensure_running(self) -> None:
+        """Start ingestion if needed; always resurrect dead raw/enrich/dlq consumers."""
+        if self._stop.is_set() and not self.running:
+            self._stop.clear()
+        if not self._threads or self._started_at is None:
+            self.start()
             return
+        self._restart_dead_consumers()
+
+    def start(self) -> None:
+        # Partial outage (e.g. enrich dead, raw alive) must not no-op — and must not
+        # re-spawn already-alive consumers (would double RabbitMQ consumer count).
+        if self.running:
+            self._restart_dead_consumers()
+            if self._watchdog_thread is None or not self._watchdog_thread.is_alive():
+                self._watchdog_thread = threading.Thread(
+                    target=self._watchdog_loop, name="ingest-watchdog", daemon=True
+                )
+                self._watchdog_thread.start()
+            return
+
         self._stop.clear()
         ensure_indexes = os.getenv("INGEST_ENSURE_INDEXES_ON_START", "true").strip().lower() not in {
             "0",
@@ -145,25 +209,26 @@ class IngestionService:
 
         self._threads = []
         for consumer in self._consumers:
-            consumer._stop.clear()
-            thread = threading.Thread(
-                target=consumer.run,
-                name=f"ingest-{consumer.stats.name}",
-                daemon=True,
-            )
-            thread.start()
-            self._threads.append(thread)
+            self._threads.append(self._spawn_consumer_thread(consumer))
 
-        self._cleanup_thread = threading.Thread(
-            target=self._cleanup_loop, name="ingest-cleanup", daemon=True
-        )
-        self._cleanup_thread.start()
+        if self._cleanup_thread is None or not self._cleanup_thread.is_alive():
+            self._cleanup_thread = threading.Thread(
+                target=self._cleanup_loop, name="ingest-cleanup", daemon=True
+            )
+            self._cleanup_thread.start()
 
         if self._base.auto_purge_enabled and self._base.auto_purge_interval_sec > 0:
-            self._auto_purge_thread = threading.Thread(
-                target=self._auto_purge_loop, name="ingest-auto-purge", daemon=True
+            if self._auto_purge_thread is None or not self._auto_purge_thread.is_alive():
+                self._auto_purge_thread = threading.Thread(
+                    target=self._auto_purge_loop, name="ingest-auto-purge", daemon=True
+                )
+                self._auto_purge_thread.start()
+
+        if self._watchdog_thread is None or not self._watchdog_thread.is_alive():
+            self._watchdog_thread = threading.Thread(
+                target=self._watchdog_loop, name="ingest-watchdog", daemon=True
             )
-            self._auto_purge_thread.start()
+            self._watchdog_thread.start()
 
         self._started_at = time.time()
         lane_summary = ", ".join(
@@ -180,7 +245,9 @@ class IngestionService:
         for consumer in self._consumers:
             consumer.stop()
         deadline = time.monotonic() + timeout
-        for thread in self._threads:
+        for thread in list(self._threads):
+            if thread is None:
+                continue
             remaining = max(0.1, deadline - time.monotonic())
             thread.join(timeout=remaining)
         self._threads = []
@@ -194,6 +261,28 @@ class IngestionService:
         interval = self._base.auto_purge_interval_sec
         while not self._stop.wait(interval):
             self._run_auto_purge_once()
+
+    def _watchdog_loop(self) -> None:
+        """Keep raw + enriched (+ dlq) consumer threads alive for the life of the backend."""
+        interval = float(os.getenv("INGEST_WATCHDOG_INTERVAL_SEC", "15") or "15")
+        interval = max(5.0, interval)
+        while not self._stop.wait(interval):
+            try:
+                n = self._restart_dead_consumers()
+                if n:
+                    log.info("Ingestion watchdog restarted %d consumer thread(s)", n)
+                # Surface prolonged disconnects (RabbitMQ shows 0 consumers during reconnect).
+                for consumer in self._consumers:
+                    snap = consumer.stats.snapshot()
+                    if not snap.get("connected") and snap.get("last_error"):
+                        log.warning(
+                            "Ingestion consumer offline: %s queue=%s err=%s",
+                            snap.get("name"),
+                            snap.get("queue"),
+                            snap.get("last_error"),
+                        )
+            except Exception as exc:  # noqa: BLE001
+                log.warning("Ingestion watchdog failed: %s", exc)
 
     def _run_auto_purge_once(self) -> None:
         try:
@@ -244,10 +333,25 @@ class IngestionService:
             started_at = self._started_at
             auto_purge_total = self._auto_purge_total
             last_auto_purge_at = self._last_auto_purge_at
+            watchdog_restarts = self._watchdog_restarts
         consumers = [c.stats.snapshot() for c in self._consumers]
+        thread_alive = [
+            bool(t is not None and t.is_alive()) for t in self._threads
+        ]
+        while len(thread_alive) < len(consumers):
+            thread_alive.append(False)
+        for i, c in enumerate(consumers):
+            c["thread_alive"] = thread_alive[i] if i < len(thread_alive) else False
         mongo_dbs = [lane.lane.mongo_db for lane in self._lanes]
+        offline = [
+            c["name"]
+            for c in consumers
+            if not c.get("connected") or not c.get("thread_alive")
+        ]
         return {
             "running": self.running,
+            "all_consumers_alive": self.all_consumers_alive,
+            "offline_consumers": offline,
             "started_at": started_at,
             "mongo_connected": all(lane.writer.ping() for lane in self._lanes),
             "mongo_databases": mongo_dbs,
@@ -271,6 +375,7 @@ class IngestionService:
             "auto_purge_min_ready": self._base.auto_purge_min_ready,
             "auto_purge_total": auto_purge_total,
             "last_auto_purge_at": last_auto_purge_at,
+            "watchdog_restarts": watchdog_restarts,
             "totals": {
                 "consumed": sum(c["consumed"] for c in consumers),
                 "inserted": sum(c["inserted"] for c in consumers),

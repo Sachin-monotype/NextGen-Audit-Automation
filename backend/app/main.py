@@ -54,8 +54,17 @@ def _start_background_tasks() -> None:
         def _start_ingestion() -> None:
             try:
                 status = ingestion.start()
+                consumers = status.get("consumers") or []
+                connected = [c.get("name") for c in consumers if c.get("connected")]
+                offline = status.get("offline_consumers") or [
+                    c.get("name") for c in consumers if not c.get("connected")
+                ]
                 logging.getLogger(__name__).info(
-                    "Live ingestion auto-started (running=%s)", status.get("running")
+                    "Live ingestion auto-started (running=%s all_alive=%s connected=%s offline=%s)",
+                    status.get("running"),
+                    status.get("all_consumers_alive"),
+                    connected,
+                    offline,
                 )
             except Exception as exc:  # noqa: BLE001
                 logging.getLogger(__name__).warning("Live ingestion auto-start failed: %s", exc)

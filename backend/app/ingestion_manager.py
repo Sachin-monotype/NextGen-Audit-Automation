@@ -38,7 +38,11 @@ class IngestionManager:
         with self._lock:
             if self._service is None:
                 self._service = self._build_service()
-            if not self._service.running:
+            # Resurrect dead enrich/raw threads even when "running" is partially true.
+            ensure = getattr(self._service, "ensure_running", None)
+            if callable(ensure):
+                ensure()
+            elif not self._service.running:
                 self._service.start()
         return self.status()
 
