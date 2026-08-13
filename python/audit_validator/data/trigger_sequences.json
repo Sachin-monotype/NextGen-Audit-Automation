@@ -984,6 +984,14 @@
       "denyIntentForProduction"
     ]
   },
+  "bulkSubmitIntentForProduction": {
+    "Discovery/Browse (global)": [
+      "bulkSubmitIntentForProduction"
+    ],
+    "default": [
+      "bulkSubmitIntentForProduction"
+    ]
+  },
   "dismissNotification": {
     "Discovery/Browse (global)": [
       "getNotifications",

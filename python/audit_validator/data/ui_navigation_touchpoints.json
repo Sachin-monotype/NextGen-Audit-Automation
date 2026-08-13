@@ -1365,8 +1365,8 @@
       "section_key": "library_and_font_changes",
       "section_label": "Library & font changes",
       "operation": "bulkSubmitIntentForProduction",
-      "audit_category": "(UI only \u2014 not in audit-events.xlsx)",
-      "routing_key": "",
+      "audit_category": "LicenseManagement",
+      "routing_key": "font.licence.bulk_intent_for_production_submitted",
       "export_name": "BULK_SUBMIT_INTENT_FOR_PRODUCTION",
       "ui_files_count": 3,
       "touchpoints": [

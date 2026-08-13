@@ -1473,16 +1473,16 @@
     },
     "denyIntentForProduction": {
       "implementation": {
-        "subject": false,
+        "subject": true,
         "actor": true,
-        "scope": "actor-only"
+        "scope": "both"
       },
       "enforced": {
-        "subject": false,
-        "actor": false,
-        "scope": "none"
+        "subject": true,
+        "actor": true,
+        "scope": "both"
       },
-      "gap": true,
+      "gap": false,
       "source_file": "src/enrichment/enrichers/LicenseManagement/deny-intent-for-production.enricher.ts"
     },
     "dismissNotification": {
@@ -2710,12 +2710,26 @@
         "scope": "both"
       },
       "enforced": {
-        "subject": false,
-        "actor": false,
-        "scope": "none"
+        "subject": true,
+        "actor": true,
+        "scope": "both"
       },
-      "gap": true,
+      "gap": false,
       "source_file": "src/enrichment/enrichers/LicenseManagement/submit-intent-for-production.enricher.ts"
+    },
+    "bulkSubmitIntentForProduction": {
+      "implementation": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "enforced": {
+        "subject": true,
+        "actor": true,
+        "scope": "both"
+      },
+      "gap": false,
+      "source_file": "src/enrichment/enrichers/LicenseManagement/bulk-submit-intent-for-production.enricher.ts"
     },
     "suspendServiceAccount": {
       "implementation": {

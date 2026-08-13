@@ -74,7 +74,7 @@ def scenario_display_name(
     App Excel runs get ``(app)``. Backend-minted runs get ``(BE)``.
     Plugin host apps (Keynotes / Photoshop / …) use ``(keynotes)`` etc. instead of ``(app)``.
     """
-    from audit_validator.plugin_types import normalize_plugin_type
+    from audit_validator.plugin_types import is_plugin_type, normalize_plugin_type
 
     # Strip legacy channel / platform suffixes before applying canonical tags
     base_op = operation or ""
@@ -82,7 +82,9 @@ def scenario_display_name(
         if base_op.endswith(legacy):
             base_op = base_op[: -len(legacy)]
 
-    plugin = normalize_plugin_type(plugin_type) or normalize_plugin_type(touchpoint)
+    plugin = normalize_plugin_type(plugin_type)
+    if not plugin and touchpoint and is_plugin_type(touchpoint):
+        plugin = normalize_plugin_type(touchpoint)
     if plugin:
         return f"{base_op}({plugin})"
 

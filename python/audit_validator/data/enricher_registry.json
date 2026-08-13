@@ -67,6 +67,7 @@
     "bulkTagStyles",
     "bulkUnmarkProductionFont",
     "bulkUntagStyles",
+    "bulkSubmitIntentForProduction",
     "bulkUpdatePreferences",
     "bulkUpdateProfiles",
     "byofFontDeleteComplete",

@@ -120,6 +120,7 @@
   "SUBMIT_FONT_USAGE_REPORT": "mutation SubmitFontUsageReport($input: SubmitReportInput!) { submitFontUsageReport(input: $input) { id submittedBy { id } submittedAt createdAt reportUrl } }",
   "UPDATE_FONTS_FOR_REVIEW": "mutation UpdateFontsForReview($input: UpdateFontsForReviewInput!) { updateFontsForReview(input: $input) { success errors { code field message } } }",
   "SUBMIT_INTENT_FOR_PRODUCTION": "mutation SubmitIntentForProduction($input: ProductionStyleIntentInput!) { submitIntentForProduction(input: $input) { success errors { code field message } } }",
+  "BULK_SUBMIT_INTENT_FOR_PRODUCTION": "mutation BulkSubmitIntentForProduction($input: BulkSubmitIntentForProductionInput!) { bulkSubmitIntentForProduction(input: $input) { success errors { code field message } nodes { id intentState { status } } } }",
   "UPDATE_PREFERENCE": "mutation UpdatePreference($input: PreferenceToggleInput!) { updatePreference(input: $input) { success errors { code message } preferenceCode channel enabled updatedAt } }",
   "UPDATE_SUB_TOGGLE": "mutation UpdateSubToggle($input: PreferenceToggleInput!) { updateSubToggle(input: $input) { success errors { code message } preferenceCode triggerCode enabled parentState updatedAt } }",
   "BULK_UPDATE_PREFERENCES": "mutation BulkUpdatePreferences($input: [PreferenceToggleInput!]!) { bulkUpdatePreferences(input: $input) { success errors { code message } results { success preferenceCode channel enabled } updatedAt } }",

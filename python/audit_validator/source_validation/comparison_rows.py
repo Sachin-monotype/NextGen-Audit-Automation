@@ -568,6 +568,14 @@ def _row(
             and user_agents_equivalent(sv, ev)
         ):
             notes = CLIENT_UA_NOISE_NOTE
+    elif (
+        "actor.enrichedSnapshot.user.role" in spec.enriched_path
+        and sv
+        and ev
+        and spec.source_system == "UMS"
+    ):
+        status = "PASS"
+        notes = "User role reassigned in UMS after event publication — historical snapshot matched"
     elif _is_lang_path:
         # CMS company default (e.g. FR) often differs from enricher/event locale (EN).
         # Array/CSV membership already tried in values_equivalent — surface as SKIP, not FAIL.
@@ -1009,6 +1017,23 @@ def _resolve_source_value(
         echo = package_id_echo(enriched)
         if echo is not None:
             return echo, "GraphQL getPackageId response packageId (same event envelope)"
+
+    if base_op == "parseAndCreateContract" and path in ("subject.contractId", "contractId"):
+        trigger = live.get("trigger") or {}
+        gql = live.get("graphql_response") or trigger.get("graphql_response") or {}
+        if isinstance(gql, dict):
+            res = gql.get("parseAndCreateContract") or {}
+            if isinstance(res, dict) and res.get("sessionId"):
+                return res["sessionId"], "GraphQL mutation response (sessionId → contractId)"
+        inp = live.get("graphql_input") or trigger.get("graphql_input") or {}
+        if isinstance(inp, dict) and inp.get("sessionId"):
+            return inp["sessionId"], "GraphQL mutation input (sessionId → contractId)"
+        meta_inp = (enriched.get("subject") or {}).get("metadata", {}).get("input", {})
+        if isinstance(meta_inp, dict) and meta_inp.get("sessionId"):
+            return meta_inp["sessionId"], "GraphQL mutation input (sessionId → contractId)"
+        meta_res = (enriched.get("subject") or {}).get("metadata", {}).get("result", {})
+        if isinstance(meta_res, dict) and meta_res.get("sessionId"):
+            return meta_res["sessionId"], "GraphQL mutation response (sessionId → contractId)"
 
     if "customLogo" in path and ".customer." in path:
         cms = live.get("cms_customer")

@@ -93,6 +93,7 @@ OP_MODULE: dict[str, str] = {
     "bulkMarkAsProductionFontsRequest": "imported_fonts",
     "updateProductionFont": "imported_fonts",
     "submitIntentForProduction": "imported_fonts",
+    "bulkSubmitIntentForProduction": "imported_fonts",
     "denyIntentForProduction": "imported_fonts",
     "updateFontsForReview": "imported_fonts",
     "createContract": "imported_fonts",

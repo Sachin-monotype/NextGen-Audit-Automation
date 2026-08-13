@@ -82,6 +82,8 @@ def _parse_source(data_mapping: str) -> tuple[str, str]:
         return "CMS", "GET /api/v2/customers/{gcid}"
     if "ams" in lower or "asset-management" in lower:
         return "AMS", "GET /api/v3/assets/{id}"
+    if "lms" in lower or "license-management" in lower or "production font request" in lower:
+        return "LMS", "GET / search production font requests"
     if "jwt" in lower or "bearer" in lower:
         return "JWT", "Bearer token claims"
     if "auth0" in lower:
@@ -930,6 +932,213 @@ def _delete_roles_fields() -> list[MappingField]:
     return fields
 
 
+# License Management — production intent ops (resolver LicenseManagement enrichers).
+_SUBMIT_INTENT_OPS = frozenset({
+    "submitIntentForProduction",
+    "bulkSubmitIntentForProduction",
+})
+_DENY_INTENT_OPS = frozenset({"denyIntentForProduction"})
+
+
+def _mf(
+    field: str,
+    node: str,
+    sub: str,
+    dm: str,
+    path: str,
+    *,
+    validate: str = "Y",
+) -> MappingField:
+    src, api = _parse_source(dm)
+    return MappingField(
+        field, node, sub, "", dm, "", validate, path, src, api, _layer_for_path(path)
+    )
+
+
+def _submit_intent_for_production_fields(operation: str) -> list[MappingField]:
+    """submitIntent / bulkSubmitIntent — Discovery fontDetails + UMS/CMS actor.
+
+    Resolver: buildSubmitIntentForProductionSubjectSnapshot (styles+variations by styleIds)
+    + buildActorEnrichedSnapshot. Subject type fontUsageReport; ids = styleId(s).
+    """
+    fields = _event_header_fields(operation)
+    fields.extend(
+        [
+            _mf(
+                "subject", "type", "",
+                "Source: GraphQL subject.type → fontUsageReport",
+                "subject.type",
+            ),
+            _mf(
+                "subject", "id[0]", "",
+                "Source: GraphQL mutation styleId / intents[].styleId → subject.id",
+                "subject.id[0]",
+            ),
+            _mf(
+                "subject.enrichedSnapshot", "source", "",
+                "Source: Resolver → mt-connect-middleware-discovery",
+                "subject.enrichedSnapshot.source",
+                validate="N",
+            ),
+            _mf(
+                "subject.enrichedSnapshot", "fontDetails[0]", "family.id",
+                "Discovery POST /v1/styles → mtc_families_data.id",
+                "subject.enrichedSnapshot.fontDetails[0].family.id",
+            ),
+            _mf(
+                "subject.enrichedSnapshot", "fontDetails[0]", "family.catalog.name_en",
+                "Discovery/Typesense name_en",
+                "subject.enrichedSnapshot.fontDetails[0].family.catalog.name_en",
+            ),
+            _mf(
+                "subject.enrichedSnapshot", "fontDetails[0]", "family.catalog.title_en",
+                "Discovery/Typesense title_en",
+                "subject.enrichedSnapshot.fontDetails[0].family.catalog.title_en",
+            ),
+            _mf(
+                "subject.enrichedSnapshot", "fontDetails[0]", "family.foundry.name_en",
+                "Discovery mtc_foundries_data.name_en",
+                "subject.enrichedSnapshot.fontDetails[0].family.foundry.name_en",
+            ),
+            _mf(
+                "subject.enrichedSnapshot", "fontDetails[0]", "styles[0].id",
+                "Discovery style document id (from subject.styleIds)",
+                "subject.enrichedSnapshot.fontDetails[0].styles[0].id",
+            ),
+            _mf(
+                "subject.enrichedSnapshot", "fontDetails[0]", "styles[0].variations[0].catalog.md5",
+                "Discovery GET /v1/variations md5",
+                "subject.enrichedSnapshot.fontDetails[0].styles[0].variations[0].catalog.md5",
+            ),
+        ]
+    )
+    if operation == "submitIntentForProduction":
+        fields.extend(
+            [
+                _mf(
+                    "subject.metadata", "input", "styleId",
+                    "Source: GraphQL mutation input.styleId",
+                    "subject.metadata.input.styleId",
+                ),
+                _mf(
+                    "subject.metadata", "input", "comment",
+                    "Source: GraphQL mutation input.comment",
+                    "subject.metadata.input.comment",
+                    validate="N",
+                ),
+            ]
+        )
+    else:
+        fields.extend(
+            [
+                _mf(
+                    "subject.metadata", "input", "intents[0].styleId",
+                    "Source: GraphQL mutation input.intents[].styleId",
+                    "subject.metadata.input.intents[0].styleId",
+                ),
+                _mf(
+                    "subject.metadata", "input", "intents[0].comment",
+                    "Source: GraphQL mutation input.intents[].comment",
+                    "subject.metadata.input.intents[0].comment",
+                    validate="N",
+                ),
+            ]
+        )
+    fields.extend(_actor_fields())
+    seen: set[str] = set()
+    out: list[MappingField] = []
+    for f in fields:
+        if f.enriched_path in seen:
+            continue
+        seen.add(f.enriched_path)
+        out.append(f)
+    return out
+
+
+def _deny_intent_for_production_fields() -> list[MappingField]:
+    """denyIntentForProduction — LMS production-font requests + UMS/CMS actor.
+
+    Resolver: buildProductionFontRequestEnrichedSnapshot({ requestIds }) →
+    subject.enrichedSnapshot.requests[] (same shape as bulkEditProductionRequests).
+    """
+    fields = _event_header_fields("denyIntentForProduction")
+    fields.extend(
+        [
+            _mf(
+                "subject", "type", "",
+                "Source: GraphQL subject.type → fontUsageReport",
+                "subject.type",
+            ),
+            _mf(
+                "subject", "id[0]", "",
+                "Source: GraphQL mutation input.requestIds → subject.id",
+                "subject.id[0]",
+            ),
+            _mf(
+                "subject.metadata", "input", "requestIds[0]",
+                "Source: GraphQL mutation input.requestIds",
+                "subject.metadata.input.requestIds[0]",
+            ),
+            _mf(
+                "subject.enrichedSnapshot", "requests[0]", "id",
+                "Source: LMS search production font requests → requests[].id",
+                "subject.enrichedSnapshot.requests[0].id",
+            ),
+            _mf(
+                "subject.enrichedSnapshot", "requests[0]", "styleId",
+                "Source: LMS production font request styleId",
+                "subject.enrichedSnapshot.requests[0].styleId",
+            ),
+            _mf(
+                "subject.enrichedSnapshot", "requests[0]", "familyId",
+                "Source: LMS production font request familyId",
+                "subject.enrichedSnapshot.requests[0].familyId",
+            ),
+            _mf(
+                "subject.enrichedSnapshot", "requests[0]", "styleName",
+                "Source: LMS production font request styleName",
+                "subject.enrichedSnapshot.requests[0].styleName",
+            ),
+            _mf(
+                "subject.enrichedSnapshot", "requests[0]", "familyName",
+                "Source: LMS production font request familyName",
+                "subject.enrichedSnapshot.requests[0].familyName",
+            ),
+            _mf(
+                "subject.enrichedSnapshot", "requests[0]", "status",
+                "Source: LMS production font request status (DENIED)",
+                "subject.enrichedSnapshot.requests[0].status",
+            ),
+            _mf(
+                "subject.enrichedSnapshot", "requests[0]", "requestType",
+                "Source: LMS production font request requestType",
+                "subject.enrichedSnapshot.requests[0].requestType",
+            ),
+            _mf(
+                "subject.enrichedSnapshot", "requests[0]", "reportId",
+                "Source: LMS production font request reportId",
+                "subject.enrichedSnapshot.requests[0].reportId",
+                validate="N",
+            ),
+            _mf(
+                "subject.enrichedSnapshot", "requests[0]", "createdAt",
+                "Source: LMS production font request createdAt",
+                "subject.enrichedSnapshot.requests[0].createdAt",
+                validate="N",
+            ),
+        ]
+    )
+    fields.extend(_actor_fields())
+    seen: set[str] = set()
+    out: list[MappingField] = []
+    for f in fields:
+        if f.enriched_path in seen:
+            continue
+        seen.add(f.enriched_path)
+        out.append(f)
+    return out
+
+
 def _builtin_mapping(operation: str) -> list[MappingField]:
     if operation in _EXPORT_OPS:
         return _export_batch_fields(operation)
@@ -937,6 +1146,10 @@ def _builtin_mapping(operation: str) -> list[MappingField]:
         return _desktop_ingress_fields(operation)
     if str(operation or "").lower().startswith("plugin"):
         return _plugin_ingress_fields(operation)
+    if operation in _SUBMIT_INTENT_OPS:
+        return _submit_intent_for_production_fields(operation)
+    if operation in _DENY_INTENT_OPS:
+        return _deny_intent_for_production_fields()
     if operation in _FONT_OPS:
         return _font_envelope_fields(operation)
     if operation == "activateList":
@@ -1001,9 +1214,18 @@ def get_operation_mapping(
 
     from ..case_keys import mapping_lookup_variants
 
+    variants = mapping_lookup_variants(operation)
+    # Resolver-backed License Management intent ops — prefer dedicated mappings
+    # over generic Excel/event-spec templates (which may mis-label subject scope).
+    if any(c in _SUBMIT_INTENT_OPS for c in variants):
+        for c in variants:
+            if c in _SUBMIT_INTENT_OPS:
+                return _submit_intent_for_production_fields(c)
+    if any(c in _DENY_INTENT_OPS for c in variants):
+        return _deny_intent_for_production_fields()
+
     xlsx = audit_events_xlsx or DEFAULT_AUDIT_EVENTS_XLSX
     registry = events_by_operation(str(xlsx))
-    variants = mapping_lookup_variants(operation)
     for cand in variants:
         if cand == operation:
             continue  # full label already tried via cron above; registry next
@@ -1031,7 +1253,12 @@ def get_operation_mapping(
             if str(c).lower().startswith("plugin"):
                 return _plugin_ingress_fields(c)
     return _builtin_mapping(
-        operation if operation in _EXPORT_OPS or operation in _FONT_OPS else bare
+        operation
+        if operation in _EXPORT_OPS
+        or operation in _FONT_OPS
+        or operation in _SUBMIT_INTENT_OPS
+        or operation in _DENY_INTENT_OPS
+        else bare
     )
 
 

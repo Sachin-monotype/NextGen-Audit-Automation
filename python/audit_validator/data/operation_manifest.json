@@ -546,7 +546,7 @@
       "exportName": "DENY_INTENT_FOR_PRODUCTION",
       "rootField": "denyIntentForProduction",
       "kind": "mutation",
-      "resolverMapped": false
+      "resolverMapped": true
     },
     {
       "auditOperation": "dismissNotification",
@@ -1414,6 +1414,13 @@
       "auditOperation": "submitIntentForProduction",
       "exportName": "SUBMIT_INTENT_FOR_PRODUCTION",
       "rootField": "submitIntentForProduction",
+      "kind": "mutation",
+      "resolverMapped": true
+    },
+    {
+      "auditOperation": "bulkSubmitIntentForProduction",
+      "exportName": "BULK_SUBMIT_INTENT_FOR_PRODUCTION",
+      "rootField": "bulkSubmitIntentForProduction",
       "kind": "mutation",
       "resolverMapped": true
     },

@@ -9,7 +9,7 @@
       "operation": "fontBridgeAuthFailed",
       "operationState": "failure",
       "platform": "nextGen",
-      "platformEnvironment": "app",
+      "platformEnvironment": "fontbridge",
       "platformVersion": "1.0.0",
       "operationIndex": 0
     },

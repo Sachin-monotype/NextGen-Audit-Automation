@@ -790,6 +790,8 @@ _ACTOR_ONLY_OPS: dict[str, str] = {
     "updateServiceAccount": "serviceAccount",
     "submitFontUsageReport": "fontUsageReport",
     "submitIntentForProduction": "fontUsageReport",
+    "bulkSubmitIntentForProduction": "fontUsageReport",
+    "denyIntentForProduction": "fontUsageReport",
     "updateFontsForReview": "fontUsageReport",
 }
 

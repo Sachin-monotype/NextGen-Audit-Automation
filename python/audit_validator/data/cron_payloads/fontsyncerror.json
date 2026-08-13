@@ -13,7 +13,7 @@
         "operationIndex": 0,
         "operationState": "failure",
         "platform": "nextGen",
-        "platformEnvironment": "app",
+        "platformEnvironment": "fontbridge",
         "platformVersion": "1.0.0.0",
         "actorUserAgent": "MonotypeNextGen/1.0.0.0",
         "osName": "mac",

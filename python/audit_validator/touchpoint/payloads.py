@@ -750,8 +750,19 @@ def variables_for(operation: str, seed: SeedIds, *, touch: str = "") -> dict[str
         "submitIntentForProduction": lambda: {
             "input": {"styleId": seed.style_id}
         },
+        "bulkSubmitIntentForProduction": lambda: {
+            "input": {
+                "intents": [
+                    {"styleId": seed.style_id, "comment": "qa-bulk-intent"},
+                ]
+            }
+        },
         "denyIntentForProduction": lambda: {
-            "input": {"styleId": seed.style_id}
+            "input": {
+                "requestIds": [
+                    str(seed.access_request_id or "6291771"),
+                ]
+            }
         },
         "deleteImportedFonts": lambda: {
             "input": {"styleIds": [seed.style_id]}

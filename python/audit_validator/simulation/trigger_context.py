@@ -128,19 +128,33 @@ def build_trigger_context(
         "fontActivationTypeSwitched",
         "fontLocalfontActivated",
         "fontLocalfontDeactivated",
-        "fontSyncSuccess",
         "userSwitchWorkspaceApp",
         "fontSimilarViewed",
         "fontPairsViewed",
         "fontSimilarFontViewed",
     }
     base_op = (operation or "").split("(", 1)[0].strip()
+    is_fontbridge = any(
+        k in base_op.lower() or k in str(operation).lower()
+        for k in ("fontbridge", "fontsync", "fontunsync")
+    ) or str(ing.get("service") or "").strip() == "MonotypeFontBridge"
+
+    if is_fontbridge:
+        env = "fontbridge"
+
     # Only named shell / fontSimilar ops use mtconnect-ui — do not trust a
     # mis-tagged ingress ``service`` for GQL events (those are mtconnect-api).
     wants_ui_service = base_op in _ui_service_ops
     connect_svc = str(ing.get("service") or "").strip() == "MonotypeNextGenConnectService"
 
-    if connect_svc:
+    if is_fontbridge:
+        service = str(ing.get("service") or "").strip() or "MonotypeFontBridge"
+        version = (
+            hdrs.get("x-unified-version")
+            or str(ing.get("platformVersion") or "").strip()
+            or "1.0.0"
+        )
+    elif connect_svc:
         service = "MonotypeNextGenConnectService"
         version = (
             hdrs.get("x-unified-version")

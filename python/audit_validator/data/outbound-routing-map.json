@@ -164,6 +164,8 @@
   "sharingInfoForAssets": "library.asset.sharing_info_retrieved",
   "submitFontUsageReport": "font.licence.usage_report_submitted",
   "submitIntentForProduction": "font.licence.intent_for_production_submitted",
+  "bulkSubmitIntentForProduction": "font.licence.bulk_intent_for_production_submitted",
+  "denyIntentForProduction": "font.licence.intent_for_production_denied",
   "updateFontsForReview": "font.licence.fonts_for_review_updated",
   "exportFontAssets": "export.font_assets.initiated",
   "exportFontProjects": "export.font_projects.initiated",
