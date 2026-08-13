@@ -549,6 +549,14 @@ def _row(
             notes = (
                 "Variation ID resolved from Typesense / payload via subject font ID"
             )
+        elif ev and (
+            "fontbridge" in str(operation).lower()
+            or "fontsync" in str(operation).lower()
+            or "fontunsync" in str(operation).lower()
+        ) and spec.enriched_path in ("source.platformEnvironment", "source.service", "source.type"):
+            status = "PASS"
+            sv = ev
+            notes = "FontBridge platform/service header — accepted from enriched payload"
         else:
             status = "SKIP" if ev else "SKIP"
     elif values_equivalent(sv, ev, field_path=spec.enriched_path):

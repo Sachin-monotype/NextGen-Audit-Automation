@@ -112,7 +112,7 @@ function scenarioChannelRank(operation: string, platformEnvironment?: string): n
   return 1;
 }
 
-type ResultChannel = "web" | "app" | "app-ingress" | "plugin" | "cron";
+type ResultChannel = "web" | "app" | "fontbridge" | "query" | "app-ingress" | "plugin" | "cron";
 
 const APP_INGRESS_EVENTS = new Set([
   "app.settings.plugin.install_all.enabled",
@@ -182,20 +182,28 @@ function resultChannel(
   platformEnvironment?: string,
 ): ResultChannel {
   const op = String(operation || "").trim();
+  const pe = String(platformEnvironment || "").trim().toLowerCase();
+  const base = op.includes("(") ? op.slice(0, op.indexOf("(")) : op;
+  const baseTrim = base.trim();
+
+  if (pe === "fontbridge" || op.toLowerCase().includes("fontbridge") || baseTrim.toLowerCase().startsWith("fontbridge")) {
+    return "fontbridge";
+  }
+  if (baseTrim.toLowerCase().startsWith("get")) {
+    return "query";
+  }
   if (/\(plugin\)$/i.test(op)) return "plugin";
   if (isAppIngressEvent(op)) return "app-ingress";
   if (/\(app\)$/i.test(op)) return "app";
   if (/\(web\)$/i.test(op)) return "web";
-  const pe = String(platformEnvironment || "").trim().toLowerCase();
   if (pe === "plugin") return "plugin";
   if (isAppIngressEvent(op)) return "app-ingress";
   if (pe === "app") return "app";
   if (pe === "web") return "web";
-  const base = op.includes("(") ? op.slice(0, op.indexOf("(")) : op;
-  if (base.toLowerCase().startsWith("plugin")) return "plugin";
+  if (baseTrim.toLowerCase().startsWith("plugin")) return "plugin";
   if (pe && pe !== "web" && pe !== "app" && pe !== "plugin") return "cron";
-  if (cronBases.has(op) || cronBases.has(base)) return "cron";
-  if (/^[a-z0-9]+(-[a-z0-9]+)+$/i.test(base)) return "cron";
+  if (cronBases.has(op) || cronBases.has(baseTrim)) return "cron";
+  if (/^[a-z0-9]+(-[a-z0-9]+)+$/i.test(baseTrim)) return "cron";
   return "web";
 }
 
@@ -1084,7 +1092,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   }, [allCoverageRows]);
 
   const channelCounts = useMemo(() => {
-    const counts = { all: 0, web: 0, app: 0, "app-ingress": 0, plugin: 0, cron: 0 };
+    const counts = { all: 0, web: 0, app: 0, fontbridge: 0, query: 0, "app-ingress": 0, plugin: 0, cron: 0 };
     for (const r of allCoverageRows) {
       const ch = r.channel || resultChannel(r.operation, cronBases, r.platformEnvironment);
       if (ch in counts) {
@@ -1931,11 +1939,13 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                   onChange={(e) =>
                     setCoverageChannel(e.target.value as "all" | ResultChannel)
                   }
-                  title="Filter by source.platformEnvironment (web / app / app-ingress / plugin / cron)"
+                  title="Filter by source.platformEnvironment (web / app / fontbridge / query / app-ingress / plugin / cron)"
                 >
                   <option value="all">All ({channelCounts.all})</option>
                   <option value="web">Web ({channelCounts.web})</option>
                   <option value="app">App ({channelCounts.app})</option>
+                  <option value="fontbridge">FontBridge ({channelCounts.fontbridge})</option>
+                  <option value="query">Query ({channelCounts.query})</option>
                   <option value="app-ingress">App Ingress ({channelCounts["app-ingress"]})</option>
                   <option value="plugin">Plugin ({channelCounts.plugin})</option>
                   <option value="cron">Cron / other ({channelCounts.cron})</option>
@@ -2218,7 +2228,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                             const ch =
                               r.channel ||
                               resultChannel(r.operation, cronBases, r.platformEnvironment);
-                            const label = r.platformEnvironment || ch;
+                            const label = (ch === "query" || ch === "fontbridge") ? ch : (r.platformEnvironment || ch);
                             return (
                               <span
                                 className={`channel-badge platform-${ch}`}

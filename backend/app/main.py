@@ -20,7 +20,9 @@ from .db import AuditDatabase, FILTER_FIELDS
 from .ingestion_manager import IngestionManager
 from .retention import RetentionScheduler
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+from audit_validator.env_profiles import apply_audit_profile
+
+apply_audit_profile()
 
 settings = load_settings()
 db = AuditDatabase(settings)

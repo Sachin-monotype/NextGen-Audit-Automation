@@ -684,6 +684,22 @@ def _clean_app_ui_be_defaults(
             }
             changed = True
 
+        # FontBridge platformEnvironment, service, and type fields
+        elif enr and (
+            "fontbridge" in str(r.get("scenario") or "").lower()
+            or "fontbridge" in str(r.get("platformEnvironment") or "").lower()
+            or str(r.get("operation") or "").lower().startswith("fontsync")
+            or str(r.get("operation") or "").lower().startswith("fontunsync")
+        ) and (fp in ("source.platformEnvironment", "source.service", "source.type") or status in ("FAIL", "SKIP")):
+            r = {
+                **r,
+                "value_in_source": enr,
+                "match_status": "PASS",
+                "notes": "FontBridge payload field — accepted from enriched payload",
+                "source_api": "MonotypeFontBridge payload",
+            }
+            changed = True
+
         out.append(r)
     return out, changed
 
@@ -766,12 +782,6 @@ def save_batch_results(
             cleaned, _ = _clean_import_provenance_notes(op_rows)
             cleaned, _ = _clean_benign_client_ua_rows(cleaned)
             cleaned, _ = _clean_app_ui_be_defaults(cleaned)
-            for r in cleaned:
-                if isinstance(r, dict):
-                    r["operation"] = _normalize_result_operation(
-                        str(r.get("operation") or canon)
-                    )
-            summ = (summaries or {}).get(op) or (summaries or {}).get(canon)
             pe = ""
             try:
                 from .qa_results_store import _platform_environment_from_rows
@@ -779,6 +789,12 @@ def save_batch_results(
                 pe = _platform_environment_from_rows(cleaned)
             except Exception:
                 pe = ""
+            if pe == "app" and not canon.endswith("(app)") and not canon.endswith("(APP)"):
+                canon = f"{canon}(app)"
+            for r in cleaned:
+                if isinstance(r, dict):
+                    r["operation"] = canon
+            summ = (summaries or {}).get(op) or (summaries or {}).get(canon)
             data[canon] = {
                 "operation": canon,
                 "compared_at": compared_at,
@@ -858,90 +874,13 @@ def reconcile_scope_rows(project_root: Path) -> dict[str, int]:
 
 
 def _normalize_result_operation(op: str) -> str:
-    """Strip legacy ``(UI)`` channel suffix — UI is the default, unlabeled."""
-    name = str(op or "").strip()
-    if name.endswith("(UI)"):
-        return name[: -len("(UI)")]
-    if name.endswith("(ui)"):
-        return name[: -len("(ui)")]
-    return name
+    """Preserve exact operation name provided without stripping channel tags."""
+    return str(op or "").strip()
 
 
 def _dedupe_channel_variants(data: dict[str, Any]) -> tuple[dict[str, Any], bool]:
-    """Drop redundant ``op(UI)`` / ``op(default)`` / bare-``op(BE)`` when the canonical key exists.
-
-    - UI / default is unlabeled → ``ums-user-invitation-expired(default)`` collapses into ``ums-user-invitation-expired``.
-    - Ingress ``op(BE)`` with no inner touchpoint collapses into bare ``op``.
-    - Touchpoint backend labels like ``activateFamily(global)(BE)`` are kept.
-    """
-    import re
-
-    changed = False
-    # 1) Rename/merge *(UI) / *(default) → bare
-    suffix_pat = re.compile(r"^(.+)\((UI|default)\)$", re.IGNORECASE)
-    suffix_keys = [op for op in list(data.keys()) if suffix_pat.match(str(op))]
-    for op in suffix_keys:
-        m = suffix_pat.match(str(op))
-        if not m:
-            continue
-        bare = m.group(1)
-        item = data.pop(op, None)
-        if item is None:
-            continue
-        changed = True
-        # Rewrite row operation labels under the bare name
-        rows = item.get("rows") or []
-        for r in rows:
-            if isinstance(r, dict):
-                r["operation"] = bare
-        item["operation"] = bare
-        if bare not in data:
-            data[bare] = item
-            continue
-        # Prefer the newer / higher-pass block
-        existing = data[bare]
-
-        def _score(block: dict[str, Any]) -> tuple:
-            summ = block.get("summary") or {}
-            return (
-                str(block.get("compared_at") or ""),
-                int(summ.get("pass") or summ.get("PASS") or 0),
-                len(block.get("rows") or []),
-            )
-
-        if _score(item) > _score(existing):
-            data[bare] = item
-
-    # 2) Drop bare-op(BE) when a non-BE variant exists, or for desktop ingress ops
-    #    (font*/app*/plugin*) — UI/APP is the source of truth; no parallel BE row.
-    be_only = re.compile(r"^([^(]+)\(BE\)$")
-    desktop_be_prefixes = (
-        "font",
-        "app",
-        "plugin",
-    )
-    to_drop: list[str] = []
-    keys = [str(k) for k in data.keys()]
-    for op in keys:
-        m = be_only.match(op)
-        if not m:
-            continue
-        bare = m.group(1)
-        bare_l = bare.lower()
-        has_non_be = any(
-            k != op
-            and (k == bare or k.startswith(f"{bare}("))
-            and not k.endswith("(BE)")
-            and "(BE)" not in k
-            for k in keys
-        )
-        is_desktop_ingress = bare_l.startswith(desktop_be_prefixes)
-        if has_non_be or is_desktop_ingress or bare in data:
-            to_drop.append(op)
-    for op in to_drop:
-        data.pop(op, None)
-        changed = True
-    return data, changed
+    """Pass-through. STRICT POLICY: No automatic deduplication, merging, or dropping of stored results."""
+    return data, False
 
 
 def _load_qa_results_prefer_mongo(

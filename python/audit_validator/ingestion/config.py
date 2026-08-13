@@ -170,10 +170,13 @@ def load_ingest_lanes(
         profile = get_audit_profile(target)
         lane_rmq = _rabbitmq_url_for_vhost(base_rmq, profile.rabbitmq_vhost)
         mongo_db = mongo_db_for_profile(profile)
+        raw_q = root.bindings[0].queue if (root.bindings and root.bindings[0].queue) else profile.ingress_raw_queue
+        enriched_q = root.bindings[1].queue if (len(root.bindings) > 1 and root.bindings[1].queue) else profile.ingress_enriched_queue
+        dlq_q = root.bindings[2].queue if len(root.bindings) > 2 else "mt.platform.raw_events.resolver.dlq"
         lane_bindings = [
-            QueueBinding("raw", profile.ingress_raw_queue, "raw"),
-            QueueBinding("enriched", profile.ingress_enriched_queue, "enriched"),
-            QueueBinding("dlq", root.bindings[2].queue, "dlq"),
+            QueueBinding("raw", raw_q, "raw"),
+            QueueBinding("enriched", enriched_q, "enriched"),
+            QueueBinding("dlq", dlq_q, "dlq"),
         ]
         lane_config = replace(
             root,
