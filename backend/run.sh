@@ -39,5 +39,6 @@ _pip_stamp() {
 
 _pip_stamp
 
-export PYTHONPATH="$ROOT/backend"
+# python/ holds audit_validator; backend/ holds the FastAPI app package.
+export PYTHONPATH="$ROOT/python:$ROOT/backend${PYTHONPATH:+:$PYTHONPATH}"
 exec "$PY" -m uvicorn app.main:app --host 0.0.0.0 --port "${API_PORT:-3200}" --reload
