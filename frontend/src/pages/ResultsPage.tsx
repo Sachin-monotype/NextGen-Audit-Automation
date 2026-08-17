@@ -2203,7 +2203,18 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                           </span>
                         </td>
                         <td>
-                          {nested ? null : (
+                          {nested ? (
+                            <div className="coverage-op-cell event nested" title={r.operation}>
+                              <span className="coverage-scenario-branch" aria-hidden />
+                              <button
+                                type="button"
+                                className="coverage-event-name nested"
+                                onClick={() => openOperationDetail(r.operation)}
+                              >
+                                {base}
+                              </button>
+                            </div>
+                          ) : (
                             <button
                               type="button"
                               className="coverage-event-name"
@@ -2276,7 +2287,19 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                           </button>
                         </td>
                         <td className="coverage-col-narrow">
-                          <details className="coverage-track-menu">
+                          <details
+                            className="coverage-track-menu"
+                            onToggle={(e) => {
+                              const el = e.currentTarget;
+                              if (!el.open) return;
+                              // Close other open row menus so only one overlays at a time
+                              document
+                                .querySelectorAll<HTMLDetailsElement>("details.coverage-track-menu[open]")
+                                .forEach((other) => {
+                                  if (other !== el) other.open = false;
+                                });
+                            }}
+                          >
                             <summary
                               className={`track-pill track-mini track-${r.track}`}
                               title="More actions"

@@ -1085,6 +1085,14 @@ button.primary.outline {
   overflow: auto;
 }
 
+/* Coverage Results table: don't clip ··· action menus that open below a row */
+.coverage-panel > .compact-table-wrap {
+  /* Page (.content) already scrolls; keep horizontal scroll for wide tables */
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
 .compact-result-table {
   font-size: 0.8rem;
 }
@@ -1821,6 +1829,27 @@ button:disabled {
   text-decoration: underline;
 }
 
+.coverage-event-name.nested {
+  font-weight: 500;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+
+.coverage-op-cell.nested {
+  padding-left: 4px;
+  gap: 4px;
+}
+
+.coverage-scenario-branch {
+  width: 10px;
+  height: 10px;
+  border-left: 2px solid var(--border);
+  border-bottom: 2px solid var(--border);
+  margin: 0 2px 6px 6px;
+  flex: 0 0 auto;
+}
+
 .coverage-scenario-name {
   border: none;
   background: transparent;
@@ -1874,19 +1903,6 @@ button:disabled {
 
 .coverage-op-cell.event {
   gap: 6px;
-}
-
-.coverage-op-cell.nested {
-  padding-left: 8px;
-}
-
-.coverage-scenario-branch {
-  width: 10px;
-  height: 10px;
-  border-left: 2px solid var(--border);
-  border-bottom: 2px solid var(--border);
-  margin: 0 4px 6px 10px;
-  flex: 0 0 auto;
 }
 
 .coverage-scenario-tag {
@@ -2072,6 +2088,12 @@ button:disabled {
 .coverage-table td,
 .coverage-table th {
   white-space: nowrap;
+  /* Let ··· menus paint outside the cell */
+  overflow: visible;
+}
+
+.coverage-table tbody tr {
+  position: relative;
 }
 
 .coverage-actions {
@@ -2167,6 +2189,10 @@ button:disabled {
   display: inline-block;
 }
 
+.coverage-track-menu[open] {
+  z-index: 40;
+}
+
 .coverage-track-menu > summary {
   cursor: pointer;
   list-style: none;
@@ -2187,8 +2213,10 @@ button:disabled {
 .coverage-track-menu-body {
   position: absolute;
   right: 0;
-  top: calc(100% + 4px);
-  z-index: 5;
+  /* Open upward so the full menu stays visible above the next rows */
+  top: auto;
+  bottom: calc(100% + 4px);
+  z-index: 40;
   display: flex;
   flex-direction: column;
   gap: 4px;
