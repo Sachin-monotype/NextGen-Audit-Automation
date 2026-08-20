@@ -326,3 +326,38 @@ def test_parse_payload_column_maps_ua_and_app_version():
     headers = row["ingress_headers"] or {}
     assert "Electron" in headers.get("User-Agent", "")
     assert headers.get("X-Unified-Version") == "1.0.0"
+
+
+def test_parse_batch_orchestration_completion_operations():
+    cid = "55555555-5555-5555-5555-555555555555"
+    resp = json.dumps(
+        {"data": {"bulkActivateStyles": {"batchId": "b-1", "actionType": "BULK_ACTIVATE", "status": "IN_PROGRESS"}}}
+    )
+    df = pd.DataFrame(
+        [
+            {
+                "event_name": "bulkActivateStyles",
+                "scenario": "global",
+                "target": "web",
+                "correlation_id": cid,
+                "status": "OK",
+                "response": resp,
+            },
+            {
+                "event_name": "bulkActivateComplete",
+                "scenario": "global",
+                "target": "web",
+                "correlation_id": cid,
+                "status": "OK",
+                "response": resp,
+            },
+        ]
+    )
+    buf = BytesIO()
+    df.to_excel(buf, index=False)
+    rows = parse_ui_script_excel(buf.getvalue(), target="web")
+    assert len(rows) == 2
+    ops = [r["operation"] for r in rows]
+    assert ops == ["bulkActivateStyles", "bulkActivateComplete"]
+    assert rows[0]["correlation_id"] == cid
+    assert rows[1]["correlation_id"] == cid

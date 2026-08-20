@@ -189,7 +189,8 @@ def _patch_byof_contract(payload: JsonDict, *, contract_id: str | None = None) -
     user_id = str(actor.get("globalUserId") or "").strip() if isinstance(actor, dict) else ""
     if user_id in {"", "null"}:
         user_id = (
-            (os.getenv("CRON_BYOF_USER_ID") or "").strip()
+            (os.getenv("CRON_USER_ID") or "").strip()
+            or (os.getenv("CRON_BYOF_USER_ID") or "").strip()
             or (os.getenv("NOTIFICATION_CLEANUP_USER_ID") or "").strip()
             or "bc195ef6-6884-11f1-a522-0e0a04e472ab"
         )
@@ -281,7 +282,7 @@ _UUID_RE = re.compile(
 
 # Identity fields in cron samples that all point at the *target customer* — safe to
 # re-point at the run-time gcid so a stale sample id doesn't break enrichment.
-_DYNAMIC_GCID_KEYS = frozenset({"globalCustomerId", "customerId", "workspaceId"})
+_DYNAMIC_GCID_KEYS = frozenset({"globalCustomerId", "customerId", "workspaceId", "companyId"})
 _DYNAMIC_GCID_LIST_KEYS = frozenset({"globalCustomerIds"})
 # Scheduler emits these at run time — refresh so they are never stale.
 _RUNTIME_TS_KEYS = frozenset({"scheduledAt", "triggeredAt"})
@@ -309,9 +310,9 @@ def _apply_runtime_overrides(
                 node[key] = [gcid] if not val else [gcid for _ in val]
             elif key in _RUNTIME_TS_KEYS and isinstance(val, str) and val.strip():
                 node[key] = now_iso
-            elif user_id and key == "userId" and isinstance(val, str) and val.strip():
+            elif user_id and key in {"userId", "globalUserId"} and isinstance(val, str) and val.strip():
                 node[key] = user_id
-            elif profile_id and key == "profileId" and isinstance(val, str) and val.strip():
+            elif profile_id and key in {"profileId", "globalProfileId"} and isinstance(val, str) and val.strip():
                 node[key] = profile_id
             else:
                 _apply_runtime_overrides(

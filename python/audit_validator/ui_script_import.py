@@ -496,20 +496,36 @@ def parse_ui_script_excel(
         scenario = _cell_str(series.get(scenario_col)) if scenario_col else ""
         scenario = _normalize_scenario(scenario) if scenario else ""
         pluginsource = _cell_str(series.get(plugin_col)) if plugin_col else ""
-
         auth_token = _cell_str(series.get(auth_col)) if auth_col else ""
         resp_raw = series.get(resp_col) if resp_col else None
         full_resp = _parse_full_response_cell(resp_raw)
         gql_resp = _parse_response_cell(resp_raw)
-        body_op = _response_body_operation(full_resp, gql_resp)
-        op = body_op if body_op else excel_op
+
+        BATCH_ORCHESTRATION_COMPLETIONS = {
+            "bulkactivatecomplete": "bulkActivateComplete",
+            "bulkdeactivatecomplete": "bulkDeactivateComplete",
+            "exportcompleted": "exportCompleted",
+            "exportfailed": "exportFailed",
+            "byoffontdeletecomplete": "byofFontDeleteComplete",
+            "licenselinked": "licenseLinked",
+            "bulkmarkasproductionfontsrequest": "bulkMarkAsProductionFontsRequest",
+            "fontsyncerror": "fontSyncFailure",
+            "fontsyncfailure": "fontSyncFailure",
+        }
+        excel_op_key = excel_op.strip().lower()
+        if excel_op_key in BATCH_ORCHESTRATION_COMPLETIONS:
+            op = BATCH_ORCHESTRATION_COMPLETIONS[excel_op_key]
+        else:
+            body_op = _response_body_operation(full_resp, gql_resp)
+            op = body_op if body_op else excel_op
         body_cid = _response_body_correlation_id(full_resp)
         cid = body_cid if (body_cid and is_valid_correlation_id(body_cid)) else col_cid
         if not cid or not is_valid_correlation_id(cid):
             continue
-        if cid in seen_cid:
+        op_cid_key = (op, cid)
+        if op_cid_key in seen_cid:
             continue
-        seen_cid.add(cid)
+        seen_cid.add(op_cid_key)
         if not op:
             continue
 

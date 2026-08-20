@@ -15,7 +15,13 @@ from dataclasses import dataclass
 
 import pika
 
-from .config import IngestLaneConfig, IngestionConfig, load_ingest_lanes, load_ingestion_config
+from .config import (
+    IngestLaneConfig,
+    IngestionConfig,
+    keep_hours_for_mongo_db,
+    load_ingest_lanes,
+    load_ingestion_config,
+)
 from .consumer import QueueConsumer
 from .repository import MongoWriter
 from .targets import ingest_target_names
@@ -308,10 +314,13 @@ class IngestionService:
     def _run_cleanup_once(self) -> None:
         total = 0
         for lane in self._lanes:
+            hours = keep_hours_for_mongo_db(lane.lane.mongo_db)
             for binding in lane.lane.config.bindings:
                 try:
                     total += lane.writer.cleanup_collection(
-                        binding.collection, self._base.max_docs_per_operation
+                        binding.collection,
+                        self._base.max_docs_per_operation,
+                        keep_hours=hours,
                     )
                 except Exception as exc:  # noqa: BLE001
                     log.warning(

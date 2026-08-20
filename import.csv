@@ -1,0 +1,58 @@
+#,Routing Key,Event / Operation Name,Trigger,Recipient,Email / Target User,xCorrelationId,Enriched in Mongo?,Result Status
+1,subscription.contract.expiry,subscriptionContractExpiring,A-1,All User with Permission,agentqatest@gmail.com,094979b3-2bf7-48fa-a34f-4d02c8b8264d,YES,PASS
+2,subscription.seats.limitreached,subscriptionContractExpiring,A-2,All User with Permission,agentqatest@gmail.com,0c2f1e30-a34b-4e8b-813a-d4b99fe3ea38,YES,PASS
+3,subscription.seats.warning,workspaceSeatLimitNotification,A-3,All User with Permission,agentqatest@gmail.com,190f3ba1-1dca-418c-ad7c-2e3edfa929b2,YES,PASS
+4,subscription.production.limitreached,productionFontUsageOverageNotification,A-4,All User with Permission,agentqatest@gmail.com,af66eb03-3c30-4fdc-b751-edc09a88766c,YES,PASS
+5,byof.licence.expiring,byofLicenceExpiring,A-6,All User with Permission,agentqatest@gmail.com,7890cbe5-f218-45db-97d8-93e16d2230a1,YES,PASS
+6,byof.licence.expired,byofLicenceExpired,A-7,All User with Permission,agentqatest@gmail.com,fc137408-b328-4701-9fec-e5d6fb349bdf,YES,PASS
+7,byof.licence.overused,byofLicenceOverused,A-8,All User with Permission,agentqatest@gmail.com,ad468bcb-18b5-4a7d-92c8-d49f728096f7,YES,PASS
+8,byof.font.unlicensed,byofLicenceUnlicensedUse,A-9,All User with Permission,agentqatest@gmail.com,57f55394-e9c9-4b35-a581-e7d881a5d1c2,No (DLQ),WARN
+9,byof.font.nolicense,byofFontNoLicense,A-10,All User with Permission,agentqatest@gmail.com,9cffa1b1-a0e1-4298-9d1d-c43e67443e9c,No (DLQ),WARN
+10,reporting.window.open,quarterlyReportingWindowOpen,A-11,All User with Permission,agentqatest@gmail.com,067628cf-f264-42d7-817e-f639d1094989,YES,PASS
+11,reporting.window.closing,quarterlyReportingWindowClosing,A-12,All User with Permission,agentqatest@gmail.com,d83f6223-cb6b-4d9a-a023-043a228fe65f,YES,PASS
+12,reporting.window.final,quarterlyReportingWindowFinal,A-13,All User with Permission,agentqatest@gmail.com,78572ead-59e0-49aa-9e71-496ebe3e4eb1,YES,PASS
+13,reporting.window.intimation,quarterlyReportingWindowIntimation,A-15,SCHEDULED,agentqatest@gmail.com,779c65a3-fa2f-42e9-b1de-fa1399fc2375,YES,PASS
+14,subscription.production.durationended,productionRequestCron,cron,SELF,agentqatest@gmail.com,379ca383-a732-4273-844e-9efe4a45f5b8,YES,PASS
+15,reporting.window.missed,quarterlyReportingWindowMissed,cron,SCHEDULED,agentqatest@gmail.com,91962b55-f726-4217-b666-490ff1115e63,YES,PASS
+16,user.invitation.expired,user_invitation_expired,B-2,All User with Permission,fopelev386@joystill.com,041aa821-1275-4da3-ab82-6ee03462c98b,YES,PASS
+17,user.accounts.digest,userAccountExpiringDigest,B-9,All User with Permission,fopelev386@joystill.com,a1da4912-5c43-442f-b1bd-44c1c568bcd8,YES,PASS
+18,project.archival.warning.admin,projectArchivalWarning,C-1a,PROJECT_ADMIN,agentqatest@gmail.com,7bd208c0-fdf5-4875-b238-bbf0776f2621,YES,PASS
+19,project.byof.warning,byofLicenceExpiring,cron,PROJECT_ADMIN,agentqatest@gmail.com,0ab8a830-7f71-403c-b1be-f260ce5bbc42,No (DLQ),WARN
+20,project.byof.violated,Compliance Alert,cron,PROJECT_ADMIN,agentqatest@gmail.com,d3e2c5ed-b180-4f44-91f4-198c833e832b,No (DLQ),WARN
+21,project.byof.expired,License Expired,cron,PROJECT_ADMIN,agentqatest@gmail.com,f8200ac3-b734-4ab0-899c-0b860a35e5ce,No (DLQ),WARN
+22,project.byof.overused,Overuse Detected,cron,PROJECT_ADMIN,agentqatest@gmail.com,2b11b76c-6cce-45ce-8a16-9874259d2e64,No (DLQ),WARN
+23,project.byof.unlicensed,Unlicensed Font,cron,PROJECT_ADMIN,agentqatest@gmail.com,b144d89e-05c6-4c9e-a92a-b7ceeedfd63f,No (DLQ),WARN
+24,project.archival.warning.member,projectArchivalWarningMember,C-4b,PROJECT_MEMBER,agentqatest@gmail.com,3dc53384-a547-41dd-85d2-bcb0a9e172fe,YES,PASS
+25,font.leaving.catalogue,fontLeavingSoon,C-10,PROJECT_ADMIN,agentqatest@gmail.com,8f3f2c3d-663a-4e20-9e90-843b26459c03,YES,PASS
+26,pending.retention.reminder,pendingRententionReminder,C-11,PROJECT_ADMIN,agentqatest@gmail.com,5148f3d5-ba81-4b1a-9e2f-5bfbecb53afa,YES,PASS
+27,font.leaving.soon.catalogue.monthly.digest,fontLeavingCatalogueMonthlyDigest,C-14,SCHEDULED,agentqatest@gmail.com,ebdfb12f-546e-440b-b03b-6480bc03b5ca,YES,PASS
+28,font.catalogue.removed,fontCatalogueRemoved,cron,SELF,agentqatest@gmail.com,e4f43b8e-91ab-4061-96c9-58d8cee088de,No (DLQ),WARN
+29,company.subscription.expiring,companyExpiryWarning,G-1,PRIMARY_ADMIN,agentqatest@gmail.com,45b858df-b778-41e1-9d14-1c9c8a5e4483,No (DLQ),WARN
+30,subscription.fonts.deactivated,auto_deactivated_user,B-6/G-2,ALL_WORKSPACE,fopelev386@joystill.com,d91b8074-691c-4209-916e-2f4057faa996,YES,PASS
+31,user.account.deactivated,userAccountDeactivated,G-3/B-6,SELF,fopelev386@joystill.com,df677499-275b-469b-81c0-80f82506965e,No (DLQ),WARN
+32,user.account.expiring,userAccountExpiring,G-4,SELF,fopelev386@joystill.com,9b240703-035e-4581-8110-886f2a0a26d0,YES,PASS
+33,server.token.expiring,serverTokenExpiring,S-2,PERM,agentqatest@gmail.com,0e277d58-3536-448e-98fb-215e13f66310,YES,PASS
+34,fontbridge.accounts.limitreached,serverAccountLimitReached,S-4,PERM,agentqatest@gmail.com,4a5a29ee-9824-4a0e-aec2-a8fd6cb0333c,No (DLQ),WARN
+35,server.token.expiring.suspended,serverTokenExpiringSuspended,S-5,PERM,agentqatest@gmail.com,9a67851f-5028-4784-8e48-e50e337eb859,YES,PASS
+36,user.invitation.accepted,userAccountAccepted,B-1,All User with Permission,fopelev386@joystill.com,bef5507d-02fd-4575-9c7c-4d8a9566c0a8,YES,PASS
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,

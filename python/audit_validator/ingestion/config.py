@@ -42,6 +42,20 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in ("1", "true", "yes", "on")
 
 
+def keep_hours_for_mongo_db(db_name: str) -> float:
+    """Same per-environment window as backend Mongo retention."""
+    name = (db_name or "").strip()
+    low = name.lower()
+    default = float(_env("MONGO_RETENTION_KEEP_HOURS", "3") or "3")
+    if "preprod" in low or low.endswith("pp") or name == "AuditLogsPreprod":
+        return float(_env("MONGO_RETENTION_KEEP_HOURS_PP", "0.5") or "0.5")
+    if "qa" in low or name == "AuditLogsQA":
+        return float(_env("MONGO_RETENTION_KEEP_HOURS_QA", str(default)) or default)
+    if "uat" in low or name == "AuditLogsUAT":
+        return float(_env("MONGO_RETENTION_KEEP_HOURS_UAT", str(default)) or default)
+    return default
+
+
 @dataclass(frozen=True)
 class QueueBinding:
     """One queue → Mongo collection mapping."""

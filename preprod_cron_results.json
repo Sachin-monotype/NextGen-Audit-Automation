@@ -1,0 +1,344 @@
+{
+  "environment": "preprod",
+  "user_email": "sachinclaudecoder@gmail.com",
+  "user_id": "f3122c02-fe31-4487-8bb3-57156d84f2f8",
+  "profile_id": "c893d079-9940-11f1-ac0d-0e0a04e472ab",
+  "gcid": "4a949153-9cab-4023-b31c-8336a8a3ec46",
+  "contract_id": "e1a7701c-03be-4d83-8da9-5b53e98a33a3",
+  "font_style_id": "39tn8txk_o",
+  "total_cases": 33,
+  "published_count": 33,
+  "timestamp": "2026-08-16T08:01:46.000Z",
+  "cases": [
+    {
+      "case_id": "bulkActivateComplete",
+      "routing_key": "font.sync.failed",
+      "operation": "bulkActivateComplete",
+      "service": "batch-orchestration-service",
+      "correlation_id": "4dafd916-bc32-42ba-96fa-59adc48fc0c1",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "NO_ENRICHED (WARN)"
+    },
+    {
+      "case_id": "bulkDeactivateComplete",
+      "routing_key": "font.sync.failed",
+      "operation": "bulkDeactivateComplete",
+      "service": "batch-orchestration-service",
+      "correlation_id": "621819b2-d75c-4673-a261-2954315be331",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "NO_ENRICHED (WARN)"
+    },
+    {
+      "case_id": "bulkMarkAsProductionFontsRequest",
+      "routing_key": "font.production.bulk_request_marked",
+      "operation": "bulkMarkAsProductionFontsRequest",
+      "service": "mtconnect-api",
+      "correlation_id": "e317850d-5c4d-4a85-86c1-b1445be97012",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "NO_ENRICHED (WARN)"
+    },
+    {
+      "case_id": "byofFontDeleteComplete",
+      "routing_key": "byof.font.delete_complete",
+      "operation": "byofFontDeleteComplete",
+      "service": "batch-orchestration-service",
+      "correlation_id": "81538296-02b5-4ec4-92a8-b1b1790dc5a0",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "NO_ENRICHED (WARN)"
+    },
+    {
+      "case_id": "contractexpired",
+      "routing_key": "subscription.contract.expiry",
+      "operation": "quarterlyReportNotification",
+      "service": "license-management-service",
+      "correlation_id": "337ab1a0-556f-406d-8439-65915cb91b51",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "expirydigest",
+      "routing_key": "user.accounts.digest",
+      "operation": "weekly_account_expiry_digest",
+      "service": "user-mgmt-service",
+      "correlation_id": "0903ffe0-b0d8-4f26-bef4-7763c32c7747",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "exportcomplete",
+      "routing_key": "export.completed",
+      "operation": "exportCompleted",
+      "service": "mt-batch-orchestration-service",
+      "correlation_id": "8ba9f6a4-6b09-4981-82ac-294bded8c352",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "NO_ENRICHED (WARN)"
+    },
+    {
+      "case_id": "exportfailed",
+      "routing_key": "export.failed",
+      "operation": "exportFailed",
+      "service": "mt-batch-orchestration-service",
+      "correlation_id": "de007aa7-29d4-47a5-b438-2ff0650d62a9",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "NO_ENRICHED (WARN)"
+    },
+    {
+      "case_id": "fontBridge",
+      "routing_key": "fontbridge.auth.failed",
+      "operation": "fontBridgeAuthFailed",
+      "service": "mt-login-service",
+      "correlation_id": "cef4cf41-c266-4b36-a3a8-98c3e83392ab",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "fontsyncerror",
+      "routing_key": "",
+      "operation": "fontSyncFailure",
+      "service": "MonotypeFontBridge",
+      "correlation_id": "99471840-224c-4548-9f48-07595e512a7e",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "NO_ENRICHED (WARN)"
+    },
+    {
+      "case_id": "lfus",
+      "routing_key": "font.leaving.catalogue",
+      "operation": "fontLeavingCatalogue",
+      "service": "leaving-font-usage-service",
+      "correlation_id": "3d9c2236-6da5-4516-9b4f-cdd365b7beaa",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "licenseLinked",
+      "routing_key": "byof.license.mapped",
+      "operation": "licenseLinked",
+      "service": "batch-orchestration-service",
+      "correlation_id": "c9cfa02e-5f70-4dd8-b621-edf59b5ee0c5",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "NO_ENRICHED (WARN)"
+    },
+    {
+      "case_id": "licenseexpired",
+      "routing_key": "byof.licence.expired",
+      "operation": "byofLicenceExpired",
+      "service": "byof-license-service",
+      "correlation_id": "80c87a47-91da-4dfb-99ec-4238d0bb86a8",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "licneseexpiry",
+      "routing_key": "byof.licence.expiring",
+      "operation": "notifyByofLicenceExpiry",
+      "service": "byof-license-service",
+      "correlation_id": "79ebcaad-f910-4582-9d0c-8039564d26ad",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "NO_ENRICHED (WARN)"
+    },
+    {
+      "case_id": "lmsclose",
+      "routing_key": "reporting.window.closing",
+      "operation": "quarterlyReportNotification",
+      "service": "license-management-service",
+      "correlation_id": "2e32e0ce-39c2-450d-9677-e2c02ae6a9e1",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "lmsclosefinal",
+      "routing_key": "reporting.window.final",
+      "operation": "quarterlyReportNotification",
+      "service": "license-management-service",
+      "correlation_id": "ca1a2d69-e55c-4d5c-9c8c-b7b1dadbcbb4",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "lmsinitimation",
+      "routing_key": "reporting.window.intimation",
+      "operation": "quarterlyReportNotification",
+      "service": "license-management-service",
+      "correlation_id": "fb3cb993-35f9-4efd-9c48-dfbce1664bdd",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "lmsopen",
+      "routing_key": "reporting.window.open",
+      "operation": "quarterlyReportNotification",
+      "service": "license-management-service",
+      "correlation_id": "cdce6037-1f6b-482a-9a91-3212e2e2a104",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "missinglicense",
+      "routing_key": "byof.font.nolicense",
+      "operation": "byofFontNoLicense",
+      "service": "byof-license-service",
+      "correlation_id": "c93bf75f-f735-40a3-ae64-4f3e72d0f7d7",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "processUploadSessionFonts",
+      "routing_key": "document.scan.fonts_processed",
+      "operation": "processUploadSessionFonts",
+      "service": "document-scanning-service",
+      "correlation_id": "6825f9e0-5474-4c22-8113-42b20992a42c",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "NO_ENRICHED (WARN)"
+    },
+    {
+      "case_id": "projectadmin",
+      "routing_key": "project.archival.warning.admin",
+      "operation": "projectArchivalWarningAdmin",
+      "service": "mosaic-asset-mgmt-service",
+      "correlation_id": "21a94020-defc-4511-b325-ee8d0de4180a",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "projectmember",
+      "routing_key": "project.archival.warning.member",
+      "operation": "projectArchivalWarningMember",
+      "service": "mosaic-asset-mgmt-service",
+      "correlation_id": "56aa28d0-2a25-48d6-a9b6-f003502d7b8b",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "sub30",
+      "routing_key": "subscription.contract.expiry",
+      "operation": "subscriptionExpiryNotification",
+      "service": "license-management-service",
+      "correlation_id": "59456eca-f458-468e-b564-20306556b81b",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "sub7",
+      "routing_key": "subscription.contract.expiry",
+      "operation": "subscriptionExpiryNotification",
+      "service": "license-management-service",
+      "correlation_id": "de984ea6-a0d8-49d5-bb0e-069125706dc3",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "subscriptionexpiry",
+      "routing_key": "subscription.fonts.deactivated",
+      "operation": "subscription.fonts.deactivated",
+      "service": "user-mgmt-service",
+      "correlation_id": "18362616-5adc-4fd1-8ed7-921e24566517",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "tokenexpired",
+      "routing_key": "server.token.expiring",
+      "operation": "tokenExpiring",
+      "service": "mt-login-service",
+      "correlation_id": "99cf34f2-cb74-4785-9b8e-49063a9e1e81",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "tokensuspended",
+      "routing_key": "server.token.expiring.suspended",
+      "operation": "tokenExpiringSuspended",
+      "service": "mt-login-service",
+      "correlation_id": "692c5bf6-0ce8-4bf5-b9cb-384e70855134",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "useraccdeactivated",
+      "routing_key": "user.account.deactivated",
+      "operation": "auto_deactivated_user",
+      "service": "user-mgmt-service",
+      "correlation_id": "6ff44273-e346-4ff0-be75-2428d4e7dc67",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "useraccept",
+      "routing_key": "user.invitation.accepted",
+      "operation": "userAccountAccepted",
+      "service": "mt-login-service",
+      "correlation_id": "f0228148-4898-4fca-9d1e-6df11019a14d",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "userexpired",
+      "routing_key": "user.invitation.expired",
+      "operation": "user_invitation_expired",
+      "service": "user-mgmt-service",
+      "correlation_id": "27075e28-fe7f-403d-afb0-1171d6969ba6",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "userexpiring",
+      "routing_key": "user.account.expiring",
+      "operation": "weekly_account_expiry",
+      "service": "user-mgmt-service",
+      "correlation_id": "69b08e53-5db1-4b2a-9873-c1122af5764e",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "PASSTHROUGH (WARN)"
+    },
+    {
+      "case_id": "byofLicenceOverused",
+      "routing_key": "byof.licence.overused",
+      "operation": "byofLicenceOverused",
+      "service": "byof-license-service",
+      "correlation_id": "78db9000-8c32-48e5-8106-8b68c477bca9",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "NO_ENRICHED (WARN)"
+    },
+    {
+      "case_id": "byofLicenceExpiringSoon",
+      "routing_key": "byof.licence.expiring",
+      "operation": "notifyByofLicenceExpiry",
+      "service": "byof-license-service",
+      "correlation_id": "8db95d34-3499-417f-ac5f-a69474a7c40d",
+      "publish_status": "PASS",
+      "mongo_raw": "FAIL",
+      "mongo_enriched": "NO_ENRICHED (WARN)"
+    }
+  ]
+}
