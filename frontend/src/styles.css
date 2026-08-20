@@ -3368,3 +3368,193 @@ button.primary.sm {
   white-space: pre-wrap;
 }
 .filter-field span { display: block; font-size: 12px; margin-bottom: 4px; color: var(--muted); }
+.download-page {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.download-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+}
+
+.eyebrow {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  opacity: 0.55;
+  margin-bottom: 0.45rem;
+}
+
+.download-header h2 {
+  margin: 0;
+  font-size: 1.8rem;
+  letter-spacing: -0.02em;
+}
+
+.download-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 1.5rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.download-card {
+  padding: 1.75rem;
+}
+
+.card-header {
+  margin-bottom: 1.5rem;
+}
+
+.card-header h3 {
+  margin: 0 0 0.3rem;
+  font-size: 1.05rem;
+}
+
+.card-header span {
+  font-size: 0.85rem;
+  opacity: 0.55;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.form-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.form-group select,
+.form-group input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 42px;
+  padding: 0 0.8rem;
+  border-radius: 9px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  outline: none;
+  transition: 0.2s ease;
+}
+
+.form-group select:focus,
+.form-group input:focus {
+  border-color: rgba(120, 160, 255, 0.7);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.divider {
+  height: 1px;
+  margin: 1.75rem 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.correlation-group small {
+  font-size: 0.72rem;
+  opacity: 0.45;
+  margin-top: 0.15rem;
+}
+
+.label-hint {
+  margin-left: 0.5rem;
+  font-size: 0.65rem;
+  font-weight: 500;
+  opacity: 0.45;
+}
+
+.input-wrapper {
+  position: relative;
+}
+
+.input-wrapper input {
+  padding-left: 2.4rem;
+}
+
+.input-icon {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.4;
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+.download-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2rem;
+  gap: 1rem;
+}
+
+.selection-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.7rem;
+  opacity: 0.55;
+  letter-spacing: 0.03em;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #5ee68c;
+  box-shadow: 0 0 8px rgba(94, 230, 140, 0.6);
+}
+
+.download-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.7rem 1.2rem;
+  border-radius: 9px;
+  font-weight: 600;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.download-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.download-btn span {
+  font-size: 1rem;
+}
+
+@media (max-width: 700px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .download-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .download-btn {
+    justify-content: center;
+  }
+}

@@ -5,8 +5,9 @@ import GeneratePage from "./pages/GeneratePage";
 import ComparePage from "./pages/ComparePage";
 import ResultsPage from "./pages/ResultsPage";
 import HealthPage from "./pages/HealthPage";
+import DownloadPage from "./pages/DownloadPage";
 
-export type Section = "generate" | "display" | "compare" | "result" | "health";
+export type Section = "generate" | "display" | "compare" | "result" | "health" | "download";
 export type Theme = "dark" | "light";
 
 const NAV: { id: Section; label: string; hint: string }[] = [
@@ -15,6 +16,7 @@ const NAV: { id: Section; label: string; hint: string }[] = [
   { id: "compare", label: "Compare", hint: "Pick operations" },
   { id: "result", label: "Result", hint: "Source vs enrich" },
   { id: "health", label: "API Health", hint: "Test connectivity" },
+  { id: "download", label: "Download", hint: "Download payload dumps" },
 ];
 
 const SECTION_KEY = "audit_active_section";
@@ -144,6 +146,9 @@ export default function App() {
         </div>
         <div className={section === "health" ? "section-panel" : "section-panel hidden"}>
           <HealthPage />
+        </div>
+        <div className={section === "download" ? "section-panel" : "section-panel hidden"}>
+          <DownloadPage />
         </div>
       </main>
     </div>
