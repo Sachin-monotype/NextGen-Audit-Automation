@@ -61,16 +61,15 @@ Someone else testing **UAT** needs more than QA/PP because audit logs stay on **
    - `OAUTH_USERNAME` / `OAUTH_PASSWORD` (e.g. UAT test account)
    - Paste the same user JWT into `BEARER_TOKEN`, `NEXTGEN_BEARER_TOKEN`, and `DISCOVERY_BEARER_TOKEN` (no `Bearer ` prefix)
    - `GRAPHQL_CONTEXT_CUSTOMER_ID` / `OAUTH_GCID` = gcid claim from that JWT
-   - `DISCOVERY_BASE_URL=https://nextgen.monotype-uat.com/api/search`
-   - `UMS_BASE_URL=https://usermanagement.monotype-uat.com` (or `UMS_BASE_URL_UAT=…`)
-   - `SOURCE_TRUTH=db` and `SOURCE_TRUTH_UMS=api` (UAT MySQL has no `user_management`)
+   - `SOURCE_TRUTH=db` (UMS/CMS/AMS all via MySQL — unsuffixed `user_management` / `customer_management` / `asset_management`)
+   - `DISCOVERY_BASE_URL=https://nextgen.monotype-uat.com/api/search` (Typesense stays HTTP)
 
 3. **Local Mongo (raw/enrich)**
    ```bash
    ./scripts/start-audit-mongo.sh
    ```
 
-4. **UAT MySQL tunnel (AMS/CMS, read-only)** — needs bastion SSH access + MySQL password
+4. **UAT MySQL tunnel (UMS/CMS/AMS, read-only)** — needs bastion SSH access + MySQL password
    ```bash
    # Requires ~/.ssh/id_rsa authorized on bastion (ask team for key access)
    ./scripts/start-uat-mysql-tunnel.sh
@@ -79,10 +78,11 @@ Someone else testing **UAT** needs more than QA/PP because audit logs stay on **
    ```bash
    MYSQL_HOST_UAT=127.0.0.1
    MYSQL_PORT_UAT=13306
-   MYSQL_USER_UAT=Uba_uat
-   MYSQL_PASSWORD_UAT=<from Workbench / team>
+   MYSQL_USER_UAT=shared_user_read
+   MYSQL_PASSWORD_UAT=<from team>
    MYSQL_SSL_UAT=true
    ```
+   Use schemas **without** `_nextgenqa` (those are QA mirrors).
 
 5. **RabbitMQ / Results (optional but typical)**
    - `RABBITMQ_URL_UAT` / `INGRESS_RABBITMQ_URL_UAT` (vhost `mt-connect`)

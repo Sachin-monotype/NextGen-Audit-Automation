@@ -1,9 +1,12 @@
-"""MySQL schema names for CMS / UMS / AMS — PP vs QA.
+"""MySQL schema names for CMS / UMS / AMS — PP / QA / UAT.
 
 QA stores mirror tables under ``*_nextgenqa`` schemas, e.g.::
 
-    user_management.user_invitation          # PP
+    user_management.user_invitation            # PP / UAT
     user_management_nextgenqa.user_invitation  # QA
+
+UAT and PP use the unsuffixed schemas: ``user_management``, ``customer_management``,
+``asset_management`` (never ``*_nextgenqa``).
 """
 
 from __future__ import annotations
@@ -18,10 +21,17 @@ _BASE_SCHEMAS = {
 
 
 def mysql_schema_suffix() -> str:
-    """Suffix appended to schema names for the active audit target."""
+    """Suffix appended to schema names for the active audit target.
+
+    Only QA gets ``_nextgenqa`` by default. PP / UAT / others use base names.
+    Override with ``MYSQL_SCHEMA_SUFFIX`` (non-QA) or ``MYSQL_QA_SCHEMA_SUFFIX``.
+    """
     target = (os.getenv("AUDIT_TARGET") or "qa").strip().lower()
     if target == "qa":
         return (os.getenv("MYSQL_QA_SCHEMA_SUFFIX") or "_nextgenqa").strip()
+    # Explicit empty string must win over a stale global MYSQL_SCHEMA_SUFFIX.
+    if f"MYSQL_SCHEMA_SUFFIX_{target.upper()}" in os.environ:
+        return (os.getenv(f"MYSQL_SCHEMA_SUFFIX_{target.upper()}") or "").strip()
     return (os.getenv("MYSQL_SCHEMA_SUFFIX") or "").strip()
 
 

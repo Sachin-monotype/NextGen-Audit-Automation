@@ -15,8 +15,10 @@
 #   MYSQL_USER_UAT=Uba_uat
 #   MYSQL_PASSWORD_UAT=…   # from MySQL Workbench / Keychain
 #
-# NOTE: This UAT host has asset_management + customer_management.
-#       There is NO user_management schema — UMS source validation stays on HTTP API.
+# NOTE: This UAT host exposes unsuffixed schemas for source validation:
+#   user_management / customer_management / asset_management
+# (QA mirrors use *_nextgenqa — do not use those on AUDIT_TARGET=uat.)
+# App access is SELECT-only (shared_user_read).
 
 set -euo pipefail
 
