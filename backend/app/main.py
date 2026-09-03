@@ -53,6 +53,24 @@ def _start_background_tasks() -> None:
     if os.getenv("INGEST_AUTO_START", "true").strip().lower() in {"1", "true", "yes", "on"}:
         def _start_ingestion() -> None:
             try:
+                from audit_validator.env_profiles import audit_target_name
+                from audit_validator.ingestion.targets import (
+                    ingest_target_names,
+                    multi_target_ingestion_enabled,
+                )
+
+                active = audit_target_name()
+                lanes = ingest_target_names()
+                if not multi_target_ingestion_enabled() and lanes != [active]:
+                    log = logging.getLogger(__name__)
+                    log.warning(
+                        "INGEST_TARGETS=%s mismatches AUDIT_TARGET=%s — using %s for consumers",
+                        os.getenv("INGEST_TARGETS") or lanes,
+                        active,
+                        active,
+                    )
+                    os.environ["INGEST_TARGETS"] = active
+                    ingestion.reconfigure()
                 status = ingestion.start()
                 consumers = status.get("consumers") or []
                 connected = [c.get("name") for c in consumers if c.get("connected")]
@@ -419,51 +437,71 @@ def clear_comparison_results() -> dict[str, Any]:
 
 @app.get("/api/results/mongo/status")
 def qa_results_mongo_status() -> dict[str, Any]:
-    """Ping the QA Results Atlas cluster (source-of-truth store)."""
+    """Ping the Results Atlas cluster for the active ``AUDIT_TARGET``."""
+    import os
+
     from .qa_results_store import ping
 
-    return ping()
+    target = (os.getenv("AUDIT_TARGET") or "qa").strip().lower()
+    return ping(target=target)
+
+
+class SyncMongoPayload(BaseModel):
+    scenarios: list[str] | None = None
 
 
 @app.post("/api/results/mongo/sync")
-def qa_results_mongo_sync() -> dict[str, Any]:
-    """Push all local QA comparison results into Atlas live ``QA Result`` (upsert)."""
+def qa_results_mongo_sync(payload: SyncMongoPayload | None = None) -> dict[str, Any]:
+    """Push local comparison results into Atlas for the active target (upsert)."""
+    import os
+
     from .qa_results_store import results_mongo_enabled, sync_qa_local_store
 
-    if not results_mongo_enabled():
-        raise HTTPException(400, "RESULTS_MONGO_URL is not configured")
-    return sync_qa_local_store(settings.audit_project_root)
+    target = (os.getenv("AUDIT_TARGET") or "qa").strip().lower()
+    if not results_mongo_enabled(target):
+        raise HTTPException(400, f"RESULTS_MONGO_URL not configured for {target}")
+    scenarios = payload.scenarios if payload and payload.scenarios else None
+    return sync_qa_local_store(settings.audit_project_root, scenarios=scenarios, target=target)
 
 
 @app.post("/api/results/mongo/seed-original")
 def qa_results_seed_original() -> dict[str, Any]:
-    """Seed immutable ``QA_Original`` once (no-op if already populated)."""
+    """Seed immutable original baseline once (QA only; no-op if already populated)."""
+    import os
+
     from .qa_results_store import results_mongo_enabled, seed_qa_original_once
 
-    if not results_mongo_enabled():
-        raise HTTPException(400, "RESULTS_MONGO_URL is not configured")
-    return seed_qa_original_once()
+    target = (os.getenv("AUDIT_TARGET") or "qa").strip().lower()
+    if not results_mongo_enabled(target):
+        raise HTTPException(400, f"RESULTS_MONGO_URL not configured for {target}")
+    return seed_qa_original_once(target=target)
 
 
 @app.post("/api/results/mongo/backfill-platform")
 def qa_results_backfill_platform() -> dict[str, Any]:
-    """Backfill ``platformEnvironment`` on live QA Result docs from field rows."""
+    """Backfill ``platformEnvironment`` on live Result docs from field rows."""
+    import os
+
     from .qa_results_store import backfill_platform_environments, results_mongo_enabled
 
-    if not results_mongo_enabled():
-        raise HTTPException(400, "RESULTS_MONGO_URL is not configured")
-    live = backfill_platform_environments(original=False)
-    return {"live": live}
+    target = (os.getenv("AUDIT_TARGET") or "qa").strip().lower()
+    if not results_mongo_enabled(target):
+        raise HTTPException(400, f"RESULTS_MONGO_URL not configured for {target}")
+    live = backfill_platform_environments(original=False, target=target)
+    return {"live": live, "audit_target": target}
 
 
 @app.post("/api/results/mongo/restore-from-original")
 def qa_results_restore_from_original() -> dict[str, Any]:
-    """Re-insert scenarios missing from live ``QA Result`` using immutable ``QA_Original``."""
+    """Re-insert scenarios missing from live Results using immutable original."""
+    import os
+
     from .qa_results_store import merge_original_into_live, results_mongo_enabled
 
-    if not results_mongo_enabled():
-        raise HTTPException(400, "RESULTS_MONGO_URL is not configured")
-    return merge_original_into_live()
+    target = (os.getenv("AUDIT_TARGET") or "qa").strip().lower()
+    if not results_mongo_enabled(target):
+        raise HTTPException(400, f"RESULTS_MONGO_URL not configured for {target}")
+    return merge_original_into_live(target=target)
 
 
 @app.post("/api/results/export-excel")
@@ -800,16 +838,21 @@ def pipeline_config() -> dict[str, Any]:
         cfg = load_config(settings.audit_project_root)
         ingest = ingestion.status()
         profile = get_audit_profile()
-        parsed = urlparse(cfg.rabbitmq.url)
-        vhost = parsed.path.lstrip("/") or "/"
+        from audit_validator.env_profiles import rabbitmq_url_for_profile
+
+        rmq_url = rabbitmq_url_for_profile(profile) or cfg.rabbitmq.url
+        parsed = urlparse(rmq_url)
+        vhost = profile.rabbitmq_vhost or parsed.path.lstrip("/") or "/"
+        uat_rmq_configured = bool(
+            (__import__("os").getenv("RABBITMQ_URL_UAT") or "").strip()
+            or profile.name != "uat"
+        )
 
         def queue_url(queue: str) -> str:
             if not parsed.hostname or not queue:
                 return ""
-            return (
-                f"https://{parsed.hostname}/#/queues/"
-                f"{quote(vhost, safe='')}/{quote(queue, safe='')}"
-            )
+            vh = quote(vhost, safe="")
+            return f"https://{parsed.hostname}/#/queues/{vh}/{quote(queue, safe='')}"
 
         return {
             "target": __import__("os").getenv("AUDIT_TARGET", "qa"),
@@ -817,10 +860,9 @@ def pipeline_config() -> dict[str, Any]:
             "nextgen_url": profile.nextgen_ui_url,
             "queue_environment": "pp" if profile.rabbitmq_vhost == "mt-connect-preprod" else profile.name,
             "queue_warning": (
-                "UAT GraphQL selected; RabbitMQ still uses the configured PP/preprod tap queues "
-                "until UAT broker/vhost details are configured."
-                if profile.name == "uat"
-                else ""
+                ""
+                if profile.name != "uat" or uat_rmq_configured
+                else "UAT GraphQL selected; set RABBITMQ_URL_UAT for the UAT broker (mt-connect vhost)."
             ),
             "available_targets": [
                 {"id": "qa", "label": "QA", "url": "https://nextgen-qa.monotype-pp.com"},
@@ -863,13 +905,14 @@ def set_pipeline_target(req: PipelineTargetRequest) -> dict[str, Any]:
     try:
         import os
         from dotenv import set_key
-        from audit_validator.env_profiles import apply_audit_profile, mongo_db_for_profile
+        from audit_validator.env_profiles import apply_audit_profile, mongo_db_for_profile, mongo_url_for_profile
         from audit_validator.ingestion.targets import multi_target_ingestion_enabled
 
         os.environ["AUDIT_TARGET"] = target
         set_key(str(settings.audit_project_root / ".env"), "AUDIT_TARGET", target)
         profile = apply_audit_profile(project_root=settings.audit_project_root)
         mongo_name = mongo_db_for_profile(profile)
+        mongo_url = mongo_url_for_profile(profile)
         os.environ["MONGO_DB_NAME"] = mongo_name
         set_key(str(settings.audit_project_root / ".env"), "MONGO_DB_NAME", mongo_name)
         # Keep CasePilot UI base in sync with the selected NextGen host
@@ -884,7 +927,8 @@ def set_pipeline_target(req: PipelineTargetRequest) -> dict[str, Any]:
                 profile.nextgen_ui_url,
             )
         settings.mongo_db = mongo_name
-        db.use_database(mongo_name)
+        settings.mongo_url = mongo_url
+        db.reconfigure(mongo_url, mongo_name)
         if profile.oauth_username:
             set_key(
                 str(settings.audit_project_root / ".env"),
@@ -916,6 +960,8 @@ def set_pipeline_target(req: PipelineTargetRequest) -> dict[str, Any]:
         except Exception:
             pass
         if not multi_target_ingestion_enabled():
+            os.environ["INGEST_TARGETS"] = target
+            set_key(str(settings.audit_project_root / ".env"), "INGEST_TARGETS", target)
             ingestion.reconfigure()
         out = pipeline_config()
         out["oauth_username"] = profile.oauth_username
@@ -1797,12 +1843,42 @@ def _annotate_scenarios(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return results
 
 
+def _fetch_and_cache_payload_dump(tab: str, correlation_id: str) -> dict[str, Any] | None:
+    """Mongo miss → resolver payload-dumps → optional local cache → Display row."""
+    if tab not in {"raw", "enriched"}:
+        return None
+    try:
+        from audit_validator.payload_dumps import (
+            fetch_payload_dump,
+            payload_dumps_fallback_enabled,
+        )
+    except Exception:
+        return None
+    if not payload_dumps_fallback_enabled():
+        return None
+    cid = (correlation_id or "").strip()
+    if not cid or len(cid) < 8:
+        return None
+    doc = fetch_payload_dump(cid, tab=tab)
+    if not doc:
+        return None
+    try:
+        db.upsert_envelope(tab, doc)
+    except Exception:
+        pass
+    row = db._row_from_doc(doc, full=True)
+    row["fetchedFrom"] = "payload-dumps"
+    return row
+
+
 @app.get("/api/{tab}/by-correlation/{correlation_id:path}")
 def get_log_by_correlation(tab: str, correlation_id: str) -> dict[str, Any]:
     """Full raw/enriched/dlq envelope for expand-payload (list view is lean)."""
     if tab not in {"raw", "enriched", "dlq"}:
         raise HTTPException(400, "tab must be raw, enriched, or dlq")
     row = db.find_by_correlation(tab, correlation_id)
+    if not row:
+        row = _fetch_and_cache_payload_dump(tab, correlation_id)
     if not row:
         raise HTTPException(404, "No document for that correlation id")
     try:
@@ -1842,6 +1918,35 @@ def list_logs(
         "source.operationState": source_operationState,
     }
     result = db.find_logs(tab, filters=query_filters, limit=lim, page=page, unique=unique)
+    # Correlation-only miss → pull from resolver dumps (Excel / no-queue validation).
+    cid = (xCorrelationId or "").strip()
+    other_filters = any(
+        (query_filters.get(k) or "").strip()
+        for k in query_filters
+        if k != "xCorrelationId"
+    )
+    if (
+        tab in {"raw", "enriched"}
+        and cid
+        and len(cid) >= 8
+        and not other_filters
+        and not (result.get("results") or [])
+        and page == 1
+    ):
+        remote = _fetch_and_cache_payload_dump(tab, cid)
+        if remote:
+            lean = dict(remote)
+            lean["message"] = None
+            lean["payload_pending"] = True
+            lean["fetchedFrom"] = "payload-dumps"
+            result = {
+                "total": 1,
+                "page": 1,
+                "limit": lim,
+                "results": [lean],
+                "unique": False,
+                "fetchedFrom": "payload-dumps",
+            }
     try:
         _annotate_scenarios(result.get("results") or [])
     except Exception:

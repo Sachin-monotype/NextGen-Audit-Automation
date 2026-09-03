@@ -490,10 +490,24 @@ def ensure_discovery_user_token(*, project_root: Path | None = None) -> str:
     """
     import logging
     import time
+    from dotenv import load_dotenv
 
     global _DISCOVERY_MINT_COOLDOWN_UNTIL  # noqa: PLW0603
 
     log = logging.getLogger(__name__)
+
+    root = project_root
+    if root is None:
+        try:
+            from .project_root import find_project_root
+
+            root = find_project_root()
+        except Exception:
+            root = None
+    if root is not None:
+        load_dotenv(Path(root) / ".env")
+    else:
+        load_dotenv()
 
     existing = resolve_discovery_bearer_token()
     if existing:
@@ -501,7 +515,7 @@ def ensure_discovery_user_token(*, project_root: Path | None = None) -> str:
 
     # Prefer Excel/UI capture JWT before minting (avoids Auth0 429 storms).
     try:
-        excel = resolve_excel_discovery_token(project_root)
+        excel = resolve_excel_discovery_token(project_root=root)
         if excel:
             os.environ.setdefault("DISCOVERY_BEARER_TOKEN", excel)
             return excel

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 _lock = threading.Lock()
+_MONGO_RESULTS_TARGETS = frozenset({"qa", "uat"})
 
 
 def _active_target() -> str:
@@ -194,14 +195,19 @@ def _clean_benign_client_ua_rows(
 
 def _clean_app_ui_be_defaults(
     rows: list[dict[str, Any]],
+    *,
+    target: str | None = None,
 ) -> tuple[list[dict[str, Any]], bool]:
     """Align legacy app/GQL compare rows with current service / UA / auth rules.
 
-    - GQL frontend: ``mtconnect-api`` (do not force ``mtconnect-ui``)
-    - App-shell + fontSimilar/fontPairs: ``mtconnect-ui``
-    - ``platformVersion``: keep enriched ``1.0.0`` (X-Unified-Version), not invented ``1.0.0.0``
-    - ``authenticationState``: ``authenticated`` when gcid+guid present on the row set
+    Skipped entirely unless ``SOURCE_VALIDATION_ACCEPT_ENRICHED_ON_MISS`` is enabled
+    for the active audit target — avoids false PASS when CMS/UMS was not reachable.
     """
+    from audit_validator.source_validation.policy import accept_enriched_on_source_miss
+
+    if not accept_enriched_on_source_miss(target):
+        return rows, False
+
     out: list[dict[str, Any]] = []
     changed = False
 
@@ -336,9 +342,9 @@ def _clean_app_ui_be_defaults(
                 }
                 changed = True
 
-        # platformVersion: prefer enriched 1.0.0 (X-Unified-Version) over invented 1.0.0.0
-        elif fp == "source.platformVersion" and enr and src and enr != src:
-            if enr in {"1.0.0", "1.0.0.0"} and src in {"1.0.0", "1.0.0.0", ""}:
+        # platformVersion: prefer enriched 1.0.0 (X-Unified-Version) over app version / invented 1.0.0.0
+        elif fp == "source.platformVersion" and enr:
+            if src != enr or status != "PASS":
                 r = {
                     **r,
                     "value_in_source": enr,
@@ -347,15 +353,6 @@ def _clean_app_ui_be_defaults(
                     "source_api": "request headers",
                 }
                 changed = True
-        elif fp == "source.platformVersion" and enr and not src:
-            r = {
-                **r,
-                "value_in_source": enr,
-                "match_status": "PASS",
-                "notes": "Request X-Unified-Version / audit source.platformVersion",
-                "source_api": "request headers",
-            }
-            changed = True
 
         # actorUserAgent: accept enriched UA when source blank
         elif fp == "source.actorUserAgent" and enr and not src:
@@ -688,6 +685,7 @@ def _clean_app_ui_be_defaults(
         elif enr and (
             "fontbridge" in str(r.get("scenario") or "").lower()
             or "fontbridge" in str(r.get("platformEnvironment") or "").lower()
+            or "fontbridge" in str(r.get("operation") or "").lower()
             or str(r.get("operation") or "").lower().startswith("fontsync")
             or str(r.get("operation") or "").lower().startswith("fontunsync")
         ) and (fp in ("source.platformEnvironment", "source.service", "source.type") or status in ("FAIL", "SKIP")):
@@ -781,7 +779,7 @@ def save_batch_results(
             canon = _normalize_result_operation(op)
             cleaned, _ = _clean_import_provenance_notes(op_rows)
             cleaned, _ = _clean_benign_client_ua_rows(cleaned)
-            cleaned, _ = _clean_app_ui_be_defaults(cleaned)
+            cleaned, _ = _clean_app_ui_be_defaults(cleaned, target=audit_target)
             pe = ""
             try:
                 from .qa_results_store import _platform_environment_from_rows
@@ -811,11 +809,11 @@ def save_batch_results(
             json.dumps(data, indent=2, ensure_ascii=False, default=str) + "\n",
             encoding="utf-8",
         )
-        if audit_target == "qa":
+        if audit_target in _MONGO_RESULTS_TARGETS:
             try:
                 from .qa_results_store import results_mongo_enabled, upsert_many
 
-                if results_mongo_enabled():
+                if results_mongo_enabled(audit_target):
                     touched: dict[str, Any] = {}
                     for op in list(grouped):
                         canon = _normalize_result_operation(op)
@@ -825,7 +823,7 @@ def save_batch_results(
                             bare = canon[: -len("(default)")]
                             touched[bare] = data[bare]
                     if touched:
-                        mongo_status = upsert_many(touched)
+                        mongo_status = upsert_many(touched, target=audit_target)
                         if isinstance(mongo_status, dict) and not mongo_status.get("ok", True):
                             import logging
 
@@ -860,7 +858,7 @@ def reconcile_scope_rows(project_root: Path) -> dict[str, int]:
             cleaned, changed_raw = _clean_legacy_raw_envelope_rows(cleaned)
             cleaned, changed_notes = _clean_import_provenance_notes(cleaned)
             cleaned, changed_ua = _clean_benign_client_ua_rows(cleaned)
-            cleaned, changed_app = _clean_app_ui_be_defaults(cleaned)
+            cleaned, changed_app = _clean_app_ui_be_defaults(cleaned, target=audit_target)
             if changed_scope or changed_raw or changed_notes or changed_ua or changed_app:
                 ops_touched += 1
                 item["rows"] = cleaned
@@ -883,33 +881,27 @@ def _dedupe_channel_variants(data: dict[str, Any]) -> tuple[dict[str, Any], bool
     return data, False
 
 
-def _load_qa_results_prefer_mongo(
-    project_root: Path, *, include_rows: bool = True
+def _load_results_prefer_mongo(
+    project_root: Path, target: str, *, include_rows: bool = True
 ) -> tuple[dict[str, Any], str, str]:
-    """QA Results source of truth: Atlas live → QA_Original, overlaid with newer local.
-
-    When ``RESULTS_MONGO_URL`` is set we keep Atlas as the shared base (no full
-    local replace — that caused 163/150/125 event count drift). Local JSON is
-    **merged on top** for scenarios that are missing from Mongo or have a newer
-    ``compared_at`` (Mongo write often fails when Atlas has no primary).
-    """
+    """Results source of truth: Atlas live → original (QA), overlaid with newer local."""
+    audit_target = store_audit_target(project_root, target)
     err = ""
-    local = _load_for_target(project_root, "qa")
+    local = _load_for_target(project_root, audit_target)
     try:
         from .qa_results_store import load_all_scenarios, results_mongo_enabled
 
-        if results_mongo_enabled():
-            data = load_all_scenarios(original=False, include_rows=include_rows)
+        if results_mongo_enabled(audit_target):
+            data = load_all_scenarios(original=False, include_rows=include_rows, target=audit_target)
             source = "mongo"
             if not data:
-                # Live empty or read failed — use frozen baseline so the team sees one truth.
-                original = load_all_scenarios(original=True, include_rows=include_rows)
+                original = load_all_scenarios(original=True, include_rows=include_rows, target=audit_target)
                 if original:
                     data = original
                     source = "mongo-original"
-                    err = "live QA Result empty/unreachable; serving QA_Original"
+                    err = "live Results empty/unreachable; serving original baseline"
                 else:
-                    err = "RESULTS_MONGO_URL set but QA Result and QA_Original returned 0 docs"
+                    err = f"RESULTS_MONGO_URL_{audit_target.upper()} set but store returned 0 docs"
                     data = {}
             merged, n_overlay, sync_map = _overlay_local_results(data, local)
             if n_overlay:
@@ -918,28 +910,27 @@ def _load_qa_results_prefer_mongo(
                     err = f"{err}; overlaid {n_overlay} newer/missing local scenario(s)"
                 else:
                     err = f"overlaid {n_overlay} newer/missing local scenario(s)"
-            # Stash sync map on each item for the list API.
             for k, v in merged.items():
                 if isinstance(v, dict):
                     v["mongo_sync"] = sync_map.get(k, "synced")
             if merged or source.startswith("mongo"):
                 return merged, source, err
             return {}, "mongo", err
-        err = "RESULTS_MONGO_URL not set"
+        err = f"RESULTS_MONGO_URL not set for {audit_target}"
     except Exception as exc:
         err = str(exc)
         try:
             from .qa_results_store import load_all_scenarios, results_mongo_enabled
 
-            if results_mongo_enabled():
-                original = load_all_scenarios(original=True, include_rows=include_rows)
+            if results_mongo_enabled(audit_target):
+                original = load_all_scenarios(original=True, include_rows=include_rows, target=audit_target)
                 if original:
                     merged, n_overlay, sync_map = _overlay_local_results(original, local)
                     src = "mongo-original+local" if n_overlay else "mongo-original"
                     for k, v in merged.items():
                         if isinstance(v, dict):
                             v["mongo_sync"] = sync_map.get(k, "synced")
-                    return merged, src, f"live read failed ({err}); serving QA_Original"
+                    return merged, src, f"live read failed ({err}); serving original baseline"
                 if local:
                     for v in local.values():
                         if isinstance(v, dict):
@@ -956,7 +947,7 @@ def _load_qa_results_prefer_mongo(
             try:
                 from .qa_results_store import results_mongo_enabled
 
-                if results_mongo_enabled():
+                if results_mongo_enabled(audit_target):
                     return {}, "mongo", err
             except Exception:
                 pass
@@ -964,6 +955,12 @@ def _load_qa_results_prefer_mongo(
         if isinstance(v, dict):
             v.setdefault("mongo_sync", "local_only")
     return local, "local", err
+
+
+def _load_qa_results_prefer_mongo(
+    project_root: Path, *, include_rows: bool = True
+) -> tuple[dict[str, Any], str, str]:
+    return _load_results_prefer_mongo(project_root, "qa", include_rows=include_rows)
 
 
 def _overlay_local_results(
@@ -1009,10 +1006,10 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
     path = _store_path(project_root, audit_target)
     source = "local"
     load_err = ""
-    if audit_target == "qa":
+    if audit_target in _MONGO_RESULTS_TARGETS:
         # List view only needs summaries — full rows are ~60MB for 270 scenarios.
-        data, source, load_err = _load_qa_results_prefer_mongo(
-            project_root, include_rows=False
+        data, source, load_err = _load_results_prefer_mongo(
+            project_root, audit_target, include_rows=False
         )
     else:
         data = _load_for_target(project_root, audit_target)
@@ -1028,7 +1025,7 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
         cleaned, changed_raw = _clean_legacy_raw_envelope_rows(cleaned)
         cleaned, changed_notes = _clean_import_provenance_notes(cleaned)
         cleaned, changed_ua = _clean_benign_client_ua_rows(cleaned)
-        cleaned, changed_app = _clean_app_ui_be_defaults(cleaned)
+        cleaned, changed_app = _clean_app_ui_be_defaults(cleaned, target=audit_target)
         if changed_scope or changed_raw or changed_notes or changed_ua or changed_app:
             cleaned_any = True
             item["rows"] = cleaned
@@ -1066,7 +1063,7 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
     # docs may still carry local rows in memory; shipping them made the UI build
     # coverage from only those few ops and hide the rest of the store.
     merged_rows: list[dict[str, Any]] = []
-    if audit_target == "qa":
+    if audit_target in _MONGO_RESULTS_TARGETS:
         for it in items:
             it["rows"] = []
     else:
@@ -1079,11 +1076,11 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
         "count": len(visible_ops),
         "audit_target": audit_target,
         "available_targets": ["qa", "pp", "uat"],
-        "results_source": source if audit_target == "qa" else "local",
+        "results_source": source if audit_target in _MONGO_RESULTS_TARGETS else "local",
     }
-    if audit_target == "qa" and load_err:
+    if audit_target in _MONGO_RESULTS_TARGETS and load_err:
         out["results_mongo_error"] = load_err
-    if audit_target == "qa" and source.startswith("mongo"):
+    if audit_target in _MONGO_RESULTS_TARGETS and source.startswith("mongo"):
         # Count Atlas docs only (exclude local-only overlays) for the badge.
         synced = sum(1 for it in items if it.get("mongo_sync") == "synced")
         out["mongo_documents"] = synced or len(visible_ops)
@@ -1099,12 +1096,12 @@ def get_latest_operation(
     audit_target = store_audit_target(project_root, target)
     local = _load_for_target(project_root, target)
     local_item = local.get(operation) if isinstance(local, dict) else None
-    if audit_target == "qa":
+    if audit_target in _MONGO_RESULTS_TARGETS:
         try:
             from .qa_results_store import load_scenario, results_mongo_enabled
 
-            if results_mongo_enabled():
-                item = load_scenario(operation, original=False)
+            if results_mongo_enabled(audit_target):
+                item = load_scenario(operation, original=False, target=audit_target)
                 if item:
                     # Prefer local when it is newer (Mongo write may have failed).
                     if local_item and str(local_item.get("compared_at") or "") > str(
@@ -1112,7 +1109,7 @@ def get_latest_operation(
                     ):
                         return local_item
                     return item
-                item = load_scenario(operation, original=True)
+                item = load_scenario(operation, original=True, target=audit_target)
                 if item and not local_item:
                     return item
                 if local_item:
@@ -1141,12 +1138,12 @@ def delete_operation_result(
             )
             deleted_something = True
 
-    if audit_target == "qa":
+    if audit_target in _MONGO_RESULTS_TARGETS:
         try:
             from .qa_results_store import delete_scenario, results_mongo_enabled
 
-            if results_mongo_enabled():
-                m_del = delete_scenario(operation)
+            if results_mongo_enabled(audit_target):
+                m_del = delete_scenario(operation, target=audit_target)
                 if m_del:
                     deleted_something = True
         except Exception:
@@ -1183,12 +1180,12 @@ def clear_all_results(project_root: Path, *, target: str | None = None) -> int:
         if count:
             _backup_store(path)
         path.write_text("{}\n", encoding="utf-8")
-    if audit_target == "qa" and count:
+    if audit_target in _MONGO_RESULTS_TARGETS and count:
         try:
             from .qa_results_store import clear_all_scenarios, results_mongo_enabled
 
-            if results_mongo_enabled():
-                clear_all_scenarios()
+            if results_mongo_enabled(audit_target):
+                clear_all_scenarios(target=audit_target)
         except Exception:
             pass
     return count
@@ -1378,29 +1375,29 @@ def export_comparison_excel(
     from openpyxl import Workbook
 
     audit_target = store_audit_target(project_root, target)
-    if audit_target == "qa":
+    if audit_target in _MONGO_RESULTS_TARGETS:
         try:
             from .qa_results_store import load_all_scenarios, load_scenario, results_mongo_enabled
 
-            if results_mongo_enabled():
+            if results_mongo_enabled(audit_target):
                 wanted = [o for o in (operations or []) if o]
                 if wanted:
                     data = {}
                     for op in wanted:
-                        item = load_scenario(op, original=False)
+                        item = load_scenario(op, original=False, target=audit_target)
                         if item:
                             data[op] = item
                 else:
-                    data, _src, _err = _load_qa_results_prefer_mongo(
-                        project_root, include_rows=True
+                    data, _src, _err = _load_results_prefer_mongo(
+                        project_root, audit_target, include_rows=True
                     )
             else:
-                data, _src, _err = _load_qa_results_prefer_mongo(
-                    project_root, include_rows=True
+                data, _src, _err = _load_results_prefer_mongo(
+                    project_root, audit_target, include_rows=True
                 )
         except Exception:
-            data, _src, _err = _load_qa_results_prefer_mongo(
-                project_root, include_rows=True
+            data, _src, _err = _load_results_prefer_mongo(
+                project_root, audit_target, include_rows=True
             )
     else:
         data = _load_for_target(project_root, audit_target)

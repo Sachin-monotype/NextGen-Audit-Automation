@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -70,10 +71,43 @@ def _is_within_keep_hours(occurred_at: object, keep_hours: float, *, now: dateti
 class AuditDatabase:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._client = MongoClient(settings.mongo_url, serverSelectionTimeoutMS=8000)
+        self._mongo_url = settings.mongo_url
+        self._client = self._new_client(settings.mongo_url)
         self._db: Database = self._client[settings.mongo_db]
         self._sort_index_ready: set[str] = set()
-        # Ensure list/filter indexes exist even when ingestion never started.
+        # Ensure list/filter indexes exist in background so startup never blocks.
+        threading.Thread(target=self._init_all_indexes, daemon=True).start()
+
+    @staticmethod
+    def _new_client(url: str) -> MongoClient:
+        return MongoClient(
+            url,
+            serverSelectionTimeoutMS=8000,
+            connectTimeoutMS=10000,
+            socketTimeoutMS=30000,
+            maxPoolSize=50,
+        )
+
+    def reconfigure(self, mongo_url: str, mongo_db: str | None = None) -> str:
+        """Switch Mongo host and/or database (e.g. UAT → localhost, QA → Atlas)."""
+        url = (mongo_url or self._mongo_url or "").strip() or self._settings.mongo_url
+        db_name = (mongo_db or self._settings.mongo_db or "").strip()
+        if url != self._mongo_url:
+            try:
+                self._client.close()
+            except Exception:
+                pass
+            self._mongo_url = url
+            self._settings.mongo_url = url
+            self._client = self._new_client(url)
+        if db_name:
+            self._settings.mongo_db = db_name
+        self._db = self._client[self._settings.mongo_db]
+        self._sort_index_ready.clear()
+        threading.Thread(target=self._init_all_indexes, daemon=True).start()
+        return self._settings.mongo_db
+
+    def _init_all_indexes(self) -> None:
         try:
             for tab in ("raw", "enriched", "dlq"):
                 self._ensure_list_indexes(self.collection(tab))
@@ -88,14 +122,13 @@ class AuditDatabase:
             return False
 
     def use_database(self, name: str) -> str:
-        """Point at another Mongo database (creates on first insert)."""
+        """Point at another Mongo database on the current cluster."""
         db_name = (name or "").strip() or self._settings.mongo_db
         self._settings.mongo_db = db_name
         self._db = self._client[db_name]
         self._sort_index_ready.clear()
-        # Ensure collections/indexes exist for raw/enrich/dlq
-        for tab in ("raw", "enriched", "dlq"):
-            self._ensure_list_indexes(self.collection(tab))
+        # Ensure collections/indexes exist for raw/enrich/dlq in background
+        threading.Thread(target=self._init_all_indexes, daemon=True).start()
         return db_name
 
     def collection(self, tab: str) -> Collection:
@@ -133,6 +166,22 @@ class AuditDatabase:
             (
                 "idx_operation_occurredAt",
                 [("source.operation", ASCENDING), ("occurredAt", DESCENDING)],
+            ),
+            (
+                "idx_platformEnv_occurredAt",
+                [("source.platformEnvironment", ASCENDING), ("occurredAt", DESCENDING)],
+            ),
+            (
+                "idx_service_occurredAt",
+                [("source.service", ASCENDING), ("occurredAt", DESCENDING)],
+            ),
+            (
+                "idx_state_occurredAt",
+                [("source.operationState", ASCENDING), ("occurredAt", DESCENDING)],
+            ),
+            (
+                "idx_user_occurredAt",
+                [("actor.globalUserId", ASCENDING), ("occurredAt", DESCENDING)],
             ),
             ("idx_xCorrelationId", [("xCorrelationId", ASCENDING)]),
             ("idx_correlationId", [("correlationId", ASCENDING)]),
@@ -291,6 +340,31 @@ class AuditDatabase:
             return None
         return self._row_from_doc(doc, full=True)
 
+    def upsert_envelope(self, tab: str, doc: dict[str, Any]) -> bool:
+        """Cache a remote envelope into local Mongo (raw/enriched only).
+
+        Idempotent on ``xCorrelationId`` / ``correlationId``. Returns True on write.
+        """
+        if tab not in {"raw", "enriched"} or not isinstance(doc, dict):
+            return False
+        cid = str(doc.get("xCorrelationId") or doc.get("correlationId") or "").strip()
+        if not cid:
+            return False
+        col = self.collection(tab)
+        payload = dict(doc)
+        payload.pop("_id", None)
+        query = {
+            "$or": [
+                {"xCorrelationId": cid},
+                {"correlationId": cid},
+            ]
+        }
+        try:
+            col.replace_one(query, payload, upsert=True)
+            return True
+        except Exception:
+            return False
+
     @staticmethod
     def has_active_filters(filters: dict[str, str]) -> bool:
         return any((filters.get(key) or "").strip() for key in FILTER_FIELDS)
@@ -333,39 +407,51 @@ class AuditDatabase:
         if cap is not None:
             limit = min(limit, cap)
         skip = max(page - 1, 0) * limit
-        sort = [("occurredAt", DESCENDING), ("_id", DESCENDING)]
+        sort = [("occurredAt", DESCENDING)]
         dedupe = unique and not self.has_active_filters(filters)
 
         try:
             self._ensure_list_indexes(col)
             if dedupe:
-                # Lean newest→oldest scan for unique ops, then hydrate only the
-                # page of full docs. Pulling thousands of full enrich envelopes
-                # from Atlas was multi-minute.
-                max_scan = int(os.getenv("MONGO_UNIQUE_SCAN_CAP", "1200") or "1200")
-                seen: set[str] = set()
-                page_ids: list[Any] = []
-                scanned = 0
-                lean = {"_id": 1, "source.operation": 1, "occurredAt": 1}
-                cursor = (
-                    col.find(query, projection=lean)
-                    .sort([("occurredAt", DESCENDING)])
-                    .limit(max_scan)
+                # Server-side group keeps latest per operation on Atlas instead of
+                # streaming hundreds of lean docs over the network (multi-second).
+                self._ensure_sort_index(col)
+                facet = list(
+                    col.aggregate(
+                        [
+                            {"$match": query},
+                            {"$sort": {"occurredAt": DESCENDING}},
+                            {
+                                "$group": {
+                                    "_id": "$source.operation",
+                                    "doc_id": {"$first": "$_id"},
+                                    "occurredAt": {"$first": "$occurredAt"},
+                                }
+                            },
+                            {"$match": {"_id": {"$nin": [None, ""]}}},
+                            {
+                                "$facet": {
+                                    "meta": [{"$count": "total"}],
+                                    "rows": [
+                                        {
+                                            "$sort": {
+                                                "occurredAt": DESCENDING,
+                                            }
+                                        },
+                                        {"$skip": skip},
+                                        {"$limit": limit},
+                                    ],
+                                }
+                            },
+                        ],
+                        allowDiskUse=True,
+                    )
                 )
-                for doc in cursor:
-                    scanned += 1
-                    source = doc.get("source") or {}
-                    op = str(source.get("operation") or "").strip()
-                    if not op or op in seen:
-                        continue
-                    seen.add(op)
-                    idx = len(seen) - 1
-                    if idx < skip:
-                        continue
-                    if len(page_ids) < limit:
-                        page_ids.append(doc.get("_id"))
-                    # Keep scanning past the page so ``total`` reflects more
-                    # unique ops (needed for pager). Stop at max_scan.
+                block = (facet[0] if facet else {}) or {}
+                meta = (block.get("meta") or [{}])[0] if block.get("meta") else {}
+                total = int(meta.get("total") or 0)
+                page_rows = block.get("rows") or []
+                page_ids = [row.get("doc_id") for row in page_rows if row.get("doc_id")]
                 results = []
                 if page_ids:
                     by_id = {
@@ -382,9 +468,6 @@ class AuditDatabase:
                         doc = dict(doc)
                         doc.pop("_id", None)
                         results.append(self._row_from_doc(doc, full=False))
-                total = len(seen)
-                if scanned >= max_scan:
-                    total = max(total, skip + len(results) + 1)
                 return {
                     "total": total,
                     "page": page,
@@ -561,7 +644,7 @@ class AuditDatabase:
 
             cursor = (
                 enr_col.find(query, projection={"_id": 0})
-                .sort([("occurredAt", DESCENDING), ("_id", DESCENDING)])
+                .sort([("occurredAt", DESCENDING)])
                 .limit(max(scan_limit, 1))
             )
             for enriched in cursor:

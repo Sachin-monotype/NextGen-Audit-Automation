@@ -48,15 +48,35 @@ class MysqlConfig:
         return bool(self.host and self.user and self.password)
 
 
+def _env_for_target(base: str, *, default: str = "") -> str:
+    """Prefer ``BASE_{AUDIT_TARGET}`` (e.g. MYSQL_HOST_UAT) then ``BASE``."""
+    target = (os.getenv("AUDIT_TARGET") or "").strip().upper()
+    if target:
+        explicit = (os.getenv(f"{base}_{target}") or "").strip()
+        if explicit:
+            return explicit
+    return (os.getenv(base) or default).strip()
+
+
 def load_mysql_config() -> MysqlConfig:
+    """Load MySQL settings for the active AUDIT_TARGET (SELECT-only usage).
+
+    UAT typically needs an SSH tunnel to the bastion, then::
+
+        MYSQL_HOST_UAT=127.0.0.1
+        MYSQL_PORT_UAT=13306
+        MYSQL_USER_UAT=Uba_uat
+        MYSQL_PASSWORD_UAT=…
+    """
+    ssl_raw = _env_for_target("MYSQL_SSL", default="true").lower()
     return MysqlConfig(
-        host=(os.getenv("MYSQL_HOST") or "").strip(),
-        port=int(os.getenv("MYSQL_PORT") or "3306"),
-        user=(os.getenv("MYSQL_USER") or "").strip(),
-        password=(os.getenv("MYSQL_PASSWORD") or "").strip(),
-        use_ssl=(os.getenv("MYSQL_SSL", "true").strip().lower() not in ("0", "false", "no")),
-        connect_timeout=int(os.getenv("MYSQL_CONNECT_TIMEOUT_SEC") or "15"),
-        read_timeout=int(os.getenv("MYSQL_READ_TIMEOUT_SEC") or "30"),
+        host=_env_for_target("MYSQL_HOST"),
+        port=int(_env_for_target("MYSQL_PORT", default="3306") or "3306"),
+        user=_env_for_target("MYSQL_USER"),
+        password=_env_for_target("MYSQL_PASSWORD"),
+        use_ssl=ssl_raw not in ("0", "false", "no"),
+        connect_timeout=int(_env_for_target("MYSQL_CONNECT_TIMEOUT_SEC", default="15") or "15"),
+        read_timeout=int(_env_for_target("MYSQL_READ_TIMEOUT_SEC", default="30") or "30"),
     )
 
 

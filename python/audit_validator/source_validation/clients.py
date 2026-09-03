@@ -13,6 +13,19 @@ from .config import SourceValidationConfig
 
 log = logging.getLogger(__name__)
 
+# Cloudflare on UAT/NextGen blocks default python-requests UA (Error 1010).
+_BROWSER_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+)
+
+
+def _http_session() -> requests.Session:
+    session = requests.Session()
+    session.headers.setdefault("User-Agent", _BROWSER_UA)
+    return session
+
+
 _GUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
     re.I,

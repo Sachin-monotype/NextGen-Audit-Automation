@@ -851,6 +851,14 @@ function LogCard({
             <strong>platform</strong> {row["source.platformEnvironment"] || "—"}
           </span>
           <span className="meta-chip"><strong>occurredAt</strong> {row.occurredAt}</span>
+          {row.fetchedFrom === "payload-dumps" ? (
+            <span
+              className="meta-chip"
+              title="Loaded from resolver /v1/payload-dumps (not local Mongo ingest)"
+            >
+              <strong>source</strong> payload-dumps
+            </span>
+          ) : null}
         </div>
         <span className="log-card-hint muted">{open ? "collapse" : "expand payload"}</span>
       </button>

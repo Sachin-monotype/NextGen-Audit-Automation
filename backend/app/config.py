@@ -30,6 +30,16 @@ def load_settings() -> Settings:
     root = Path(__file__).resolve().parents[2]
     load_dotenv(root / ".env")
 
+    from audit_validator.env_profiles import (
+        get_audit_profile,
+        mongo_db_for_profile,
+        mongo_url_for_profile,
+    )
+
+    profile = get_audit_profile()
+    mongo_url = mongo_url_for_profile(profile)
+    mongo_db = mongo_db_for_profile(profile)
+
     audit_root = os.getenv("AUDIT_PROJECT_ROOT", "").strip()
     if not audit_root or audit_root == ".":
         audit_project_root = root
@@ -40,8 +50,8 @@ def load_settings() -> Settings:
     cors = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:5174")
     page_sizes = [20, 50, 100, 200]
     return Settings(
-        mongo_url=os.getenv("MONGO_DB_URL", "mongodb://localhost:27017"),
-        mongo_db=os.getenv("MONGO_DB_NAME", "AuditLogsPreprod"),
+        mongo_url=mongo_url,
+        mongo_db=mongo_db,
         mongo_raw=os.getenv("MONGO_COLLECTION_RAW", "raw"),
         mongo_enriched=os.getenv("MONGO_COLLECTION_ENRICHED", "enriched"),
         mongo_dlq=os.getenv("MONGO_COLLECTION_DLQ", "dlq"),

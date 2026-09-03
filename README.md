@@ -48,6 +48,54 @@ Use the **Environment** dropdown on Generate (also updates `.env` `AUDIT_TARGET`
 | **QA** | https://nextgen-qa.monotype-pp.com | `AuditLogsQA` |
 | **UAT** | https://nextgen.monotype-uat.com | `AuditLogsUAT` |
 
+### UAT local setup (teammate checklist)
+
+Someone else testing **UAT** needs more than QA/PP because audit logs stay on **local Mongo**, AMS/CMS source truth uses **MySQL over SSH**, and Discovery/UMS need a **UAT user JWT**.
+
+1. **Clone + `.env`**
+   - Copy `.env.example` → `.env`
+   - Set `AUDIT_TARGET=uat` and `INGEST_TARGETS=uat`
+   - Set `MONGO_DB_URL_UAT=mongodb://localhost:27017`
+
+2. **UAT user JWT + login** (from a logged-in NextGen UAT session, or shared test user)
+   - `OAUTH_USERNAME` / `OAUTH_PASSWORD` (e.g. UAT test account)
+   - Paste the same user JWT into `BEARER_TOKEN`, `NEXTGEN_BEARER_TOKEN`, and `DISCOVERY_BEARER_TOKEN` (no `Bearer ` prefix)
+   - `GRAPHQL_CONTEXT_CUSTOMER_ID` / `OAUTH_GCID` = gcid claim from that JWT
+   - `DISCOVERY_BASE_URL=https://nextgen.monotype-uat.com/api/search`
+   - `UMS_BASE_URL=https://usermanagement.monotype-uat.com` (or `UMS_BASE_URL_UAT=…`)
+   - `SOURCE_TRUTH=db` and `SOURCE_TRUTH_UMS=api` (UAT MySQL has no `user_management`)
+
+3. **Local Mongo (raw/enrich)**
+   ```bash
+   ./scripts/start-audit-mongo.sh
+   ```
+
+4. **UAT MySQL tunnel (AMS/CMS, read-only)** — needs bastion SSH access + MySQL password
+   ```bash
+   # Requires ~/.ssh/id_rsa authorized on bastion (ask team for key access)
+   ./scripts/start-uat-mysql-tunnel.sh
+   ```
+   Then in `.env`:
+   ```bash
+   MYSQL_HOST_UAT=127.0.0.1
+   MYSQL_PORT_UAT=13306
+   MYSQL_USER_UAT=Uba_uat
+   MYSQL_PASSWORD_UAT=<from Workbench / team>
+   MYSQL_SSL_UAT=true
+   ```
+
+5. **RabbitMQ / Results (optional but typical)**
+   - `RABBITMQ_URL_UAT` / `INGRESS_RABBITMQ_URL_UAT` (vhost `mt-connect`)
+   - `RESULTS_MONGO_URL_UAT` (+ db/collection) for the Results tab
+
+6. **Run**
+   ```bash
+   ./scripts/dev.sh
+   # UI http://localhost:5174  API http://localhost:3200
+   ```
+
+**Enrich/raw without queue ingest:** search by correlation id — if local Mongo misses, the API falls back to resolver `…/v1/payload-dumps` (`PAYLOAD_DUMPS_FALLBACK=true`).
+
 Switching target:
 
 1. Rewrites NextGen / GraphQL URLs for that env  

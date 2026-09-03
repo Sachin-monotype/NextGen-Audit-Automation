@@ -18,6 +18,8 @@ export type LogRow = {
   scenario?: string;
   /** UI | BE — present only for events we generated. */
   channel?: string;
+  /** Set when hydrated from resolver /v1/payload-dumps (Mongo miss fallback). */
+  fetchedFrom?: string;
 };
 
 export type ComparisonRow = {
@@ -207,15 +209,28 @@ export async function fetchLogs(
   for (const [k, v] of Object.entries(filters)) {
     if (v.trim()) params.set(k, v.trim());
   }
-  const res = await fetch(`${API}/api/${tab}?${params}`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<{
-    total: number;
-    page: number;
-    limit: number;
-    unique?: boolean;
-    results: LogRow[];
-  }>;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 45_000);
+  try {
+    const res = await fetch(`${API}/api/${tab}?${params}`, {
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json() as Promise<{
+      total: number;
+      page: number;
+      limit: number;
+      unique?: boolean;
+      results: LogRow[];
+    }>;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      throw new Error("Request timed out — check backend / VPN / Mongo");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** Full envelope for one correlation id (list rows are lean / payload deferred). */
@@ -273,9 +288,13 @@ export async function fetchLatestResults(target?: string) {
   }>;
 }
 
-/** Upsert all local QA comparison results into Atlas live QA Result. */
-export async function syncResultsToMongo() {
-  const res = await fetch(`${API}/api/results/mongo/sync`, { method: "POST" });
+/** Upsert local QA comparison results into Atlas live QA Result (all or selected). */
+export async function syncResultsToMongo(scenarios?: string[]) {
+  const res = await fetch(`${API}/api/results/mongo/sync`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(scenarios?.length ? { scenarios } : {}),
+  });
   const data = (await res.json().catch(() => ({}))) as {
     ok?: boolean;
     upserted?: number;

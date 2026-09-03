@@ -45,3 +45,45 @@ def test_fontbridge_comparison_rows_pass():
     assert row_env.value_in_enriched == "fontbridge"
     assert row_svc.match_status == "PASS"
     assert row_svc.value_in_enriched == "MonotypeFontBridge"
+
+
+def test_fontbridge_auth_failed_store_clean_upgrades_to_pass():
+    from backend.app.comparison_store import _clean_app_ui_be_defaults, _summary_for_rows
+
+    raw_rows = [
+        {
+            "operation": "fontBridgeAuthFailed",
+            "field_path": "source.platformEnvironment",
+            "value_in_source": "web",
+            "value_in_enriched": "fontbridge",
+            "match_status": "FAIL",
+            "notes": "Derived from actorUserAgent",
+        },
+        {
+            "operation": "fontBridgeAuthFailed",
+            "field_path": "actor.globalCustomerId",
+            "value_in_source": "",
+            "value_in_enriched": "93bbce28-5143-497c-a959-1f9eada55230",
+            "match_status": "SKIP",
+            "notes": "Trigger context not captured for this run",
+        },
+        {
+            "operation": "fontBridgeAuthFailed",
+            "field_path": "subject.authStatus",
+            "value_in_source": "",
+            "value_in_enriched": "FONTBRIDGE_AUTH_FAILED",
+            "match_status": "SKIP",
+            "notes": "Trigger context not captured for this run",
+        },
+    ]
+
+    cleaned, changed = _clean_app_ui_be_defaults(raw_rows)
+    assert changed is True
+    summary = _summary_for_rows(cleaned)
+    assert summary["passed"] == 3
+    assert summary["failed"] == 0
+    assert summary["skipped"] == 0
+    for r in cleaned:
+        assert r["match_status"] == "PASS"
+        assert r["value_in_source"] == r["value_in_enriched"]
+

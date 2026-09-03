@@ -19,6 +19,7 @@ from .config import (
     IngestLaneConfig,
     IngestionConfig,
     keep_hours_for_mongo_db,
+    max_docs_for_mongo_db,
     load_ingest_lanes,
     load_ingestion_config,
 )
@@ -58,7 +59,7 @@ class IngestionService:
     def _build_lanes(base: IngestionConfig) -> list[_IngestLane]:
         lanes: list[_IngestLane] = []
         for lane_cfg in load_ingest_lanes(base):
-            writer = MongoWriter(base.mongo_url, lane_cfg.mongo_db)
+            writer = MongoWriter(lane_cfg.mongo_url or lane_cfg.config.mongo_url, lane_cfg.mongo_db)
             consumers = [
                 QueueConsumer(
                     binding,
@@ -315,11 +316,12 @@ class IngestionService:
         total = 0
         for lane in self._lanes:
             hours = keep_hours_for_mongo_db(lane.lane.mongo_db)
+            max_docs = max_docs_for_mongo_db(lane.lane.mongo_db) or self._base.max_docs_per_operation
             for binding in lane.lane.config.bindings:
                 try:
                     total += lane.writer.cleanup_collection(
                         binding.collection,
-                        self._base.max_docs_per_operation,
+                        max_docs,
                         keep_hours=hours,
                     )
                 except Exception as exc:  # noqa: BLE001

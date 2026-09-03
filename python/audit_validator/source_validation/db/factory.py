@@ -181,12 +181,23 @@ def build_ums_cms_ams_clients(
                 mode = "api"
             else:
                 log.info(
-                    "Source truth: MySQL (%s) for UMS/CMS/AMS — Typesense still HTTP",
+                    "Source truth: MySQL (%s) for CMS/AMS — Typesense still HTTP",
                     mysql.host,
                 )
-                ums = wrap_source_client(UmsDbClient(mysql))
                 cms = wrap_source_client(CmsDbClient(mysql))
                 ams = wrap_source_client(AmsDbClient(mysql))
+                # UAT Mosaic has no user_management schema — keep UMS on HTTP.
+                target = (os.getenv("AUDIT_TARGET") or "").strip().lower()
+                force_ums_api = (
+                    target == "uat"
+                    or (os.getenv("SOURCE_TRUTH_UMS") or "").strip().lower()
+                    in {"api", "http"}
+                )
+                if force_ums_api:
+                    log.info("Source truth: UMS via HTTP API (no user_management MySQL)")
+                    ums = wrap_source_client(UmsClient(cfg) if cfg.ums_ready else None)
+                else:
+                    ums = wrap_source_client(UmsDbClient(mysql))
                 return ums, cms, ams, "db"
 
     ums = wrap_source_client(UmsClient(cfg) if cfg.ums_ready else None)

@@ -46,6 +46,17 @@ QA_USER_OAUTH = OAuthProfile(
     grant_type="password",
 )
 
+# NextGen UAT SPA client (azp on UAT user JWTs). Password mint needs client secret
+# from Auth0 — until then paste NEXTGEN_BEARER_TOKEN / DISCOVERY_BEARER_TOKEN.
+UAT_USER_OAUTH = OAuthProfile(
+    token_url="https://secure.monotype-uat.com/oauth/token",
+    client_id="TGreJ6WIdnCiL6eYb8JQHAl6c2eT3R4p",
+    client_secret="",
+    audience="https://nextgen.monotype.com",
+    organization="org_h8efE2q37VYQOGB4",
+    grant_type="password",
+)
+
 
 @dataclass(frozen=True)
 class AuditTargetProfile:
@@ -113,18 +124,22 @@ UAT = AuditTargetProfile(
     nextgen_origin="https://nextgen.monotype-uat.com",
     nextgen_referer="https://nextgen.monotype-uat.com/discover-fonts/all",
     simulation_prefer_pp_bearer=False,
-    rabbitmq_vhost="mt-connect-preprod",
+    rabbitmq_vhost="mt-connect",
     raw_events_queue="mtraw-automation(DO NOT DELETE)",
     enriched_events_queue="mtenrich-automation(DO NOT DELETE)",
     consume_dead_letter_queue=False,
     purge_test_queues_on_e2e=True,
-    ingress_api_url="https://mt-audit-log-resolver-service-uat.monotype-uat.com/v1/audit-events",
+    # Host has no "-uat" infix (mt-audit-log-resolver-service-uat.* does not resolve).
+    ingress_api_url="https://mt-audit-log-resolver-service.monotype-uat.com/v1/audit-events",
     ingress_raw_queue="mtraw-automation(DO NOT DELETE)",
     ingress_enriched_queue="mtenrich-automation(DO NOT DELETE)",
-    ingress_rabbitmq_vhost="mt-connect-preprod",
+    ingress_rabbitmq_vhost="mt-connect",
     seed_family_id="794981",
     seed_deactivate_family_id="8kL8ZM64",
     mongo_db_name="AuditLogsUAT",
+    oauth=UAT_USER_OAUTH,
+    oauth_username="agentqatest@gmail.com",
+    user_oauth=UAT_USER_OAUTH,
 )
 
 QA = AuditTargetProfile(
@@ -252,6 +267,20 @@ def mongo_db_for_profile(profile: AuditTargetProfile | None = None) -> str:
     return f"AuditLogs{p.name.upper()}"
 
 
+def mongo_url_for_profile(profile: AuditTargetProfile | None = None) -> str:
+    """Audit log Mongo URL for an environment (raw/enrich storage).
+
+    Resolution order:
+    1. ``MONGO_DB_URL_{TARGET}`` (e.g. ``MONGO_DB_URL_UAT`` → local Docker)
+    2. ``MONGO_DB_URL`` (shared cluster default)
+    """
+    p = profile or get_audit_profile()
+    explicit = (os.getenv(f"MONGO_DB_URL_{p.name.upper()}") or "").strip()
+    if explicit:
+        return explicit
+    return (os.getenv("MONGO_DB_URL") or "mongodb://localhost:27017").strip()
+
+
 def audit_target_name() -> str:
     raw = (os.getenv("AUDIT_TARGET") or "qa").strip().lower()
     return raw if raw in _PROFILES else "qa"
@@ -268,6 +297,23 @@ def _rabbitmq_url_for_vhost(base_url: str, vhost: str) -> str:
     parsed = urlparse(base_url)
     path = vhost if vhost.startswith("/") else f"/{vhost}"
     return urlunparse(parsed._replace(path=path))
+
+
+def rabbitmq_url_for_profile(profile: AuditTargetProfile | None = None) -> str:
+    """Broker URL for an audit target (host/creds may differ per env).
+
+    Resolution order:
+    1. ``RABBITMQ_URL_{TARGET}`` (e.g. ``RABBITMQ_URL_UAT``)
+    2. ``RABBITMQ_URL`` with the profile vhost applied
+    """
+    p = profile or get_audit_profile()
+    explicit = (os.getenv(f"RABBITMQ_URL_{p.name.upper()}") or "").strip()
+    if explicit:
+        return _rabbitmq_url_for_vhost(explicit, p.rabbitmq_vhost)
+    base = (os.getenv("RABBITMQ_URL") or "").strip()
+    if not base:
+        return ""
+    return _rabbitmq_url_for_vhost(base, p.rabbitmq_vhost)
 
 
 def apply_audit_profile(*, project_root=None) -> AuditTargetProfile:
@@ -331,11 +377,12 @@ def apply_audit_profile(*, project_root=None) -> AuditTargetProfile:
         if key in _PROFILE_KEYS:
             os.environ[key] = value
 
-    base_rmq = os.getenv("RABBITMQ_URL", "").strip()
-    if base_rmq:
-        os.environ["RABBITMQ_URL"] = _rabbitmq_url_for_vhost(base_rmq, profile.rabbitmq_vhost)
+    lane_rmq = rabbitmq_url_for_profile(profile)
+    if lane_rmq:
+        os.environ["RABBITMQ_URL"] = lane_rmq
 
-    ingress_base = (os.getenv("INGRESS_RABBITMQ_URL") or base_rmq).strip()
+    ingress_explicit = (os.getenv(f"INGRESS_RABBITMQ_URL_{profile.name.upper()}") or "").strip()
+    ingress_base = ingress_explicit or (os.getenv("INGRESS_RABBITMQ_URL") or lane_rmq).strip()
     if ingress_base:
         os.environ["INGRESS_RABBITMQ_URL"] = _rabbitmq_url_for_vhost(
             ingress_base, profile.ingress_rabbitmq_vhost

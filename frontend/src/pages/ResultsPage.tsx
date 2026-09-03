@@ -1518,9 +1518,9 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                   .catch((e) => setRefreshError(String(e?.message || e)))
                   .finally(() => setSyncMongoBusy(false));
               }}
-              title="Upsert missing/newer local Results into Atlas (add or update)"
+              title="Upsert all missing/newer local Results into Atlas (add or update)"
             >
-              {syncMongoBusy ? "Syncing…" : "Sync to Mongo"}
+              {syncMongoBusy ? "Syncing…" : "Sync all to Mongo"}
             </button>
           )}
           <button type="button" onClick={clearFilters}>Clear</button>
@@ -2063,10 +2063,43 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
             </label>
             {selectedOps.size >= 1 && (
               <>
+                {resultsTarget === "qa" && (
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={syncMongoBusy}
+                    onClick={() => {
+                      setSyncMongoMsg("");
+                      setRefreshError("");
+                      setSyncMongoBusy(true);
+                      void syncResultsToMongo([...selectedOps])
+                        .then((r) => {
+                          const parts = [
+                            r.total != null ? `${r.total} scenarios` : null,
+                            r.upserted ? `${r.upserted} inserted` : null,
+                            r.modified ? `${r.modified} updated` : null,
+                            r.message || null,
+                          ].filter(Boolean);
+                          setSyncMongoMsg(
+                            parts.length
+                              ? `Synced ${selectedOps.size} selected to Mongo: ${parts.join(", ")}`
+                              : `Synced ${selectedOps.size} selected to Mongo`,
+                          );
+                          loadLatest();
+                        })
+                        .catch((e) => setRefreshError(String(e?.message || e)))
+                        .finally(() => setSyncMongoBusy(false));
+                    }}
+                    title="Push only selected local scenarios into Mongo"
+                  >
+                    {syncMongoBusy ? "Syncing…" : `Sync selected (${selectedOps.size})`}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="primary outline"
                   disabled={exportBusy}
+                  style={{ marginLeft: resultsTarget === "qa" ? 8 : 0 }}
                   onClick={() => {
                     setExportBusy(true);
                     void exportComparisonExcel([...selectedOps], resultsTarget)
@@ -2307,6 +2340,27 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
                               ···
                             </summary>
                             <div className="coverage-track-menu-body">
+                              {resultsTarget === "qa" && (sync === "local_newer" || sync === "local_only") && (
+                                <button
+                                  type="button"
+                                  disabled={syncMongoBusy}
+                                  onClick={() => {
+                                    setSyncMongoMsg("");
+                                    setRefreshError("");
+                                    setSyncMongoBusy(true);
+                                    void syncResultsToMongo([r.operation])
+                                      .then(() => {
+                                        setSyncMongoMsg(`Synced ${r.operation} to Mongo`);
+                                        loadLatest();
+                                      })
+                                      .catch((e) => setRefreshError(String(e?.message || e)))
+                                      .finally(() => setSyncMongoBusy(false));
+                                  }}
+                                  title="Push this scenario to Mongo Atlas"
+                                >
+                                  Sync to Mongo
+                                </button>
+                              )}
                               <button type="button" onClick={() => setTrackStatus(r.operation, "covered")}>
                                 Mark covered
                               </button>

@@ -21,6 +21,7 @@ from .value_match import (
     user_agents_equivalent,
     values_equivalent,
 )
+from .policy import accept_enriched_on_source_miss
 
 
 @dataclass(frozen=True)
@@ -464,16 +465,23 @@ def _row(
                     "validation token's Discovery scope (resolver used M2M org scope)"
                 )
             else:
-                # Partial Typesense hit missing nested catalog leaves — accept enriched.
-                status = "PASS"
-                sv = ev
-                notes = notes or "Typesense field missing in response — accepted enriched"
+                # Partial Typesense hit missing nested catalog leaves.
+                if accept_enriched_on_source_miss():
+                    status = "PASS"
+                    sv = ev
+                    notes = notes or "Typesense field missing in response — accepted enriched"
+                else:
+                    status = "SKIP"
+                    notes = notes or "Typesense field missing in response — source not validated"
         elif ev and spec.source_system == "CMS" and live.get("cms_customer"):
             if "customLogo" in spec.enriched_path and not sv:
-                # CMS REST often omits GraphQL-only logo fields — accept enriched.
-                status = "PASS"
-                sv = ev
-                notes = notes or "CMS omits metaData.customLogo* — accepted enriched"
+                if accept_enriched_on_source_miss():
+                    status = "PASS"
+                    sv = ev
+                    notes = notes or "CMS omits metaData.customLogo* — accepted enriched"
+                else:
+                    status = "SKIP"
+                    notes = notes or "CMS customLogo field not on source — not validated"
             else:
                 status = "FAIL"
                 notes = notes or "CMS response missing field (enriched has value)"
@@ -501,23 +509,32 @@ def _row(
                         or "Invitation not fetched from user_management.user_invitation"
                     )
             elif not sv and str(ev).strip() in {"0", "false", "False"}:
-                # UMS omitted a zero/false leaf (e.g. profilesCount=0) — not a mismatch.
-                status = "PASS"
-                sv = ev
-                notes = notes or "UMS omitted zero/false field — accepted enriched"
+                if accept_enriched_on_source_miss():
+                    status = "PASS"
+                    sv = ev
+                    notes = notes or "UMS omitted zero/false field — accepted enriched"
+                else:
+                    status = "SKIP"
+                    notes = notes or "UMS omitted zero/false field — source not validated"
             elif not sv:
-                # Partial UMS payload / transient fetch — accept enriched rather than FAIL.
-                status = "PASS"
-                sv = ev
-                notes = notes or "UMS field missing in response — accepted enriched"
+                if accept_enriched_on_source_miss():
+                    status = "PASS"
+                    sv = ev
+                    notes = notes or "UMS field missing in response — accepted enriched"
+                else:
+                    status = "FAIL"
+                    notes = notes or "UMS response missing field (enriched has value)"
             else:
                 status = "FAIL"
                 notes = notes or "UMS response missing field (enriched has value)"
         elif ev and spec.source_system == "Typesense" and not sv:
-            # Typesense projection / transient miss — accept enriched.
-            status = "PASS"
-            sv = ev
-            notes = notes or "Typesense field missing in response — accepted enriched"
+            if accept_enriched_on_source_miss():
+                status = "PASS"
+                sv = ev
+                notes = notes or "Typesense field missing in response — accepted enriched"
+            else:
+                status = "SKIP"
+                notes = notes or "Typesense field missing in response — source not validated"
         elif ev and spec.source_system == "AMS" and _is_deleted_asset_context(
             operation, spec.enriched_path
         ):
@@ -1667,11 +1684,13 @@ def _normalize_app_ui_trigger_field(
         header_ver = headers.get("x-unified-version") or headers.get("x-unified-app-version")
         enr = str((enriched_src or {}).get("platformVersion") or "").strip()
         trig = str(value or "").strip()
-        # Prefer real client version from header / enriched (typically ``1.0.0``).
-        if header_ver:
+        # Prefer real client unified version from header / enriched (typically ``1.0.0``).
+        if header_ver and (not enr or header_ver == enr):
             return header_ver
         if enr:
             return enr
+        if header_ver:
+            return header_ver
         if trig in {"1.0.0.0", "1.0.0"}:
             return trig
         return value

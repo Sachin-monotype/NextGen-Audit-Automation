@@ -12,7 +12,7 @@ def ingest_target_names() -> list[str]:
 
     ``INGEST_TARGETS=pp,qa`` runs consumers on ``mt-connect-preprod`` →
     ``AuditLogsPreprod`` and ``mt-connect-qa`` → ``AuditLogsQA`` at the same time.
-    When unset, only the active ``AUDIT_TARGET`` lane is used.
+    When unset, follows ``AUDIT_TARGET`` (single lane).
     """
     raw = os.getenv("INGEST_TARGETS", "").strip()
     if not raw:

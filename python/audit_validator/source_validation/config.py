@@ -61,11 +61,16 @@ class SourceValidationConfig:
 
     @property
     def mysql_source_ready(self) -> bool:
-        return bool(
-            (os.getenv("MYSQL_HOST") or "").strip()
-            and (os.getenv("MYSQL_USER") or "").strip()
-            and (os.getenv("MYSQL_PASSWORD") or "").strip()
-        )
+        try:
+            from .db.connection import load_mysql_config
+
+            return load_mysql_config().ready
+        except Exception:
+            return bool(
+                (os.getenv("MYSQL_HOST") or "").strip()
+                and (os.getenv("MYSQL_USER") or "").strip()
+                and (os.getenv("MYSQL_PASSWORD") or "").strip()
+            )
 
     @property
     def ums_ready(self) -> bool:
@@ -103,6 +108,15 @@ def load_source_validation_config(project_root: Path | None = None) -> SourceVal
             str(Path.home() / "Downloads" / "MT Connect NextGen" / "audit-events.xlsx"),
         )
     )
+    target = (os.getenv("AUDIT_TARGET") or "").strip().upper()
+
+    def _url(base: str, default: str) -> str:
+        if target:
+            explicit = (os.getenv(f"{base}_{target}") or "").strip()
+            if explicit:
+                return explicit.rstrip("/")
+        return (os.getenv(base) or default).strip().rstrip("/")
+
     return SourceValidationConfig(
         project_root=root,
         discovery_base_url=resolve_discovery_base_url(),
@@ -111,17 +125,13 @@ def load_source_validation_config(project_root: Path | None = None) -> SourceVal
             or resolve_excel_discovery_token(project_root=root)
             or resolve_discovery_bearer_token()
         ),
-        ums_base_url=os.getenv("UMS_BASE_URL", "https://usermanagement-pp.monotype.com").rstrip(
-            "/"
-        ),
+        ums_base_url=_url("UMS_BASE_URL", "https://usermanagement-pp.monotype.com"),
         ums_client_id=os.getenv("UMS_CLIENT_ID", "mt-events-resolver-service"),
-        cms_base_url=os.getenv(
-            "CMS_BASE_URL", "https://customermanagement-preprod.monotype.com"
-        ).rstrip("/"),
+        cms_base_url=_url("CMS_BASE_URL", "https://customermanagement-preprod.monotype.com"),
         cms_client_id=os.getenv("CMS_CLIENT_ID", "mt-events-resolver-service"),
-        ams_base_url=os.getenv(
+        ams_base_url=_url(
             "AMS_BASE_URL", "http://assetmanagement-asteria.enterprisenonprod.com/api"
-        ).rstrip("/"),
+        ),
         ams_client_id=os.getenv("AMS_CLIENT_ID", "mt-audit-log-resolver-service"),
         ams_api_key=os.getenv("AMS_API_KEY", "").strip(),
         gcid=os.getenv("GRAPHQL_CONTEXT_CUSTOMER_ID", "").strip(),

@@ -28,7 +28,7 @@ def _retention_target_dbs() -> list[str]:
     if raw:
         return [x.strip() for x in raw.split(",") if x.strip()]
     # Default: PP + QA on the shared cluster. Active MONGO_DB_NAME is always included.
-    defaults = ["AuditLogsPreprod", "AuditLogsQA"]
+    defaults = ["AuditLogsPreprod", "AuditLogsQA", "AuditLogsUAT"]
     active = (os.getenv("MONGO_DB_NAME") or "").strip()
     out: list[str] = []
     for name in defaults + ([active] if active else []):
@@ -70,12 +70,17 @@ class RetentionScheduler:
             for db_name in targets:
                 hours = AuditDatabase.retention_keep_hours_for_db(db_name)
                 # PP: do not keep a long tail of older-than-window docs per op.
-                max_docs = self._max_docs
-                if "preprod" in db_name.lower() or db_name == "AuditLogsPreprod":
-                    max_docs = int(
-                        os.getenv("MONGO_RETENTION_MAX_DOCS_PER_OPERATION_PP", "0")
-                        or "0"
-                    )
+                try:
+                    from audit_validator.ingestion.config import max_docs_for_mongo_db
+
+                    max_docs = max_docs_for_mongo_db(db_name) or self._max_docs
+                except Exception:
+                    max_docs = self._max_docs
+                    if "preprod" in db_name.lower() or db_name == "AuditLogsPreprod":
+                        max_docs = int(
+                            os.getenv("MONGO_RETENTION_MAX_DOCS_PER_OPERATION_PP", "0")
+                            or "0"
+                        )
                 try:
                     self._db.use_database(db_name)
                 except Exception as exc:

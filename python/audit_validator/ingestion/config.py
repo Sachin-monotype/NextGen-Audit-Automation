@@ -12,9 +12,10 @@ import os
 from dataclasses import dataclass, field, replace
 
 from audit_validator.env_profiles import (
-    _rabbitmq_url_for_vhost,
     get_audit_profile,
     mongo_db_for_profile,
+    mongo_url_for_profile,
+    rabbitmq_url_for_profile,
 )
 
 from .targets import ingest_mongo_databases, ingest_target_names
@@ -40,6 +41,23 @@ def _env_bool(name: str, default: bool) -> bool:
     if raw in (None, ""):
         return default
     return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
+def max_docs_for_mongo_db(db_name: str) -> int:
+    """Per-environment cap on docs kept per ``source.operation``."""
+    name = (db_name or "").strip()
+    low = name.lower()
+    default = _env_int("MONGO_RETENTION_MAX_DOCS_PER_OPERATION", 20)
+    if "preprod" in low or low.endswith("pp") or name == "AuditLogsPreprod":
+        return _env_int("MONGO_RETENTION_MAX_DOCS_PER_OPERATION_PP", 0)
+    if "qa" in low or name == "AuditLogsQA":
+        return _env_int(
+            "MONGO_RETENTION_MAX_DOCS_PER_OPERATION_QA",
+            _env_int("INGEST_CLEANUP_MAX_DOCS_PER_OPERATION", default),
+        )
+    if "uat" in low or name == "AuditLogsUAT":
+        return _env_int("MONGO_RETENTION_MAX_DOCS_PER_OPERATION_UAT", 50)
+    return default
 
 
 def keep_hours_for_mongo_db(db_name: str) -> float:
@@ -92,6 +110,7 @@ class IngestLaneConfig:
     target: str
     vhost: str
     rabbitmq_url: str
+    mongo_url: str
     mongo_db: str
     config: IngestionConfig
 
@@ -182,7 +201,8 @@ def load_ingest_lanes(
     lanes: list[IngestLaneConfig] = []
     for target in ingest_target_names():
         profile = get_audit_profile(target)
-        lane_rmq = _rabbitmq_url_for_vhost(base_rmq, profile.rabbitmq_vhost)
+        lane_rmq = rabbitmq_url_for_profile(profile) or root.rabbitmq_url
+        lane_mongo = mongo_url_for_profile(profile) or root.mongo_url
         mongo_db = mongo_db_for_profile(profile)
         raw_q = root.bindings[0].queue if (root.bindings and root.bindings[0].queue) else profile.ingress_raw_queue
         enriched_q = root.bindings[1].queue if (len(root.bindings) > 1 and root.bindings[1].queue) else profile.ingress_enriched_queue
@@ -195,6 +215,7 @@ def load_ingest_lanes(
         lane_config = replace(
             root,
             rabbitmq_url=lane_rmq,
+            mongo_url=lane_mongo,
             mongo_db=mongo_db,
             mongo_databases=(mongo_db,),
             bindings=lane_bindings,
@@ -204,6 +225,7 @@ def load_ingest_lanes(
                 target=target,
                 vhost=profile.rabbitmq_vhost,
                 rabbitmq_url=lane_rmq,
+                mongo_url=lane_mongo,
                 mongo_db=mongo_db,
                 config=lane_config,
             )

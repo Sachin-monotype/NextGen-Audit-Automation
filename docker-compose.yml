@@ -1,0 +1,24 @@
+# Local MongoDB for UAT raw/enrich audit logs (keeps Atlas free-tier for Results only).
+#
+# Start (auto — Docker if Hub works, else Homebrew):
+#   ./scripts/start-audit-mongo.sh
+# Force Homebrew when Docker Hub is blocked (VPN/corporate network):
+#   ./scripts/start-audit-mongo.sh --brew
+# Stop Homebrew service: brew services stop mongodb-community@7.0
+# URL: mongodb://localhost:27017  →  DB AuditLogsUAT (raw / enriched / dlq)
+
+services:
+  audit-mongo:
+    image: mongo:7
+    container_name: nextgen-audit-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: AuditLogsUAT
+    volumes:
+      - audit-mongo-data:/data/db
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.5"]
+
+volumes:
+  audit-mongo-data:
