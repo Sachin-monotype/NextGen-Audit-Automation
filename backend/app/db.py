@@ -340,6 +340,25 @@ class AuditDatabase:
             return None
         return self._row_from_doc(doc, full=True)
 
+    def find_envelope_by_correlation(
+        self, tab: str, correlation_id: str
+    ) -> dict[str, Any] | None:
+        """Raw Mongo envelope for staging/compare (not Display-row shaped)."""
+        cid = (correlation_id or "").strip()
+        if not cid or tab not in {"raw", "enriched", "dlq"}:
+            return None
+        col = self.collection(tab)
+        query = {
+            "$or": [
+                {"xCorrelationId": cid},
+                {"correlationId": cid},
+            ]
+        }
+        try:
+            return col.find_one(query, projection={"_id": 0}, sort=[("occurredAt", DESCENDING)])
+        except Exception:
+            return None
+
     def upsert_envelope(self, tab: str, doc: dict[str, Any]) -> bool:
         """Cache a remote envelope into local Mongo (raw/enriched only).
 

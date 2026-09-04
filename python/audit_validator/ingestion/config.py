@@ -142,9 +142,21 @@ def load_ingestion_config(
             "mtenrich-automation(DO NOT DELETE)",
         ),
     )
+    # Prefer active profile DLQ (UAT → mt.raw_dlq[Do not Delete)); never fall back
+    # to the platform resolver.dlq when a profile queue is configured.
+    profile_dlq = ""
+    try:
+        from audit_validator.env_profiles import get_audit_profile
+
+        profile_dlq = (get_audit_profile().dead_letter_queue or "").strip()
+    except Exception:
+        profile_dlq = ""
     dlq_queue = _env(
         "INGEST_DLQ_QUEUE",
-        _env("RABBITMQ_DLQ_QUEUE", "mt.platform.raw_events.resolver.dlq"),
+        _env(
+            "RABBITMQ_DLQ_QUEUE",
+            _env("DEAD_LETTER_QUEUE", profile_dlq or "mt.platform.raw_events.resolver.dlq"),
+        ),
     )
 
     raw_col = mongo_raw or _env("MONGO_COLLECTION_RAW", "raw")
@@ -206,7 +218,11 @@ def load_ingest_lanes(
         mongo_db = mongo_db_for_profile(profile)
         raw_q = root.bindings[0].queue if (root.bindings and root.bindings[0].queue) else profile.ingress_raw_queue
         enriched_q = root.bindings[1].queue if (len(root.bindings) > 1 and root.bindings[1].queue) else profile.ingress_enriched_queue
-        dlq_q = root.bindings[2].queue if len(root.bindings) > 2 else "mt.platform.raw_events.resolver.dlq"
+        dlq_q = (
+            (profile.dead_letter_queue or "").strip()
+            or (root.bindings[2].queue if len(root.bindings) > 2 else "")
+            or "mt.platform.raw_events.resolver.dlq"
+        )
         lane_bindings = [
             QueueBinding("raw", raw_q, "raw"),
             QueueBinding("enriched", enriched_q, "enriched"),
