@@ -81,6 +81,8 @@ class AuditTargetProfile:
     seed_family_id: str
     seed_deactivate_family_id: str
     mongo_db_name: str = ""  # empty → derived as AuditLogs{NAME}
+    # Ingestion + Generate DLQ queue (UAT uses shared mt.raw_dlq[Do not Delete)).
+    dead_letter_queue: str = "mt.platform.raw_events.resolver.dlq"
     oauth: OAuthProfile = PP_OAUTH
     oauth_username: str = ""
     # Password-grant OAuth for the Bearer credentials modal (QA uses PP user login).
@@ -127,7 +129,8 @@ UAT = AuditTargetProfile(
     rabbitmq_vhost="mt-connect",
     raw_events_queue="mtraw-automation(DO NOT DELETE)",
     enriched_events_queue="mtenrich-automation(DO NOT DELETE)",
-    consume_dead_letter_queue=False,
+    # Consume UAT shared DLQ only — never mt.platform.raw_events.resolver.dlq.
+    consume_dead_letter_queue=True,
     purge_test_queues_on_e2e=True,
     # Host has no "-uat" infix (mt-audit-log-resolver-service-uat.* does not resolve).
     ingress_api_url="https://mt-audit-log-resolver-service.monotype-uat.com/v1/audit-events",
@@ -137,6 +140,7 @@ UAT = AuditTargetProfile(
     seed_family_id="794981",
     seed_deactivate_family_id="8kL8ZM64",
     mongo_db_name="AuditLogsUAT",
+    dead_letter_queue="mt.raw_dlq[Do not Delete)",
     oauth=UAT_USER_OAUTH,
     oauth_username="agentqatest@gmail.com",
     user_oauth=UAT_USER_OAUTH,
@@ -216,6 +220,8 @@ _PROFILE_KEYS: frozenset[str] = frozenset(
         "SIMULATION_PREFER_PP_BEARER",
         "RAW_EVENTS_QUEUE",
         "ENRICHED_EVENTS_QUEUE",
+        "DEAD_LETTER_QUEUE",
+        "INGEST_DLQ_QUEUE",
         "CONSUME_DEAD_LETTER_QUEUE",
         "PURGE_TEST_QUEUES_ON_E2E",
         "INGRESS_API_URL",
@@ -351,6 +357,8 @@ def apply_audit_profile(*, project_root=None) -> AuditTargetProfile:
         "SIMULATION_PREFER_PP_BEARER": "true" if profile.simulation_prefer_pp_bearer else "false",
         "RAW_EVENTS_QUEUE": profile.raw_events_queue,
         "ENRICHED_EVENTS_QUEUE": profile.enriched_events_queue,
+        "DEAD_LETTER_QUEUE": profile.dead_letter_queue,
+        "INGEST_DLQ_QUEUE": profile.dead_letter_queue,
         "CONSUME_DEAD_LETTER_QUEUE": "true" if profile.consume_dead_letter_queue else "false",
         "PURGE_TEST_QUEUES_ON_E2E": "true" if profile.purge_test_queues_on_e2e else "false",
         "INGRESS_API_URL": profile.ingress_api_url,

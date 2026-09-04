@@ -1540,6 +1540,67 @@ class AuditBridge:
                         f"xCorrelationId={cid}",
                     )
                     continue
+                # Operation-scoped lookup can miss when source.operation differs
+                # from the Results label (e.g. bulkActivateComplete vs bulkActivateStyles)
+                # or when retention dropped the op index entry. Resolve by cid alone,
+                # then resolver payload-dumps.
+                e3 = self.db.find_envelope_by_correlation("enriched", owned_cid)
+                r3 = self.db.find_envelope_by_correlation("raw", owned_cid)
+                if not e3 or not r3:
+                    try:
+                        from audit_validator.payload_dumps import (
+                            fetch_payload_dump,
+                            payload_dumps_fallback_enabled,
+                        )
+
+                        if payload_dumps_fallback_enabled():
+                            if not e3:
+                                dumped = fetch_payload_dump(owned_cid, tab="enriched")
+                                if dumped:
+                                    self.db.upsert_envelope("enriched", dumped)
+                                    e3 = self.db.find_envelope_by_correlation(
+                                        "enriched", owned_cid
+                                    ) or dumped
+                            if not r3:
+                                dumped = fetch_payload_dump(owned_cid, tab="raw")
+                                if dumped:
+                                    self.db.upsert_envelope("raw", dumped)
+                                    r3 = self.db.find_envelope_by_correlation(
+                                        "raw", owned_cid
+                                    ) or dumped
+                    except Exception:
+                        pass
+                if e3 and r3:
+                    cid = e3.get("xCorrelationId", "") or owned_cid
+                    (enriched_dir / f"{op}.json").write_text(
+                        json_util.dumps(e3, indent=2, ensure_ascii=False),
+                        encoding="utf-8",
+                    )
+                    (raw_dir / f"{op}.json").write_text(
+                        json_util.dumps(r3, indent=2, ensure_ascii=False),
+                        encoding="utf-8",
+                    )
+                    staged.append(op)
+                    owned_hits += 1
+                    self.store.append_log(
+                        job_id,
+                        f"  ✓ Paired {op} (pinned xCorrelationId={cid}) by correlation lookup",
+                    )
+                    continue
+                if e3 and not r3:
+                    cid = e3.get("xCorrelationId", "") or owned_cid
+                    (enriched_dir / f"{op}.json").write_text(
+                        json_util.dumps(e3, indent=2, ensure_ascii=False),
+                        encoding="utf-8",
+                    )
+                    staged.append(op)
+                    owned_hits += 1
+                    self.store.append_log(
+                        job_id,
+                        f"  ✓ Staged {op} (enriched only via correlation lookup) "
+                        f"xCorrelationId={cid}",
+                    )
+                    continue
             if "(" in op and op.endswith(")") and not owned_cid:
                 staged_file = enriched_dir / f"{op}.json"
                 if staged_file.is_file():
