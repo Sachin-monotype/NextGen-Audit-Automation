@@ -1618,10 +1618,25 @@ def start_compare(body: CompareRequest) -> dict[str, Any]:
     return _job_payload(job)
 
 
+def _correlation_id_from_result_item(item: dict[str, Any] | None) -> str:
+    """Pull xCorrelationId from a stored Result-tab comparison (enriched preferred)."""
+    if not isinstance(item, dict):
+        return ""
+    for row in item.get("rows") or []:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("field_path") or row.get("field") or "") != "xCorrelationId":
+            continue
+        cid = str(row.get("value_in_enriched") or row.get("value_in_source") or "").strip()
+        if cid:
+            return cid
+    return ""
+
+
 @app.post("/api/results/refresh")
 def refresh_stored_comparisons(body: RefreshResultsRequest | None = None) -> dict[str, Any]:
     """Re-run Compare for stored Result-tab operations; snapshots update in place."""
-    from .comparison_store import list_latest
+    from .comparison_store import get_latest_operation, list_latest
 
     req = body or RefreshResultsRequest()
     target = (req.target or os.getenv("AUDIT_TARGET") or "qa").strip().lower()
@@ -1631,12 +1646,26 @@ def refresh_stored_comparisons(body: RefreshResultsRequest | None = None) -> dic
         ops = list(latest.get("operations") or [])
     if not ops:
         raise HTTPException(400, f"No stored comparisons to refresh for target={target}")
-    job = bridge.start_compare(ops, "fresh", audit_target=target)
+    # Pin each op to its stored event so web/app variants are not remapped onto
+    # whichever Mongo "latest" pair happens to win for the bare operation name.
+    correlation_by_op: dict[str, str] = {}
+    for op in ops:
+        item = get_latest_operation(settings.audit_project_root, op, target=target)
+        cid = _correlation_id_from_result_item(item)
+        if cid:
+            correlation_by_op[op] = cid
+    job = bridge.start_compare(
+        ops,
+        "fresh",
+        audit_target=target,
+        correlation_by_op=correlation_by_op or None,
+    )
     return {
         "ok": True,
         "operations": ops,
         "count": len(ops),
         "target": target,
+        "correlations": len(correlation_by_op),
         "job": _job_payload(job),
     }
 

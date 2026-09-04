@@ -44,6 +44,13 @@ type TrackStatus = "unreviewed" | "covered" | "needs_enhancement";
 const RESULT_MODE_KEY = "audit_result_mode";
 const RESULT_VIEW_KEY = "audit_result_field_view";
 const TRACK_KEY = "audit_result_coverage_track";
+/** Persisted Results-tab env (independent of Generate pipeline target). */
+const RESULTS_TARGET_KEY = "audit_results_target";
+
+function readStoredResultsTarget(): string {
+  const stored = localStorage.getItem(RESULTS_TARGET_KEY);
+  return stored === "pp" || stored === "qa" || stored === "uat" ? stored : "";
+}
 
 function statusClass(s: string) {
   if (s === "PASS") return "pass";
@@ -398,6 +405,12 @@ function summarizeOp(rows: ComparisonRow[]) {
 }
 
 export default function ResultsPage({ initialJobId, highlightOperations }: Props) {
+  /** True once the user explicitly picks a target from the dropdown — prevents
+   *  pipeline-config from overwriting a manual choice. */
+  const userHasPickedTarget = useRef(Boolean(readStoredResultsTarget()));
+  /** Ignore stale /api/results/latest responses after the env dropdown changes. */
+  const latestFetchGen = useRef(0);
+
   const [sourceMode, setSourceMode] = useState<SourceMode>(() => {
     const stored = localStorage.getItem(RESULT_MODE_KEY);
     return stored === "job" ? "job" : "latest";
@@ -432,7 +445,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const [coverageOutcome, setCoverageOutcome] = useState<"all" | "pass" | "failed" | "partial">("all");
   const [filterCategory, setFilterCategory] = useState("all");
   /** PP / QA / UAT — Results store is per audit target so stores never mix. */
-  const [resultsTarget, setResultsTarget] = useState("qa");
+  const [resultsTarget, setResultsTarget] = useState(() => readStoredResultsTarget());
   const [availableTargets, setAvailableTargets] = useState<string[]>(["qa", "pp", "uat"]);
   const [categories, setCategories] = useState<CategoryReport | null>(null);
   const [opMeta, setOpMeta] = useState<ComparableOperation[]>([]);
@@ -507,35 +520,57 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   }
 
   const loadLatest = useCallback(() => {
+    const target = (resultsTarget || "").trim().toLowerCase();
+    if (!target) return;
+    const gen = ++latestFetchGen.current;
     setLatestLoadError("");
-    fetchLatestResults(resultsTarget)
+    fetchLatestResults(target)
       .then((data) => {
+        // Drop stale responses from a previous env (qa↔uat race while polling).
+        if (gen !== latestFetchGen.current) return;
         setLatest(data);
-        if (data.audit_target) setResultsTarget(data.audit_target);
+        // Never write resultsTarget from this response — that caused the dropdown
+        // to flicker when an older in-flight request finished after a switch.
         if (data.available_targets?.length) setAvailableTargets(data.available_targets);
         if (data.results_mongo_error) {
           setLatestLoadError(data.results_mongo_error);
         } else if (!data.count) {
           setLatestLoadError(
-            resultsTarget === "qa"
+            target === "qa"
               ? "No QA Results found. Check RESULTS_MONGO_URL, restart backend, and open /api/results/mongo/status."
               : "No stored comparison results for this environment.",
           );
         }
       })
       .catch((e) => {
+        if (gen !== latestFetchGen.current) return;
         setLatest(null);
         setLatestLoadError(String(e?.message || e || "Failed to load Results"));
       });
   }, [resultsTarget]);
 
   useEffect(() => {
+    if (!resultsTarget) return;
+    localStorage.setItem(RESULTS_TARGET_KEY, resultsTarget);
+  }, [resultsTarget]);
+
+  useEffect(() => {
+    // Seed from Generate pipeline only when the user has no stored Results env yet.
+    if (userHasPickedTarget.current || readStoredResultsTarget()) return;
     fetchPipelineConfig()
       .then((cfg) => {
-        const t = (cfg.target || "qa").toLowerCase();
-        if (t) setResultsTarget(t);
+        const t = (cfg.target || "").toLowerCase();
+        if ((t === "pp" || t === "qa" || t === "uat") && !userHasPickedTarget.current) {
+          setResultsTarget(t);
+        } else if (!userHasPickedTarget.current) {
+          setResultsTarget("qa");
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!userHasPickedTarget.current && !readStoredResultsTarget()) {
+          setResultsTarget("qa");
+        }
+      });
   }, []);
 
   const [deletingOp, setDeletingOp] = useState<string | null>(null);
@@ -1410,8 +1445,15 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
         <label className="filter-field">
           <span>audit env</span>
           <select
-            value={resultsTarget}
-            onChange={(e) => setResultsTarget(e.target.value)}
+            value={resultsTarget || availableTargets[0] || "qa"}
+            onChange={(e) => {
+              const next = e.target.value;
+              userHasPickedTarget.current = true;
+              localStorage.setItem(RESULTS_TARGET_KEY, next);
+              latestFetchGen.current += 1;
+              setLatest(null);
+              setResultsTarget(next);
+            }}
             title="Show Results for this audit target (PP / QA / UAT stores are separate)"
           >
             {availableTargets.map((t) => (
