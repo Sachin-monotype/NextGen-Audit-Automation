@@ -38,7 +38,7 @@ chmod +x scripts/dev.sh backend/run.sh
 
 That is enough to open the app, switch environment, and run Generate.
 
-## Environments (PP / QA / UAT)
+## Environments (PP / QA / UAT / Beta)
 
 Use the **Environment** dropdown on Generate (also updates `.env` `AUDIT_TARGET`):
 
@@ -47,6 +47,40 @@ Use the **Environment** dropdown on Generate (also updates `.env` `AUDIT_TARGET`
 | **PP** | https://nextgen.monotype-pp.com | `AuditLogsPreprod` |
 | **QA** | https://nextgen-qa.monotype-pp.com | `AuditLogsQA` |
 | **UAT** | https://nextgen.monotype-uat.com | `AuditLogsUAT` |
+| **Beta** | supplied with broker details | `AuditLogsBeta` |
+
+### Beta raw/enrich setup
+
+Beta uses its own local Mongo container so raw, enriched, and DLQ documents remain isolated from other targets. Add the broker credentials and queue names when available:
+
+```bash
+AUDIT_TARGET=beta
+INGEST_TARGETS=beta
+MONGO_DB_URL_BETA=mongodb://localhost:27020
+RABBITMQ_URL_BETA=amqps://USER:PASSWORD@HOST:5671/VHOST
+RABBITMQ_VHOST_BETA=VHOST
+INGEST_RAW_QUEUE_BETA=<raw-queue>
+INGEST_ENRICHED_QUEUE_BETA=<enriched-queue>
+INGEST_DLQ_QUEUE_BETA=<dlq-queue>
+./scripts/start-audit-mongo.sh
+./scripts/ingest.sh
+```
+
+The beta broker and queue values are configured in the local `.env`. The SSH key is expected at `~/Downloads/beta_nextgen` and is never copied into the repository.
+
+### Beta source validation
+
+Beta AMS, CMS, and UMS source schemas are read through an SSH tunnel:
+
+```bash
+./scripts/start-beta-mysql-tunnel.sh
+```
+
+The tunnel forwards `127.0.0.1:13307` to the beta Mosaic MySQL service. The application uses the read-only account and the `asset_management`, `customer_management`, and `user_management` schemas. Stop it with:
+
+```bash
+./scripts/start-beta-mysql-tunnel.sh --stop
+```
 
 ### UAT local setup (teammate checklist)
 

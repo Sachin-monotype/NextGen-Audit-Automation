@@ -90,3 +90,113 @@ class IngestionManager:
             return service.status()
         except Exception as exc:  # noqa: BLE001
             return {"running": service.running, "error": str(exc)}
+
+    def unbind(self) -> dict[str, Any]:
+        """Unbind queues from exchanges to stop collecting messages."""
+        with self._lock:
+            if self._service is None:
+                self._service = self._build_service()
+            service = self._service
+
+        try:
+            import pika
+            from audit_validator.rabbitmq.connection import url_parameters
+
+            unbound: list[dict[str, str]] = []
+            failures: list[str] = []
+            for lane in service._lanes:
+                params = url_parameters(lane.lane.rabbitmq_url)
+                params.connection_attempts = 1
+                params.socket_timeout = 10
+                params.stack_timeout = 15
+                connection = pika.BlockingConnection(params)
+                channel = connection.channel()
+                config = lane.lane.config
+                exchanges = {
+                    "raw": os.getenv("RAW_EVENTS_EXCHANGE", "mt.platform.raw_events"),
+                    "enriched": os.getenv("ENRICHED_EVENTS_EXCHANGE", "mt.platform.events"),
+                    "dlq": os.getenv("DEAD_LETTER_EXCHANGE", "mt.platform.raw_events.resolver.dlx"),
+                }
+                try:
+                    for binding in config.bindings:
+                        exchange = exchanges.get(binding.name)
+                        if not exchange:
+                            continue
+                        routing_key = "dl" if binding.name == "dlq" else "#"
+                        try:
+                            channel.queue_unbind(
+                                queue=binding.queue,
+                                exchange=exchange,
+                                routing_key=routing_key,
+                            )
+                            unbound.append({
+                                "queue": binding.queue,
+                                "exchange": exchange,
+                                "routing_key": routing_key,
+                            })
+                        except Exception as exc:  # noqa: BLE001
+                            failures.append(f"{binding.queue} ({exchange}, {routing_key}): {exc}")
+                finally:
+                    try:
+                        connection.close()
+                    except Exception:
+                        pass
+
+            return {"ok": not failures, "unbound": unbound, "errors": failures}
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "error": str(exc)}
+
+    def bind(self) -> dict[str, Any]:
+        """Bind queues to exchanges to start collecting messages."""
+        with self._lock:
+            if self._service is None:
+                self._service = self._build_service()
+            service = self._service
+
+        try:
+            import pika
+            from audit_validator.rabbitmq.connection import url_parameters
+
+            bound: list[dict[str, str]] = []
+            failures: list[str] = []
+            for lane in service._lanes:
+                params = url_parameters(lane.lane.rabbitmq_url)
+                params.connection_attempts = 1
+                params.socket_timeout = 10
+                params.stack_timeout = 15
+                connection = pika.BlockingConnection(params)
+                channel = connection.channel()
+                config = lane.lane.config
+                exchanges = {
+                    "raw": os.getenv("RAW_EVENTS_EXCHANGE", "mt.platform.raw_events"),
+                    "enriched": os.getenv("ENRICHED_EVENTS_EXCHANGE", "mt.platform.events"),
+                    "dlq": os.getenv("DEAD_LETTER_EXCHANGE", "mt.platform.raw_events.resolver.dlx"),
+                }
+                try:
+                    for binding in config.bindings:
+                        exchange = exchanges.get(binding.name)
+                        if not exchange:
+                            continue
+                        routing_key = "dl" if binding.name == "dlq" else "#"
+                        try:
+                            channel.queue_bind(
+                                queue=binding.queue,
+                                exchange=exchange,
+                                routing_key=routing_key,
+                            )
+                            bound.append({
+                                "queue": binding.queue,
+                                "exchange": exchange,
+                                "routing_key": routing_key,
+                            })
+                        except Exception as exc:  # noqa: BLE001
+                            failures.append(f"{binding.queue} ({exchange}, {routing_key}): {exc}")
+                finally:
+                    try:
+                        connection.close()
+                    except Exception:
+                        pass
+
+            return {"ok": not failures, "bound": bound, "errors": failures}
+        except Exception as exc:  # noqa: BLE001
+            return {"ok": False, "error": str(exc)}

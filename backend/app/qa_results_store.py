@@ -3,7 +3,8 @@
 Collections (per target):
 
 - QA: ``AuditComparisonResult`` / ``QA Result`` (+ optional ``QA_Original``)
-- UAT: ``MosaicCatalog`` / ``NextgenCoparisionResult`` (via ``RESULTS_MONGO_*_UAT``)
+- UAT: local/Atlas DB (``RESULTS_MONGO_DB_UAT``) / ``UATFinalComparisionResult``
+  (prior archive: ``NextgenAuditCoparisionResult`` via ``RESULTS_MONGO_*_UAT``)
 
 Env (global QA defaults, or per-target ``RESULTS_MONGO_*_{TARGET}``):
 
@@ -28,7 +29,7 @@ from pymongo.errors import PyMongoError
 
 logger = logging.getLogger(__name__)
 
-_RESULTS_TARGETS = frozenset({"qa", "uat"})
+_RESULTS_TARGETS = frozenset({"qa", "uat", "beta"})
 _lock = threading.Lock()
 _clients: dict[str, Any] = {}
 _last_failure_by_url: dict[str, float] = {}
@@ -59,13 +60,17 @@ def _db_name(target: str | None = None) -> str:
     t = _target_name(target)
     if t == "uat":
         return _env_for_target(t, "DB", "AutomationResult")
+    if t == "beta":
+        return _env_for_target(t, "DB", "AuditLogsBeta")
     return _env_for_target(t, "DB", "AuditComparisonResult")
 
 
 def _live_collection_name(target: str | None = None) -> str:
     t = _target_name(target)
     if t == "uat":
-        return _env_for_target(t, "COLLECTION", "NextgenAuditCoparisionResult")
+        return _env_for_target(t, "COLLECTION", "UATFinalComparisionResult")
+    if t == "beta":
+        return _env_for_target(t, "COLLECTION", "Beta Result")
     return _env_for_target(t, "COLLECTION", "QA Result")
 
 
@@ -73,6 +78,8 @@ def _original_collection_name(target: str | None = None) -> str:
     t = _target_name(target)
     if t == "uat":
         return _env_for_target(t, "ORIGINAL_COLLECTION", "")
+    if t == "beta":
+        return _env_for_target(t, "ORIGINAL_COLLECTION", "Beta_Original")
     return _env_for_target(t, "ORIGINAL_COLLECTION", "QA_Original")
 
 

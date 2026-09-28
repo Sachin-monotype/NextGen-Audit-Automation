@@ -16,6 +16,8 @@ import {
   startCompare,
   startIngestion,
   stopIngestion,
+  unbindIngestion,
+  bindIngestion,
   type FilterState,
   type FilterValues,
   type IngestionStatus,
@@ -29,6 +31,7 @@ const DEFAULT_TARGETS = [
   { id: "qa", label: "QA", url: "https://nextgen-qa.monotype-pp.com" },
   { id: "pp", label: "PP", url: "https://nextgen.monotype-pp.com" },
   { id: "uat", label: "UAT", url: "https://nextgen.monotype-uat.com" },
+  { id: "beta", label: "Beta", url: "" },
 ];
 
 type DisplayPageProps = {
@@ -144,6 +147,13 @@ const TAB_LABELS: Record<Tab, string> = {
   dlq: "DLQ",
 };
 
+function loadErrorMessage(error: string): string {
+  if (/connection refused|serverselectiontimeout|topology description|no servers found|timed out/i.test(error)) {
+    return "MongoDB is unreachable. Check the selected environment's Mongo service; this view retries automatically.";
+  }
+  return "Could not load collection data. This view retries automatically.";
+}
+
 const DEFAULT_PAGE_SIZES = [20, 50, 100, 200];
 
 function IngestionPanel() {
@@ -189,6 +199,34 @@ function IngestionPanel() {
     }
   }
 
+  async function unbind() {
+    if (!confirm("Unbind queues? Messages will stop collecting.")) return;
+    setBusy(true);
+    setNotice("");
+    try {
+      const res = await unbindIngestion();
+      setNotice(res.ok ? "Queues unbound successfully." : res.error || "Unbind failed");
+    } catch (e) {
+      setNotice(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function bind() {
+    if (!confirm("Bind queues? Messages will start collecting.")) return;
+    setBusy(true);
+    setNotice("");
+    try {
+      const res = await bindIngestion();
+      setNotice(res.ok ? "Queues bound successfully." : res.error || "Bind failed");
+    } catch (e) {
+      setNotice(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const running = status?.running ?? false;
   const connError = (status?.consumers || []).map((c) => c.last_error).find((e) => e && e.trim());
   const unreachable = running && !status?.rabbitmq_connected && !!connError;
@@ -228,6 +266,12 @@ function IngestionPanel() {
         </button>
         <button type="button" className="link-btn" disabled={busy} onClick={purge} title="Drop queued backlog so only fresh events are ingested">
           Purge queue
+        </button>
+        <button type="button" className="link-btn" disabled={busy} onClick={unbind} title="Unbind queues to stop message accumulation">
+          Unbind
+        </button>
+        <button type="button" className="link-btn" disabled={busy} onClick={bind} title="Bind queues to start message accumulation">
+          Bind
         </button>
         <button type="button" className={running ? "" : "primary"} disabled={busy} onClick={toggle}>
           {busy ? "…" : running ? "Stop" : "Start"}
@@ -440,12 +484,13 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
     try {
       const dedupe = !hasActiveFilters(applied);
       const data = await fetchLogs(tab, applied, page, pageSize, dedupe);
+      if ((data as { error?: string }).error) {
+        setError((data as { error?: string }).error || "");
+        return;
+      }
       setRows(data.results);
       setTotal(data.total);
       setUnique(data.unique ?? dedupe);
-      if ((data as { error?: string }).error) {
-        setError((data as { error?: string }).error || "");
-      }
     } catch (e) {
       setError(String(e));
     } finally {
@@ -455,6 +500,9 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
 
   async function onTargetChange(target: string) {
     setTargetBusy(true);
+    setRows([]);
+    setTotal(0);
+    setExpandedRows(new Set());
     setError("");
     try {
       const next = await setPipelineTarget(target);
@@ -472,12 +520,13 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
       try {
         const dedupe = !hasActiveFilters(applied);
         const data = await fetchLogs(tab, applied, 1, pageSize, dedupe);
+        if ((data as { error?: string }).error) {
+          setError((data as { error?: string }).error || "");
+          return;
+        }
         setRows(data.results);
         setTotal(data.total);
         setUnique(data.unique ?? dedupe);
-        if ((data as { error?: string }).error) {
-          setError((data as { error?: string }).error || "");
-        }
       } catch (e) {
         setError(String(e));
       } finally {
@@ -679,7 +728,18 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
           </div>
         </form>
 
-        {error && <p className="error">{error}</p>}
+        {error && (
+          <div className="display-load-error" role="alert">
+            <div className="display-load-error-head">
+              <span>{loadErrorMessage(error)}</span>
+              <button type="button" disabled={loading} onClick={load}>Retry</button>
+            </div>
+            <details>
+              <summary>Technical details</summary>
+              <pre>{error}</pre>
+            </details>
+          </div>
+        )}
 
         <div className="pager">
           <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</button>
@@ -719,12 +779,14 @@ export default function DisplayPage({ onCompareRequested }: DisplayPageProps) {
               )}
             </>
           )}
-          {loading && <span className="muted">Loading…</span>}
         </div>
       </div>
 
       <div className="display-table">
-        {rows.length === 0 && !loading && <p className="muted">No entries match.</p>}
+        {rows.length === 0 && !loading && !targetBusy && !error && <p className="muted">No entries match.</p>}
+        {rows.length === 0 && (loading || targetBusy) && (
+          <p className="muted">Loading…</p>
+        )}
         {rows.map((row, i) => {
           const key = rowKey(row, i);
           return (
@@ -850,7 +912,7 @@ function LogCard({
           <span className="meta-chip">
             <strong>platform</strong> {row["source.platformEnvironment"] || "—"}
           </span>
-          <span className="meta-chip"><strong>occurredAt</strong> {row.occurredAt}</span>
+          <span className="meta-chip"><strong>occurredAt</strong> {row.occurredAt ? new Date(row.occurredAt).toLocaleString("en-US", { timeZone: "Asia/Kathmandu" }) : "—"}</span>
           {row.fetchedFrom === "payload-dumps" ? (
             <span
               className="meta-chip"

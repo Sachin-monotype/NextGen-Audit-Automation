@@ -107,6 +107,14 @@ class DiscoveryClient:
     def __init__(self, cfg: SourceValidationConfig) -> None:
         self._cfg = cfg
         self._session = requests.Session()
+        discovery_origin = cfg.discovery_base_url.split("/api/search", 1)[0].rstrip("/")
+        self._session.headers.update(
+            {
+                "Origin": discovery_origin,
+                "Referer": f"{discovery_origin}/",
+                "User-Agent": _BROWSER_UA,
+            }
+        )
 
     def fetch_styles_by_family_ids(
         self,

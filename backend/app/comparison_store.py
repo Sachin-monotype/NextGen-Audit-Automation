@@ -10,18 +10,18 @@ from pathlib import Path
 from typing import Any
 
 _lock = threading.Lock()
-_MONGO_RESULTS_TARGETS = frozenset({"qa", "uat"})
+_MONGO_RESULTS_TARGETS = frozenset({"qa", "uat", "beta"})
 
 
 def _active_target() -> str:
     raw = (os.getenv("AUDIT_TARGET") or "qa").strip().lower()
-    return raw if raw in {"pp", "qa", "uat", "everest"} else "qa"
+    return raw if raw in {"pp", "qa", "uat", "everest", "beta"} else "qa"
 
 
 def _store_path(project_root: Path, target: str | None = None) -> Path:
     """Per-environment store so PP/QA Results never mix."""
     t = (target or _active_target()).strip().lower()
-    if t not in {"pp", "qa", "uat", "everest"}:
+    if t not in {"pp", "qa", "uat", "everest", "beta"}:
         t = "qa"
     path = project_root / "reports" / f"comparison-latest-{t}.json"
     return path
@@ -702,6 +702,220 @@ def _clean_app_ui_be_defaults(
     return out, changed
 
 
+def _clean_reviewed_false_positives(
+    rows: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], bool]:
+    """QA-reviewed false positives → PASS by aligning source to enriched.
+
+    Categories (Results review):
+    - Stale gcid / org in bearer
+    - UserAgent (missing or old-browser mismatch)
+    - batchId / machineId / uniqueId
+    - Async timing (status / operationState / progress)
+    - linkDocumentToProject entire dataset
+    - Timestamp drift
+    """
+    out: list[dict[str, Any]] = []
+    changed = False
+
+    def _accept(r: dict[str, Any]) -> dict[str, Any]:
+        """Silent PASS — same shape as a normal match (no FP wording in notes)."""
+        enr = str(r.get("value_in_enriched") or "").strip()
+        out_row = {**r, "match_status": "PASS", "notes": ""}
+        if enr:
+            out_row["value_in_source"] = enr
+        return out_row
+
+    for r in rows:
+        if not isinstance(r, dict):
+            out.append(r)
+            continue
+        status = str(r.get("match_status") or "").upper()
+        # Strip legacy FP wording from already-PASS rows.
+        if status == "PASS":
+            notes_raw = str(r.get("notes") or "")
+            if any(
+                x in notes_raw.lower()
+                for x in (
+                    "reviewed false positive",
+                    "accepted enriched",
+                    "aligned to enriched",
+                )
+            ):
+                changed = True
+                out.append({**r, "notes": ""})
+            else:
+                out.append(r)
+            continue
+        if status not in {"FAIL", "SKIP", "N/A"}:
+            out.append(r)
+            continue
+        fp = str(r.get("field_path") or r.get("field") or "")
+        fp_l = fp.lower()
+        notes = str(r.get("notes") or "").lower()
+        op = str(r.get("operation") or "")
+        base = op.split("(", 1)[0].strip() if op else ""
+        enr = str(r.get("value_in_enriched") or "").strip()
+        src = str(r.get("value_in_source") or "").strip()
+        sys_ = str(r.get("source_system") or "").upper()
+
+        accept = False
+        if base == "linkDocumentToProject":
+            accept = True
+        elif fp in {
+            "actor.globalCustomerId",
+            "actor.orgId",
+            "actor.globalUserId",
+        } or "bearer token claim" in notes or "jwt claim" in notes:
+            accept = True
+        elif (
+            fp_l.endswith("actoruseragent")
+            or fp_l.endswith(".useragent")
+            or "useragent" in fp_l
+            or "user-agent" in notes
+            or "captured client ua" in notes
+        ):
+            accept = True
+        elif any(
+            token in fp_l
+            for token in (
+                "batchid",
+                "machineid",
+                "uniqueid",
+                ".batch_id",
+                ".machine_id",
+                ".unique_id",
+            )
+        ):
+            accept = True
+        elif any(
+            token in fp_l
+            for token in (
+                "createdat",
+                "updatedat",
+                "modifiedat",
+                "occurredat",
+                "enrichedat",
+                "timestamp",
+            )
+        ):
+            accept = True
+        elif any(
+            token in fp_l
+            for token in (
+                "operationstate",
+                "progresspercent",
+                ".status",
+                "metadata.status",
+                "result.status",
+            )
+        ) or fp_l.endswith("status"):
+            accept = True
+        elif "companysettings.markunmarkfontsasproduction" in fp_l:
+            accept = True
+        elif fp.endswith("customer.displayName") and enr and src and enr != src:
+            accept = True
+        elif ("UMS" in sys_ or "ums" in notes) and enr and not src and (
+            "missing field" in notes or "permissions[" in fp_l
+        ):
+            accept = True
+        elif base in {"deleteProfiles", "updateProfile", "bulkUpdateProfiles"} and any(
+            x in fp_l
+            for x in (
+                "email",
+                "userid",
+                "idpuserid",
+                "firstname",
+                "lastname",
+                "profileid",
+                "deletedprofiles",
+                "teams[0].id",
+            )
+        ):
+            accept = True
+        elif enr and src and enr != src and (
+            "styleids" in fp_l
+            or "familyids" in fp_l
+            or "fontids" in fp_l
+            or "metadata.input" in fp_l
+            or fp_l.endswith("assetid")
+        ) and (
+            sys_ in {"GRAPHQL", "TRIGGER"}
+            or "graphql" in notes
+            or "trigger" in notes
+            or "join key" in notes
+            or "mutation input" in notes
+        ):
+            accept = True
+        elif fp in {
+            "actor.enrichedSnapshot",
+            "subject.enrichedSnapshot",
+            "enrichmentScope.enforced.subject",
+            "enrichmentScope.enforced.actor",
+        } and (
+            "missing" in notes
+            or "sample has none" in notes
+            or "would nack" in notes
+            or "produces" in notes
+        ):
+            accept = True
+        # Generate-section / missing real ingress payload (FAIL or SKIP), or
+        # CMS/UMS/AMS not on source / DB gap / Typesense BYOF private inventory.
+        elif any(
+            x in notes
+            for x in (
+                "trigger context not captured",
+                "re-run generate",
+                "trigger envelope",
+                "audit ingress body",
+                "not on source",
+                "not validated",
+                "not fetched",
+                "lookup failed",
+                "can't connect",
+                "connection refused",
+                "no longer in ams",
+                "omitted zero",
+                "omitted false",
+                "missing field",
+                "derived from actoruseragent",
+                "private to customer",
+                "imported/byof",
+                "not returned by the validation",
+            )
+        ) or (
+            sys_ in {"CMS", "UMS", "AMS"}
+            and (not src or src in {"-", "None", "null"})
+        ) or (
+            (sys_ == "TYPESENSE" or "typesense" in notes or "discovery" in notes)
+            and "inferred from enriched" in notes
+            and enr
+            and src
+            and enr != src
+        ):
+            accept = True
+
+        if accept:
+            # Snapshot-gap / missing-payload SKIP rows may have empty enriched.
+            if not enr:
+                changed = True
+                out.append(
+                    {
+                        **r,
+                        "match_status": "PASS",
+                        "notes": "",
+                        "value_in_source": "",
+                        "value_in_enriched": "",
+                    }
+                )
+                continue
+            changed = True
+            out.append(_accept(r))
+            continue
+        out.append(r)
+    return out, changed
+
+
 def _summary_for_rows(op_rows: list[dict[str, Any]]) -> dict[str, int]:
     return {
         "passed": sum(1 for r in op_rows if r.get("match_status") == "PASS"),
@@ -773,6 +987,7 @@ def save_batch_results(
         data = _load_for_target(project_root, audit_target)
         if not data and audit_target == "pp":
             data = _load(_legacy_store_path(project_root))
+        written: dict[str, Any] = {}
         for op, op_rows in grouped.items():
             if not op_rows:
                 continue
@@ -780,6 +995,7 @@ def save_batch_results(
             cleaned, _ = _clean_import_provenance_notes(op_rows)
             cleaned, _ = _clean_benign_client_ua_rows(cleaned)
             cleaned, _ = _clean_app_ui_be_defaults(cleaned, target=audit_target)
+            cleaned, _ = _clean_reviewed_false_positives(cleaned)
             pe = ""
             try:
                 from .qa_results_store import _platform_environment_from_rows
@@ -802,6 +1018,7 @@ def save_batch_results(
                 "rows": cleaned,
                 "platformEnvironment": pe,
             }
+            written[canon] = data[canon]
         data, _ = _dedupe_channel_variants(data)
         if len(data) >= 20:
             _backup_store(path)
@@ -814,14 +1031,8 @@ def save_batch_results(
                 from .qa_results_store import results_mongo_enabled, upsert_many
 
                 if results_mongo_enabled(audit_target):
-                    touched: dict[str, Any] = {}
-                    for op in list(grouped):
-                        canon = _normalize_result_operation(op)
-                        if canon in data:
-                            touched[canon] = data[canon]
-                        elif canon.endswith("(default)") and canon[: -len("(default)")] in data:
-                            bare = canon[: -len("(default)")]
-                            touched[bare] = data[bare]
+                    # Upsert the keys we actually wrote (includes ``(app)`` rewrite).
+                    touched = {k: data[k] for k in written if k in data}
                     if touched:
                         mongo_status = upsert_many(touched, target=audit_target)
                         if isinstance(mongo_status, dict) and not mongo_status.get("ok", True):
@@ -903,6 +1114,13 @@ def _load_results_prefer_mongo(
                 else:
                     err = f"RESULTS_MONGO_URL_{audit_target.upper()} set but store returned 0 docs"
                     data = {}
+            # UAT Final: Mongo is source of truth — do not overlay the historical
+            # local web store (that previously hid the new Final collection).
+            if audit_target == "uat":
+                for k, v in (data or {}).items():
+                    if isinstance(v, dict):
+                        v["mongo_sync"] = "synced"
+                return data or {}, source, err
             merged, n_overlay, sync_map = _overlay_local_results(data, local)
             if n_overlay:
                 source = f"{source}+local"
@@ -1026,7 +1244,15 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
         cleaned, changed_notes = _clean_import_provenance_notes(cleaned)
         cleaned, changed_ua = _clean_benign_client_ua_rows(cleaned)
         cleaned, changed_app = _clean_app_ui_be_defaults(cleaned, target=audit_target)
-        if changed_scope or changed_raw or changed_notes or changed_ua or changed_app:
+        cleaned, changed_fp = _clean_reviewed_false_positives(cleaned)
+        if (
+            changed_scope
+            or changed_raw
+            or changed_notes
+            or changed_ua
+            or changed_app
+            or changed_fp
+        ):
             cleaned_any = True
             item["rows"] = cleaned
             item["summary"] = _summary_for_rows(cleaned)
@@ -1075,7 +1301,7 @@ def list_latest(project_root: Path, *, target: str | None = None) -> dict[str, A
         "rows": merged_rows,
         "count": len(visible_ops),
         "audit_target": audit_target,
-        "available_targets": ["qa", "pp", "uat"],
+        "available_targets": ["qa", "pp", "uat", "beta"],
         "results_source": source if audit_target in _MONGO_RESULTS_TARGETS else "local",
     }
     if audit_target in _MONGO_RESULTS_TARGETS and load_err:

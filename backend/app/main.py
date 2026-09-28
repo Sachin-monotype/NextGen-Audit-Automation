@@ -18,6 +18,8 @@ from .audit_bridge import AuditBridge, JobStore, JobStatus
 from .config import load_settings
 from .db import AuditDatabase, FILTER_FIELDS
 from .ingestion_manager import IngestionManager
+from .interceptor_routes import router as interceptor_router, init_interceptor_manager
+from .notification_routes import router as notification_router
 from .retention import RetentionScheduler
 
 from audit_validator.env_profiles import apply_audit_profile
@@ -29,6 +31,7 @@ db = AuditDatabase(settings)
 job_store = JobStore(persist_path=settings.audit_project_root / "reports" / "jobs-state.json")
 ingestion = IngestionManager(settings)
 bridge = AuditBridge(settings.audit_project_root, job_store, db, ingestion=ingestion)
+init_interceptor_manager(settings.audit_project_root, bridge=bridge, db=db)
 retention = RetentionScheduler(
     db,
     settings.retention_max_docs,
@@ -37,6 +40,9 @@ retention = RetentionScheduler(
 )
 
 app = FastAPI(title="NextGen Audit Automation", version="1.1.0")
+app.include_router(interceptor_router)
+app.include_router(notification_router)
+
 
 
 @app.on_event("startup")
@@ -93,6 +99,7 @@ def _start_background_tasks() -> None:
 @app.on_event("shutdown")
 def _stop_background_tasks() -> None:
     try:
+        ingestion.unbind()
         ingestion.stop()
     except Exception:  # noqa: BLE001
         pass
@@ -568,6 +575,16 @@ def ingestion_purge() -> dict[str, Any]:
     return ingestion.purge()
 
 
+@app.post("/api/ingestion/unbind")
+def unbind_ingestion_queues() -> Any:
+    return ingestion.unbind()
+
+
+@app.post("/api/ingestion/bind")
+def bind_ingestion_queues() -> Any:
+    return ingestion.bind()
+
+
 @app.post("/api/mongo/prune")
 def mongo_prune(max_docs: int | None = Query(None, ge=1)) -> dict[str, Any]:
     """Trim each collection to the latest N docs per operation (defaults to configured retention)."""
@@ -868,6 +885,7 @@ def pipeline_config() -> dict[str, Any]:
                 {"id": "qa", "label": "QA", "url": "https://nextgen-qa.monotype-pp.com"},
                 {"id": "pp", "label": "PP", "url": "https://nextgen.monotype-pp.com"},
                 {"id": "uat", "label": "UAT", "url": "https://nextgen.monotype-uat.com"},
+                {"id": "beta", "label": "Beta", "url": ""},
             ],
             "graphql_endpoint": __import__("os").getenv("NEXTGEN_GRAPHQL_ENDPOINT", ""),
             "mongo_db": settings.mongo_db,
@@ -900,8 +918,8 @@ def pipeline_config() -> dict[str, Any]:
 def set_pipeline_target(req: PipelineTargetRequest) -> dict[str, Any]:
     """Switch the runtime Generate target and rebuild queue consumers + Mongo DB."""
     target = req.target.strip().lower()
-    if target not in {"pp", "qa", "uat"}:
-        raise HTTPException(status_code=400, detail="target must be pp, qa, or uat")
+    if target not in {"pp", "qa", "uat", "beta"}:
+        raise HTTPException(status_code=400, detail="target must be pp, qa, uat, or beta")
     try:
         import os
         from dotenv import set_key

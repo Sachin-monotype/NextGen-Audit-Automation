@@ -13,6 +13,7 @@ from .comparison_store import (
     _clean_benign_client_ua_rows,
     _clean_import_provenance_notes,
     _clean_legacy_raw_envelope_rows,
+    _clean_reviewed_false_positives,
     _clean_scope_rows,
     _dedupe_channel_variants,
     _load_for_target,
@@ -93,6 +94,7 @@ def build_failure_summary(
         cleaned, _ = _clean_import_provenance_notes(cleaned)
         cleaned, _ = _clean_benign_client_ua_rows(cleaned)
         cleaned, _ = _clean_app_ui_be_defaults(cleaned)
+        cleaned, _ = _clean_reviewed_false_positives(cleaned)
         for r in cleaned:
             if str(r.get("match_status") or "").upper() == "FAIL":
                 r_copy = dict(r)

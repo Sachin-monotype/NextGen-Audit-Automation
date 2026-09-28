@@ -5,8 +5,9 @@ import GeneratePage from "./pages/GeneratePage";
 import ComparePage from "./pages/ComparePage";
 import ResultsPage from "./pages/ResultsPage";
 import HealthPage from "./pages/HealthPage";
+import NotificationsPage from "./pages/NotificationsPage";
 
-export type Section = "generate" | "display" | "compare" | "result" | "health";
+export type Section = "generate" | "display" | "compare" | "result" | "notifications" | "health";
 export type Theme = "dark" | "light";
 
 const NAV: { id: Section; label: string; hint: string }[] = [
@@ -14,6 +15,7 @@ const NAV: { id: Section; label: string; hint: string }[] = [
   { id: "display", label: "Enrich/raw", hint: "Browse collections" },
   { id: "compare", label: "Compare", hint: "Pick operations" },
   { id: "result", label: "Result", hint: "Source vs enrich" },
+  { id: "notifications", label: "Notifications", hint: "Test guide & cycles" },
   { id: "health", label: "API Health", hint: "Test connectivity" },
 ];
 
@@ -141,6 +143,9 @@ export default function App() {
         </div>
         <div className={section === "result" ? "section-panel" : "section-panel hidden"}>
           <ResultsPage initialJobId={lastCompareJobId} highlightOperations={comparedOps} />
+        </div>
+        <div className={section === "notifications" ? "section-panel" : "section-panel hidden"}>
+          <NotificationsPage />
         </div>
         <div className={section === "health" ? "section-panel" : "section-panel hidden"}>
           <HealthPage />

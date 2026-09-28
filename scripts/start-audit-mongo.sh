@@ -14,7 +14,21 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 MODE="${1:-auto}"
-MONGO_PORT="${MONGO_PORT:-27017}"
+AUDIT_TARGET="${AUDIT_TARGET:-uat}"
+case "$AUDIT_TARGET" in
+  beta)
+    MONGO_PORT="${MONGO_PORT:-27020}"
+    DOCKER_SERVICE="audit-mongo-beta"
+    DOCKER_CONTAINER="nextgen-audit-mongo-beta"
+    MONGO_DB="AuditLogsBeta"
+    ;;
+  *)
+    MONGO_PORT="${MONGO_PORT:-27017}"
+    DOCKER_SERVICE="audit-mongo"
+    DOCKER_CONTAINER="nextgen-audit-mongo"
+    MONGO_DB="AuditLogsUAT"
+    ;;
+esac
 BREW_MONGO="mongodb-community@7.0"
 
 DOCKER_DESKTOP_BIN="/Applications/Docker.app/Contents/Resources/bin"
@@ -67,13 +81,17 @@ start_docker() {
     fi
   fi
 
-  docker compose up -d audit-mongo
+  docker compose up -d "$DOCKER_SERVICE"
   wait_for_mongo
   echo "Audit Mongo (Docker) ready at mongodb://localhost:${MONGO_PORT}"
-  echo "  container: nextgen-audit-mongo  DB: AuditLogsUAT when AUDIT_TARGET=uat"
+  echo "  container: $DOCKER_CONTAINER  DB: $MONGO_DB"
 }
 
 start_brew() {
+  if [[ "$AUDIT_TARGET" == "beta" ]]; then
+    echo "Beta local Mongo uses Docker service $DOCKER_SERVICE on port $MONGO_PORT." >&2
+    return 1
+  fi
   if ! command -v brew >/dev/null 2>&1; then
     echo "Homebrew not found — install from https://brew.sh or fix Docker Hub access." >&2
     return 1
@@ -109,7 +127,7 @@ start_brew() {
   fi
 
   echo "Audit Mongo (Homebrew) ready at mongodb://localhost:${MONGO_PORT}"
-  echo "  service: $BREW_MONGO  DB: AuditLogsUAT when AUDIT_TARGET=uat"
+  echo "  service: $BREW_MONGO  DB: $MONGO_DB"
   echo "  stop:  brew services stop $BREW_MONGO"
 }
 

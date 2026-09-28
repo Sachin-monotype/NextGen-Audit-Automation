@@ -1,0 +1,1300 @@
+{
+  "version": 1,
+  "source": "Final Test Notifications (1).xlsx",
+  "title": "Notification Test Catalog",
+  "channels": [
+    "in_app",
+    "email",
+    "push"
+  ],
+  "statuses": [
+    "",
+    "Pass",
+    "Fail",
+    "Blocked",
+    "N/A"
+  ],
+  "categories": [
+    {
+      "id": "A",
+      "label": "Licence & Contract Compliance",
+      "full": "Category A: Licence & Contract Compliance"
+    },
+    {
+      "id": "B",
+      "label": "User & Access Management",
+      "full": "Category B: User & Access Management"
+    },
+    {
+      "id": "S",
+      "label": "Server Accounts Notifications",
+      "full": "Category S: Server Accounts Notifications"
+    },
+    {
+      "id": "C",
+      "label": "Projects",
+      "full": "Category C: Projects"
+    },
+    {
+      "id": "E",
+      "label": "Font Activation & Sync",
+      "full": "Category E: Font Activation & Sync"
+    },
+    {
+      "id": "F",
+      "label": "Access & Permissions",
+      "full": "Category F: Access & Permissions"
+    },
+    {
+      "id": "G",
+      "label": "Account",
+      "full": "Category G: Account"
+    },
+    {
+      "id": "H",
+      "label": "System & Async Operations",
+      "full": "Category H: System & Async Operations"
+    }
+  ],
+  "items": [
+    {
+      "category_id": "A",
+      "category": "Licence & Contract Compliance",
+      "permission": "manage_font_licensing_compliance (A-1 to A-5), can_submit_quarterly_production_usage_reports (A-11 to A-14); manage_imported_fonts for A-6 to A-10.",
+      "recipients": "",
+      "event": "Subscription / Contract Expiry Warning",
+      "trigger": "90, 30, and 7 days before Enterworks renewal date",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Your Monotype subscription renewal is due on April 29, 2026. Renew it to keep your fonts active.",
+      "how_to": "90, 30, and 7 days before Enterworks renewal date",
+      "seed_actual": "Your Monotype subscription renewal is due on November 25, 2026. Renew it to keep your fonts active.",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 4,
+      "id": "A-1",
+      "sheet_id": "A-1"
+    },
+    {
+      "category_id": "A",
+      "category": "Licence & Contract Compliance",
+      "permission": "manage_font_licensing_compliance (A-1 to A-5), can_submit_quarterly_production_usage_reports (A-11 to A-14); manage_imported_fonts for A-6 to A-10.",
+      "recipients": "",
+      "event": "Seat Limit Reached",
+      "trigger": "Active users = 100% of contracted seats",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Workspace seat limit of 500 reached. Upgrade your plan or free seats to invite new users.",
+      "how_to": "Active users = 100% of contracted seats",
+      "seed_actual": "Workspace seat limit of 10 reached. Upgrade your plan or free seats to invite new users.",
+      "seed_status": "",
+      "seed_comments": "Email is not present need to discuss with Jatin (Email First Name discussion with Jatin) - Bug Logged",
+      "sheet_row": 5,
+      "id": "A-2",
+      "sheet_id": "A-2"
+    },
+    {
+      "category_id": "A",
+      "category": "Licence & Contract Compliance",
+      "permission": "manage_font_licensing_compliance (A-1 to A-5), can_submit_quarterly_production_usage_reports (A-11 to A-14); manage_imported_fonts for A-6 to A-10.",
+      "recipients": "",
+      "event": "Seat Limit Warning",
+      "trigger": "Active users = 80% of contracted seats",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Your workspace is at 80% of its 500-seat limit. Consider upgrading your plan.",
+      "how_to": "Active users = 80% of contracted seats",
+      "seed_actual": "Your workspace is at 83% of its 12-seat limit. Consider upgrading your plan.",
+      "seed_status": "",
+      "seed_comments": "Getting email after 80% afor every percentage incremement (Confirmed with Jatin that email should be come at 100% and 80%) - Bug to be logged",
+      "sheet_row": 6,
+      "id": "A-3",
+      "sheet_id": "A-3"
+    },
+    {
+      "category_id": "A",
+      "category": "Licence & Contract Compliance",
+      "permission": "manage_font_licensing_compliance (A-1 to A-5), can_submit_quarterly_production_usage_reports (A-11 to A-14); manage_imported_fonts for A-6 to A-10.",
+      "recipients": "",
+      "event": "Production Font Count Limit Reached",
+      "trigger": "Production-marked font count = 100% of contracted PF count",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Production font limit of 200 fonts reached. No further fonts can be marked as production until your limit is expanded.",
+      "how_to": "Production-marked font count = 100% of contracted PF count",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 7,
+      "id": "A-4",
+      "sheet_id": "A-4"
+    },
+    {
+      "category_id": "A",
+      "category": "Licence & Contract Compliance",
+      "permission": "manage_font_licensing_compliance (A-1 to A-5), can_submit_quarterly_production_usage_reports (A-11 to A-14); manage_imported_fonts for A-6 to A-10.",
+      "recipients": "",
+      "event": "Webfont Pageview Quota Warning / Breach",
+      "trigger": "Monthly pageview consumption reaches 100% of contracted quota",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Your workspace has reached 100% of its monthly webfont pageview quota. Webkits may be suspended if usage continues.",
+      "how_to": "Monthly pageview consumption reaches 100% of contracted quota",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 8,
+      "id": "A-5",
+      "sheet_id": "A-5"
+    },
+    {
+      "category_id": "A",
+      "category": "Licence & Contract Compliance",
+      "permission": "manage_font_licensing_compliance (A-1 to A-5), can_submit_quarterly_production_usage_reports (A-11 to A-14); manage_imported_fonts for A-6 to A-10.",
+      "recipients": "",
+      "event": "BYOF: Licence Expiry Warning",
+      "trigger": "Imported font licence expiring in 30 / 60 / 90 days",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Licence for imported font Halloween Pumpkins is expiring in 30 days. Renew it to avoid a compliance breach.",
+      "how_to": "Imported font licence expiring in 30 / 60 / 90 days",
+      "seed_actual": "Licence for imported font Magda-Ultra expires in 30 days. Renew it to avoid a compliance breach.",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 9,
+      "id": "A-6",
+      "sheet_id": "A-6"
+    },
+    {
+      "category_id": "A",
+      "category": "Licence & Contract Compliance",
+      "permission": "manage_font_licensing_compliance (A-1 to A-5), can_submit_quarterly_production_usage_reports (A-11 to A-14); manage_imported_fonts for A-6 to A-10.",
+      "recipients": "",
+      "event": "BYOF: Licence Expired [licence associated with fonts]",
+      "trigger": "Imported font licence expiry date passed",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": true
+      },
+      "expected": "Licence has expired of imported font Halloween Pumpkins.",
+      "how_to": "Imported font licence expiry date passed",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 10,
+      "id": "A-7",
+      "sheet_id": "A-7"
+    },
+    {
+      "category_id": "A",
+      "category": "Licence & Contract Compliance",
+      "permission": "manage_font_licensing_compliance (A-1 to A-5), can_submit_quarterly_production_usage_reports (A-11 to A-14); manage_imported_fonts for A-6 to A-10.",
+      "recipients": "",
+      "event": "BYOF: Overuse Detected",
+      "trigger": "Active usage count exceeds licence count for any imported font",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": true
+      },
+      "expected": "Font licence overuse detected for Halloween Pumpkins. Active usage of 58 seats exceeds your licensed limit of 52.",
+      "how_to": "Active usage count exceeds licence count for any imported font",
+      "seed_actual": "Font licence overuse detected for PrestigEliteStd-Slanted. Active usage of 2 seats exceeds your licensed limit of 1.",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 11,
+      "id": "A-8",
+      "sheet_id": "A-8"
+    },
+    {
+      "category_id": "A",
+      "category": "Licence & Contract Compliance",
+      "permission": "manage_font_licensing_compliance (A-1 to A-5), can_submit_quarterly_production_usage_reports (A-11 to A-14); manage_imported_fonts for A-6 to A-10.",
+      "recipients": "",
+      "event": "BYOF: Unlicensed Font In Use [font without license activated]",
+      "trigger": "Third-party font activated / downloaded / added to project with no valid licence",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": true
+      },
+      "expected": "Halloween Pumpkins is being used without a valid licence. Add a licence document to stay compliant.",
+      "how_to": "Third-party font activated / downloaded / added to project with no valid licence",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 12,
+      "id": "A-9",
+      "sheet_id": "A-9"
+    },
+    {
+      "category_id": "A",
+      "category": "Licence & Contract Compliance",
+      "permission": "manage_font_licensing_compliance (A-1 to A-5), can_submit_quarterly_production_usage_reports (A-11 to A-14); manage_imported_fonts for A-6 to A-10.",
+      "recipients": "",
+      "event": "BYOF: Missing Licence on Import",
+      "trigger": "Font uploaded to BYOF with no licence document linked",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Imported font Halloween Pumpkins has no licence document linked. Upload a licence to enable compliant use.",
+      "how_to": "Font uploaded to BYOF with no licence document linked",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 13,
+      "id": "A-10",
+      "sheet_id": "A-10"
+    },
+    {
+      "category_id": "A",
+      "category": "Licence & Contract Compliance",
+      "permission": "manage_font_licensing_compliance (A-1 to A-5), can_submit_quarterly_production_usage_reports (A-11 to A-14); manage_imported_fonts for A-6 to A-10.",
+      "recipients": "",
+      "event": "Quarterly Reporting Window Open",
+      "trigger": "Quarterly reporting window opens (system-triggered on configured date)",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Q1 2026 production font usage reports are due by June 30, 2026.",
+      "how_to": "Quarterly reporting window opens (system-triggered on configured date)",
+      "seed_actual": "The quarterly reporting window is now open and closes on October 15, 2026.",
+      "seed_status": "",
+      "seed_comments": "( \"Prior To\" shouldn't be in Bold ) - Roshan Need to fix this",
+      "sheet_row": 14,
+      "id": "A-11",
+      "sheet_id": "A-11"
+    },
+    {
+      "category_id": "A",
+      "category": "Licence & Contract Compliance",
+      "permission": "manage_font_licensing_compliance (A-1 to A-5), can_submit_quarterly_production_usage_reports (A-11 to A-14); manage_imported_fonts for A-6 to A-10.",
+      "recipients": "",
+      "event": "Quarterly Reporting Window Closing Soon",
+      "trigger": "7 days before the quarterly reporting window closes",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Your reporting window opens on [DATE]. Review your production font usage and prepare your quarterly submission.",
+      "how_to": "7 days before the quarterly reporting window closes",
+      "seed_actual": "Your reporting window opens on August 27, 2026. Review your production font usage and prepare your quarterly submission.",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 15,
+      "id": "A-12",
+      "sheet_id": "A-12"
+    },
+    {
+      "category_id": "A",
+      "category": "Licence & Contract Compliance",
+      "permission": "manage_font_licensing_compliance (A-1 to A-5), can_submit_quarterly_production_usage_reports (A-11 to A-14); manage_imported_fonts for A-6 to A-10.",
+      "recipients": "",
+      "event": "Quarterly Reporting Window — Final Reminder",
+      "trigger": "2 days before the quarterly reporting window closes",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Final reminder — Q1 2026 production font usage report is due in 2 days. Deadline: June 30, 2026.",
+      "how_to": "2 days before the quarterly reporting window closes",
+      "seed_actual": "Final reminder - Q2 2026 production font usage report is due in 2 days. Deadline: August 28, 2026.",
+      "seed_status": "",
+      "seed_comments": "2 days on August 28, 2026. date formar change and redirection should be same from email and notification cta\n\nhttps://monotype.atlassian.net/browse/SNGL-8257",
+      "sheet_row": 16,
+      "id": "A-13",
+      "sheet_id": "A-13"
+    },
+    {
+      "category_id": "A",
+      "category": "Licence & Contract Compliance",
+      "permission": "manage_font_licensing_compliance (A-1 to A-5), can_submit_quarterly_production_usage_reports (A-11 to A-14); manage_imported_fonts for A-6 to A-10.",
+      "recipients": "",
+      "event": "Quarterly Report Submitted",
+      "trigger": "A quarterly report is submitted by an admin",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Your company's Quarterly Usage Report for <Q3 2025> has been successfully submitted.\nView Report (CTA)",
+      "how_to": "A quarterly report is submitted by an admin",
+      "seed_actual": "Your company's Quarterly Usage Report for Q2 2026 has been successfully submitted.",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 17,
+      "id": "A-14",
+      "sheet_id": "A-14"
+    },
+    {
+      "category_id": "B",
+      "category": "User & Access Management",
+      "permission": "manage_users.",
+      "recipients": "",
+      "event": "User Invitation Accepted",
+      "trigger": "Invited user completes sign-up",
+      "channels": {
+        "in_app": true,
+        "email": false,
+        "push": false
+      },
+      "expected": "Guy Hawkins has accepted your invitation and joined the workspace.",
+      "how_to": "Invited user completes sign-up",
+      "seed_actual": "monotype.staging+inviteduser01@gmail.com has accepted your invitation and joined the workspace.",
+      "seed_status": "Pass",
+      "seed_comments": "Email is coming instead of Name",
+      "sheet_row": 22,
+      "id": "B-1",
+      "sheet_id": "B-1"
+    },
+    {
+      "category_id": "B",
+      "category": "User & Access Management",
+      "permission": "manage_users.",
+      "recipients": "",
+      "event": "User Invitation Expired",
+      "trigger": "Invite link not used within expiry window",
+      "channels": {
+        "in_app": true,
+        "email": false,
+        "push": false
+      },
+      "expected": "",
+      "how_to": "Invite link not used within expiry window",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 23,
+      "id": "B-2",
+      "sheet_id": "B-2"
+    },
+    {
+      "category_id": "B",
+      "category": "User & Access Management",
+      "permission": "manage_users.",
+      "recipients": "",
+      "event": "Bulk User Import Completed",
+      "trigger": "Bulk CSV/Excel import job finishes (success or partial failure)",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "48 of 50 users were successfully imported. <2 users failed due to duplicate email addresses>. CTA for failure case missing in Figma — PRD requires a download link for the failure report.",
+      "how_to": "Bulk CSV/Excel import job finishes (success or partial failure)",
+      "seed_actual": "0 of 50 users were successfully imported. 50 users failed due to invalid roles.\n50 of 50 users were successfully imported.",
+      "seed_status": "",
+      "seed_comments": "Email is not coming",
+      "sheet_row": 24,
+      "id": "B-3",
+      "sheet_id": "B-3"
+    },
+    {
+      "category_id": "B",
+      "category": "User & Access Management",
+      "permission": "manage_users.",
+      "recipients": "",
+      "event": "user.role.updated",
+      "trigger": "Admin changes a user's role",
+      "channels": {
+        "in_app": true,
+        "email": false,
+        "push": false
+      },
+      "expected": "Devon Lane's role has been changed from Contributor to Project Admin by Jenny Wilson.",
+      "how_to": "Admin changes a user's role",
+      "seed_actual": "Invited User's role has been changed from View Only to Creative by MD Ziya Hussain.",
+      "seed_status": "Pass",
+      "seed_comments": "",
+      "sheet_row": 25,
+      "id": "B-4",
+      "sheet_id": "B-4"
+    },
+    {
+      "category_id": "B",
+      "category": "User & Access Management",
+      "permission": "manage_users.",
+      "recipients": "",
+      "event": "User Manually Deactivated",
+      "trigger": "Admin deactivates a user account",
+      "channels": {
+        "in_app": true,
+        "email": false,
+        "push": false
+      },
+      "expected": "Devon Lane's account has been deactivated by Jenny Wilson. All activated fonts have been removed.",
+      "how_to": "Admin deactivates a user account",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 26,
+      "id": "B-5",
+      "sheet_id": "B-5"
+    },
+    {
+      "category_id": "B",
+      "category": "User & Access Management",
+      "permission": "manage_users.",
+      "recipients": "",
+      "event": "User Auto-Deactivated (Account Expiry Date) (UI & Cron)",
+      "trigger": "A user account reaches its configured expiry date and is auto-deactivated",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Devon Lane's account has been auto-deactivated on reaching its expiry date of April 29, 2026.",
+      "how_to": "A user account reaches its configured expiry date and is auto-deactivated",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 27,
+      "id": "B-6",
+      "sheet_id": "B-6"
+    },
+    {
+      "category_id": "B",
+      "category": "User & Access Management",
+      "permission": "manage_users.",
+      "recipients": "",
+      "event": "User Permanently Deleted",
+      "trigger": "Admin permanently deletes a user account",
+      "channels": {
+        "in_app": true,
+        "email": false,
+        "push": false
+      },
+      "expected": "Devon Lane's account has been permanently deleted by Jenny Wilson. This action cannot be undone.",
+      "how_to": "Admin permanently deletes a user account",
+      "seed_actual": "Dummy User's account has been permanently deleted by MD Ziya Hussain. This action cannot be undone.",
+      "seed_status": "Pass",
+      "seed_comments": "",
+      "sheet_row": 28,
+      "id": "B-7",
+      "sheet_id": "B-7"
+    },
+    {
+      "category_id": "B",
+      "category": "User & Access Management",
+      "permission": "manage_users.",
+      "recipients": "",
+      "event": "BYOF: Access Request Submitted",
+      "trigger": "Designer submits a request to access a specific imported font",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Jane Cooper has requested font access to Halloween Pumpkins - Regular (license usage: 42/52). Remarks: Need this for the Halloween campaign landing page.",
+      "how_to": "Designer submits a request to access a specific imported font",
+      "seed_actual": "Contract User has requested font access to Praxis-BoldOblique (license usage 0/2).\nRemarks: asd",
+      "seed_status": "d",
+      "seed_comments": "",
+      "sheet_row": 29,
+      "id": "B-8",
+      "sheet_id": "B-8"
+    },
+    {
+      "category_id": "B",
+      "category": "User & Access Management",
+      "permission": "manage_users.",
+      "recipients": "",
+      "event": "Users with Upcoming Account Expiry — Weekly Digest",
+      "trigger": "Every Monday: consolidated list of all user accounts with expiry date within the next 7 days",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "3 user accounts are expiring this week: Devon Lane (Apr 29), Mia Johnson (Apr 30), Ethan Wright (May 1).",
+      "how_to": "Every Monday: consolidated list of all user accounts with expiry date within the next 7 days",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 30,
+      "id": "B-9",
+      "sheet_id": "B-9"
+    },
+    {
+      "category_id": "S",
+      "category": "Server Accounts Notifications",
+      "permission": "",
+      "recipients": "",
+      "event": "FontBridge Authentication Failed",
+      "trigger": "FontBridge attempts to authenticate with an invalid, expired, or revoked token",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": true
+      },
+      "expected": "FontBridge authentication failed and fonts may not be syncing correctly for Abc server.",
+      "how_to": "FontBridge attempts to authenticate with an invalid, expired, or revoked token",
+      "seed_actual": "FontBridge authentication failed and fonts may not be syncing correctly for New server.",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 35,
+      "id": "S-1",
+      "sheet_id": "S-1"
+    },
+    {
+      "category_id": "S",
+      "category": "Server Accounts Notifications",
+      "permission": "",
+      "recipients": "",
+      "event": "Server Token Expiring Soon",
+      "trigger": "7 days before a server account token expiry date (where auto-renew is off)",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Authentication token for Abc server is expiring in 7 days. Regenerate it to prevent sync interruption.",
+      "how_to": "7 days before a server account token expiry date (where auto-renew is off)",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 36,
+      "id": "S-2",
+      "sheet_id": "S-2"
+    },
+    {
+      "category_id": "S",
+      "category": "Server Accounts Notifications",
+      "permission": "",
+      "recipients": "",
+      "event": "Server Sync Error",
+      "trigger": "FontBridge reports a sync failure for one or more fonts (e.g. delivery path not writable, disk full)",
+      "channels": {
+        "in_app": true,
+        "email": false,
+        "push": true
+      },
+      "expected": "Font sync failed for Abc server. Affected fonts: Neue Haas Grotesk Display, Helvetica Now. Reason: delivery path not writable.",
+      "how_to": "FontBridge reports a sync failure for one or more fonts (e.g. delivery path not writable, disk full)",
+      "seed_actual": "Font sync failed for rest team, affected fonts: Gotham Compact Bold Italic and 2 more.",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 37,
+      "id": "S-3",
+      "sheet_id": "S-3"
+    },
+    {
+      "category_id": "S",
+      "category": "Server Accounts Notifications",
+      "permission": "",
+      "recipients": "",
+      "event": "Server Account Limit Reached",
+      "trigger": "Server account count reaches 100% of entitlement limit",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Server account limit of 10 reached. No further server accounts can be created until your limit is expanded.",
+      "how_to": "Server account count reaches 100% of entitlement limit",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 38,
+      "id": "S-4",
+      "sheet_id": "S-4"
+    },
+    {
+      "category_id": "S",
+      "category": "Server Accounts Notifications",
+      "permission": "",
+      "recipients": "",
+      "event": "Previous Token Expiring While Suspended",
+      "trigger": "7 days before a suspended token's expiry date",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Suspended token for Abc server is expiring in 7 days. 3 fonts exclusive to this token will be removed on expiry.",
+      "how_to": "7 days before a suspended token's expiry date",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 39,
+      "id": "S-5",
+      "sheet_id": "S-5"
+    },
+    {
+      "category_id": "C",
+      "category": "Projects",
+      "permission": "",
+      "recipients": "Project Admins and/or project members as specified per event. Requires can_be_project_admin for admin-directed events.",
+      "event": "Project Archival Warning — Admins (7 days)",
+      "trigger": "7 days before configured project end date or auto-archive date",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Project Branding Refresh 2026 will be archived in 7 days. All member access and BYOF fonts will be deactivated on archival.",
+      "how_to": "7 days before configured project end date or auto-archive date",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 45,
+      "id": "C-1.1",
+      "sheet_id": "C-1"
+    },
+    {
+      "category_id": "C",
+      "category": "Projects",
+      "permission": "",
+      "recipients": "Project Admins and/or project members as specified per event. Requires can_be_project_admin for admin-directed events.",
+      "event": "Project BYOF Compliance Alert",
+      "trigger": "Unlicensed font, expiring/expired licence, overuse, or missing licence detected within a project scope",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": true
+      },
+      "expected": "Licence overuse detected for Halloween Pumpkins in project Branding Refresh 2026. Review and resolve to stay compliant.",
+      "how_to": "Unlicensed font, expiring/expired licence, overuse, or missing licence detected within a project scope",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 46,
+      "id": "C-2.1",
+      "sheet_id": "C-2"
+    },
+    {
+      "category_id": "C",
+      "category": "Projects",
+      "permission": "",
+      "recipients": "Project Admins and/or project members as specified per event. Requires can_be_project_admin for admin-directed events.",
+      "event": "Project BYOF: Licence Expiry Warning",
+      "trigger": "Imported font licence expiring in 30 / 60 / 90 days",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "",
+      "how_to": "Imported font licence expiring in 30 / 60 / 90 days",
+      "seed_actual": "Licence for Map Of You in project Chmap345 expires in 30 days. Renew it to avoid a compliance breach.",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 47,
+      "id": "C-1.2",
+      "sheet_id": "C-1"
+    },
+    {
+      "category_id": "C",
+      "category": "Projects",
+      "permission": "",
+      "recipients": "Project Admins and/or project members as specified per event. Requires can_be_project_admin for admin-directed events.",
+      "event": "Project BYOF: Licence Expired [licence associated with fonts]",
+      "trigger": "Imported font licence expiry date passed",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Licence for Proxima Nova in project Branding Refresh 2026 has expired. Renew to avoid compliance issues",
+      "how_to": "Imported font licence expiry date passed",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 48,
+      "id": "C-2.2",
+      "sheet_id": "C-2"
+    },
+    {
+      "category_id": "C",
+      "category": "Projects",
+      "permission": "",
+      "recipients": "Project Admins and/or project members as specified per event. Requires can_be_project_admin for admin-directed events.",
+      "event": "Project BYOF: Overuse Detected",
+      "trigger": "Active usage count exceeds licence count for any imported font",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "",
+      "how_to": "Active usage count exceeds licence count for any imported font",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 49,
+      "id": "C-3",
+      "sheet_id": "C-3"
+    },
+    {
+      "category_id": "C",
+      "category": "Projects",
+      "permission": "",
+      "recipients": "Project Admins and/or project members as specified per event. Requires can_be_project_admin for admin-directed events.",
+      "event": "Project BYOF: Unlicensed Font In Use [font without license activated]",
+      "trigger": "Third-party font activated / downloaded / added to project with no valid licence",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "",
+      "how_to": "Third-party font activated / downloaded / added to project with no valid licence",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 50,
+      "id": "C-4.1",
+      "sheet_id": "C-4"
+    },
+    {
+      "category_id": "C",
+      "category": "Projects",
+      "permission": "",
+      "recipients": "Project Admins and/or project members as specified per event. Requires can_be_project_admin for admin-directed events.",
+      "event": "Project Published — All Members",
+      "trigger": "A project transitions to Published state",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Project Branding Refresh 2026 has been published. Production fonts are now marked and webkits may be served.",
+      "how_to": "A project transitions to Published state",
+      "seed_actual": "Project PRT56 has been published. Production fonts are now marked and webkits may be served.",
+      "seed_status": "",
+      "seed_comments": "Once the Auto activation bug is fixed for which Jatin will connect with Kapil the Push Notification should come in this case as well - As discussed with Jatin",
+      "sheet_row": 52,
+      "id": "C-5",
+      "sheet_id": "C-5"
+    },
+    {
+      "category_id": "C",
+      "category": "Projects",
+      "permission": "",
+      "recipients": "Project Admins and/or project members as specified per event. Requires can_be_project_admin for admin-directed events.",
+      "event": "Project Archival Warning — All Members (3 days)",
+      "trigger": "3 days before project archive date",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Your access to project Branding Refresh 2026 ends in 3 days. Export or save any work before the project is archived.",
+      "how_to": "3 days before project archive date",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 54,
+      "id": "C-4.2",
+      "sheet_id": "C-4"
+    },
+    {
+      "category_id": "C",
+      "category": "Projects",
+      "permission": "",
+      "recipients": "Project Admins and/or project members as specified per event. Requires can_be_project_admin for admin-directed events.",
+      "event": "Project Archived",
+      "trigger": "Project transitions to Archived state",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Bessie Cooper has archived the project Brand Typography 2026. Project fonts will be deactivated from your devices.",
+      "how_to": "Project transitions to Archived state",
+      "seed_actual": "Admin Singh has archived the project PRT546. Project fonts will be deactivated from your devices.",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 55,
+      "id": "C-6",
+      "sheet_id": "C-6"
+    },
+    {
+      "category_id": "C",
+      "category": "Projects",
+      "permission": "",
+      "recipients": "Project Admins and/or project members as specified per event. Requires can_be_project_admin for admin-directed events.",
+      "event": "Project Fonts Auto-Activated on Machine",
+      "trigger": "Project transitions to Ready state (auto-activation enabled) or Published; fonts synced to member's desktop app",
+      "channels": {
+        "in_app": true,
+        "email": false,
+        "push": true
+      },
+      "expected": "[Project Name] is ready. Project fonts have been activated on your connected devices.\nCTA: View Project",
+      "how_to": "Project transitions to Ready state (auto-activation enabled) or Published; fonts synced to member's desktop app",
+      "seed_actual": "Auto Activated has been moved to Ready by Admin Singh. You can now continue working on the project based on your assigned role.",
+      "seed_status": "",
+      "seed_comments": "After discussed with Jatin updated the Expected Notification",
+      "sheet_row": 56,
+      "id": "C-7",
+      "sheet_id": "C-7"
+    },
+    {
+      "category_id": "C",
+      "category": "Projects",
+      "permission": "",
+      "recipients": "Project Admins and/or project members as specified per event. Requires can_be_project_admin for admin-directed events.",
+      "event": "Added to Project",
+      "trigger": "User is added as a project member (only to be sent to that user)",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Bessie Cooper has added you as contributor to project Branding Refresh 2026.",
+      "how_to": "User is added as a project member (only to be sent to that user)",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 57,
+      "id": "C-8",
+      "sheet_id": "C-8"
+    },
+    {
+      "category_id": "C",
+      "category": "Projects",
+      "permission": "",
+      "recipients": "Project Admins and/or project members as specified per event. Requires can_be_project_admin for admin-directed events.",
+      "event": "Removed from Project",
+      "trigger": "User's project membership is revoked (only to be sent to that user)",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Your access to project Branding Refresh 2026 has been removed. Project fonts will be deactivated from your machine.",
+      "how_to": "User's project membership is revoked (only to be sent to that user)",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 58,
+      "id": "C-9",
+      "sheet_id": "C-9"
+    },
+    {
+      "category_id": "C",
+      "category": "Projects",
+      "permission": "",
+      "recipients": "Project Admins and/or project members as specified per event. Requires can_be_project_admin for admin-directed events.",
+      "event": "Subscription Font Leaving Catalogue — In Project Scope",
+      "trigger": "A subscription font in the project scope is tagged 'Leaving Soon' (90 days before removal)",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Baskerville Display PT leaving the Monotype catalogue on 30 May, 2026. It is used in your 3 projects.",
+      "how_to": "A subscription font in the project scope is tagged 'Leaving Soon' (90 days before removal)",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 59,
+      "id": "C-10",
+      "sheet_id": "C-10"
+    },
+    {
+      "category_id": "C",
+      "category": "Projects",
+      "permission": "",
+      "recipients": "Project Admins and/or project members as specified per event. Requires can_be_project_admin for admin-directed events.",
+      "event": "Subscription Font Auto-Removed from Project Scope",
+      "trigger": "A 'Leaving Soon' font not marked as production reaches its catalogue removal date",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Baskerville Display PT has been removed from project Branding Refresh 2026 and deactivated from all members' machines.",
+      "how_to": "A 'Leaving Soon' font not marked as production reaches its catalogue removal date",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "Out of scope",
+      "sheet_row": 60,
+      "id": "C-11",
+      "sheet_id": "C-11"
+    },
+    {
+      "category_id": "C",
+      "category": "Projects",
+      "permission": "",
+      "recipients": "Project Admins and/or project members as specified per event. Requires can_be_project_admin for admin-directed events.",
+      "event": "Font Marked as Production — Admin Approval Request",
+      "trigger": "A Collaborator shares intent to mark a font as production, where admin has configured approval required (only to be sent to the admins having permission to mark font as production)",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Devon Lane has shared intent to mark Neue Haas Grotesk Display as production in project Branding Refresh 2026. Your approval is required.",
+      "how_to": "A Collaborator shares intent to mark a font as production, where admin has configured approval required (only to be sent to the admins having permission to mark font as production)",
+      "seed_actual": "View Only user has shared production intent for Alien Block Plus Regular and Alien Block Plus Rounded.\n\nView Only user has shared production intent for Saltriver Grotesk Regular.",
+      "seed_status": "",
+      "seed_comments": "A ticket is already there to check for Notification part - https://monotype.atlassian.net/browse/SNGL-7941 \n\nEmail is not present under Figma so we haven't checked",
+      "sheet_row": 61,
+      "id": "C-12",
+      "sheet_id": "C-12"
+    },
+    {
+      "category_id": "C",
+      "category": "Projects",
+      "permission": "",
+      "recipients": "Project Admins and/or project members as specified per event. Requires can_be_project_admin for admin-directed events.",
+      "event": "Font Marked as Production Directly by User",
+      "trigger": "A Collaborator marks a font directly as production where admin has configured this permission without approval",
+      "channels": {
+        "in_app": true,
+        "email": false,
+        "push": false
+      },
+      "expected": "Devon Lane has marked Neue Haas Grotesk Display as production in project Branding Refresh 2026.",
+      "how_to": "A Collaborator marks a font directly as production where admin has configured this permission without approval",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "NOT APPLICABLE IN PROJECTS, Need to know how to test",
+      "sheet_row": 62,
+      "id": "C-13",
+      "sheet_id": "C-13"
+    },
+    {
+      "category_id": "E",
+      "category": "Font Activation & Sync",
+      "permission": "",
+      "recipients": "",
+      "event": "Failed Font Sync / Activation",
+      "trigger": "Desktop app or web sync fails for one or more fonts",
+      "channels": {
+        "in_app": true,
+        "email": false,
+        "push": true
+      },
+      "expected": "Font sync failed for 3 fonts Neue Haas Grotesk Display, Helvetica Now Display, and Garamond Premier Pro.",
+      "how_to": "Desktop app or web sync fails for one or more fonts",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 66,
+      "id": "E-1",
+      "sheet_id": "E-1"
+    },
+    {
+      "category_id": "E",
+      "category": "Font Activation & Sync",
+      "permission": "",
+      "recipients": "",
+      "event": "Font Conflict Resolved — Font Deactivated",
+      "trigger": "System deactivates a font due to PostScript name conflict when a new font is activated",
+      "channels": {
+        "in_app": true,
+        "email": false,
+        "push": true
+      },
+      "expected": "Helvetica Now Display was deactivated due to a PostScript name conflict with Neue Haas Grotesk Display, which is now active.",
+      "how_to": "System deactivates a font due to PostScript name conflict when a new font is activated",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "Not able to trigger",
+      "sheet_row": 67,
+      "id": "E-2",
+      "sheet_id": "E-2"
+    },
+    {
+      "category_id": "E",
+      "category": "Font Activation & Sync",
+      "permission": "",
+      "recipients": "",
+      "event": "Font De-released / Removed from Catalogue",
+      "trigger": "An activated or library-pinned font is de-released by the foundry",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Linotype Centennial has been removed from the Monotype catalogue and is no longer available for activation.",
+      "how_to": "An activated or library-pinned font is de-released by the foundry",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "Not able to trigger",
+      "sheet_row": 68,
+      "id": "E-3",
+      "sheet_id": "E-3"
+    },
+    {
+      "category_id": "E",
+      "category": "Font Activation & Sync",
+      "permission": "",
+      "recipients": "",
+      "event": "Sync Agent Disconnected",
+      "trigger": "Desktop app background service loses connection for more than 15 minutes",
+      "channels": {
+        "in_app": true,
+        "email": false,
+        "push": true
+      },
+      "expected": "Monotype sync agent has been disconnected for more than 15 minutes. Subscription fonts may expire offline until you reconnect.",
+      "how_to": "Desktop app background service loses connection for more than 15 minutes",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "Ouf of Scope",
+      "sheet_row": 69,
+      "id": "E-4",
+      "sheet_id": "E-4"
+    },
+    {
+      "category_id": "F",
+      "category": "Access & Permissions",
+      "permission": "",
+      "recipients": "",
+      "event": "List / Collection Shared with You",
+      "trigger": "A list or folder is shared with the designer for the first time",
+      "channels": {
+        "in_app": true,
+        "email": false,
+        "push": false
+      },
+      "expected": "Guy Hawkins has shared the font list Brand Typography 2026 with you.",
+      "how_to": "A list or folder is shared with the designer for the first time",
+      "seed_actual": "ContractorS has shared the font list New List Added with you.",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 73,
+      "id": "F-1",
+      "sheet_id": "F-1"
+    },
+    {
+      "category_id": "F",
+      "category": "Access & Permissions",
+      "permission": "",
+      "recipients": "",
+      "event": "Shared List / Collection Updated",
+      "trigger": "Fonts added to or removed from a list already shared with the designer",
+      "channels": {
+        "in_app": true,
+        "email": false,
+        "push": false
+      },
+      "expected": "Font list Brand Typography 2026 shared by Guy Hawkins has been updated. 3 fonts were added.",
+      "how_to": "Fonts added to or removed from a list already shared with the designer",
+      "seed_actual": "Font list RCB has been updated. 1 font was added.\n\nFont list RCB has been updated. 23 fonts were removed.",
+      "seed_status": "",
+      "seed_comments": "Text 'shared by Ownername' is missing in notifications",
+      "sheet_row": 74,
+      "id": "F-2",
+      "sheet_id": "F-2"
+    },
+    {
+      "category_id": "F",
+      "category": "Access & Permissions",
+      "permission": "",
+      "recipients": "",
+      "event": "BYOF Access Request: Approved",
+      "trigger": "Admin approves or rejects the designer's request to access an imported font",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Devon Lane has requested access to 1 style of Halloween Pumpkins. Admin-side request row is shown. Designer outcome state (approved / rejected confirmation) is missing from Figma.",
+      "how_to": "Admin approves or rejects the designer's request to access an imported font",
+      "seed_actual": "Your request for access to Primrose JF has been approved by MD Ziya Hussain.\n\nYour request for access to Primrose JF has been rejected by Lisa_4pcp Singh.",
+      "seed_status": "",
+      "seed_comments": "Rejected Email & Revoke will be part of Phase 3 as per discussed with Jatin",
+      "sheet_row": 75,
+      "id": "F-3",
+      "sheet_id": "F-3"
+    },
+    {
+      "category_id": "G",
+      "category": "Account",
+      "permission": "",
+      "recipients": "All users",
+      "event": "Workspace Subscription Expiring",
+      "trigger": "7 days before company subscription lapses (to be sent only to primary admin)",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Your Monotype account renewal is due on April 29, 2026 (in 7 days). Contact your admin to renew.",
+      "how_to": "7 days before company subscription lapses (to be sent only to primary admin)",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 83,
+      "id": "G-1",
+      "sheet_id": "G-1"
+    },
+    {
+      "category_id": "G",
+      "category": "Account",
+      "permission": "",
+      "recipients": "All users",
+      "event": "Fonts Deactivated Due to Subscription Expiry",
+      "trigger": "Company subscription lapses; all user-activated fonts deactivated",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": true
+      },
+      "expected": "Your Monotype subscription has expired. All activated fonts have been deactivated. Contact your admin to renew access.",
+      "how_to": "Company subscription lapses; all user-activated fonts deactivated",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 84,
+      "id": "G-2",
+      "sheet_id": "G-2"
+    },
+    {
+      "category_id": "G",
+      "category": "Account",
+      "permission": "",
+      "recipients": "All users",
+      "event": "Your Account Deactivated (Manually)",
+      "trigger": "Admin manually deactivates the designer's account or account is auto-deactivated",
+      "channels": {
+        "in_app": false,
+        "email": true,
+        "push": false
+      },
+      "expected": "Your Monotype account has been deactivated. All activated fonts have been removed. Contact your admin if this was done in error.",
+      "how_to": "Admin manually deactivates the designer's account or account is auto-deactivated",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "Email is triggered to deactivated user only but contact admin page link is 404 and user even cant access the page if deactiveted he can't login on website",
+      "sheet_row": 85,
+      "id": "G-3.1",
+      "sheet_id": "G-3"
+    },
+    {
+      "category_id": "G",
+      "category": "Account",
+      "permission": "",
+      "recipients": "All users",
+      "event": "Your Account Deactivated (Auto)",
+      "trigger": "Admin manually deactivates the designer's account or account is auto-deactivated",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Your Monotype account has been deactivated. All activated fonts have been removed. Contact your admin if this was done in error.",
+      "how_to": "Admin manually deactivates the designer's account or account is auto-deactivated",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 86,
+      "id": "G-3.2",
+      "sheet_id": "G-3"
+    },
+    {
+      "category_id": "G",
+      "category": "Account",
+      "permission": "",
+      "recipients": "All users",
+      "event": "Your Account Expiring in 7 Days",
+      "trigger": "A user account has a configured expiry date 7 days from today",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Your Monotype account expires in 7 days on April 29, 2026. Contact your admin to extend access if needed.",
+      "how_to": "A user account has a configured expiry date 7 days from today",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 87,
+      "id": "G-4",
+      "sheet_id": "G-4"
+    },
+    {
+      "category_id": "H",
+      "category": "System & Async Operations",
+      "permission": "",
+      "recipients": "All users",
+      "event": "Export Completed Successfully",
+      "trigger": "Any async export (CSV/XLSX) requested by the user completes",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "<User report export is ready to download>. Link expires in 24 hrs.",
+      "how_to": "Any async export (CSV/XLSX) requested by the user completes",
+      "seed_actual": "My Library export is ready to download. Link expires in 7 days at Aug 29, 2026, 4:57 AM UTC.",
+      "seed_status": "",
+      "seed_comments": "For Company Name - Will be Part of Phase 3",
+      "sheet_row": 92,
+      "id": "H-1",
+      "sheet_id": "H-1"
+    },
+    {
+      "category_id": "H",
+      "category": "System & Async Operations",
+      "permission": "",
+      "recipients": "All users",
+      "event": "Export Failed",
+      "trigger": "An async export requested by the user fails",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "<User report export failed to complete>. Please try exporting again.",
+      "how_to": "An async export requested by the user fails",
+      "seed_actual": "Teams export failed to complete. Please try exporting again.",
+      "seed_status": "",
+      "seed_comments": "Verified Email everything looks correct",
+      "sheet_row": 93,
+      "id": "H-2",
+      "sheet_id": "H-2"
+    },
+    {
+      "category_id": "H",
+      "category": "System & Async Operations",
+      "permission": "",
+      "recipients": "All users",
+      "event": "Platform maintenance window",
+      "trigger": "7 days before a scheduled maintenance",
+      "channels": {
+        "in_app": true,
+        "email": true,
+        "push": false
+      },
+      "expected": "Monotype will be down on April 30, 2026 from 02:00–06:00 UTC for maintenance.",
+      "how_to": "7 days before a scheduled maintenance",
+      "seed_actual": "",
+      "seed_status": "",
+      "seed_comments": "",
+      "sheet_row": 94,
+      "id": "H-3",
+      "sheet_id": "H-3"
+    }
+  ]
+}

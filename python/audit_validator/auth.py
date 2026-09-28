@@ -330,7 +330,11 @@ def resolve_discovery_base_url() -> str:
     Override with ``DISCOVERY_BASE_URL``. Set ``DISCOVERY_USE_MIDDLEWARE=true`` to
     force the bare middleware host (only with a Discovery M2M token).
     """
-    explicit = (os.getenv("DISCOVERY_BASE_URL") or "").strip().rstrip("/")
+    target = (os.getenv("AUDIT_TARGET") or "").strip().upper()
+    explicit = (
+        os.getenv(f"DISCOVERY_BASE_URL_{target}") if target else ""
+    ) or os.getenv("DISCOVERY_BASE_URL") or ""
+    explicit = explicit.strip().rstrip("/")
     force_mw = (os.getenv("DISCOVERY_USE_MIDDLEWARE") or "").strip().lower() in {
         "1",
         "true",
@@ -417,12 +421,27 @@ def resolve_discovery_bearer_token() -> str:
     ``BEARER_TOKEN_PP`` / ``NEXTGEN_BEARER_TOKEN``. Never return an ``@clients``
     M2M token or an expired JWT (both produce silent empty Typesense results).
     """
-    for key in (
-        "DISCOVERY_BEARER_TOKEN",
-        "BEARER_TOKEN_PP",
-        "NEXTGEN_BEARER_TOKEN",
-        "BEARER_TOKEN",
-    ):
+    target = (os.getenv("AUDIT_TARGET") or "").strip().upper()
+    token_file = (os.getenv(f"DISCOVERY_BEARER_TOKEN_{target}_FILE") or "").strip()
+    if token_file:
+        try:
+            token = _strip_bearer(Path(token_file).expanduser().read_text(encoding="utf-8").strip())
+            if token and not jwt_is_expired(token):
+                ident = _identity_from_payload(jwt_payload(token))
+                if _identity_is_user(ident):
+                    return token
+        except OSError:
+            pass
+    keys = (
+        ([f"DISCOVERY_BEARER_TOKEN_{target}_OVERRIDE", f"DISCOVERY_BEARER_TOKEN_{target}"] if target else [])
+        + [
+            "DISCOVERY_BEARER_TOKEN",
+            "BEARER_TOKEN_PP",
+            "NEXTGEN_BEARER_TOKEN",
+            "BEARER_TOKEN",
+        ]
+    )
+    for key in keys:
         token = _strip_bearer(os.getenv(key, ""))
         if not token or jwt_is_expired(token):
             continue

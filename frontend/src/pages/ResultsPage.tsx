@@ -49,7 +49,7 @@ const RESULTS_TARGET_KEY = "audit_results_target";
 
 function readStoredResultsTarget(): string {
   const stored = localStorage.getItem(RESULTS_TARGET_KEY);
-  return stored === "pp" || stored === "qa" || stored === "uat" ? stored : "";
+  return stored === "pp" || stored === "qa" || stored === "uat" || stored === "beta" ? stored : "";
 }
 
 function statusClass(s: string) {
@@ -446,7 +446,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
   const [filterCategory, setFilterCategory] = useState("all");
   /** PP / QA / UAT — Results store is per audit target so stores never mix. */
   const [resultsTarget, setResultsTarget] = useState(() => readStoredResultsTarget());
-  const [availableTargets, setAvailableTargets] = useState<string[]>(["qa", "pp", "uat"]);
+  const [availableTargets, setAvailableTargets] = useState<string[]>(["qa", "pp", "uat", "beta"]);
   const [categories, setCategories] = useState<CategoryReport | null>(null);
   const [opMeta, setOpMeta] = useState<ComparableOperation[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -560,7 +560,7 @@ export default function ResultsPage({ initialJobId, highlightOperations }: Props
     fetchPipelineConfig()
       .then((cfg) => {
         const t = (cfg.target || "").toLowerCase();
-        if ((t === "pp" || t === "qa" || t === "uat") && !userHasPickedTarget.current) {
+        if ((t === "pp" || t === "qa" || t === "uat" || t === "beta") && !userHasPickedTarget.current) {
           setResultsTarget(t);
         } else if (!userHasPickedTarget.current) {
           setResultsTarget("qa");

@@ -11,12 +11,16 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from bson import BSON
 from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
-from pymongo.errors import BulkWriteError
+from pymongo.errors import BulkWriteError, DocumentTooLarge, OperationFailure
 
 log = logging.getLogger(__name__)
+
+# MongoDB hard limit for a single BSON document (bytes).
+_MAX_BSON_BYTES = 16_793_600
 
 # Mirrors audit-sense ensure-indexes.ts.
 _INDEX_DEFINITIONS: list[tuple[list[tuple[str, int]], str]] = [
@@ -94,6 +98,34 @@ def _sanitize_doc(obj: Any) -> Any:
     return obj
 
 
+def _bson_size(doc: dict[str, Any]) -> int:
+    try:
+        return len(BSON.encode(doc))
+    except Exception:
+        return _MAX_BSON_BYTES + 1
+
+
+def _drop_oversized(documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Skip docs that exceed Mongo's 16MB BSON limit so one poison message cannot block the queue."""
+    kept: list[dict[str, Any]] = []
+    for doc in documents:
+        size = _bson_size(doc)
+        if size > _MAX_BSON_BYTES:
+            src = doc.get("source") if isinstance(doc.get("source"), dict) else {}
+            op = (src or {}).get("operation") or doc.get("operation") or "?"
+            cid = doc.get("xCorrelationId") or "?"
+            log.warning(
+                "Skipping oversized audit doc (%s bytes > %s): operation=%s correlationId=%s",
+                size,
+                _MAX_BSON_BYTES,
+                op,
+                cid,
+            )
+            continue
+        kept.append(doc)
+    return kept
+
+
 class MongoWriter:
     def __init__(self, url: str, database: str) -> None:
         self._client: MongoClient = MongoClient(url, serverSelectionTimeoutMS=10000)
@@ -129,23 +161,64 @@ class MongoWriter:
         queue. ``ordered=False`` inserts every new doc and reports duplicates as errors we
         can safely ignore (the doc is already present = success). Any *other* write error
         is re-raised so the caller's retry/nack path still protects real failures.
+
+        Docs larger than Mongo's 16MB BSON limit are skipped (logged) so a single
+        ``getSyncedVariations``-style payload cannot stall the entire raw queue.
         """
         if not documents:
             return 0
         # Sanitize oversized ints (e.g. nanosecond timestamps) that BSON cannot store.
-        safe_docs = [_sanitize_doc(d) for d in documents]
+        safe_docs = _drop_oversized([_sanitize_doc(d) for d in documents])
+        if not safe_docs:
+            # Entire batch was poison — treat as success so the consumer can ack & move on.
+            return 0
         try:
             result = self.collection(collection_name).insert_many(safe_docs, ordered=False)
             return len(result.inserted_ids)
+        except DocumentTooLarge:
+            # Client-side size check missed something — insert one-by-one and skip poison.
+            return self._insert_skipping_oversized(collection_name, safe_docs)
+        except OperationFailure as exc:
+            if getattr(exc, "code", None) == 10334 or "BSONObj size" in str(exc):
+                return self._insert_skipping_oversized(collection_name, safe_docs)
+            raise
         except BulkWriteError as exc:
             write_errors = exc.details.get("writeErrors", []) if isinstance(exc.details, dict) else []
             non_dup = [e for e in write_errors if e.get("code") != 11000]
             inserted = int(exc.details.get("nInserted", 0)) if isinstance(exc.details, dict) else 0
             if non_dup:
                 # Real errors (not just duplicates) — surface for retry/nack.
+                # BSONObjectTooLarge on one doc: fall back to per-doc insert.
+                if any(e.get("code") == 10334 or "BSONObj size" in str(e) for e in non_dup):
+                    return self._insert_skipping_oversized(collection_name, safe_docs)
                 raise
             # All failures were duplicate _id — those docs are already stored.
             return inserted
+
+    def _insert_skipping_oversized(self, collection_name: str, documents: list[dict[str, Any]]) -> int:
+        """Insert docs individually; skip any that still trip the 16MB BSON limit."""
+        col = self.collection(collection_name)
+        inserted = 0
+        for doc in documents:
+            try:
+                col.insert_one(doc)
+                inserted += 1
+            except Exception as exc:  # noqa: BLE001
+                msg = str(exc)
+                code = getattr(exc, "code", None)
+                if code == 11000:
+                    continue  # already stored
+                if code == 10334 or "BSONObj size" in msg or isinstance(exc, DocumentTooLarge):
+                    src = doc.get("source") if isinstance(doc.get("source"), dict) else {}
+                    op = (src or {}).get("operation") or "?"
+                    log.warning(
+                        "Skipping oversized audit doc on insert_one: operation=%s err=%s",
+                        op,
+                        msg[:200],
+                    )
+                    continue
+                raise
+        return inserted
 
     def cleanup_collection(
         self,

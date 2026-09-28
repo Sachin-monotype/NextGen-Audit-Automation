@@ -20,5 +20,44 @@ services:
       - audit-mongo-data:/data/db
     command: ["mongod", "--wiredTigerCacheSizeGB", "0.5"]
 
+  audit-mongo-qa:
+    image: mongo:7
+    container_name: nextgen-audit-mongo-qa
+    restart: unless-stopped
+    ports:
+      - "27018:27017"
+    environment:
+      MONGO_INITDB_DATABASE: AuditLogsQA
+    volumes:
+      - audit-mongo-qa-data:/data/db
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.5"]
+
+  audit-mongo-preprod:
+    image: mongo:7
+    container_name: nextgen-audit-mongo-preprod
+    restart: unless-stopped
+    ports:
+      - "27019:27017"
+    environment:
+      MONGO_INITDB_DATABASE: AuditLogsPreprod
+    volumes:
+      - audit-mongo-preprod-data:/data/db
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.5"]
+
+  audit-mongo-beta:
+    image: mongo:7
+    container_name: nextgen-audit-mongo-beta
+    restart: unless-stopped
+    ports:
+      - "27020:27017"
+    environment:
+      MONGO_INITDB_DATABASE: AuditLogsBeta
+    volumes:
+      - audit-mongo-beta-data:/data/db
+    command: ["mongod", "--wiredTigerCacheSizeGB", "0.5"]
+
 volumes:
   audit-mongo-data:
+  audit-mongo-qa-data:
+  audit-mongo-preprod-data:
+  audit-mongo-beta-data:

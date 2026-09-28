@@ -216,10 +216,18 @@ def load_ingest_lanes(
         lane_rmq = rabbitmq_url_for_profile(profile) or root.rabbitmq_url
         lane_mongo = mongo_url_for_profile(profile) or root.mongo_url
         mongo_db = mongo_db_for_profile(profile)
-        raw_q = root.bindings[0].queue if (root.bindings and root.bindings[0].queue) else profile.ingress_raw_queue
-        enriched_q = root.bindings[1].queue if (len(root.bindings) > 1 and root.bindings[1].queue) else profile.ingress_enriched_queue
+        target_suffix = target.upper()
+        raw_q = _env(
+            f"INGEST_RAW_QUEUE_{target_suffix}",
+            root.bindings[0].queue if (root.bindings and root.bindings[0].queue) else profile.ingress_raw_queue,
+        )
+        enriched_q = _env(
+            f"INGEST_ENRICHED_QUEUE_{target_suffix}",
+            root.bindings[1].queue if (len(root.bindings) > 1 and root.bindings[1].queue) else profile.ingress_enriched_queue,
+        )
         dlq_q = (
-            (profile.dead_letter_queue or "").strip()
+            _env(f"INGEST_DLQ_QUEUE_{target_suffix}", "")
+            or (profile.dead_letter_queue or "").strip()
             or (root.bindings[2].queue if len(root.bindings) > 2 else "")
             or "mt.platform.raw_events.resolver.dlq"
         )
@@ -239,7 +247,7 @@ def load_ingest_lanes(
         lanes.append(
             IngestLaneConfig(
                 target=target,
-                vhost=profile.rabbitmq_vhost,
+                vhost=(os.getenv(f"RABBITMQ_VHOST_{target.upper()}") or profile.rabbitmq_vhost).strip(),
                 rabbitmq_url=lane_rmq,
                 mongo_url=lane_mongo,
                 mongo_db=mongo_db,

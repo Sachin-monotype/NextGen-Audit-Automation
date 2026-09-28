@@ -3,12 +3,14 @@ import JsonTree from "../components/JsonTree";
 import EnrichDiffModal from "../components/EnrichDiffModal";
 import GenerateInUiModal from "../components/GenerateInUiModal";
 import GenerateFromUiScriptModal from "../components/GenerateFromUiScriptModal";
+import CaptureEventModal from "../components/CaptureEventModal";
 import VerifyInUiModal, { type VerifyInUiContext } from "../components/VerifyInUiModal";
 import {
   fetchCategories,
   fetchCoverage,
   fetchDefaultPayload,
   fetchGenerateInUi,
+  fetchInterceptorStatus,
   fetchJob,
   fetchLastGenerateRun,
   fetchOperations,
@@ -54,6 +56,7 @@ const DEFAULT_TARGETS = [
   { id: "qa", label: "QA", url: "https://nextgen-qa.monotype-pp.com" },
   { id: "pp", label: "PP", url: "https://nextgen.monotype-pp.com" },
   { id: "uat", label: "UAT", url: "https://nextgen.monotype-uat.com" },
+  { id: "beta", label: "Beta", url: "" },
 ];
 
 const JOB_KEY = "audit-generate-job";
@@ -828,6 +831,8 @@ export default function GeneratePage({
   } | null>(null);
   const [uiTriggerOpen, setUiTriggerOpen] = useState(false);
   const [uiScriptOpen, setUiScriptOpen] = useState(false);
+  const [captureModalOpen, setCaptureModalOpen] = useState(false);
+  const [interceptorActive, setInterceptorActive] = useState(false);
   const [uiJob, setUiJob] = useState<UiTriggerJob | null>(null);
   const [uiManualCid, setUiManualCid] = useState("");
   const [uiBusy, setUiBusy] = useState(false);
@@ -852,6 +857,13 @@ export default function GeneratePage({
     void restoreGenerationStatus(setLastRun, setShowLastRun);
     loadComparisonOps();
   }, [loadComparisonOps]);
+
+  useEffect(() => {
+    fetchInterceptorStatus()
+      .then((s) => setInterceptorActive(Boolean(s.is_active)))
+      .catch(() => {});
+  }, [captureModalOpen]);
+
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
@@ -1915,6 +1927,24 @@ export default function GeneratePage({
         </section>
 
         <section className="generate-channel">
+          <div className="channel-title-row">
+            <h3 className="generate-channel-title">Capture Event</h3>
+            {interceptorActive && <span className="live-pulse-badge">Capturing…</span>}
+          </div>
+          <p className="muted small">
+            Directly connect to Chrome or Monotype NextGen App on port 9222. Intercepts mutations &amp; automatically compares unique events in the background in batches of 10.
+          </p>
+          <button
+            type="button"
+            className="primary"
+            disabled={running || uiBusy}
+            onClick={() => setCaptureModalOpen(true)}
+          >
+            {interceptorActive ? "📡 View Live Capture & Compare" : "📡 Capture & Compare"}
+          </button>
+        </section>
+
+        <section className="generate-channel">
           <h3 className="generate-channel-title">Generate from UI Script</h3>
           <p className="muted small">
             Pulls Playwright <code>datasource-latest.xlsx</code> (or upload your own). Pick Web/App,
@@ -1948,6 +1978,23 @@ export default function GeneratePage({
       </div>
 
       {error && <p className="error">{error}</p>}
+
+      {captureModalOpen && (
+        <CaptureEventModal
+          onClose={async () => {
+            setCaptureModalOpen(false);
+            await restoreGenerationStatus(setLastRun, setShowLastRun);
+          }}
+          onNavigateToResults={() => {
+            setCaptureModalOpen(false);
+            onCompareCompleted?.("", undefined, true);
+          }}
+          onNavigateToCompare={() => {
+            setCaptureModalOpen(false);
+            if (onCompareRequested) onCompareRequested("");
+          }}
+        />
+      )}
 
       {uiScriptOpen && (
         <GenerateFromUiScriptModal

@@ -16,7 +16,7 @@ import os
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from ..compare.raw_enriched import compare_raw_enriched
@@ -325,6 +325,107 @@ def _apply_runtime_overrides(
             )
 
 
+def _adjust_cron_dates(payload: JsonDict, *, case_id: str, now: datetime) -> None:
+    """Adjust business dates (expiryDate, endDate, projectExpiryDate, etc.) relative to now.
+
+    Ensures that cron simulation events display fair, required values (e.g. subscription
+    due in 7 or 30 days from today) rather than stale hardcoded dates from past months.
+    """
+    now_iso = now.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    subject = payload.get("subject")
+    if not isinstance(subject, dict):
+        return
+
+    cid = case_id.lower()
+    event_name = str(subject.get("eventName") or "").upper()
+
+    # 1. Subscription warnings
+    if "sub7" in cid or event_name == "SUBSCRIPTION_EXPIRY_7_DAYS_WARNING":
+        subject["endDate"] = (now + timedelta(days=7)).strftime("%Y-%m-%d")
+    elif "sub30" in cid or event_name == "SUBSCRIPTION_EXPIRY_30_DAYS_WARNING":
+        subject["endDate"] = (now + timedelta(days=30)).strftime("%Y-%m-%d")
+    elif "contractexpired" in cid or event_name == "QUARTERLY_REPORT_CONTRACT_EXPIRED":
+        subject["endDate"] = (now - timedelta(days=1)).strftime("%Y-%m-%dT00:00:00.000Z")
+
+    # 2. LMS quarterly reporting windows
+    elif "lmsopen" in cid or event_name == "QUARTERLY_REPORT_WINDOW_OPEN":
+        subject["endDate"] = (now + timedelta(days=30)).strftime("%Y-%m-%dT00:00:00.000Z")
+    elif "lmsclosefinal" in cid or event_name == "QUARTERLY_REPORT_CLOSING_2_DAYS_REMINDER":
+        subject["endDate"] = (now + timedelta(days=2)).strftime("%Y-%m-%dT00:00:00.000Z")
+    elif "lmsclose" in cid or event_name == "QUARTERLY_REPORT_CLOSING_7_DAYS_REMINDER":
+        subject["endDate"] = (now + timedelta(days=7)).strftime("%Y-%m-%dT00:00:00.000Z")
+    elif "lmsinitimation" in cid or event_name == "QUARTERLY_REPORT_WINDOW_INTIMATION":
+        subject["startDate"] = now.strftime("%Y-%m-%dT00:00:00.000Z")
+        subject["endDate"] = (now + timedelta(days=14)).strftime("%Y-%m-%dT00:00:00.000Z")
+
+    # 3. User expiring (7 days) & accounts digest
+    elif "userexpiring" in cid or "expirydigest" in cid:
+        expiry_fmt = (now + timedelta(days=7)).strftime("%b %d, %Y")
+        for u in subject.get("expiringUsers", []):
+            if isinstance(u, dict):
+                u["expiryDate"] = expiry_fmt
+
+    # 4. User deactivated / subscription fonts deactivated / user expired
+    elif "useraccdeactivated" in cid or "subscriptionexpiry" in cid:
+        expiry_fmt = (now - timedelta(days=1)).strftime("%b %d, %Y")
+        for u in subject.get("deactivatedUsers", []):
+            if isinstance(u, dict):
+                u["expiryDate"] = expiry_fmt
+    elif "userexpired" in cid:
+        for inv in subject.get("expiredInvitations", []):
+            if isinstance(inv, dict):
+                inv["createdOn"] = (now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+    # 5. Project archival warnings (7 days)
+    elif "project" in cid and ("admin" in cid or "member" in cid):
+        subject["projectExpiryDate"] = (now + timedelta(days=7)).strftime("%Y-%m-%d")
+
+    # 6. BYOF license expiry / expired
+    elif "licneseexpiry" in cid:
+        c = subject.get("contract")
+        if isinstance(c, dict):
+            c["licenceStartDate"] = (now - timedelta(days=335)).strftime("%Y-%m-%dT00:00:00.000Z")
+            c["licenceEndDate"] = (now + timedelta(days=30)).strftime("%Y-%m-%dT00:00:00.000Z")
+            c["createdAt"] = (now - timedelta(days=335)).strftime("%Y-%m-%dT00:00:00.000Z")
+            c["updatedAt"] = now_iso
+    elif "licenseexpired" in cid:
+        c = subject.get("contract")
+        if isinstance(c, dict):
+            c["licenceStartDate"] = (now - timedelta(days=366)).strftime("%Y-%m-%dT00:00:00.000Z")
+            c["licenceEndDate"] = (now - timedelta(days=1)).strftime("%Y-%m-%dT00:00:00.000Z")
+            c["licencePurchaseDate"] = (now - timedelta(days=366)).strftime("%Y-%m-%dT00:00:00.000Z")
+            c["createdAt"] = (now - timedelta(days=366)).strftime("%Y-%m-%dT00:00:00.000Z")
+            c["updatedAt"] = now_iso
+
+    # 7. Server token expiry
+    elif "tokenexpired" in cid:
+        subject["expiryDate"] = (now - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    elif "tokensuspended" in cid:
+        subject["expiryDate"] = (now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+    # 8. Leaving catalog (LFUS)
+    elif "lfus" in cid:
+        for v in subject.get("variations", []):
+            if isinstance(v, dict):
+                v["expiryDate"] = (now + timedelta(days=21)).strftime("%Y-%m-%dT00:00:00.000Z")
+                v["expiredDay"] = "21 days"
+
+    # 9. Export complete
+    elif "exportcomplete" in cid:
+        subject["expiresAt"] = (now + timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+    # 10. Production fonts request
+    elif "bulkmarkasproductionfontsrequest" in cid:
+        meta = subject.get("metadata", {})
+        if isinstance(meta, dict):
+            inp = meta.get("input", {})
+            if isinstance(inp, dict):
+                for req in inp.get("requests", []):
+                    if isinstance(req, dict) and "productionFontDateRange" in req:
+                        req["productionFontDateRange"]["startDate"] = now.strftime("%Y-%m-%d")
+                        req["productionFontDateRange"]["endDate"] = (now + timedelta(days=365)).strftime("%Y-%m-%d")
+
+
 def normalize_cron_payload(
     payload: JsonDict,
     *,
@@ -398,6 +499,7 @@ def normalize_cron_payload(
     _refresh_subject_ids(out, event_id=new_event_id)
     if byof_contract_id:
         _patch_byof_contract(out, contract_id=byof_contract_id)
+    _adjust_cron_dates(out, case_id=case_id, now=datetime.now(timezone.utc))
     return out
 
 

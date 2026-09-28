@@ -842,6 +842,16 @@ export async function purgeIngestion() {
   return res.json() as Promise<{ ok: boolean; purged?: Record<string, number>; total_purged?: number; error?: string }>;
 }
 
+export async function unbindIngestion() {
+  const res = await fetch(`${API}/api/ingestion/unbind`, { method: "POST" });
+  return res.json() as Promise<{ ok: boolean; error?: string }>;
+}
+
+export async function bindIngestion() {
+  const res = await fetch(`${API}/api/ingestion/bind`, { method: "POST" });
+  return res.json() as Promise<{ ok: boolean; error?: string }>;
+}
+
 export async function pruneMongo(maxDocs?: number) {
   const qs = maxDocs ? `?max_docs=${maxDocs}` : "";
   const res = await fetch(`${API}/api/mongo/prune${qs}`, { method: "POST" });
@@ -1210,3 +1220,343 @@ export async function fetchJobs() {
   const res = await fetch(`${API}/api/jobs`);
   return res.json() as Promise<{ jobs: Job[] }>;
 }
+
+// ---------------------------------------------------------------------------
+// Network Interceptor & Live Batch Compare APIs
+// ---------------------------------------------------------------------------
+
+export type InterceptorTarget = {
+  id?: string;
+  title?: string;
+  type?: string;
+  url?: string;
+};
+
+export type InterceptorStatus = {
+  cdp_ready: boolean;
+  is_active: boolean;
+  port: number;
+  target: string;
+  started_at?: string | null;
+  filter_operation?: string | null;
+  url_keyword?: string;
+  ignore_get?: boolean;
+  ignore_query?: boolean;
+  auto_compare_enabled: boolean;
+  batch_size: number;
+  captured_count: number;
+  queued_count: number;
+  compared_count: number;
+  pass_count: number;
+  fail_count: number;
+  is_comparing_batch: boolean;
+  last_compare_job_id?: string | null;
+  targets_count: number;
+  targets: InterceptorTarget[];
+  interception_mode?: "observe" | "pause";
+  paused_count?: number;
+};
+
+export type InterceptorPausedRequest = {
+  fetch_id: string;
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  post_data: string;
+  operation_name: string;
+  operation_type: string;
+  query: string;
+  variables: Record<string, unknown>;
+  target: string;
+  created_at: string;
+};
+
+export type InterceptorEvent = {
+  id: string;
+  timestamp: string;
+  url: string;
+  method: string;
+  operation_name: string;
+  operation_type: string;
+  query: string;
+  variables: Record<string, unknown>;
+  scenario: string;
+  target: string;
+  header_values: {
+    auth_token: string;
+    bearer_token: string;
+    correlation_id: string;
+    user_agent: string;
+    app_version: string;
+    event_version: number;
+    jwt_claims: Record<string, unknown>;
+  };
+  status_code: number;
+  status_text: string;
+  response_body?: unknown;
+  call_count: number;
+  compare_status: "pending" | "queued" | "comparing" | "compared_pass" | "compared_fail" | "already_compared" | "skipped_no_cid";
+  compare_job_id?: string | null;
+  compare_error?: string | null;
+};
+
+export async function fetchInterceptorStatus(port?: number): Promise<InterceptorStatus> {
+  const q = port ? `?port=${encodeURIComponent(port)}` : "";
+  const res = await fetch(`${API}/api/interceptor/status${q}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<InterceptorStatus>;
+}
+
+export async function launchInterceptorChrome(port = 9222): Promise<{ ok: boolean; message?: string; error?: string; cdp_ready?: boolean }> {
+  const res = await fetch(`${API}/api/interceptor/launch/chrome`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ port }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function launchInterceptorApp(port = 9222): Promise<{ ok: boolean; message?: string; error?: string; cdp_ready?: boolean }> {
+  const res = await fetch(`${API}/api/interceptor/launch/app`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ port }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function startInterceptorCapture(params: {
+  port?: number;
+  target?: string;
+  auto_compare?: boolean;
+  batch_size?: number;
+  filter_operation?: string;
+  url_keyword?: string;
+  ignore_get?: boolean;
+  ignore_query?: boolean;
+  interception_mode?: "observe" | "pause";
+}): Promise<{ ok: boolean; message: string; port: number; target: string }> {
+  const res = await fetch(`${API}/api/interceptor/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      port: params.port ?? 9222,
+      target: params.target ?? "web",
+      auto_compare: params.auto_compare ?? true,
+      batch_size: params.batch_size ?? 10,
+      filter_operation: params.filter_operation || undefined,
+      url_keyword: params.url_keyword || "graph",
+      ignore_get: params.ignore_get ?? true,
+      ignore_query: params.ignore_query ?? false,
+      interception_mode: params.interception_mode ?? "observe",
+    }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(data.error || data.detail || "Failed to start capture");
+  }
+  return res.json();
+}
+
+export async function fetchInterceptorPaused(): Promise<{ total: number; requests: InterceptorPausedRequest[] }> {
+  const res = await fetch(`${API}/api/interceptor/paused`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function controlInterceptorPaused(
+  fetchId: string,
+  body: {
+    action: "continue" | "abort" | "mock";
+    url?: string;
+    method?: string;
+    headers?: Record<string, string>;
+    post_data?: string;
+    response_code?: number;
+    response_body?: unknown;
+  },
+): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`${API}/api/interceptor/paused/${encodeURIComponent(fetchId)}/control`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function updateInterceptorFilters(params: {
+  ignore_get?: boolean;
+  ignore_query?: boolean;
+  auto_compare?: boolean;
+  batch_size?: number;
+}): Promise<{
+  ok: boolean;
+  ignore_get: boolean;
+  ignore_query: boolean;
+  auto_compare: boolean;
+  batch_size: number;
+  is_active: boolean;
+}> {
+  const res = await fetch(`${API}/api/interceptor/filters`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(data.error || data.detail || "Failed to update capture filters");
+  }
+  return res.json();
+}
+
+export async function stopInterceptorCapture(): Promise<{ ok: boolean; message: string; captured_count: number }> {
+  const res = await fetch(`${API}/api/interceptor/stop`, { method: "POST" });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function clearInterceptorEvents(): Promise<{ ok: boolean; message: string }> {
+  const res = await fetch(`${API}/api/interceptor/clear`, { method: "POST" });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function fetchInterceptorEvents(params?: {
+  operation?: string;
+  scenario?: string;
+  limit?: number;
+}): Promise<{ total: number; events: InterceptorEvent[] }> {
+  const q = new URLSearchParams();
+  if (params?.operation) q.set("operation", params.operation);
+  if (params?.scenario) q.set("scenario", params.scenario);
+  if (params?.limit) q.set("limit", String(params.limit));
+  const qs = q.toString() ? `?${q.toString()}` : "";
+  const res = await fetch(`${API}/api/interceptor/events${qs}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function triggerInterceptorBatch(event_ids?: string[]): Promise<{ ok: boolean; message: string; count?: number }> {
+  const res = await fetch(`${API}/api/interceptor/trigger-batch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ event_ids: event_ids?.length ? event_ids : undefined }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(data.error || data.detail || "Failed to trigger batch");
+  }
+  return res.json();
+}
+
+export function getInterceptorExcelDownloadUrl(): string {
+  return `${API}/api/interceptor/export-excel`;
+}
+
+// ---------------------------------------------------------------------------
+// Notification Test Guide
+// ---------------------------------------------------------------------------
+
+export type NotificationChannels = {
+  in_app: boolean;
+  email: boolean;
+  push: boolean;
+};
+
+export type NotificationItem = {
+  id: string;
+  category_id: string;
+  category: string;
+  permission?: string;
+  recipients?: string;
+  event: string;
+  trigger: string;
+  how_to: string;
+  channels: NotificationChannels;
+  expected: string;
+  status: string;
+  actual: string;
+  comments: string;
+  how_to_notes?: string;
+  tester?: string;
+  tested_at?: string;
+};
+
+export type NotificationCycleMeta = {
+  id?: string | null;
+  name?: string | null;
+  env?: string;
+  created_at?: string;
+  updated_at?: string;
+  filled_count?: number;
+  item_count?: number;
+};
+
+export type NotificationView = {
+  catalog: {
+    title: string;
+    categories: { id: string; label: string; full?: string }[];
+    statuses: string[];
+    channels: string[];
+    source?: string;
+    error?: string;
+  };
+  cycle: NotificationCycleMeta | null;
+  items: NotificationItem[];
+  cycles: NotificationCycleMeta[];
+};
+
+export async function fetchNotificationView(env: string, cycleId?: string | null): Promise<NotificationView> {
+  const q = new URLSearchParams({ env });
+  if (cycleId) q.set("cycle_id", cycleId);
+  const res = await fetch(`${API}/api/notifications/view?${q}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function createNotificationCycle(params: {
+  env: string;
+  name: string;
+  seed_from_catalog?: boolean;
+}): Promise<{ ok: boolean; cycle: NotificationCycleMeta & { results?: Record<string, unknown> } }> {
+  const res = await fetch(`${API}/api/notifications/cycles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      env: params.env,
+      name: params.name,
+      seed_from_catalog: params.seed_from_catalog ?? true,
+    }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function patchNotificationResult(params: {
+  env: string;
+  cycle_id: string;
+  item_id: string;
+  status?: string;
+  actual?: string;
+  comments?: string;
+  how_to_notes?: string;
+  tester?: string;
+}): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API}/api/notifications/results`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export function getNotificationExcelDownloadUrl(env: string, cycleId: string): string {
+  const q = new URLSearchParams({ env, cycle_id: cycleId });
+  return `${API}/api/notifications/export-excel?${q}`;
+}
+
+

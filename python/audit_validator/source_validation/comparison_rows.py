@@ -2469,6 +2469,30 @@ def build_comparison_rows(
             for r in rows
         ]
 
+    # Completion events carry response/envelope fields without a reliable source
+    # record. Only their enriched snapshots can be compared to source systems.
+    if base_op.casefold().endswith(("complete", "completed")):
+        comparable_prefixes = ("actor.enrichedsnapshot", "subject.enrichedsnapshot")
+        rows = [
+            r
+            if r.field_path.casefold().startswith(comparable_prefixes)
+            else ComparisonRow(
+                operation=r.operation,
+                layer=r.layer,
+                field_path=r.field_path,
+                source_system="Not comparable",
+                source_api="No source record for completion event",
+                value_in_source=r.value_in_source,
+                value_in_enriched=r.value_in_enriched,
+                match_status="N/A",
+                notes="Completion-event field is outside enrichedSnapshot; source comparison not applicable.",
+                field=r.field,
+                node=r.node,
+                sub_node=r.sub_node,
+            )
+            for r in rows
+        ]
+
     return rows
 
 

@@ -197,6 +197,30 @@ EVEREST_DEV = AuditTargetProfile(
     mongo_db_name="AuditLogsEverest",
 )
 
+BETA = AuditTargetProfile(
+    name="beta",
+    label="Monotype Beta",
+    nextgen_ui_url="",
+    graphql_endpoint="",
+    admin_graphql_endpoint="",
+    nextgen_graphql_endpoint="",
+    nextgen_origin="",
+    nextgen_referer="",
+    simulation_prefer_pp_bearer=False,
+    rabbitmq_vhost="mt-connect",
+    raw_events_queue="",
+    enriched_events_queue="",
+    consume_dead_letter_queue=False,
+    purge_test_queues_on_e2e=False,
+    ingress_api_url="",
+    ingress_raw_queue="",
+    ingress_enriched_queue="",
+    ingress_rabbitmq_vhost="mt-connect",
+    seed_family_id="",
+    seed_deactivate_family_id="",
+    mongo_db_name="AuditLogsBeta",
+)
+
 _PROFILES: dict[str, AuditTargetProfile] = {
     "pp": PP_PREPROD,
     "preprod": PP_PREPROD,
@@ -205,6 +229,7 @@ _PROFILES: dict[str, AuditTargetProfile] = {
     "everest": EVEREST_DEV,
     "dev": EVEREST_DEV,
     "everest-dev": EVEREST_DEV,
+    "beta": BETA,
 }
 
 # Keys owned by the active profile (applied after .env load).
@@ -313,13 +338,14 @@ def rabbitmq_url_for_profile(profile: AuditTargetProfile | None = None) -> str:
     2. ``RABBITMQ_URL`` with the profile vhost applied
     """
     p = profile or get_audit_profile()
+    vhost = (os.getenv(f"RABBITMQ_VHOST_{p.name.upper()}") or p.rabbitmq_vhost).strip()
     explicit = (os.getenv(f"RABBITMQ_URL_{p.name.upper()}") or "").strip()
     if explicit:
-        return _rabbitmq_url_for_vhost(explicit, p.rabbitmq_vhost)
+        return _rabbitmq_url_for_vhost(explicit, vhost)
     base = (os.getenv("RABBITMQ_URL") or "").strip()
     if not base:
         return ""
-    return _rabbitmq_url_for_vhost(base, p.rabbitmq_vhost)
+    return _rabbitmq_url_for_vhost(base, vhost)
 
 
 def apply_audit_profile(*, project_root=None) -> AuditTargetProfile:
