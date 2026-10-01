@@ -842,6 +842,42 @@ export async function purgeIngestion() {
   return res.json() as Promise<{ ok: boolean; purged?: Record<string, number>; total_purged?: number; error?: string }>;
 }
 
+export async function deleteQueue(queue: string, target?: string, vhost?: string) {
+  const res = await fetch(`${API}/api/rabbitmq/delete-queue`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ queue, target, vhost }),
+  });
+  return res.json() as Promise<{ ok: boolean; queue?: string; message_count?: number; error?: string }>;
+}
+
+export async function addQueue(
+  queue: string,
+  collection: "raw" | "enriched" | "dlq" = "enriched",
+  target?: string,
+  vhost?: string,
+  declareOnBroker: boolean = true,
+) {
+  const res = await fetch(`${API}/api/rabbitmq/add-queue`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      queue,
+      collection,
+      target,
+      vhost,
+      declare_on_broker: declareOnBroker,
+    }),
+  });
+  return res.json() as Promise<{
+    ok: boolean;
+    queue?: string;
+    collection?: string;
+    target?: string;
+    error?: string;
+  }>;
+}
+
 export async function pruneMongo(maxDocs?: number) {
   const qs = maxDocs ? `?max_docs=${maxDocs}` : "";
   const res = await fetch(`${API}/api/mongo/prune${qs}`, { method: "POST" });

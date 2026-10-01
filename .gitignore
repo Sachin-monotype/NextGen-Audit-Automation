@@ -41,3 +41,5 @@ docs/mappings/*.postman_collection.json
 
 # Local MCP secrets
 .cursor/mcp.json
+
+/archive

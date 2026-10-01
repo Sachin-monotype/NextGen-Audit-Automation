@@ -3,6 +3,8 @@ import JsonTree from "../components/JsonTree";
 import EnrichDiffModal from "../components/EnrichDiffModal";
 import MultiSelect from "../components/MultiSelect";
 import {
+  addQueue,
+  deleteQueue,
   fetchFilterValues,
   fetchIngestionStatus,
   fetchLogByCorrelation,
@@ -166,6 +168,20 @@ function IngestionPanel() {
   }, [refresh]);
 
   const [notice, setNotice] = useState("");
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [queueToDelete, setQueueToDelete] = useState("");
+  const [targetForDelete, setTargetForDelete] = useState("");
+  const [vhostForDelete, setVhostForDelete] = useState("");
+  const [deleteNotice, setDeleteNotice] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [newQueueName, setNewQueueName] = useState("");
+  const [newQueueCollection, setNewQueueCollection] = useState<"enriched" | "raw" | "dlq">("enriched");
+  const [newQueueTarget, setNewQueueTarget] = useState("");
+  const [newQueueDeclare, setNewQueueDeclare] = useState(true);
+  const [addNotice, setAddNotice] = useState("");
+  const [adding, setAdding] = useState(false);
 
   async function toggle() {
     setBusy(true);
@@ -184,6 +200,25 @@ function IngestionPanel() {
       const res = await purgeIngestion();
       setNotice(res.ok ? `Purged ${res.total_purged ?? 0} queued message(s)` : res.error || "Purge failed");
       await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteQueue(queueName: string, target?: string, vhost?: string) {
+    if (!confirm(`Are you sure you want to permanently delete queue "${queueName}" from RabbitMQ? Unconsumed messages will be dropped.`)) return;
+    setBusy(true);
+    setNotice("");
+    try {
+      const res = await deleteQueue(queueName, target, vhost);
+      if (res.ok) {
+        setNotice(`Deleted queue "${queueName}" (${res.message_count ?? 0} messages discarded)`);
+        await refresh();
+      } else {
+        setNotice(res.error || "Failed to delete queue");
+      }
+    } catch (err) {
+      setNotice(String(err));
     } finally {
       setBusy(false);
     }
@@ -229,6 +264,39 @@ function IngestionPanel() {
         <button type="button" className="link-btn" disabled={busy} onClick={purge} title="Drop queued backlog so only fresh events are ingested">
           Purge queue
         </button>
+        <button
+          type="button"
+          className="link-btn"
+          style={{ color: "#38bdf8", fontWeight: 600 }}
+          disabled={busy}
+          onClick={() => {
+            setNewQueueName("");
+            setNewQueueCollection("enriched");
+            setNewQueueTarget(status?.ingest_lanes?.[0]?.target || "qa");
+            setNewQueueDeclare(true);
+            setAddNotice("");
+            setAddModalOpen(true);
+          }}
+          title="Add a test or custom queue to live ingestion"
+        >
+          + Add queue
+        </button>
+        <button
+          type="button"
+          className="link-btn"
+          style={{ color: "#ef4444" }}
+          disabled={busy}
+          onClick={() => {
+            setQueueToDelete("");
+            setTargetForDelete(status?.ingest_lanes?.[0]?.target || "qa");
+            setVhostForDelete("");
+            setDeleteNotice("");
+            setDeleteModalOpen(true);
+          }}
+          title="Delete a queue from RabbitMQ"
+        >
+          Delete queue
+        </button>
         <button type="button" className={running ? "" : "primary"} disabled={busy} onClick={toggle}>
           {busy ? "…" : running ? "Stop" : "Start"}
         </button>
@@ -265,6 +333,7 @@ function IngestionPanel() {
                 <th>Conn</th>
                 <th>Consumed</th>
                 <th>Inserted</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -276,11 +345,428 @@ function IngestionPanel() {
                   <td>{c.connected ? "✓" : "—"}</td>
                   <td>{c.consumed}</td>
                   <td>{c.inserted}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="link-btn"
+                      style={{ color: "#ef4444", fontSize: "11px", padding: "2px 6px" }}
+                      disabled={busy}
+                      onClick={() => handleDeleteQueue(c.queue, c.target, c.vhost)}
+                      title={`Delete queue "${c.queue}" from RabbitMQ`}
+                    >
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
           {status.error && <p className="error">{status.error}</p>}
+        </div>
+      )}
+      {deleteModalOpen && (
+        <div
+          className="modal-backdrop"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => !deleting && setDeleteModalOpen(false)}
+        >
+          <div
+            className="modal-card"
+            style={{
+              background: "#1e293b",
+              color: "#f8fafc",
+              border: "1px solid #334155",
+              borderRadius: "10px",
+              padding: "20px",
+              width: "100%",
+              maxWidth: "460px",
+              boxShadow: "0 20px 25px -5px rgba(0,0,0,0.5)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600 }}>Delete Queue from RabbitMQ</h3>
+              <button
+                type="button"
+                className="link-btn"
+                disabled={deleting}
+                onClick={() => setDeleteModalOpen(false)}
+                style={{ fontSize: "18px", lineHeight: "1" }}
+              >
+                ×
+              </button>
+            </div>
+            <p style={{ margin: "0 0 14px", fontSize: "13px", color: "#94a3b8", lineHeight: "1.4" }}>
+              This permanently deletes the queue from RabbitMQ broker. Any unconsumed messages in the queue will be discarded.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "14px" }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "12px", fontWeight: 600 }}>
+                Queue name
+                <input
+                  type="text"
+                  placeholder="e.g. mt-enricher"
+                  value={queueToDelete}
+                  onChange={(e) => setQueueToDelete(e.target.value)}
+                  disabled={deleting}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "6px",
+                    border: "1px solid #475569",
+                    background: "#0f172a",
+                    color: "#f8fafc",
+                    fontFamily: "monospace",
+                    fontSize: "13px",
+                  }}
+                />
+              </label>
+              {status?.consumers && status.consumers.length > 0 && (
+                <div style={{ fontSize: "12px" }}>
+                  <span style={{ color: "#94a3b8" }}>Current queues: </span>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "4px" }}>
+                    {Array.from(new Set(status.consumers.map((c) => c.queue))).map((q) => (
+                      <button
+                        key={q}
+                        type="button"
+                        className="link-btn mono"
+                        style={{
+                          fontSize: "11px",
+                          padding: "2px 8px",
+                          background: queueToDelete === q ? "#334155" : "#0f172a",
+                          border: "1px solid #475569",
+                          borderRadius: "4px",
+                        }}
+                        onClick={() => {
+                          setQueueToDelete(q);
+                          const matching = status?.consumers.find((c) => c.queue === q);
+                          if (matching) {
+                            setTargetForDelete(matching.target || "qa");
+                            setVhostForDelete(matching.vhost || "");
+                          }
+                        }}
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {deleteNotice && (
+                <p
+                  style={{
+                    margin: "4px 0 0",
+                    fontSize: "12px",
+                    color: deleteNotice.startsWith("Deleted") ? "#4ade80" : "#f87171",
+                  }}
+                >
+                  {deleteNotice}
+                </p>
+              )}
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setDeleteModalOpen(false)}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "6px",
+                  border: "1px solid #475569",
+                  background: "transparent",
+                  color: "inherit",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting || !queueToDelete.trim()}
+                onClick={async () => {
+                  const q = queueToDelete.trim();
+                  if (!confirm(`Are you sure you want to permanently delete queue "${q}" from RabbitMQ?`)) return;
+                  setDeleting(true);
+                  setDeleteNotice("");
+                  try {
+                    const res = await deleteQueue(q, targetForDelete || undefined, vhostForDelete || undefined);
+                    if (res.ok) {
+                      setDeleteNotice(`Deleted queue "${q}" (${res.message_count ?? 0} messages discarded)`);
+                      setNotice(`Deleted queue "${q}"`);
+                      await refresh();
+                      setTimeout(() => setDeleteModalOpen(false), 1200);
+                    } else {
+                      setDeleteNotice(res.error || "Failed to delete queue");
+                    }
+                  } catch (err) {
+                    setDeleteNotice(String(err));
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "6px",
+                  border: "none",
+                  background: "#ef4444",
+                  color: "#fff",
+                  fontWeight: 600,
+                  cursor: deleting || !queueToDelete.trim() ? "not-allowed" : "pointer",
+                  opacity: deleting || !queueToDelete.trim() ? 0.6 : 1,
+                }}
+              >
+                {deleting ? "Deleting…" : "Delete queue"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {addModalOpen && (
+        <div
+          className="modal-backdrop"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => !adding && setAddModalOpen(false)}
+        >
+          <div
+            className="modal-card"
+            style={{
+              background: "#1e293b",
+              color: "#f8fafc",
+              border: "1px solid #334155",
+              borderRadius: "10px",
+              padding: "20px",
+              width: "100%",
+              maxWidth: "480px",
+              boxShadow: "0 20px 25px -5px rgba(0,0,0,0.5)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600 }}>Add Queue to Live Ingestion</h3>
+              <button
+                type="button"
+                className="link-btn"
+                disabled={adding}
+                onClick={() => setAddModalOpen(false)}
+                style={{ fontSize: "18px", lineHeight: "1" }}
+              >
+                ×
+              </button>
+            </div>
+            <p style={{ margin: "0 0 14px", fontSize: "13px", color: "#94a3b8", lineHeight: "1.4" }}>
+              Register a test or custom queue into live ingestion so events are automatically drained into MongoDB.
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "16px" }}>
+              {/* Quick suggestions */}
+              <div style={{ fontSize: "12px" }}>
+                <span style={{ color: "#94a3b8" }}>Quick pick: </span>
+                <button
+                  type="button"
+                  className="link-btn mono"
+                  style={{
+                    fontSize: "11px",
+                    padding: "2px 8px",
+                    background: newQueueName === "mt-enricher" ? "#0369a1" : "#0f172a",
+                    border: "1px solid #0284c7",
+                    borderRadius: "4px",
+                    color: "#38bdf8",
+                    marginRight: "6px",
+                  }}
+                  onClick={() => {
+                    setNewQueueName("mt-enricher");
+                    setNewQueueCollection("enriched");
+                    setNewQueueTarget("qa");
+                  }}
+                >
+                  mt-enricher (enriched)
+                </button>
+                <button
+                  type="button"
+                  className="link-btn mono"
+                  style={{
+                    fontSize: "11px",
+                    padding: "2px 8px",
+                    background: newQueueName === "mt_test_raw" ? "#0369a1" : "#0f172a",
+                    border: "1px solid #0284c7",
+                    borderRadius: "4px",
+                    color: "#38bdf8",
+                  }}
+                  onClick={() => {
+                    setNewQueueName("mt_test_raw");
+                    setNewQueueCollection("raw");
+                    setNewQueueTarget("qa");
+                  }}
+                >
+                  mt_test_raw (raw)
+                </button>
+              </div>
+
+              {/* Queue Name input */}
+              <label style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "12px", fontWeight: 600 }}>
+                Queue Name
+                <input
+                  type="text"
+                  placeholder="e.g. mt-enricher"
+                  value={newQueueName}
+                  onChange={(e) => setNewQueueName(e.target.value)}
+                  disabled={adding}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: "6px",
+                    border: "1px solid #475569",
+                    background: "#0f172a",
+                    color: "#f8fafc",
+                    fontFamily: "monospace",
+                    fontSize: "13px",
+                  }}
+                />
+              </label>
+
+              {/* Environment Target & Collection */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "12px", fontWeight: 600 }}>
+                  Environment Target
+                  <select
+                    value={newQueueTarget || (status?.ingest_lanes?.[0]?.target || "qa")}
+                    onChange={(e) => setNewQueueTarget(e.target.value)}
+                    disabled={adding}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: "6px",
+                      border: "1px solid #475569",
+                      background: "#0f172a",
+                      color: "#f8fafc",
+                      fontSize: "13px",
+                    }}
+                  >
+                    <option value="qa">QA (mt-connect-qa)</option>
+                    <option value="pp">PP (mt-connect-preprod)</option>
+                    <option value="uat">UAT (mt-connect)</option>
+                  </select>
+                </label>
+
+                <label style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "12px", fontWeight: 600 }}>
+                  Event Collection
+                  <select
+                    value={newQueueCollection}
+                    onChange={(e) => setNewQueueCollection(e.target.value as "enriched" | "raw" | "dlq")}
+                    disabled={adding}
+                    style={{
+                      padding: "8px 10px",
+                      borderRadius: "6px",
+                      border: "1px solid #475569",
+                      background: "#0f172a",
+                      color: "#f8fafc",
+                      fontSize: "13px",
+                    }}
+                  >
+                    <option value="enriched">Enriched (→ collection 'enriched')</option>
+                    <option value="raw">Raw (→ collection 'raw')</option>
+                    <option value="dlq">DLQ (→ collection 'dlq')</option>
+                  </select>
+                </label>
+              </div>
+
+              {/* Checkbox for broker declaration */}
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", cursor: "pointer", color: "#cbd5e1" }}>
+                <input
+                  type="checkbox"
+                  checked={newQueueDeclare}
+                  onChange={(e) => setNewQueueDeclare(e.target.checked)}
+                  disabled={adding}
+                />
+                Declare & bind in RabbitMQ broker if not already created
+              </label>
+
+              {addNotice && (
+                <p
+                  style={{
+                    margin: "4px 0 0",
+                    fontSize: "12px",
+                    color: addNotice.startsWith("Added") ? "#4ade80" : "#f87171",
+                  }}
+                >
+                  {addNotice}
+                </p>
+              )}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button
+                type="button"
+                disabled={adding}
+                onClick={() => setAddModalOpen(false)}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "6px",
+                  border: "1px solid #475569",
+                  background: "transparent",
+                  color: "inherit",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={adding || !newQueueName.trim()}
+                onClick={async () => {
+                  const q = newQueueName.trim();
+                  setAdding(true);
+                  setAddNotice("");
+                  try {
+                    const target = newQueueTarget || (status?.ingest_lanes?.[0]?.target || "qa");
+                    const res = await addQueue(q, newQueueCollection, target, undefined, newQueueDeclare);
+                    if (res.ok) {
+                      setAddNotice(`Added queue "${q}" to ${target.toUpperCase()} (${newQueueCollection})`);
+                      setNotice(`Added queue "${q}"`);
+                      await refresh();
+                      setTimeout(() => setAddModalOpen(false), 1200);
+                    } else {
+                      setAddNotice(res.error || "Failed to add queue");
+                    }
+                  } catch (err) {
+                    setAddNotice(String(err));
+                  } finally {
+                    setAdding(false);
+                  }
+                }}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "6px",
+                  border: "none",
+                  background: "#0284c7",
+                  color: "#fff",
+                  fontWeight: 600,
+                  cursor: adding || !newQueueName.trim() ? "not-allowed" : "pointer",
+                  opacity: adding || !newQueueName.trim() ? 0.6 : 1,
+                }}
+              >
+                {adding ? "Adding…" : "Add queue"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -850,7 +1336,9 @@ function LogCard({
           <span className="meta-chip">
             <strong>platform</strong> {row["source.platformEnvironment"] || "—"}
           </span>
-          <span className="meta-chip"><strong>occurredAt</strong> {row.occurredAt}</span>
+          <span className="meta-chip">
+            <strong>occurredAt</strong> {row.occurredAt ? new Date(row.occurredAt).toLocaleString() : "—"}
+          </span>
           {row.fetchedFrom === "payload-dumps" ? (
             <span
               className="meta-chip"

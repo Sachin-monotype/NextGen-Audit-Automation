@@ -12,6 +12,7 @@ import os
 from dataclasses import dataclass, field, replace
 
 from audit_validator.env_profiles import (
+    audit_target_name,
     get_audit_profile,
     mongo_db_for_profile,
     mongo_url_for_profile,
@@ -110,9 +111,9 @@ class IngestLaneConfig:
     target: str
     vhost: str
     rabbitmq_url: str
-    mongo_url: str
-    mongo_db: str
-    config: IngestionConfig
+    mongo_url: str = ""
+    mongo_db: str = ""
+    config: IngestionConfig = None  # type: ignore[assignment]
 
 
 def load_ingestion_config(
@@ -145,10 +146,12 @@ def load_ingestion_config(
     # Prefer active profile DLQ (UAT → mt.raw_dlq[Do not Delete)); never fall back
     # to the platform resolver.dlq when a profile queue is configured.
     profile_dlq = ""
+    active_profile = None
     try:
         from audit_validator.env_profiles import get_audit_profile
 
-        profile_dlq = (get_audit_profile().dead_letter_queue or "").strip()
+        active_profile = get_audit_profile()
+        profile_dlq = (active_profile.dead_letter_queue or "").strip()
     except Exception:
         profile_dlq = ""
     dlq_queue = _env(
@@ -174,10 +177,33 @@ def load_ingestion_config(
         QueueBinding("enriched", enriched_queue, enriched_col),
         QueueBinding("dlq", dlq_queue, dlq_col),
     ]
-    if raw_queue != "mt_test_raw" and _env_bool("INGEST_ADD_TEST_QUEUES", False):
-        bindings.append(QueueBinding("raw_test", "mt_test_raw", raw_col))
-    if enriched_queue != "mt_test enrich" and _env_bool("INGEST_ADD_TEST_QUEUES", False):
-        bindings.append(QueueBinding("enriched_test", "mt_test enrich", enriched_col))
+
+    include_test = _env_bool("INGEST_ADD_TEST_QUEUES", False)
+    test_raw = _env("INGEST_TEST_RAW_QUEUE", getattr(active_profile, "test_raw_queue", ""))
+    test_enriched = _env("INGEST_TEST_ENRICHED_QUEUE", getattr(active_profile, "test_enriched_queue", ""))
+    if include_test:
+        if test_raw and raw_queue != test_raw and not any(b.queue == test_raw for b in bindings):
+            bindings.append(QueueBinding("raw_test", test_raw, raw_col))
+        if test_enriched and enriched_queue != test_enriched and not any(b.queue == test_enriched for b in bindings):
+            bindings.append(QueueBinding("enriched_test", test_enriched, enriched_col))
+
+    # Support dynamically added queues from the UI (stored as comma-separated target:queue:collection)
+    extra_queues_str = _env("INGEST_EXTRA_QUEUES", "").strip()
+    if extra_queues_str:
+        active_target = getattr(active_profile, "name", audit_target_name()).lower()
+        for item in extra_queues_str.split(","):
+            parts = [p.strip() for p in item.split(":") if p.strip()]
+            if len(parts) == 3:
+                item_target, item_queue, item_col = parts[0].lower(), parts[1], parts[2].lower()
+            elif len(parts) == 2:
+                item_target, item_queue, item_col = active_target, parts[0], parts[1].lower()
+            elif len(parts) == 1:
+                item_target, item_queue, item_col = active_target, parts[0], "enriched"
+            else:
+                continue
+            if item_target == active_target and not any(b.queue == item_queue for b in bindings):
+                col_name = enriched_col if item_col == "enriched" else (raw_col if item_col == "raw" else dlq_col)
+                bindings.append(QueueBinding(f"{item_col}_{item_queue}", item_queue, col_name))
 
     return IngestionConfig(
         rabbitmq_url=rabbitmq_url or _env("INGEST_RABBITMQ_URL", _env("RABBITMQ_URL", "amqp://localhost:5672/%2F")),
@@ -228,6 +254,31 @@ def load_ingest_lanes(
             QueueBinding("enriched", enriched_q, "enriched"),
             QueueBinding("dlq", dlq_q, "dlq"),
         ]
+        include_test = _env_bool("INGEST_ADD_TEST_QUEUES", False)
+        test_raw = _env("INGEST_TEST_RAW_QUEUE", getattr(profile, "test_raw_queue", ""))
+        test_enriched = _env("INGEST_TEST_ENRICHED_QUEUE", getattr(profile, "test_enriched_queue", ""))
+        if include_test:
+            if test_raw and raw_q != test_raw and not any(b.queue == test_raw for b in lane_bindings):
+                lane_bindings.append(QueueBinding("raw_test", test_raw, "raw"))
+            if test_enriched and enriched_q != test_enriched and not any(b.queue == test_enriched for b in lane_bindings):
+                lane_bindings.append(QueueBinding("enriched_test", test_enriched, "enriched"))
+
+        # Extra dynamic queues configured from UI
+        extra_queues_str = _env("INGEST_EXTRA_QUEUES", "").strip()
+        if extra_queues_str:
+            for item in extra_queues_str.split(","):
+                parts = [p.strip() for p in item.split(":") if p.strip()]
+                if len(parts) == 3:
+                    item_target, item_queue, item_col = parts[0].lower(), parts[1], parts[2].lower()
+                elif len(parts) == 2:
+                    item_target, item_queue, item_col = target.lower(), parts[0], parts[1].lower()
+                elif len(parts) == 1:
+                    item_target, item_queue, item_col = target.lower(), parts[0], "enriched"
+                else:
+                    continue
+                if item_target == target.lower() and not any(b.queue == item_queue for b in lane_bindings):
+                    lane_bindings.append(QueueBinding(f"{item_col}_{item_queue}", item_queue, item_col))
+
         lane_config = replace(
             root,
             rabbitmq_url=lane_rmq,

@@ -87,6 +87,8 @@ class AuditTargetProfile:
     oauth_username: str = ""
     # Password-grant OAuth for the Bearer credentials modal (QA uses PP user login).
     user_oauth: OAuthProfile | None = None
+    test_raw_queue: str = ""
+    test_enriched_queue: str = ""
 
 
 PP_PREPROD = AuditTargetProfile(
@@ -171,6 +173,8 @@ QA = AuditTargetProfile(
     oauth=QA_OAUTH,
     oauth_username="monotype.staging+testuser11new@gmail.com",
     user_oauth=QA_USER_OAUTH,
+    test_raw_queue="",
+    test_enriched_queue="",
 )
 
 EVEREST_DEV = AuditTargetProfile(

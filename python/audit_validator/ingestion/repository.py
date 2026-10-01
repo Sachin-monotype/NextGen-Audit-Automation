@@ -8,6 +8,8 @@ or as a standalone worker.
 from __future__ import annotations
 
 import logging
+import os
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -94,8 +96,22 @@ def _sanitize_doc(obj: Any) -> Any:
     return obj
 
 
+def _extract_op(d: dict[str, Any]) -> str:
+    src = d.get("source")
+    if isinstance(src, dict) and src.get("operation"):
+        return str(src.get("operation"))
+    if d.get("operation"):
+        return str(d.get("operation"))
+    if d.get("event_name"):
+        return str(d.get("event_name"))
+    if d.get("eventName"):
+        return str(d.get("eventName"))
+    return "unclassified"
+
+
 class MongoWriter:
     def __init__(self, url: str, database: str) -> None:
+        self._database_name: str = database
         self._client: MongoClient = MongoClient(url, serverSelectionTimeoutMS=10000)
         self._db: Database = self._client[database]
 
@@ -119,8 +135,70 @@ class MongoWriter:
                     log.warning("ensure index %s on %s failed: %s", index_name, name, exc)
             log.info("Ensured indexes for collection: %s", name)
 
-    def insert_many(self, collection_name: str, documents: list[dict[str, Any]]) -> int:
-        """Insert a batch, tolerating already-ingested docs.
+    def _get_max_retain(self, collection_name: str) -> int:
+        try:
+            from .config import max_docs_for_mongo_db
+
+            cap = max_docs_for_mongo_db(getattr(self, "_database_name", ""))
+            if cap > 0:
+                return cap
+        except Exception:
+            pass
+        raw = os.getenv("MONGO_RETENTION_MAX_DOCS_PER_OPERATION")
+        if raw:
+            try:
+                val = int(raw)
+                if val > 0:
+                    return val
+            except ValueError:
+                pass
+        return 5
+
+    def _prune_older_data(
+        self, collection_name: str, documents: list[dict[str, Any]], max_retain: int
+    ) -> None:
+        if max_retain <= 0 or not documents:
+            return
+        try:
+            col = self.collection(collection_name)
+            op_counts: dict[str, int] = defaultdict(int)
+            for d in documents:
+                op = _extract_op(d)
+                op_counts[op] += 1
+
+            stale_ids: list[Any] = []
+            for op, incoming_cnt in op_counts.items():
+                keep = max(0, max_retain - incoming_cnt)
+                if op == "unclassified":
+                    query = {
+                        "$or": [
+                            {"source.operation": {"$exists": False}},
+                            {"source.operation": None},
+                            {"source.operation": ""},
+                        ]
+                    }
+                else:
+                    query = {"source.operation": op}
+                cursor = (
+                    col.find(query, {"_id": 1})
+                    .sort([("occurredAt", DESCENDING), ("_id", DESCENDING)])
+                    .skip(keep)
+                )
+                stale_ids.extend(d["_id"] for d in cursor)
+
+            if stale_ids:
+                col.delete_many({"_id": {"$in": stale_ids}})
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Pruning older data before insert into %s failed: %s", collection_name, exc)
+
+    def insert_many(
+        self,
+        collection_name: str,
+        documents: list[dict[str, Any]],
+        *,
+        max_retain_per_op: int | None = None,
+    ) -> int:
+        """Insert a batch, removing older data for matching operations and tolerating already-ingested docs.
 
         Messages carry their Mongo ``_id`` from the source, and the subscription queues
         can redeliver the same event (or a queue backlog overlaps what's already stored).
@@ -132,20 +210,63 @@ class MongoWriter:
         """
         if not documents:
             return 0
-        # Sanitize oversized ints (e.g. nanosecond timestamps) that BSON cannot store.
         safe_docs = [_sanitize_doc(d) for d in documents]
+        max_retain = (
+            max_retain_per_op
+            if max_retain_per_op is not None
+            else self._get_max_retain(collection_name)
+        )
+
+        if max_retain > 0:
+            self._prune_older_data(collection_name, safe_docs, max_retain)
+
         try:
             result = self.collection(collection_name).insert_many(safe_docs, ordered=False)
-            return len(result.inserted_ids)
+            inserted = len(result.inserted_ids)
         except BulkWriteError as exc:
             write_errors = exc.details.get("writeErrors", []) if isinstance(exc.details, dict) else []
             non_dup = [e for e in write_errors if e.get("code") != 11000]
             inserted = int(exc.details.get("nInserted", 0)) if isinstance(exc.details, dict) else 0
             if non_dup:
-                # Real errors (not just duplicates) — surface for retry/nack.
                 raise
-            # All failures were duplicate _id — those docs are already stored.
-            return inserted
+        except Exception as exc:
+            if "space quota" in str(exc) or getattr(exc, "code", None) == 8000:
+                log.warning("Space quota hit on %s — aggressively pruning older docs...", collection_name)
+                self.cleanup_collection(collection_name, max_retain=max(1, max_retain // 2))
+                result = self.collection(collection_name).insert_many(safe_docs, ordered=False)
+                return len(result.inserted_ids)
+            raise
+
+        # Clean up any potential overshoot if the incoming batch itself had more than max_retain per op
+        if max_retain > 0:
+            try:
+                col = self.collection(collection_name)
+                ops = {_extract_op(d) for d in safe_docs}
+                overshoot_ids: list[Any] = []
+                for op in ops:
+                    query = (
+                        {"source.operation": op}
+                        if op != "unclassified"
+                        else {
+                            "$or": [
+                                {"source.operation": {"$exists": False}},
+                                {"source.operation": None},
+                                {"source.operation": ""},
+                            ]
+                        }
+                    )
+                    cursor = (
+                        col.find(query, {"_id": 1})
+                        .sort([("occurredAt", DESCENDING), ("_id", DESCENDING)])
+                        .skip(max_retain)
+                    )
+                    overshoot_ids.extend(d["_id"] for d in cursor)
+                if overshoot_ids:
+                    col.delete_many({"_id": {"$in": overshoot_ids}})
+            except Exception as exc:  # noqa: BLE001
+                log.warning("Post-insert prune on %s failed: %s", collection_name, exc)
+
+        return inserted
 
     def cleanup_collection(
         self,

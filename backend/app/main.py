@@ -568,6 +568,124 @@ def ingestion_purge() -> dict[str, Any]:
     return ingestion.purge()
 
 
+class AddQueueRequest(BaseModel):
+    queue: str
+    collection: str = "enriched"  # raw | enriched | dlq
+    target: str | None = None
+    vhost: str | None = None
+    declare_on_broker: bool = True
+
+
+@app.post("/api/rabbitmq/add-queue")
+def add_rabbitmq_queue(req: AddQueueRequest) -> dict[str, Any]:
+    """Add a queue dynamically from the UI and register it into live ingestion."""
+    queue = req.queue.strip()
+    if not queue:
+        raise HTTPException(status_code=400, detail="Queue name is required")
+    collection = req.collection.strip().lower()
+    if collection not in {"raw", "enriched", "dlq"}:
+        collection = "enriched"
+    try:
+        import os
+        from dotenv import set_key
+        from audit_validator.env_profiles import get_audit_profile, rabbitmq_url_for_profile, _rabbitmq_url_for_vhost
+        from audit_validator.rabbitmq.purge import declare_and_bind_queue
+
+        target = (req.target or os.getenv("AUDIT_TARGET") or "qa").strip().lower()
+        profile = get_audit_profile(target)
+        lane_rmq = rabbitmq_url_for_profile(profile)
+        if req.vhost:
+            lane_rmq = _rabbitmq_url_for_vhost(lane_rmq or os.getenv("RABBITMQ_URL", ""), req.vhost)
+
+        broker_res = {"ok": True}
+        if req.declare_on_broker and lane_rmq:
+            broker_res = declare_and_bind_queue(lane_rmq, queue, collection)
+
+        # Register in INGEST_EXTRA_QUEUES
+        env_path = str(settings.audit_project_root / ".env")
+        current_extras = (os.getenv("INGEST_EXTRA_QUEUES") or "").strip()
+        items = [i.strip() for i in current_extras.split(",") if i.strip()]
+        new_entry = f"{target}:{queue}:{collection}"
+        if new_entry not in items:
+            items.append(new_entry)
+            updated_extras = ",".join(items)
+            os.environ["INGEST_EXTRA_QUEUES"] = updated_extras
+            try:
+                set_key(env_path, "INGEST_EXTRA_QUEUES", updated_extras)
+            except Exception:
+                pass
+
+        # Reconfigure ingestion so consumers begin immediately
+        try:
+            ingestion.reconfigure()
+        except Exception:
+            pass
+
+        return {
+            "ok": True,
+            "queue": queue,
+            "collection": collection,
+            "target": target,
+            "broker": broker_res,
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)}
+
+
+class DeleteQueueRequest(BaseModel):
+    queue: str
+    target: str | None = None
+    vhost: str | None = None
+
+
+@app.post("/api/rabbitmq/delete-queue")
+def delete_rabbitmq_queue(req: DeleteQueueRequest) -> dict[str, Any]:
+    """Delete a queue from the RabbitMQ broker and unregister it from ingestion."""
+    queue = req.queue.strip()
+    if not queue:
+        raise HTTPException(status_code=400, detail="Queue name is required")
+    try:
+        import os
+        from dotenv import set_key
+        from audit_validator.env_profiles import get_audit_profile, rabbitmq_url_for_profile, _rabbitmq_url_for_vhost
+        from audit_validator.rabbitmq.purge import delete_queue_from_broker
+
+        target = (req.target or os.getenv("AUDIT_TARGET") or "qa").strip().lower()
+        profile = get_audit_profile(target)
+        lane_rmq = rabbitmq_url_for_profile(profile)
+        if req.vhost:
+            lane_rmq = _rabbitmq_url_for_vhost(lane_rmq or os.getenv("RABBITMQ_URL", ""), req.vhost)
+
+        res = delete_queue_from_broker(lane_rmq, queue)
+
+        # Remove from INGEST_EXTRA_QUEUES if present
+        env_path = str(settings.audit_project_root / ".env")
+        current_extras = (os.getenv("INGEST_EXTRA_QUEUES") or "").strip()
+        if current_extras:
+            items = [i.strip() for i in current_extras.split(",") if i.strip()]
+            filtered = [
+                i for i in items
+                if not (i == queue or i.startswith(f"{target}:{queue}:") or f":{queue}:" in f":{i}:")
+            ]
+            if len(filtered) != len(items):
+                updated_extras = ",".join(filtered)
+                os.environ["INGEST_EXTRA_QUEUES"] = updated_extras
+                try:
+                    set_key(env_path, "INGEST_EXTRA_QUEUES", updated_extras)
+                except Exception:
+                    pass
+
+        try:
+            ingestion.reconfigure()
+        except Exception:
+            pass
+
+        return res
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)}
+
+
+
 @app.post("/api/mongo/prune")
 def mongo_prune(max_docs: int | None = Query(None, ge=1)) -> dict[str, Any]:
     """Trim each collection to the latest N docs per operation (defaults to configured retention)."""
